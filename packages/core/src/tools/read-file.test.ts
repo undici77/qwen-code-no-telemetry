@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { ReadFileToolParams } from './read-file.js';
 import { ReadFileTool } from './read-file.js';
 import { ToolErrorType } from './tool-error.js';
@@ -17,10 +17,6 @@ import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import { StandardFileSystemService } from '../services/fileSystemService.js';
 import { createMockWorkspaceContext } from '../test-utils/mockWorkspaceContext.js';
 import type { ToolInvocation, ToolResult } from './tools.js';
-
-vi.mock('../telemetry/loggers.js', () => ({
-  logFileOperation: vi.fn(),
-}));
 
 describe('ReadFileTool', () => {
   let tempRootDir: string;

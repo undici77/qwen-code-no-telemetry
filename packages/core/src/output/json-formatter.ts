@@ -5,11 +5,10 @@
  */
 
 import stripAnsi from 'strip-ansi';
-import type { SessionMetrics } from '../telemetry/uiTelemetry.js';
 import type { JsonError, JsonOutput } from './types.js';
 
 export class JsonFormatter {
-  format(response?: string, stats?: SessionMetrics, error?: JsonError): string {
+  format(response?: string, stats?: unknown, error?: JsonError): string {
     const output: JsonOutput = {};
 
     if (response !== undefined) {

@@ -71,16 +71,6 @@ import { SkillManager } from '../skills/skill-manager.js';
 import { SubagentManager } from '../subagents/subagent-manager.js';
 import type { SubagentConfig } from '../subagents/types.js';
 import {
-  DEFAULT_OTLP_ENDPOINT,
-  DEFAULT_TELEMETRY_TARGET,
-  initializeTelemetry,
-  logStartSession,
-  logRipgrepFallback,
-  RipgrepFallbackEvent,
-  StartSessionEvent,
-  type TelemetryTarget,
-} from '../telemetry/index.js';
-import {
   ExtensionManager,
   type Extension,
 } from '../extension/extensionManager.js';
@@ -90,8 +80,6 @@ import { shouldAttemptBrowserLaunch } from '../utils/browser.js';
 import { FileExclusions } from '../utils/ignorePatterns.js';
 import { WorkspaceContext } from '../utils/workspaceContext.js';
 import { isToolEnabled, type ToolName } from '../utils/tool-utils.js';
-import { getErrorMessage } from '../utils/errors.js';
-
 // Local config modules
 import type { FileFilteringOptions } from './constants.js';
 import {
@@ -188,16 +176,6 @@ export interface ChatCompressionSettings {
 
 export interface SummarizeToolOutputSettings {
   tokenBudget?: number;
-}
-
-export interface TelemetrySettings {
-  enabled?: boolean;
-  target?: TelemetryTarget;
-  otlpEndpoint?: string;
-  otlpProtocol?: 'grpc' | 'http';
-  logPrompts?: boolean;
-  outfile?: string;
-  useCollector?: boolean;
 }
 
 export interface OutputSettings {
@@ -305,7 +283,6 @@ export interface ConfigParameters {
   approvalMode?: ApprovalMode;
   contextFileName?: string | string[];
   accessibility?: AccessibilitySettings;
-  telemetry?: TelemetrySettings;
   gitCoAuthor?: boolean;
   usageStatisticsEnabled?: boolean;
   fileFiltering?: {
@@ -452,7 +429,6 @@ export class Config {
   private geminiMdFileCount: number;
   private approvalMode: ApprovalMode;
   private readonly accessibility: AccessibilitySettings;
-  private readonly telemetrySettings: TelemetrySettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
   private readonly usageStatisticsEnabled: boolean;
   private geminiClient!: GeminiClient;
@@ -557,15 +533,6 @@ export class Config {
     this.geminiMdFileCount = params.geminiMdFileCount ?? 0;
     this.approvalMode = params.approvalMode ?? ApprovalMode.DEFAULT;
     this.accessibility = params.accessibility ?? {};
-    this.telemetrySettings = {
-      enabled: params.telemetry?.enabled ?? false,
-      target: params.telemetry?.target ?? DEFAULT_TELEMETRY_TARGET,
-      otlpEndpoint: params.telemetry?.otlpEndpoint ?? DEFAULT_OTLP_ENDPOINT,
-      otlpProtocol: params.telemetry?.otlpProtocol,
-      logPrompts: params.telemetry?.logPrompts ?? true,
-      outfile: params.telemetry?.outfile,
-      useCollector: params.telemetry?.useCollector,
-    };
     this.gitCoAuthor = {
       enabled: params.gitCoAuthor ?? true,
       name: 'Qwen-Coder',
@@ -656,10 +623,6 @@ export class Config {
       onModelChange: this.handleModelChange.bind(this),
     });
 
-    if (this.telemetrySettings.enabled) {
-      initializeTelemetry(this);
-    }
-
     if (this.getProxy()) {
       setGlobalDispatcher(new ProxyAgent(this.getProxy() as string));
     }
@@ -723,7 +686,6 @@ export class Config {
     // Detect and capture runtime model snapshot (from CLI/ENV/credentials)
     this.modelsConfig.detectAndCaptureRuntimeModel();
 
-    logStartSession(this, new StartSessionEvent(this));
     this.debugLogger.info('Config initialization completed');
   }
 
@@ -861,7 +823,6 @@ export class Config {
       ? new ChatRecordingService(this)
       : undefined;
     if (this.initialized) {
-      logStartSession(this, new StartSessionEvent(this));
     }
     return this.sessionId;
   }
@@ -1252,36 +1213,8 @@ export class Config {
     return this.accessibility;
   }
 
-  getTelemetryEnabled(): boolean {
-    return this.telemetrySettings.enabled ?? false;
-  }
-
-  getTelemetryLogPromptsEnabled(): boolean {
-    return this.telemetrySettings.logPrompts ?? true;
-  }
-
-  getTelemetryOtlpEndpoint(): string {
-    return this.telemetrySettings.otlpEndpoint ?? DEFAULT_OTLP_ENDPOINT;
-  }
-
-  getTelemetryOtlpProtocol(): 'grpc' | 'http' {
-    return this.telemetrySettings.otlpProtocol ?? 'grpc';
-  }
-
-  getTelemetryTarget(): TelemetryTarget {
-    return this.telemetrySettings.target ?? DEFAULT_TELEMETRY_TARGET;
-  }
-
-  getTelemetryOutfile(): string | undefined {
-    return this.telemetrySettings.outfile;
-  }
-
   getGitCoAuthor(): GitCoAuthorSettings {
     return this.gitCoAuthor;
-  }
-
-  getTelemetryUseCollector(): boolean {
-    return this.telemetrySettings.useCollector ?? false;
   }
 
   getGeminiClient(): GeminiClient {
@@ -1683,24 +1616,14 @@ export class Config {
 
     if (this.getUseRipgrep()) {
       let useRipgrep = false;
-      let errorString: undefined | string = undefined;
       try {
         useRipgrep = await canUseRipgrep(this.getUseBuiltinRipgrep());
-      } catch (error: unknown) {
-        errorString = getErrorMessage(error);
+      } catch {
+        // ignore errors, fallback to GrepTool
       }
       if (useRipgrep) {
         registerCoreTool(RipGrepTool, this);
       } else {
-        // Log for telemetry
-        logRipgrepFallback(
-          this,
-          new RipgrepFallbackEvent(
-            this.getUseRipgrep(),
-            this.getUseBuiltinRipgrep(),
-            errorString || 'ripgrep is not available',
-          ),
-        );
         registerCoreTool(GrepTool, this);
       }
     } else {

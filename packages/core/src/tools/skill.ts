@@ -10,7 +10,6 @@ import type { ToolResult, ToolResultDisplay } from './tools.js';
 import type { Config } from '../config/config.js';
 import type { SkillManager } from '../skills/skill-manager.js';
 import type { SkillConfig } from '../skills/types.js';
-import { logSkillLaunch, SkillLaunchEvent } from '../telemetry/index.js';
 import path from 'path';
 import { createDebugLogger } from '../utils/debugLogger.js';
 
@@ -186,7 +185,7 @@ ${skillDescriptions}
 
 class SkillToolInvocation extends BaseToolInvocation<SkillParams, ToolResult> {
   constructor(
-    private readonly config: Config,
+    _config: Config,
     private readonly skillManager: SkillManager,
     params: SkillParams,
   ) {
@@ -213,12 +212,6 @@ class SkillToolInvocation extends BaseToolInvocation<SkillParams, ToolResult> {
       );
 
       if (!skill) {
-        // Log failed skill launch
-        logSkillLaunch(
-          this.config,
-          new SkillLaunchEvent(this.params.skill, false),
-        );
-
         // Get parse errors if any
         const parseErrors = this.skillManager.getParseErrors();
         const errorMessages: string[] = [];
@@ -240,12 +233,6 @@ class SkillToolInvocation extends BaseToolInvocation<SkillParams, ToolResult> {
         };
       }
 
-      // Log successful skill launch
-      logSkillLaunch(
-        this.config,
-        new SkillLaunchEvent(this.params.skill, true),
-      );
-
       const baseDir = path.dirname(skill.filePath);
 
       // Build markdown content for LLM (show base dir, then body)
@@ -259,12 +246,6 @@ class SkillToolInvocation extends BaseToolInvocation<SkillParams, ToolResult> {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       debugLogger.error(`[SkillsTool] Error using skill: ${errorMessage}`);
-
-      // Log failed skill launch
-      logSkillLaunch(
-        this.config,
-        new SkillLaunchEvent(this.params.skill, false),
-      );
 
       return {
         llmContent: `Failed to load skill "${this.params.skill}": ${errorMessage}`,

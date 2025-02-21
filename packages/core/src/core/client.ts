@@ -47,12 +47,6 @@ import { LoopDetectionService } from '../services/loopDetectionService.js';
 // Tools
 import { TaskTool } from '../tools/task.js';
 
-// Telemetry
-import {
-  NextSpeakerCheckEvent,
-  logNextSpeakerCheck,
-} from '../telemetry/index.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 // Utilities
 import {
@@ -89,6 +83,9 @@ export class GeminiClient {
    * being forced and did it fail?
    */
   private hasFailedCompressionAttempt = false;
+
+  /** Token count from the last API response, used for compression threshold checks. */
+  private lastPromptTokenCount = 0;
 
   constructor(private readonly config: Config) {
     this.loopDetector = new LoopDetectionService(config);
@@ -437,25 +434,6 @@ export class GeminiClient {
       yield { type: GeminiEventType.ChatCompressed, value: compressed };
     }
 
-    // Check session token limit after compression.
-    // `lastPromptTokenCount` is treated as authoritative for the (possibly compressed) history;
-    const sessionTokenLimit = this.config.getSessionTokenLimit();
-    if (sessionTokenLimit > 0) {
-      const lastPromptTokenCount = uiTelemetryService.getLastPromptTokenCount();
-      if (lastPromptTokenCount > sessionTokenLimit) {
-        yield {
-          type: GeminiEventType.SessionTokenLimitExceeded,
-          value: {
-            currentTokens: lastPromptTokenCount,
-            limit: sessionTokenLimit,
-            message:
-              `Session token limit exceeded: ${lastPromptTokenCount} tokens > ${sessionTokenLimit} limit. ` +
-              'Please start a new session or increase the sessionTokenLimit in your settings.json.',
-          },
-        };
-        return new Turn(this.getChat(), prompt_id);
-      }
-    }
 
     // Prevent context updates from being sent while a tool call is
     // waiting for a response. The Qwen API requires that a functionResponse
@@ -532,6 +510,12 @@ export class GeminiClient {
         }
       }
       yield event;
+      if (event.type === GeminiEventType.Finished) {
+        const promptTokens = event.value.usageMetadata?.promptTokenCount;
+        if (promptTokens !== undefined) {
+          this.lastPromptTokenCount = promptTokens;
+        }
+      }
       if (event.type === GeminiEventType.Error) {
         return turn;
       }
@@ -546,14 +530,6 @@ export class GeminiClient {
         this.config,
         signal,
         prompt_id,
-      );
-      logNextSpeakerCheck(
-        this.config,
-        new NextSpeakerCheckEvent(
-          prompt_id,
-          turn.finishReason?.toString() || '',
-          nextSpeakerCheck?.next_speaker || '',
-        ),
       );
       if (nextSpeakerCheck?.next_speaker === 'model') {
         const nextRequest = [{ text: 'Please continue.' }];
@@ -640,6 +616,7 @@ export class GeminiClient {
       this.config.getModel(),
       this.config,
       this.hasFailedCompressionAttempt,
+      this.lastPromptTokenCount,
     );
 
     // Handle compression result
@@ -653,8 +630,8 @@ export class GeminiClient {
         });
 
         this.chat = await this.startChat(newHistory);
-        uiTelemetryService.setLastPromptTokenCount(info.newTokenCount);
         this.forceFullIdeContext = true;
+        this.lastPromptTokenCount = info.newTokenCount;
       }
     } else if (
       info.compressionStatus ===

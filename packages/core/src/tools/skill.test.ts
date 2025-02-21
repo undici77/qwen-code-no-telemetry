@@ -30,16 +30,6 @@ type SkillToolWithProtectedMethods = SkillTool & {
 
 // Mock dependencies
 vi.mock('../skills/skill-manager.js');
-vi.mock('../telemetry/index.js', () => ({
-  logSkillLaunch: vi.fn(),
-  SkillLaunchEvent: class {
-    constructor(
-      public skill_name: string,
-      public success: boolean,
-    ) {}
-  },
-}));
-
 const MockedSkillManager = vi.mocked(SkillManager);
 
 describe('SkillTool', () => {

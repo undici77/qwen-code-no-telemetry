@@ -24,11 +24,6 @@ import { FileEncoding } from '../services/fileSystemService.js';
 import { DEFAULT_DIFF_OPTIONS, getDiffStat } from './diffOptions.js';
 import { ReadFileTool } from './read-file.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
-import { logFileOperation } from '../telemetry/loggers.js';
-import { FileOperationEvent } from '../telemetry/types.js';
-import { FileOperation } from '../telemetry/metrics.js';
-import { getSpecificMimeType } from '../utils/fileUtils.js';
-import { getLanguageFromFilePath } from '../utils/language-detection.js';
 import type {
   ModifiableDeclarativeTool,
   ModifyContext,
@@ -413,28 +408,6 @@ class EditToolInvocation implements ToolInvocation<EditToolParams, ToolResult> {
         newContent: editData.newContent,
         diffStat,
       };
-
-      // Log file operation for telemetry (without diff_stat to avoid double-counting)
-      const mimetype = getSpecificMimeType(this.params.file_path);
-      const programmingLanguage = getLanguageFromFilePath(
-        this.params.file_path,
-      );
-      const extension = path.extname(this.params.file_path);
-      const operation = editData.isNewFile
-        ? FileOperation.CREATE
-        : FileOperation.UPDATE;
-
-      logFileOperation(
-        this.config,
-        new FileOperationEvent(
-          EditTool.Name,
-          operation,
-          editData.newContent.split('\n').length,
-          mimetype,
-          extension,
-          programmingLanguage,
-        ),
-      );
 
       const llmSuccessMessageParts = [
         editData.isNewFile
