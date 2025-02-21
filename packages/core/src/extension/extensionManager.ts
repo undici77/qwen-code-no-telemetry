@@ -14,10 +14,6 @@ import type {
 import {
   Storage,
   Config,
-  logExtensionEnable,
-  logExtensionInstallEvent,
-  logExtensionUninstall,
-  logExtensionDisable,
 } from '../index.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -57,16 +53,7 @@ import type {
 } from './extensionSettings.js';
 import type {
   ExtensionOriginSource,
-  TelemetrySettings,
 } from '../config/config.js';
-import { logExtensionUpdateEvent } from '../telemetry/loggers.js';
-import {
-  ExtensionDisableEvent,
-  ExtensionEnableEvent,
-  ExtensionInstallEvent,
-  ExtensionUninstallEvent,
-  ExtensionUpdateEvent,
-} from '../telemetry/types.js';
 import { loadSkillsFromDir } from '../skills/skill-load.js';
 import { loadSubagentFromDir } from '../subagents/subagent-manager.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
@@ -155,7 +142,6 @@ export interface ExtensionManagerOptions {
   /** Override list of enabled extension names (from CLI -e flag) */
   enabledExtensionOverrides?: string[];
   isWorkspaceTrusted: boolean;
-  telemetrySettings?: TelemetrySettings;
   config?: Config;
   requestConsent?: (options?: ExtensionRequestOptions) => Promise<void>;
   requestSetting?: (setting: ExtensionSetting) => Promise<string>;
@@ -177,21 +163,6 @@ function ensureLeadingAndTrailingSlash(dirPath: string): string {
     result = result + '/';
   }
   return result;
-}
-
-function getTelemetryConfig(
-  cwd: string,
-  telemetrySettings?: TelemetrySettings,
-) {
-  const config = new Config({
-    telemetry: telemetrySettings,
-    interactive: false,
-    targetDir: cwd,
-    cwd,
-    model: '',
-    debugMode: false,
-  });
-  return config;
 }
 
 function filterMcpConfig(original: MCPServerConfig): MCPServerConfig {
@@ -284,7 +255,6 @@ export class ExtensionManager {
   private readonly workspaceDir: string;
 
   private config?: Config;
-  private telemetrySettings?: TelemetrySettings;
   private isWorkspaceTrusted: boolean;
   private requestConsent: (options?: ExtensionRequestOptions) => Promise<void>;
   private requestSetting?: (setting: ExtensionSetting) => Promise<string>;
@@ -307,7 +277,6 @@ export class ExtensionManager {
       options.requestChoicePlugin || (() => Promise.resolve(''));
     this.requestConsent = options.requestConsent || (() => Promise.resolve());
     this.config = options.config;
-    this.telemetrySettings = options.telemetrySettings;
     this.isWorkspaceTrusted = options.isWorkspaceTrusted;
   }
 
@@ -414,8 +383,6 @@ export class ExtensionManager {
     const scopePath =
       scope === SettingScope.Workspace ? currentDir : os.homedir();
     this.enableByPath(name, true, scopePath);
-    const config = getTelemetryConfig(currentDir, this.telemetrySettings);
-    logExtensionEnable(config, new ExtensionEnableEvent(name, scope));
     extension.isActive = true;
     await this.refreshTools();
   }
@@ -429,7 +396,6 @@ export class ExtensionManager {
     cwd?: string,
   ): Promise<void> {
     const currentDir = cwd ?? this.workspaceDir;
-    const config = getTelemetryConfig(currentDir, this.telemetrySettings);
     if (
       scope === SettingScope.System ||
       scope === SettingScope.SystemDefaults
@@ -445,7 +411,6 @@ export class ExtensionManager {
     const scopePath =
       scope === SettingScope.Workspace ? currentDir : os.homedir();
     this.disableByPath(name, true, scopePath);
-    logExtensionDisable(config, new ExtensionDisableEvent(name, scope));
     extension.isActive = false;
     await this.refreshTools();
   }
@@ -730,10 +695,6 @@ export class ExtensionManager {
     previousExtensionConfig?: ExtensionConfig,
   ): Promise<Extension> {
     const currentDir = cwd ?? this.workspaceDir;
-    const telemetryConfig = getTelemetryConfig(
-      currentDir,
-      this.telemetrySettings,
-    );
     let extension: Extension | null;
 
     const isUpdate = !!previousExtensionConfig;
@@ -943,28 +904,8 @@ export class ExtensionManager {
         }
 
         if (isUpdate) {
-          logExtensionUpdateEvent(
-            telemetryConfig,
-            new ExtensionUpdateEvent(
-              newExtensionConfig.name,
-              getExtensionId(newExtensionConfig, installMetadata),
-              newExtensionConfig.version,
-              previousExtensionConfig.version,
-              installMetadata.type,
-              'success',
-            ),
-          );
           this.refreshTools();
         } else {
-          logExtensionInstallEvent(
-            telemetryConfig,
-            new ExtensionInstallEvent(
-              newExtensionConfig.name,
-              newExtensionConfig!.version,
-              installMetadata.source,
-              'success',
-            ),
-          );
           this.enableExtension(newExtensionConfig.name, SettingScope.User);
         }
       } finally {
@@ -994,33 +935,6 @@ export class ExtensionManager {
           // Ignore error
         }
       }
-      const config = newExtensionConfig ?? previousExtensionConfig;
-      const extensionId = config
-        ? getExtensionId(config, installMetadata)
-        : undefined;
-      if (isUpdate) {
-        logExtensionUpdateEvent(
-          telemetryConfig,
-          new ExtensionUpdateEvent(
-            config?.name ?? '',
-            extensionId ?? '',
-            newExtensionConfig?.version ?? '',
-            previousExtensionConfig.version,
-            installMetadata.type,
-            'error',
-          ),
-        );
-      } else {
-        logExtensionInstallEvent(
-          telemetryConfig,
-          new ExtensionInstallEvent(
-            newExtensionConfig?.name ?? '',
-            newExtensionConfig?.version ?? '',
-            installMetadata.source,
-            'error',
-          ),
-        );
-      }
       throw error;
     }
   }
@@ -1033,11 +947,6 @@ export class ExtensionManager {
     isUpdate: boolean,
     cwd?: string,
   ): Promise<void> {
-    const currentDir = cwd ?? this.workspaceDir;
-    const telemetryConfig = getTelemetryConfig(
-      currentDir,
-      this.telemetrySettings,
-    );
     const installedExtensions = this.getLoadedExtensions();
     const extension = installedExtensions.find(
       (installed) =>
@@ -1068,11 +977,6 @@ export class ExtensionManager {
 
     this.removeEnablementConfig(extension.name);
     this.refreshTools();
-
-    logExtensionUninstall(
-      telemetryConfig,
-      new ExtensionUninstallEvent(extension.name, 'success'),
-    );
   }
 
   async performWorkspaceExtensionMigration(

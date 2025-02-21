@@ -14,12 +14,6 @@ import OpenAI from 'openai';
 // Mock OpenAI
 vi.mock('openai');
 
-// Mock logger modules
-vi.mock('../../telemetry/loggers.js', () => ({
-  logApiResponse: vi.fn(),
-  logApiError: vi.fn(),
-}));
-
 vi.mock('../../utils/openaiLogger.js', () => ({
   OpenAILogger: vi.fn().mockImplementation(() => ({
     logInteraction: vi.fn(),

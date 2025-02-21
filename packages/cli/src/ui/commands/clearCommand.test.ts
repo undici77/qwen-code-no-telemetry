@@ -9,17 +9,6 @@ import { clearCommand } from './clearCommand.js';
 import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 
-// Mock the telemetry service
-vi.mock('@qwen-code/qwen-code-core', async () => {
-  const actual = await vi.importActual('@qwen-code/qwen-code-core');
-  return {
-    ...actual,
-    uiTelemetryService: {
-      reset: vi.fn(),
-    },
-  };
-});
-
 import type { GeminiClient } from '@qwen-code/qwen-code-core';
 
 describe('clearCommand', () => {

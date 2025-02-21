@@ -85,10 +85,6 @@ const mockConfigInternal = {
 };
 const mockConfig = mockConfigInternal as unknown as Config;
 
-vi.mock('../telemetry/loggers.js', () => ({
-  logFileOperation: vi.fn(),
-}));
-
 // --- END MOCKS ---
 
 describe('WriteFileTool', () => {

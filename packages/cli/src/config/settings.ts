@@ -105,7 +105,6 @@ const MIGRATION_MAP: Record<string, string> = {
   shellShowColor: 'tools.shell.showColor',
   skipNextSpeakerCheck: 'model.skipNextSpeakerCheck',
   summarizeToolOutput: 'model.summarizeToolOutput',
-  telemetry: 'telemetry',
   theme: 'ui.theme',
   toolDiscoveryCommand: 'tools.discoveryCommand',
   toolCallCommand: 'tools.callCommand',

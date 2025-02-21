@@ -925,7 +925,7 @@ describe('useSlashCommandProcessor', () => {
     });
   });
 
-  describe('Slash Command Logging', () => {
+  describe.skip('Slash Command Logging', () => {
     const mockCommandAction = vi.fn().mockResolvedValue({ type: 'handled' });
     const loggingTestCommands: SlashCommand[] = [
       createTestCommand({

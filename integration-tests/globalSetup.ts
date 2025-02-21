@@ -95,7 +95,6 @@ export async function setup() {
   // Environment variables for CLI integration tests
   process.env['INTEGRATION_TEST_FILE_DIR'] = runDir;
   process.env['GEMINI_CLI_INTEGRATION_TEST'] = 'true';
-  process.env['TELEMETRY_LOG_FILE'] = join(runDir, 'telemetry.log');
 
   // Environment variables for SDK E2E tests
   process.env['E2E_TEST_FILE_DIR'] = sdkE2eRunDir;

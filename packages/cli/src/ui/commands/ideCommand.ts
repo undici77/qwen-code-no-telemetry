@@ -8,9 +8,6 @@ import {
   type Config,
   IdeClient,
   type File,
-  logIdeConnection,
-  IdeConnectionEvent,
-  IdeConnectionType,
 } from '@qwen-code/qwen-code-core';
 import {
   QWEN_CODE_COMPANION_EXTENSION_NAME,
@@ -127,7 +124,6 @@ async function setIdeModeAndSyncConnection(
   const ideClient = await IdeClient.getInstance();
   if (value) {
     await ideClient.connect();
-    logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.SESSION));
   } else {
     await ideClient.disconnect();
   }

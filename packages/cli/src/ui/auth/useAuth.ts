@@ -11,10 +11,8 @@ import type {
   ProviderModelConfig,
 } from '@qwen-code/qwen-code-core';
 import {
-  AuthEvent,
   AuthType,
   getErrorMessage,
-  logAuth,
 } from '@qwen-code/qwen-code-core';
 import { useCallback, useEffect, useState } from 'react';
 import type { LoadedSettings } from '../../config/settings.js';
@@ -81,19 +79,8 @@ export const useAuthCommand = (
         message: getErrorMessage(error),
       });
       onAuthError(errorMessage);
-
-      // Log authentication failure
-      if (pendingAuthType) {
-        const authEvent = new AuthEvent(
-          pendingAuthType,
-          'manual',
-          'error',
-          errorMessage,
-        );
-        logAuth(config, authEvent);
-      }
     },
-    [onAuthError, pendingAuthType, config],
+    [onAuthError],
   );
 
   const handleAuthSuccess = useCallback(
@@ -162,10 +149,6 @@ export const useAuthCommand = (
         },
         Date.now(),
       );
-
-      // Log authentication success
-      const authEvent = new AuthEvent(authType, 'manual', 'success');
-      logAuth(config, authEvent);
     },
     [settings, handleAuthFailure, config, addItem, onAuthChange],
   );
@@ -272,17 +255,11 @@ export const useAuthCommand = (
       cancelQwenAuth();
     }
 
-    // Log authentication cancellation
-    if (isAuthenticating && pendingAuthType) {
-      const authEvent = new AuthEvent(pendingAuthType, 'manual', 'cancelled');
-      logAuth(config, authEvent);
-    }
-
     // Do not reset pendingAuthType here, persist the previously selected type.
     setIsAuthenticating(false);
     setIsAuthDialogOpen(true);
     setAuthError(null);
-  }, [isAuthenticating, pendingAuthType, cancelQwenAuth, config]);
+  }, [isAuthenticating, pendingAuthType, cancelQwenAuth]);
 
   /**
    * Handle coding plan submission - generates configs from template and stores api-key
@@ -390,14 +367,6 @@ export const useAuthCommand = (
           },
           Date.now(),
         );
-
-        // Log success
-        const authEvent = new AuthEvent(
-          AuthType.USE_OPENAI,
-          'coding-plan',
-          'success',
-        );
-        logAuth(config, authEvent);
       } catch (error) {
         handleAuthFailure(error);
       }

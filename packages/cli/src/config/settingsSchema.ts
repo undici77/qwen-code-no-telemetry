@@ -7,7 +7,6 @@
 import type {
   MCPServerConfig,
   BugCommandSettings,
-  TelemetrySettings,
   AuthType,
   ChatCompressionSettings,
   ModelProvidersConfig,
@@ -506,16 +505,6 @@ const SETTINGS_SCHEMA = {
         showInDialog: true,
       },
     },
-  },
-
-  telemetry: {
-    type: 'object',
-    label: 'Telemetry',
-    category: 'Advanced',
-    requiresRestart: true,
-    default: undefined as TelemetrySettings | undefined,
-    description: 'Telemetry configuration.',
-    showInDialog: false,
   },
 
   model: {

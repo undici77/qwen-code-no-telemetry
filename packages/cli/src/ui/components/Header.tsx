@@ -163,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Text bold color={theme.text.accent}>
             &gt;_ Qwen Code
           </Text>
-          <Text color={theme.text.secondary}> (v{version})</Text>
+          <Text color={theme.text.secondary}> (v{version} · no telemetry)</Text>
         </Text>
         {/* Empty line for spacing */}
         <Text> </Text>

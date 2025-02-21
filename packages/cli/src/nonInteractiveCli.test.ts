@@ -8,16 +8,13 @@ import type {
   Config,
   ToolRegistry,
   ServerGeminiStreamEvent,
-  SessionMetrics,
 } from '@qwen-code/qwen-code-core';
 import type { CLIUserMessage } from './nonInteractive/types.js';
 import {
   executeToolCall,
   ToolErrorType,
-  shutdownTelemetry,
   GeminiEventType,
   OutputFormat,
-  uiTelemetryService,
   FatalInputError,
   ApprovalMode,
 } from '@qwen-code/qwen-code-core';
@@ -43,12 +40,7 @@ vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
   return {
     ...original,
     executeToolCall: vi.fn(),
-    shutdownTelemetry: vi.fn(),
-    isTelemetrySdkInitialized: vi.fn().mockReturnValue(true),
     ChatRecordingService: MockChatRecordingService,
-    uiTelemetryService: {
-      getMetrics: vi.fn(),
-    },
   };
 });
 
@@ -65,7 +57,6 @@ describe('runNonInteractive', () => {
   let mockSettings: LoadedSettings;
   let mockToolRegistry: ToolRegistry;
   let mockCoreExecuteToolCall: Mock;
-  let mockShutdownTelemetry: Mock;
   let processStdoutSpy: MockInstance;
   let processStderrSpy: MockInstance;
   let mockGeminiClient: {
@@ -77,7 +68,6 @@ describe('runNonInteractive', () => {
 
   beforeEach(async () => {
     mockCoreExecuteToolCall = vi.mocked(executeToolCall);
-    mockShutdownTelemetry = vi.mocked(shutdownTelemetry);
     mockCommandServiceCreate.mockResolvedValue({
       getCommands: mockGetCommands,
     });
@@ -179,42 +169,11 @@ describe('runNonInteractive', () => {
   });
 
   /**
-   * Creates a default mock SessionMetrics object.
-   * Can be overridden in individual tests if needed.
+   * No-op: telemetry service has been removed. Kept for test compatibility.
    */
-  function createMockMetrics(
-    overrides?: Partial<SessionMetrics>,
-  ): SessionMetrics {
-    return {
-      models: {},
-      tools: {
-        totalCalls: 0,
-        totalSuccess: 0,
-        totalFail: 0,
-        totalDurationMs: 0,
-        totalDecisions: {
-          accept: 0,
-          reject: 0,
-          modify: 0,
-          auto_accept: 0,
-        },
-        byName: {},
-      },
-      files: {
-        totalLinesAdded: 0,
-        totalLinesRemoved: 0,
-      },
-      ...overrides,
-    };
-  }
-
-  /**
-   * Sets up the default mock for uiTelemetryService.getMetrics().
-   * Should be called in beforeEach or at the start of tests that need metrics.
-   */
-  function setupMetricsMock(overrides?: Partial<SessionMetrics>): void {
-    const mockMetrics = createMockMetrics(overrides);
-    vi.mocked(uiTelemetryService.getMetrics).mockReturnValue(mockMetrics);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function setupMetricsMock(_overrides?: unknown): void {
+    // Telemetry service removed; no metrics mock needed
   }
 
   async function* createStreamFromEvents(
@@ -253,7 +212,6 @@ describe('runNonInteractive', () => {
       { isContinuation: false },
     );
     expect(processStdoutSpy).toHaveBeenCalledWith('Hello World');
-    expect(mockShutdownTelemetry).toHaveBeenCalled();
   });
 
   it('should handle a single tool call and respond', async () => {
@@ -559,9 +517,8 @@ describe('runNonInteractive', () => {
     );
     expect(resultMessage).toBeTruthy();
     expect(resultMessage?.result).toBe('Hello World');
-    // Get the actual metrics that were used
-    const actualMetrics = vi.mocked(uiTelemetryService.getMetrics)();
-    expect(resultMessage?.stats).toEqual(actualMetrics);
+    // Stats are undefined since telemetry service was removed
+    expect(resultMessage?.stats).toBeUndefined();
   });
 
   it('should write JSON output with stats for tool-only commands (no text response)', async () => {
@@ -714,9 +671,8 @@ describe('runNonInteractive', () => {
     );
     expect(resultMessage).toBeTruthy();
     expect(resultMessage?.result).toBe('');
-    // Get the actual metrics that were used
-    const actualMetrics = vi.mocked(uiTelemetryService.getMetrics)();
-    expect(resultMessage?.stats).toEqual(actualMetrics);
+    // Stats are undefined since telemetry service was removed
+    expect(resultMessage?.stats).toBeUndefined();
   });
 
   it('should handle errors in JSON format', async () => {
