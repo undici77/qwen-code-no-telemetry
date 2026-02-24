@@ -1,6 +1,6 @@
 FROM docker.io/library/node:20-slim
 
-ARG QWEN_REF="v0.10.5-no-telemetry"
+ARG QWEN_REF="release/v0.10.6-no-telemetry"
 ARG REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 
 ENV QWEN_REF=${QWEN_REF}

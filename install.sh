@@ -9,8 +9,8 @@
 #   curl -fsSL https://undici77.it/install.sh | bash -s <branch-or-tag>
 #
 # Examples:
-#   bash install.sh v0.10.5-no-telemetry
-#   bash install.sh v0.10.5-no-telemetry --source github
+#   bash install.sh v0.10.6-no-telemetry
+#   bash install.sh v0.10.6-no-telemetry --source github
 
 if [[ -z "${BASH_VERSION}" ]]; then
     exec bash "${0}" "${@}"
@@ -36,8 +36,8 @@ usage() {
     echo "Usage: $0 <branch-or-tag> [--source SOURCE]"
     echo ""
     echo "Examples:"
-    echo "  bash install.sh v0.10.5-no-telemetry"
-    echo "  bash install.sh v0.10.5-no-telemetry --source github"
+    echo "  bash install.sh v0.10.6-no-telemetry"
+    echo "  bash install.sh v0.10.6-no-telemetry --source github"
     echo ""
     exit 1
 }

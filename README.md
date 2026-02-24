@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.10.5](https://github.com/QwenLM/qwen-code/blob/v0.10.5/README.md).
+> [original README at v0.10.6](https://github.com/QwenLM/qwen-code/blob/v0.10.6/README.md).
 
 ---
 
@@ -21,8 +21,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.10.5-no-telemetry/install.sh \
-    | bash -s v0.10.5-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.10.6-no-telemetry/install.sh \
+    | bash -s v0.10.6-no-telemetry
 ```
 
 After installation, add this to your `~/.bashrc` if not already present:
@@ -72,7 +72,7 @@ When a new upstream version is released:
 
 ```bash
 git fetch upstream --tags
-git checkout v0.10.5-no-telemetry
+git checkout v0.10.6-no-telemetry
 ./apply-no-telemetry.sh v0.10.6
 ```
 

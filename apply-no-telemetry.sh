@@ -2,55 +2,103 @@
 
 set -euo pipefail
 
+# Check for input argument
 if [[ -z "${1:-}" ]]; then
-    echo "Usage: $0 <new-upstream-tag>"
+    echo "Usage: $0 <version>"
     echo "Example: $0 v0.10.6"
     exit 1
 fi
 
-NEW_TAG="$1"
-NEW_BRANCH="${NEW_TAG}-no-telemetry"
+INPUT_VER="$1"
 
-# Derive previous base tag from current branch name
+# 1. Normalize Variables
+# Determine if input is 'v0.10.6' or 'release/v0.10.6'
+if [[ "${INPUT_VER}" == release/* ]]; then
+    RELEASE_BRANCH="${INPUT_VER}"
+    VERSION_TAG="${INPUT_VER#release/}"
+else
+    RELEASE_BRANCH="release/${INPUT_VER}"
+    VERSION_TAG="${INPUT_VER}"
+fi
+
+NEW_NOTELEM_BRANCH="${RELEASE_BRANCH}-no-telemetry"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-PREV_BASE_TAG="${CURRENT_BRANCH%-no-telemetry}"
+
+# Guess the previous base version by stripping the suffix
+PREV_BASE_GUESS="${CURRENT_BRANCH%-no-telemetry}"
 
 echo "=========================================="
-echo "  Previous : ${CURRENT_BRANCH}"
-echo "  New      : ${NEW_BRANCH}"
+echo "  Source (Old)  : ${CURRENT_BRANCH}"
+echo "  Old Base      : ${PREV_BASE_GUESS}"
+echo "  Upstream New  : ${RELEASE_BRANCH}"
+echo "  Target Branch : ${NEW_NOTELEM_BRANCH}"
 echo "=========================================="
 
-# Sanity checks
+# 2. Preliminary Checks
+# Ensure we are currently on a *-no-telemetry branch
 [[ "${CURRENT_BRANCH}" == *-no-telemetry ]] \
-    || { echo "✗ Current branch '${CURRENT_BRANCH}' is not a *-no-telemetry branch"; exit 1; }
+    || { echo "✗ Error: You must be on the previous *-no-telemetry branch to run this script."; exit 1; }
 
-git rev-parse "${NEW_TAG}" >/dev/null 2>&1 \
-    || { echo "✗ Tag '${NEW_TAG}' not found — run: git fetch upstream --tags"; exit 1; }
-
+# Ensure working directory is clean
 git diff --quiet && git diff --cached --quiet \
-    || { echo "✗ Working tree is not clean"; exit 1; }
+    || { echo "✗ Error: Working tree is not clean. Please commit or stash changes."; exit 1; }
 
-echo ""
-echo "Commits to replay:"
-git log "${PREV_BASE_TAG}..${CURRENT_BRANCH}" --oneline
-echo ""
+# Verify the old base exists (to calculate which commits are yours)
+if ! git rev-parse "${PREV_BASE_GUESS}" >/dev/null 2>&1; then
+    echo "✗ Error: Could not find the previous base tag/branch: '${PREV_BASE_GUESS}'"
+    echo "  Make sure you have run 'git fetch --all --tags'"
+    exit 1
+fi
 
-# Create new branch from new tag and replay no-telemetry commits
-git checkout -b "${NEW_BRANCH}" "${NEW_TAG}"
+# 3. Update Upstream
+echo "➜ Fetching upstream..."
+git fetch upstream --tags
 
-if git rebase --onto HEAD "${PREV_BASE_TAG}" "${CURRENT_BRANCH}"; then
-    git tag "${NEW_BRANCH}"
+# 4. Create/Reset the Clean Official Branch
+# We use -B to force reset if the branch already exists locally
+echo "➜ Aligning local '${RELEASE_BRANCH}' with upstream..."
+git checkout -B "${RELEASE_BRANCH}" "upstream/${RELEASE_BRANCH}"
+
+echo "✓ Clean branch '${RELEASE_BRANCH}' updated."
+# Optional: Push the clean branch to origin
+# git push origin "${RELEASE_BRANCH}"
+
+# 5. Create the New No-Telemetry Branch
+echo "➜ Preparing new branch '${NEW_NOTELEM_BRANCH}'..."
+
+# Go back to the old branch to grab the state
+git checkout "${CURRENT_BRANCH}"
+
+# Create (or overwrite with -B) the new branch, initially pointing to the OLD state.
+# We do this so Git knows where the commits are coming from before we move them.
+git checkout -B "${NEW_NOTELEM_BRANCH}"
+
+echo "➜ Replaying patches from ${PREV_BASE_GUESS} onto new base ${RELEASE_BRANCH}..."
+
+# REBASE STRATEGY:
+# Take commits between PREV_BASE_GUESS and HEAD (the current branch)
+# and apply them on top of 'upstream/release/v0.10.6'.
+if git rebase --onto "upstream/${RELEASE_BRANCH}" "${PREV_BASE_GUESS}" "${NEW_NOTELEM_BRANCH}"; then
     echo ""
-    echo "✓ Done! ${NEW_BRANCH} is ready."
+    echo "✓ Success! You are now on branch: ${NEW_NOTELEM_BRANCH}"
+    echo "  Your custom changes have been applied on top of version ${VERSION_TAG}."
     echo ""
-    read -r -p "Push to origin? [y/N] " confirm
-    [[ "${confirm}" =~ ^[Yy]$ ]] && git push origin "${NEW_BRANCH}" --tags \
-        || echo "  Run manually: git push origin ${NEW_BRANCH} --tags"
+    read -r -p "Do you want to push to origin? [y/N] " confirm
+    if [[ "${confirm}" =~ ^[Yy]$ ]]; then
+        # Force push is required because we rewrote history for this branch name
+        git push -f origin "${NEW_NOTELEM_BRANCH}"
+        
+        # Uncomment below if you also want to push the clean release branch
+        # git push origin "${RELEASE_BRANCH}"
+    else
+        echo "  Manual push command: git push -f origin ${NEW_NOTELEM_BRANCH}"
+    fi
 else
     echo ""
-    echo "⚠ Conflicts detected — resolve them, then:"
-    echo "   git rebase --continue"
-    echo "   git tag ${NEW_BRANCH}"
-    echo "   git push origin ${NEW_BRANCH} --tags"
+    echo "⚠ CONFLICTS DETECTED"
+    echo "  Git could not automatically apply your patches to the new version."
+    echo "  1. Resolve conflicts in your editor."
+    echo "  2. Run 'git add <file>'"
+    echo "  3. Run 'git rebase --continue'"
     exit 1
 fi
