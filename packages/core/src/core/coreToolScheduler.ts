@@ -24,13 +24,9 @@ const debugLogger = createDebugLogger('TOOL_SCHEDULER');
 import {
   ToolConfirmationOutcome,
   ApprovalMode,
-  logToolCall,
   ReadFileTool,
   ToolErrorType,
-  ToolCallEvent,
   ShellTool,
-  logToolOutputTruncated,
-  ToolOutputTruncatedEvent,
   InputFormat,
   SkillTool,
 } from '../index.js';
@@ -1163,7 +1159,6 @@ export class CoreToolScheduler {
               this.config.getTruncateToolOutputThreshold() > 0 &&
               this.config.getTruncateToolOutputLines() > 0
             ) {
-              const originalContentLength = content.length;
               const threshold = this.config.getTruncateToolOutputThreshold();
               const lines = this.config.getTruncateToolOutputLines();
               const truncatedResult = await truncateAndSaveToFile(
@@ -1176,21 +1171,6 @@ export class CoreToolScheduler {
               content = truncatedResult.content;
               outputFile = truncatedResult.outputFile;
 
-              if (outputFile) {
-                logToolOutputTruncated(
-                  this.config,
-                  new ToolOutputTruncatedEvent(
-                    scheduledCall.request.prompt_id,
-                    {
-                      toolName,
-                      originalContentLength,
-                      truncatedContentLength: content.length,
-                      threshold,
-                      lines,
-                    },
-                  ),
-                );
-              }
             }
 
             const response = convertToFunctionResponse(
@@ -1254,10 +1234,6 @@ export class CoreToolScheduler {
     if (this.toolCalls.length > 0 && allCallsAreTerminal) {
       const completedCalls = [...this.toolCalls] as CompletedToolCall[];
       this.toolCalls = [];
-
-      for (const call of completedCalls) {
-        logToolCall(this.config, new ToolCallEvent(call));
-      }
 
       // Record tool results before notifying completion
       this.recordToolResults(completedCalls);

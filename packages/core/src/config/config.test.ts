@@ -10,11 +10,6 @@ import type { ConfigParameters, SandboxConfig } from './config.js';
 import { Config, ApprovalMode } from './config.js';
 import * as path from 'node:path';
 import { setGeminiMdFilename as mockSetGeminiMdFilename } from '../tools/memoryTool.js';
-import {
-  DEFAULT_TELEMETRY_TARGET,
-  DEFAULT_OTLP_ENDPOINT,
-  QwenLogger,
-} from '../telemetry/index.js';
 import type {
   ContentGenerator,
   ContentGeneratorConfig,
@@ -33,8 +28,6 @@ import { ReadFileTool } from '../tools/read-file.js';
 import { GrepTool } from '../tools/grep.js';
 import { canUseRipgrep } from '../utils/ripgrepUtils.js';
 import { RipGrepTool } from '../tools/ripGrep.js';
-import { logRipgrepFallback } from '../telemetry/loggers.js';
-import { RipgrepFallbackEvent } from '../telemetry/types.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 
 function createToolMock(toolName: string) {
@@ -133,25 +126,7 @@ vi.mock('../core/client.js', () => ({
   })),
 }));
 
-vi.mock('../telemetry/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../telemetry/index.js')>();
-  return {
-    ...actual,
-    initializeTelemetry: vi.fn(),
-    uiTelemetryService: {
-      getLastPromptTokenCount: vi.fn(),
-    },
-  };
-});
 
-vi.mock('../telemetry/loggers.js', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../telemetry/loggers.js')>();
-  return {
-    ...actual,
-    logRipgrepFallback: vi.fn(),
-  };
-});
 
 vi.mock('../services/gitService.js', () => {
   const GitServiceMock = vi.fn();
@@ -210,7 +185,6 @@ describe('Server Config (config.ts)', () => {
   const DEBUG_MODE = false;
   const QUESTION = 'test question';
   const USER_MEMORY = 'Test User Memory';
-  const TELEMETRY_SETTINGS = { enabled: false };
   const EMBEDDING_MODEL = 'gemini-embedding';
   const baseParams: ConfigParameters = {
     cwd: '/tmp',
@@ -220,7 +194,6 @@ describe('Server Config (config.ts)', () => {
     debugMode: DEBUG_MODE,
     question: QUESTION,
     userMemory: USER_MEMORY,
-    telemetry: TELEMETRY_SETTINGS,
     model: MODEL,
     usageStatisticsEnabled: false,
     overrideExtensions: [],
@@ -229,9 +202,6 @@ describe('Server Config (config.ts)', () => {
   beforeEach(() => {
     // Reset mocks if necessary
     vi.clearAllMocks();
-    vi.spyOn(QwenLogger.prototype, 'logStartSessionEvent').mockImplementation(
-      async () => undefined,
-    );
 
     // Setup default mock for resolveContentGeneratorConfigWithSources
     vi.mocked(resolveContentGeneratorConfigWithSources).mockImplementation(
@@ -521,58 +491,6 @@ describe('Server Config (config.ts)', () => {
     expect(directories).toContain('/path/to/dir2');
   });
 
-  it('Config constructor should set telemetry to true when provided as true', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryEnabled()).toBe(true);
-  });
-
-  it('Config constructor should set telemetry to false when provided as false', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: false },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryEnabled()).toBe(false);
-  });
-
-  it('Config constructor should default telemetry to default value if not provided', () => {
-    const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
-    delete paramsWithoutTelemetry.telemetry;
-    const config = new Config(paramsWithoutTelemetry);
-    expect(config.getTelemetryEnabled()).toBe(TELEMETRY_SETTINGS.enabled);
-  });
-
-  it('Config constructor should set telemetry useCollector to true when provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true, useCollector: true },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(true);
-  });
-
-  it('Config constructor should set telemetry useCollector to false when provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true, useCollector: false },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(false);
-  });
-
-  it('Config constructor should default telemetry useCollector to false if not provided', () => {
-    const paramsWithTelemetry: ConfigParameters = {
-      ...baseParams,
-      telemetry: { enabled: true },
-    };
-    const config = new Config(paramsWithTelemetry);
-    expect(config.getTelemetryUseCollector()).toBe(false);
-  });
-
   it('should have a getFileService method that returns FileDiscoveryService', () => {
     const config = new Config(baseParams);
     const fileService = config.getFileService();
@@ -607,101 +525,6 @@ describe('Server Config (config.ts)', () => {
       });
       await config.initialize();
 
-      expect(QwenLogger.prototype.logStartSessionEvent).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe('Telemetry Settings', () => {
-    it('should return default telemetry target if not provided', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryTarget()).toBe(DEFAULT_TELEMETRY_TARGET);
-    });
-
-    it('should return provided OTLP endpoint', () => {
-      const endpoint = 'http://custom.otel.collector:4317';
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true, otlpEndpoint: endpoint },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryOtlpEndpoint()).toBe(endpoint);
-    });
-
-    it('should return default OTLP endpoint if not provided', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryOtlpEndpoint()).toBe(DEFAULT_OTLP_ENDPOINT);
-    });
-
-    it('should return provided logPrompts setting', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true, logPrompts: false },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryLogPromptsEnabled()).toBe(false);
-    });
-
-    it('should return default logPrompts setting (true) if not provided', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryLogPromptsEnabled()).toBe(true);
-    });
-
-    it('should return default logPrompts setting (true) if telemetry object is not provided', () => {
-      const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
-      delete paramsWithoutTelemetry.telemetry;
-      const config = new Config(paramsWithoutTelemetry);
-      expect(config.getTelemetryLogPromptsEnabled()).toBe(true);
-    });
-
-    it('should return default telemetry target if telemetry object is not provided', () => {
-      const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
-      delete paramsWithoutTelemetry.telemetry;
-      const config = new Config(paramsWithoutTelemetry);
-      expect(config.getTelemetryTarget()).toBe(DEFAULT_TELEMETRY_TARGET);
-    });
-
-    it('should return default OTLP endpoint if telemetry object is not provided', () => {
-      const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
-      delete paramsWithoutTelemetry.telemetry;
-      const config = new Config(paramsWithoutTelemetry);
-      expect(config.getTelemetryOtlpEndpoint()).toBe(DEFAULT_OTLP_ENDPOINT);
-    });
-
-    it('should return provided OTLP protocol', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true, otlpProtocol: 'http' },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryOtlpProtocol()).toBe('http');
-    });
-
-    it('should return default OTLP protocol if not provided', () => {
-      const params: ConfigParameters = {
-        ...baseParams,
-        telemetry: { enabled: true },
-      };
-      const config = new Config(params);
-      expect(config.getTelemetryOtlpProtocol()).toBe('grpc');
-    });
-
-    it('should return default OTLP protocol if telemetry object is not provided', () => {
-      const paramsWithoutTelemetry: ConfigParameters = { ...baseParams };
-      delete paramsWithoutTelemetry.telemetry;
-      const config = new Config(paramsWithoutTelemetry);
-      expect(config.getTelemetryOtlpProtocol()).toBe('grpc');
     });
   });
 
@@ -1183,12 +1006,6 @@ describe('setApprovalMode with folder trust', () => {
       expect(wasRipGrepRegistered).toBe(false);
       expect(wasGrepRegistered).toBe(true);
       expect(canUseRipgrep).toHaveBeenCalledWith(false);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toContain('ripgrep is not available');
     });
 
     it('should fall back to GrepTool and log error when useRipgrep is true and builtin ripgrep is not available', async () => {
@@ -1207,12 +1024,6 @@ describe('setApprovalMode with folder trust', () => {
       expect(wasRipGrepRegistered).toBe(false);
       expect(wasGrepRegistered).toBe(true);
       expect(canUseRipgrep).toHaveBeenCalledWith(true);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toContain('ripgrep is not available');
     });
 
     it('should fall back to GrepTool and log error when canUseRipgrep throws an error', async () => {
@@ -1231,12 +1042,6 @@ describe('setApprovalMode with folder trust', () => {
 
       expect(wasRipGrepRegistered).toBe(false);
       expect(wasGrepRegistered).toBe(true);
-      expect(logRipgrepFallback).toHaveBeenCalledWith(
-        config,
-        expect.any(RipgrepFallbackEvent),
-      );
-      const event = (logRipgrepFallback as Mock).mock.calls[0][1];
-      expect(event.error).toBe(`ripGrep check failed`);
     });
 
     it('should register GrepTool when useRipgrep is false', async () => {
@@ -1268,7 +1073,6 @@ describe('BaseLlmClient Lifecycle', () => {
   const DEBUG_MODE = false;
   const QUESTION = 'test question';
   const USER_MEMORY = 'Test User Memory';
-  const TELEMETRY_SETTINGS = { enabled: false };
   const EMBEDDING_MODEL = 'gemini-embedding';
   const baseParams: ConfigParameters = {
     cwd: '/tmp',
@@ -1278,7 +1082,6 @@ describe('BaseLlmClient Lifecycle', () => {
     debugMode: DEBUG_MODE,
     question: QUESTION,
     userMemory: USER_MEMORY,
-    telemetry: TELEMETRY_SETTINGS,
     model: MODEL,
     usageStatisticsEnabled: false,
   };
@@ -1319,7 +1122,6 @@ describe('Model Switching and Config Updates', () => {
     debugMode: false,
     model: 'qwen3-coder-plus',
     usageStatisticsEnabled: false,
-    telemetry: { enabled: false },
   };
 
   beforeEach(() => {

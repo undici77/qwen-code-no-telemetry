@@ -14,8 +14,6 @@ import {
   getCurrentGeminiMdFilename,
   loadServerHierarchicalMemory,
   setGeminiMdFilename as setServerGeminiMdFilename,
-  resolveTelemetrySettings,
-  FatalConfigError,
   Storage,
   InputFormat,
   OutputFormat,
@@ -112,13 +110,7 @@ export interface CliArgs {
   promptInteractive: string | undefined;
   yolo: boolean | undefined;
   approvalMode: string | undefined;
-  telemetry: boolean | undefined;
   checkpointing: boolean | undefined;
-  telemetryTarget: string | undefined;
-  telemetryOtlpEndpoint: string | undefined;
-  telemetryOtlpProtocol: string | undefined;
-  telemetryLogPrompts: boolean | undefined;
-  telemetryOutfile: string | undefined;
   allowedMcpServerNames: string[] | undefined;
   allowedTools: string[] | undefined;
   acp: boolean | undefined;
@@ -192,61 +184,6 @@ export async function parseArguments(): Promise<CliArgs> {
     .scriptName('qwen')
     .usage(
       'Usage: qwen [options] [command]\n\nQwen Code - Launch an interactive CLI, use -p/--prompt for non-interactive mode',
-    )
-    .option('telemetry', {
-      type: 'boolean',
-      description:
-        'Enable telemetry? This flag specifically controls if telemetry is sent. Other --telemetry-* flags set specific values but do not enable telemetry on their own.',
-    })
-    .option('telemetry-target', {
-      type: 'string',
-      choices: ['local', 'gcp'],
-      description:
-        'Set the telemetry target (local or gcp). Overrides settings files.',
-    })
-    .option('telemetry-otlp-endpoint', {
-      type: 'string',
-      description:
-        'Set the OTLP endpoint for telemetry. Overrides environment variables and settings files.',
-    })
-    .option('telemetry-otlp-protocol', {
-      type: 'string',
-      choices: ['grpc', 'http'],
-      description:
-        'Set the OTLP protocol for telemetry (grpc or http). Overrides settings files.',
-    })
-    .option('telemetry-log-prompts', {
-      type: 'boolean',
-      description:
-        'Enable or disable logging of user prompts for telemetry. Overrides settings files.',
-    })
-    .option('telemetry-outfile', {
-      type: 'string',
-      description: 'Redirect all telemetry output to the specified file.',
-    })
-    .deprecateOption(
-      'telemetry',
-      'Use the "telemetry.enabled" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-target',
-      'Use the "telemetry.target" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-endpoint',
-      'Use the "telemetry.otlpEndpoint" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-protocol',
-      'Use the "telemetry.otlpProtocol" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-log-prompts',
-      'Use the "telemetry.logPrompts" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-outfile',
-      'Use the "telemetry.outfile" setting in settings.json instead. This flag will be removed in a future version.',
     )
     .option('debug', {
       alias: 'd',
@@ -762,22 +699,6 @@ export async function loadCliConfig(
     approvalMode = ApprovalMode.DEFAULT;
   }
 
-  let telemetrySettings;
-  try {
-    telemetrySettings = await resolveTelemetrySettings({
-      argv,
-      env: process.env as unknown as Record<string, string | undefined>,
-      settings: settings.telemetry,
-    });
-  } catch (err) {
-    if (err instanceof FatalConfigError) {
-      throw new FatalConfigError(
-        `Invalid telemetry configuration: ${err.message}.`,
-      );
-    }
-    throw err;
-  }
-
   // Interactive mode determination with priority:
   // 1. If promptInteractive (-i flag) is provided, it is explicitly interactive
   // 2. If outputFormat is stream-json or json (no matter input-format) along with query or prompt, it is non-interactive
@@ -972,7 +893,6 @@ export async function loadCliConfig(
       ...settings.ui?.accessibility,
       screenReader,
     },
-    telemetry: telemetrySettings,
     usageStatisticsEnabled: settings.privacy?.usageStatisticsEnabled ?? true,
     fileFiltering: settings.context?.fileFiltering,
     checkpointing:

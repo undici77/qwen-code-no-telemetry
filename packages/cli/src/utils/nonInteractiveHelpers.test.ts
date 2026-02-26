@@ -7,7 +7,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type {
   Config,
-  SessionMetrics,
   TaskResultDisplay,
   ToolCallResponseInfo,
 } from '@qwen-code/qwen-code-core';
@@ -17,6 +16,7 @@ import {
   getMCPServerStatus,
   OutputFormat,
 } from '@qwen-code/qwen-code-core';
+import type { SessionMetrics } from '../ui/contexts/SessionContext.js';
 import type { Part } from '@google/genai';
 import type {
   CLIUserMessage,

@@ -56,13 +56,6 @@ describe('Interactive Mode', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await type(ptyProcess, '\r');
 
-      const foundEvent = await rig.waitForTelemetryEvent(
-        'chat_compression',
-        90000,
-      );
-      expect(foundEvent, 'chat_compression telemetry event was not found').toBe(
-        true,
-      );
     },
   );
 

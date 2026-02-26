@@ -12,9 +12,6 @@ import {
   type Config,
   createDebugLogger,
   GitService,
-  logSlashCommand,
-  makeSlashCommandEvent,
-  SlashCommandStatus,
   ToolConfirmationOutcome,
   IdeClient,
 } from '@qwen-code/qwen-code-core';
@@ -330,17 +327,12 @@ export const useSlashCommandProcessor = (
         userMessageTimestamp,
       );
 
-      let hasError = false;
       const {
         commandToExecute,
         args,
         canonicalPath: resolvedCommandPath,
       } = parseSlashCommand(trimmed, commands);
 
-      const subcommand =
-        resolvedCommandPath.length > 1
-          ? resolvedCommandPath.slice(1).join(' ')
-          : undefined;
 
       try {
         if (commandToExecute) {
@@ -566,15 +558,6 @@ export const useSlashCommandProcessor = (
 
         return { type: 'handled' };
       } catch (e: unknown) {
-        hasError = true;
-        if (config) {
-          const event = makeSlashCommandEvent({
-            command: resolvedCommandPath[0],
-            subcommand,
-            status: SlashCommandStatus.ERROR,
-          });
-          logSlashCommand(config, event);
-        }
         addItemWithRecording(
           {
             type: MessageType.ERROR,
@@ -613,14 +596,6 @@ export const useSlashCommandProcessor = (
               recordError,
             );
           }
-        }
-        if (config && resolvedCommandPath[0] && !hasError) {
-          const event = makeSlashCommandEvent({
-            command: resolvedCommandPath[0],
-            subcommand,
-            status: SlashCommandStatus.SUCCESS,
-          });
-          logSlashCommand(config, event);
         }
         setIsProcessing(false);
       }

@@ -36,7 +36,6 @@ import { DEFAULT_QWEN_FLASH_MODEL } from '../config/models.js';
 import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import { setSimulate429 } from '../utils/testUtils.js';
 import { ideContextStore } from '../ide/ideContext.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 // Mock fs module to prevent actual file system operations during tests
 const mockFileSystem = new Map<string, string>();
@@ -128,29 +127,7 @@ vi.mock('../utils/generateContentResponseUtilities', () => ({
     return functionCallParts.length > 0 ? functionCallParts : undefined;
   },
 }));
-// Create shared mock for uiTelemetryService that's used by both telemetry mocks
-const mockUiTelemetryService = vi.hoisted(() => ({
-  setLastPromptTokenCount: vi.fn(),
-  getLastPromptTokenCount: vi.fn(),
-}));
-
-vi.mock('../telemetry/index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../telemetry/index.js')>();
-  return {
-    ...actual,
-    uiTelemetryService: mockUiTelemetryService,
-    // We keep the real implementations of logChatCompression, etc.
-    // but we can spy on QwenLogger if needed
-  };
-});
 vi.mock('../ide/ideContext.js');
-vi.mock('../telemetry/uiTelemetry.js', () => ({
-  uiTelemetryService: mockUiTelemetryService,
-}));
-vi.mock('../telemetry/loggers.js', () => ({
-  logChatCompression: vi.fn(),
-  logNextSpeakerCheck: vi.fn(),
-}));
 
 // Mock RequestTokenizer to use simple character-based estimation
 vi.mock('../utils/request-tokenizer/requestTokenizer.js', () => ({
@@ -269,8 +246,6 @@ describe('Gemini Client (client.ts)', () => {
   let mockGenerateContentFn: Mock;
   beforeEach(async () => {
     vi.resetAllMocks();
-    vi.mocked(uiTelemetryService.setLastPromptTokenCount).mockClear();
-
     mockGenerateContentFn = vi.fn().mockResolvedValue({
       candidates: [{ content: { parts: [{ text: '{"key": "value"}' }] } }],
     });
@@ -444,10 +419,7 @@ describe('Gemini Client (client.ts)', () => {
         stripThoughtsFromHistory: vi.fn(),
       };
       client['chat'] = mockOriginalChat as GeminiChat;
-
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
+      client['lastPromptTokenCount'] = originalTokenCount;
 
       mockGenerateContentFn.mockResolvedValue({
         candidates: [
@@ -585,9 +557,6 @@ describe('Gemini Client (client.ts)', () => {
         // The newTokenCount should be higher than original since compression failed due to inflation
         expect(result.newTokenCount).toBeGreaterThan(100);
         // IMPORTANT: The change in client.ts means setLastPromptTokenCount is NOT called on failure
-        expect(
-          uiTelemetryService.setLastPromptTokenCount,
-        ).not.toHaveBeenCalled();
       });
 
       it('does not manipulate the source chat', async () => {
@@ -657,9 +626,7 @@ describe('Gemini Client (client.ts)', () => {
         { role: 'user', parts: [{ text: '...history...' }] },
       ]);
       const originalTokenCount = MOCKED_TOKEN_LIMIT * 0.699;
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
+      client['lastPromptTokenCount'] = originalTokenCount;
 
       const initialChat = client.getChat();
       const result = await client.tryCompressChat('prompt-id-2', false);
@@ -671,89 +638,6 @@ describe('Gemini Client (client.ts)', () => {
         originalTokenCount,
       });
       expect(newChat).toBe(initialChat);
-    });
-
-    it('logs a telemetry event when compressing', async () => {
-      const { logChatCompression } = await import('../telemetry/loggers.js');
-      vi.mocked(logChatCompression).mockClear();
-
-      const MOCKED_TOKEN_LIMIT = 1000;
-      const MOCKED_CONTEXT_PERCENTAGE_THRESHOLD = 0.5;
-      vi.spyOn(client['config'], 'getContentGeneratorConfig').mockReturnValue({
-        model: 'test-model',
-        apiKey: 'test-key',
-        vertexai: false,
-        authType: AuthType.USE_GEMINI,
-        contextWindowSize: MOCKED_TOKEN_LIMIT,
-      });
-      vi.spyOn(client['config'], 'getChatCompression').mockReturnValue({
-        contextPercentageThreshold: MOCKED_CONTEXT_PERCENTAGE_THRESHOLD,
-      });
-      // Need multiple history items so there's something to compress
-      const history = [
-        { role: 'user', parts: [{ text: '...history 1...' }] },
-        { role: 'model', parts: [{ text: '...history 2...' }] },
-        { role: 'user', parts: [{ text: '...history 3...' }] },
-        { role: 'model', parts: [{ text: '...history 4...' }] },
-      ];
-      mockGetHistory.mockReturnValue(history);
-
-      // Token count needs to be ABOVE the threshold to trigger compression
-      const originalTokenCount =
-        MOCKED_TOKEN_LIMIT * MOCKED_CONTEXT_PERCENTAGE_THRESHOLD + 1;
-
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
-
-      // Mock the summary response from the chat
-      // newTokenCount = 501 - (1400 - 1000) + 50 = 501 - 400 + 50 = 151 <= 501 (success)
-      const summaryText = 'This is a summary.';
-      mockGenerateContentFn.mockResolvedValue({
-        candidates: [
-          {
-            content: {
-              role: 'model',
-              parts: [{ text: summaryText }],
-            },
-          },
-        ],
-        usageMetadata: {
-          promptTokenCount: 1400,
-          candidatesTokenCount: 50,
-          totalTokenCount: 1450,
-        },
-      } as unknown as GenerateContentResponse);
-
-      // Mock startChat to complete the compression flow
-      const splitPoint = findCompressSplitPoint(history, 0.7);
-      const historyToKeep = history.slice(splitPoint);
-      const newCompressedHistory: Content[] = [
-        { role: 'user', parts: [{ text: 'Mocked env context' }] },
-        { role: 'model', parts: [{ text: 'Got it. Thanks for the context!' }] },
-        { role: 'user', parts: [{ text: summaryText }] },
-        {
-          role: 'model',
-          parts: [{ text: 'Got it. Thanks for the additional context!' }],
-        },
-        ...historyToKeep,
-      ];
-      const mockNewChat: Partial<GeminiChat> = {
-        getHistory: vi.fn().mockReturnValue(newCompressedHistory),
-      };
-      client['startChat'] = vi
-        .fn()
-        .mockResolvedValue(mockNewChat as GeminiChat);
-
-      await client.tryCompressChat('prompt-id-3', false);
-
-      expect(logChatCompression).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          tokens_before: originalTokenCount,
-        }),
-      );
-      expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalled();
     });
 
     it('should trigger summarization if token count is above threshold with contextPercentageThreshold setting', async () => {
@@ -781,10 +665,7 @@ describe('Gemini Client (client.ts)', () => {
       // Token count needs to be ABOVE the threshold to trigger compression
       const originalTokenCount =
         MOCKED_TOKEN_LIMIT * MOCKED_CONTEXT_PERCENTAGE_THRESHOLD + 1;
-
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
+      client['lastPromptTokenCount'] = originalTokenCount;
 
       // Mock summary and new chat
       const summaryText = 'This is a summary.';
@@ -871,9 +752,7 @@ describe('Gemini Client (client.ts)', () => {
       mockGetHistory.mockReturnValue(history);
 
       const originalTokenCount = 1000 * 0.7;
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
+      client['lastPromptTokenCount'] = originalTokenCount;
 
       // Mock summary and new chat
       const summaryText = 'This is a summary.';
@@ -952,9 +831,7 @@ describe('Gemini Client (client.ts)', () => {
       mockGetHistory.mockReturnValue(history);
 
       const originalTokenCount = 100; // Well below threshold, but > estimated new count
-      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-        originalTokenCount,
-      );
+      client['lastPromptTokenCount'] = originalTokenCount;
 
       // Mock summary and new chat
       const summaryText = 'This is a summary.';

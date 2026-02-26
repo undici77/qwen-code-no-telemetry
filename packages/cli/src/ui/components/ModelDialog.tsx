@@ -9,8 +9,6 @@ import { useCallback, useContext, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import {
   AuthType,
-  ModelSlashCommandEvent,
-  logModelSlashCommand,
   type AvailableModel as CoreAvailableModel,
   type ContentGeneratorConfig,
   type ContentGeneratorConfigSource,
@@ -368,11 +366,6 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
             ? { requireCachedCredentials: true }
             : undefined,
         );
-
-        if (!isRuntime) {
-          const event = new ModelSlashCommandEvent(modelId);
-          logModelSlashCommand(config, event);
-        }
 
         after = config.getContentGeneratorConfig?.() as
           | ContentGeneratorConfig

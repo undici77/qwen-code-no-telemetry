@@ -7,7 +7,6 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 import { t } from '../../i18n/index.js';
-import { uiTelemetryService } from '@qwen-code/qwen-code-core';
 
 export const clearCommand: SlashCommand = {
   name: 'clear',
@@ -21,9 +20,6 @@ export const clearCommand: SlashCommand = {
 
     if (config) {
       const newSessionId = config.startNewSession();
-
-      // Reset UI telemetry metrics for the new session
-      uiTelemetryService.reset();
 
       if (newSessionId && context.session.startNewSession) {
         context.session.startNewSession(newSessionId);

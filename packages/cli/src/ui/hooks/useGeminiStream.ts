@@ -23,18 +23,12 @@ import {
   getErrorMessage,
   isNodeError,
   MessageSenderType,
-  logUserPrompt,
   GitService,
   UnauthorizedError,
-  UserPromptEvent,
-  logConversationFinishedEvent,
-  ConversationFinishedEvent,
   ApprovalMode,
   parseAndFormatApiError,
   promptIdContext,
   ToolConfirmationOutcome,
-  logApiCancel,
-  ApiCancelEvent,
 } from '@qwen-code/qwen-code-core';
 import { type Part, type PartListUnion, FinishReason } from '@google/genai';
 import type {
@@ -316,24 +310,6 @@ export const useGeminiStream = (
   }, [isResponding, toolCalls]);
 
   useEffect(() => {
-    if (
-      config.getApprovalMode() === ApprovalMode.YOLO &&
-      streamingState === StreamingState.Idle
-    ) {
-      const lastUserMessageIndex = history.findLastIndex(
-        (item: HistoryItem) => item.type === MessageType.USER,
-      );
-
-      const turnCount =
-        lastUserMessageIndex === -1 ? 0 : history.length - lastUserMessageIndex;
-
-      if (turnCount > 0) {
-        logConversationFinishedEvent(
-          config,
-          new ConversationFinishedEvent(config.getApprovalMode(), turnCount),
-        );
-      }
-    }
   }, [streamingState, config, history]);
 
   const cancelOngoingRequest = useCallback(() => {
@@ -346,15 +322,6 @@ export const useGeminiStream = (
     turnCancelledRef.current = true;
     isSubmittingQueryRef.current = false;
     abortControllerRef.current?.abort();
-
-    // Log API cancellation
-    const prompt_id = config.getSessionId() + '########' + getPromptCount();
-    const cancellationEvent = new ApiCancelEvent(
-      config.getModel(),
-      prompt_id,
-      config.getContentGeneratorConfig()?.authType,
-    );
-    logApiCancel(config, cancellationEvent);
 
     if (pendingHistoryItemRef.current) {
       addItem(pendingHistoryItemRef.current, Date.now());
@@ -1045,19 +1012,6 @@ export const useGeminiStream = (
         if (!options?.isContinuation) {
           // trigger new prompt event for session stats in CLI
           startNewPrompt();
-
-          // log user prompt event for telemetry, only text prompts for now
-          if (typeof queryToSend === 'string') {
-            logUserPrompt(
-              config,
-              new UserPromptEvent(
-                queryToSend.length,
-                prompt_id,
-                config.getContentGeneratorConfig()?.authType,
-                queryToSend,
-              ),
-            );
-          }
 
           // Reset thought when starting a new prompt
           setThought(null);

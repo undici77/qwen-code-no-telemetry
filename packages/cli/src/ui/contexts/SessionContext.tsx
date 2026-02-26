@@ -14,13 +14,6 @@ import {
   useEffect,
 } from 'react';
 
-import type {
-  SessionMetrics,
-  ModelMetrics,
-  ToolCallStats,
-} from '@qwen-code/qwen-code-core';
-import { uiTelemetryService } from '@qwen-code/qwen-code-core';
-
 export enum ToolCallDecision {
   ACCEPT = 'accept',
   REJECT = 'reject',
@@ -28,117 +21,75 @@ export enum ToolCallDecision {
   AUTO_ACCEPT = 'auto_accept',
 }
 
-function areModelMetricsEqual(a: ModelMetrics, b: ModelMetrics): boolean {
-  if (
-    a.api.totalRequests !== b.api.totalRequests ||
-    a.api.totalErrors !== b.api.totalErrors ||
-    a.api.totalLatencyMs !== b.api.totalLatencyMs
-  ) {
-    return false;
-  }
-  if (
-    a.tokens.prompt !== b.tokens.prompt ||
-    a.tokens.candidates !== b.tokens.candidates ||
-    a.tokens.total !== b.tokens.total ||
-    a.tokens.cached !== b.tokens.cached ||
-    a.tokens.thoughts !== b.tokens.thoughts ||
-    a.tokens.tool !== b.tokens.tool
-  ) {
-    return false;
-  }
-  return true;
+export interface ToolCallStats {
+  count: number;
+  success: number;
+  fail: number;
+  durationMs: number;
+  decisions: {
+    [ToolCallDecision.ACCEPT]: number;
+    [ToolCallDecision.REJECT]: number;
+    [ToolCallDecision.MODIFY]: number;
+    [ToolCallDecision.AUTO_ACCEPT]: number;
+  };
 }
 
-function areToolCallStatsEqual(a: ToolCallStats, b: ToolCallStats): boolean {
-  if (
-    a.count !== b.count ||
-    a.success !== b.success ||
-    a.fail !== b.fail ||
-    a.durationMs !== b.durationMs
-  ) {
-    return false;
-  }
-  if (
-    a.decisions[ToolCallDecision.ACCEPT] !==
-      b.decisions[ToolCallDecision.ACCEPT] ||
-    a.decisions[ToolCallDecision.REJECT] !==
-      b.decisions[ToolCallDecision.REJECT] ||
-    a.decisions[ToolCallDecision.MODIFY] !==
-      b.decisions[ToolCallDecision.MODIFY] ||
-    a.decisions[ToolCallDecision.AUTO_ACCEPT] !==
-      b.decisions[ToolCallDecision.AUTO_ACCEPT]
-  ) {
-    return false;
-  }
-  return true;
+export interface ModelMetrics {
+  api: {
+    totalRequests: number;
+    totalErrors: number;
+    totalLatencyMs: number;
+  };
+  tokens: {
+    prompt: number;
+    candidates: number;
+    total: number;
+    cached: number;
+    thoughts: number;
+    tool: number;
+  };
 }
 
-function areMetricsEqual(a: SessionMetrics, b: SessionMetrics): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-
-  // Compare files
-  if (
-    a.files.totalLinesAdded !== b.files.totalLinesAdded ||
-    a.files.totalLinesRemoved !== b.files.totalLinesRemoved
-  ) {
-    return false;
-  }
-
-  // Compare tools
-  const toolsA = a.tools;
-  const toolsB = b.tools;
-  if (
-    toolsA.totalCalls !== toolsB.totalCalls ||
-    toolsA.totalSuccess !== toolsB.totalSuccess ||
-    toolsA.totalFail !== toolsB.totalFail ||
-    toolsA.totalDurationMs !== toolsB.totalDurationMs
-  ) {
-    return false;
-  }
-
-  // Compare tool decisions
-  if (
-    toolsA.totalDecisions[ToolCallDecision.ACCEPT] !==
-      toolsB.totalDecisions[ToolCallDecision.ACCEPT] ||
-    toolsA.totalDecisions[ToolCallDecision.REJECT] !==
-      toolsB.totalDecisions[ToolCallDecision.REJECT] ||
-    toolsA.totalDecisions[ToolCallDecision.MODIFY] !==
-      toolsB.totalDecisions[ToolCallDecision.MODIFY] ||
-    toolsA.totalDecisions[ToolCallDecision.AUTO_ACCEPT] !==
-      toolsB.totalDecisions[ToolCallDecision.AUTO_ACCEPT]
-  ) {
-    return false;
-  }
-
-  // Compare tools.byName
-  const toolsByNameAKeys = Object.keys(toolsA.byName);
-  const toolsByNameBKeys = Object.keys(toolsB.byName);
-  if (toolsByNameAKeys.length !== toolsByNameBKeys.length) return false;
-
-  for (const key of toolsByNameAKeys) {
-    const toolA = toolsA.byName[key];
-    const toolB = toolsB.byName[key];
-    if (!toolB || !areToolCallStatsEqual(toolA, toolB)) {
-      return false;
-    }
-  }
-
-  // Compare models
-  const modelsAKeys = Object.keys(a.models);
-  const modelsBKeys = Object.keys(b.models);
-  if (modelsAKeys.length !== modelsBKeys.length) return false;
-
-  for (const key of modelsAKeys) {
-    if (!b.models[key] || !areModelMetricsEqual(a.models[key], b.models[key])) {
-      return false;
-    }
-  }
-
-  return true;
+export interface SessionMetrics {
+  models: Record<string, ModelMetrics>;
+  tools: {
+    totalCalls: number;
+    totalSuccess: number;
+    totalFail: number;
+    totalDurationMs: number;
+    totalDecisions: {
+      [ToolCallDecision.ACCEPT]: number;
+      [ToolCallDecision.REJECT]: number;
+      [ToolCallDecision.MODIFY]: number;
+      [ToolCallDecision.AUTO_ACCEPT]: number;
+    };
+    byName: Record<string, ToolCallStats>;
+  };
+  files: {
+    totalLinesAdded: number;
+    totalLinesRemoved: number;
+  };
 }
 
-export type { SessionMetrics, ModelMetrics };
+function createEmptyMetrics(): SessionMetrics {
+  return {
+    models: {},
+    tools: {
+      totalCalls: 0,
+      totalSuccess: 0,
+      totalFail: 0,
+      totalDurationMs: 0,
+      totalDecisions: {
+        [ToolCallDecision.ACCEPT]: 0,
+        [ToolCallDecision.REJECT]: 0,
+        [ToolCallDecision.MODIFY]: 0,
+        [ToolCallDecision.AUTO_ACCEPT]: 0,
+      },
+      byName: {},
+    },
+    files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
+  };
+}
 
 export interface SessionStatsState {
   sessionId: string;
@@ -182,7 +133,7 @@ const SessionStatsContext = createContext<SessionStatsContextValue | undefined>(
 const createDefaultStats = (sessionId: string = ''): SessionStatsState => ({
   sessionId,
   sessionStartTime: new Date(),
-  metrics: uiTelemetryService.getMetrics(),
+  metrics: createEmptyMetrics(),
   lastPromptTokenCount: 0,
   promptCount: 0,
 });
@@ -198,44 +149,13 @@ export const SessionStatsProvider: React.FC<{
   );
 
   useEffect(() => {
-    const handleUpdate = ({
-      metrics,
-      lastPromptTokenCount,
-    }: {
-      metrics: SessionMetrics;
-      lastPromptTokenCount: number;
-    }) => {
-      setStats((prevState) => {
-        if (
-          prevState.lastPromptTokenCount === lastPromptTokenCount &&
-          areMetricsEqual(prevState.metrics, metrics)
-        ) {
-          return prevState;
-        }
-        return {
-          ...prevState,
-          metrics,
-          lastPromptTokenCount,
-        };
-      });
-    };
-
-    uiTelemetryService.on('update', handleUpdate);
-    // Set initial state
-    handleUpdate({
-      metrics: uiTelemetryService.getMetrics(),
-      lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
-    });
-
-    return () => {
-      uiTelemetryService.off('update', handleUpdate);
-    };
+    // No telemetry service to subscribe to - stats remain static
   }, []);
 
   const startNewSession = useCallback((sessionId: string) => {
     setStats(() => ({
       ...createDefaultStats(sessionId),
-      lastPromptTokenCount: uiTelemetryService.getLastPromptTokenCount(),
+      lastPromptTokenCount: 0,
     }));
   }, []);
 

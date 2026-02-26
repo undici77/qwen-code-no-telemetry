@@ -6,8 +6,6 @@
 
 import type { Config } from '@qwen-code/qwen-code-core';
 import {
-  KittySequenceOverflowEvent,
-  logKittySequenceOverflow,
   createDebugLogger,
 } from '@qwen-code/qwen-code-core';
 import { useStdin } from 'ink';
@@ -604,13 +602,6 @@ export function KeypressProvider({
                 '[DEBUG] Kitty buffer overflow, clearing:',
                 kittySequenceBuffer,
               );
-            }
-            if (config) {
-              const event = new KittySequenceOverflowEvent(
-                kittySequenceBuffer.length,
-                kittySequenceBuffer,
-              );
-              logKittySequenceOverflow(config, event);
             }
             kittySequenceBuffer = '';
           } else {

@@ -24,16 +24,7 @@ import { isRateLimitError, type RetryInfo } from '../utils/rateLimit.js';
 import type { Config } from '../config/config.js';
 import { hasCycleInSchema } from '../tools/tools.js';
 import type { StructuredError } from './turn.js';
-import {
-  logContentRetry,
-  logContentRetryFailure,
-} from '../telemetry/loggers.js';
 import { type ChatRecordingService } from '../services/chatRecordingService.js';
-import {
-  ContentRetryEvent,
-  ContentRetryFailureEvent,
-} from '../telemetry/types.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 
@@ -350,15 +341,6 @@ export class GeminiChat {
             if (isContentError) {
               // Check if we have more attempts left.
               if (attempt < INVALID_CONTENT_RETRY_OPTIONS.maxAttempts - 1) {
-                logContentRetry(
-                  self.config,
-                  new ContentRetryEvent(
-                    attempt,
-                    (error as InvalidStreamError).type,
-                    INVALID_CONTENT_RETRY_OPTIONS.initialDelayMs,
-                    model,
-                  ),
-                );
                 await new Promise((res) =>
                   setTimeout(
                     res,
@@ -374,16 +356,6 @@ export class GeminiChat {
         }
 
         if (lastError) {
-          if (lastError instanceof InvalidStreamError) {
-            logContentRetryFailure(
-              self.config,
-              new ContentRetryFailureEvent(
-                INVALID_CONTENT_RETRY_OPTIONS.maxAttempts,
-                (lastError as InvalidStreamError).type,
-                model,
-              ),
-            );
-          }
           throw lastError;
         }
       } finally {
@@ -577,11 +549,6 @@ export class GeminiChat {
       // Collect token usage for consolidated recording
       if (chunk.usageMetadata) {
         usageMetadata = chunk.usageMetadata;
-        const lastPromptTokenCount =
-          usageMetadata.totalTokenCount ?? usageMetadata.promptTokenCount;
-        if (lastPromptTokenCount) {
-          uiTelemetryService.setLastPromptTokenCount(lastPromptTokenCount);
-        }
       }
 
       yield chunk; // Yield every chunk to the UI immediately.
