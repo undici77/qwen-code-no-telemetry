@@ -45,8 +45,8 @@ RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
   "modelProviders": {
     "anthropic": [
       {
-        "id": "qwen/qwen3-coder-30b",
-        "name": "qwen/qwen3-coder-30b",
+        "id": "qwen/qwen3-coder-next",
+        "name": "qwen/qwen3-coder-next",
         "baseUrl": "http://host.docker.internal:1234",
         "description": "Qwen3-Coder via LM STUDIO",
         "envKey": "DASHSCOPE_API_KEY"
@@ -62,7 +62,7 @@ RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
     }
   },
   "model": {
-    "name": "qwen3-coder-30b"
+    "name": "qwen3-coder-next"
   },
   "$version": 3
 }
