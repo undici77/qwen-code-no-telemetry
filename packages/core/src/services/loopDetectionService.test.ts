@@ -14,14 +14,7 @@ import type {
   ServerGeminiToolCallRequestEvent,
 } from '../core/turn.js';
 import { GeminiEventType } from '../core/turn.js';
-import * as loggers from '../telemetry/loggers.js';
-import { LoopType } from '../telemetry/types.js';
 import { LoopDetectionService } from './loopDetectionService.js';
-
-vi.mock('../telemetry/loggers.js', () => ({
-  logLoopDetected: vi.fn(),
-  logLoopDetectionDisabled: vi.fn(),
-}));
 
 const TOOL_CALL_LOOP_THRESHOLD = 5;
 const CONTENT_LOOP_THRESHOLD = 10;
@@ -33,7 +26,6 @@ describe('LoopDetectionService', () => {
 
   beforeEach(() => {
     mockConfig = {
-      getTelemetryEnabled: () => true,
     } as unknown as Config;
     service = new LoopDetectionService(mockConfig);
     vi.clearAllMocks();
@@ -73,7 +65,6 @@ describe('LoopDetectionService', () => {
       for (let i = 0; i < TOOL_CALL_LOOP_THRESHOLD - 1; i++) {
         expect(service.addAndCheck(event)).toBe(false);
       }
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it(`should detect a loop on the TOOL_CALL_LOOP_THRESHOLD-th identical call`, () => {
@@ -82,7 +73,6 @@ describe('LoopDetectionService', () => {
         service.addAndCheck(event);
       }
       expect(service.addAndCheck(event)).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should detect a loop on subsequent identical calls', () => {
@@ -91,7 +81,6 @@ describe('LoopDetectionService', () => {
         service.addAndCheck(event);
       }
       expect(service.addAndCheck(event)).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should not detect a loop for different tool calls', () => {
@@ -130,17 +119,14 @@ describe('LoopDetectionService', () => {
 
       // Send the tool call event again, which should now trigger the loop
       expect(service.addAndCheck(toolCallEvent)).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should not detect a loop when disabled for session', () => {
       service.disableForSession();
-      expect(loggers.logLoopDetectionDisabled).toHaveBeenCalledTimes(1);
       const event = createToolCallRequestEvent('testTool', { param: 'value' });
       for (let i = 0; i < TOOL_CALL_LOOP_THRESHOLD; i++) {
         expect(service.addAndCheck(event)).toBe(false);
       }
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
   });
 
@@ -165,7 +151,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(content));
         expect(isLoop).toBe(false);
       }
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should detect a loop when a chunk of content repeats consecutively', () => {
@@ -177,7 +162,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(repeatedContent));
       }
       expect(isLoop).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should not detect a loop if repetitions are very far apart', () => {
@@ -191,7 +175,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(fillerContent));
       }
       expect(isLoop).toBe(false);
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
   });
 
@@ -209,7 +192,6 @@ describe('LoopDetectionService', () => {
 
       const isLoop = service.addAndCheck(createContentEvent('\n```'));
       expect(isLoop).toBe(false);
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should not detect loops when content transitions into a code block', () => {
@@ -234,8 +216,6 @@ describe('LoopDetectionService', () => {
         );
         expect(isLoopInside).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should skip loop detection when already inside a code block (this.inCodeBlock)', () => {
@@ -250,8 +230,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should correctly track inCodeBlock state with multiple fence transitions', () => {
@@ -282,8 +260,6 @@ describe('LoopDetectionService', () => {
         createContentEvent('```python\n'),
       );
       expect(reenterResult).toBe(false);
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should detect a loop when repetitive content is outside a code block', () => {
@@ -299,7 +275,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(repeatedContent));
       }
       expect(isLoop).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should handle content with multiple code blocks and no loops', () => {
@@ -309,7 +284,6 @@ describe('LoopDetectionService', () => {
       const isLoop = service.addAndCheck(createContentEvent('```\ncode2\n```'));
 
       expect(isLoop).toBe(false);
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should handle content with mixed code blocks and looping text', () => {
@@ -326,7 +300,6 @@ describe('LoopDetectionService', () => {
       }
 
       expect(isLoop).toBe(true);
-      expect(loggers.logLoopDetected).toHaveBeenCalledTimes(1);
     });
 
     it('should not detect a loop for a long code block with some repeating tokens', () => {
@@ -343,7 +316,6 @@ describe('LoopDetectionService', () => {
 
       const isLoop = service.addAndCheck(createContentEvent('\n```'));
       expect(isLoop).toBe(false);
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking when a code fence is found', () => {
@@ -364,8 +336,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
     it('should reset tracking when a table is detected', () => {
       service.reset('');
@@ -383,8 +353,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking when a list item is detected', () => {
@@ -403,8 +371,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking when a heading is detected', () => {
@@ -423,8 +389,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking when a blockquote is detected', () => {
@@ -443,8 +407,6 @@ describe('LoopDetectionService', () => {
         const isLoop = service.addAndCheck(createContentEvent(repeatedContent));
         expect(isLoop).toBe(false);
       }
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking for various list item formats', () => {
@@ -482,8 +444,6 @@ describe('LoopDetectionService', () => {
           expect(isLoop).toBe(false);
         }
       });
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking for various table formats', () => {
@@ -519,8 +479,6 @@ describe('LoopDetectionService', () => {
           expect(isLoop).toBe(false);
         }
       });
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should reset tracking for various heading levels', () => {
@@ -558,8 +516,6 @@ describe('LoopDetectionService', () => {
           expect(isLoop).toBe(false);
         }
       });
-
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
   });
 
@@ -579,7 +535,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(dividerContent));
         expect(isLoop).toBe(false);
       }
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
 
     it('should not detect a loop for repeating complex box-drawing dividers', () => {
@@ -590,7 +545,6 @@ describe('LoopDetectionService', () => {
         isLoop = service.addAndCheck(createContentEvent(dividerContent));
         expect(isLoop).toBe(false);
       }
-      expect(loggers.logLoopDetected).not.toHaveBeenCalled();
     });
   });
 
@@ -650,7 +604,6 @@ describe('LoopDetectionService LLM Checks', () => {
         warn: () => {},
         error: () => {},
       }),
-      getTelemetryEnabled: () => true,
       getModel: () => 'test-model',
     } as unknown as Config;
 
@@ -709,13 +662,6 @@ describe('LoopDetectionService LLM Checks', () => {
     const finalResult = await service.turnStarted(abortController.signal); // This is turn 37
 
     expect(finalResult).toBe(true);
-    expect(loggers.logLoopDetected).toHaveBeenCalledWith(
-      mockConfig,
-      expect.objectContaining({
-        'event.name': 'loop_detected',
-        loop_type: LoopType.LLM_DETECTED_LOOP,
-      }),
-    );
   });
 
   it('should not detect a loop when confidence is low', async () => {
@@ -725,7 +671,6 @@ describe('LoopDetectionService LLM Checks', () => {
     await advanceTurns(30);
     const result = await service.turnStarted(abortController.signal);
     expect(result).toBe(false);
-    expect(loggers.logLoopDetected).not.toHaveBeenCalled();
   });
 
   it('should adjust the check interval based on confidence', async () => {
@@ -750,12 +695,10 @@ describe('LoopDetectionService LLM Checks', () => {
     await advanceTurns(30);
     const result = await service.turnStarted(abortController.signal);
     expect(result).toBe(false);
-    expect(loggers.logLoopDetected).not.toHaveBeenCalled();
   });
 
   it('should not trigger LLM check when disabled for session', async () => {
     service.disableForSession();
-    expect(loggers.logLoopDetectionDisabled).toHaveBeenCalledTimes(1);
     await advanceTurns(30);
     const result = await service.turnStarted(abortController.signal);
     expect(result).toBe(false);

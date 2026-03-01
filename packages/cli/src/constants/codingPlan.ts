@@ -61,7 +61,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 1000000,
         },
       },
       {
@@ -69,18 +68,12 @@ export function generateCodingPlanTemplate(
         name: '[Bailian Coding Plan] qwen3-coder-plus',
         baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
         envKey: CODING_PLAN_ENV_KEY,
-        generationConfig: {
-          contextWindowSize: 1000000,
-        },
       },
       {
         id: 'qwen3-coder-next',
         name: '[Bailian Coding Plan] qwen3-coder-next',
         baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
         envKey: CODING_PLAN_ENV_KEY,
-        generationConfig: {
-          contextWindowSize: 262144,
-        },
       },
       {
         id: 'qwen3-max-2026-01-23',
@@ -91,7 +84,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 262144,
         },
       },
       {
@@ -103,7 +95,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 202752,
         },
       },
       {
@@ -115,7 +106,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 202752,
         },
       },
       {
@@ -127,7 +117,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 1000000,
         },
       },
       {
@@ -139,7 +128,6 @@ export function generateCodingPlanTemplate(
           extra_body: {
             enable_thinking: true,
           },
-          contextWindowSize: 262144,
         },
       },
     ];
@@ -156,7 +144,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 1000000,
       },
     },
     {
@@ -164,18 +151,12 @@ export function generateCodingPlanTemplate(
       name: '[Bailian Coding Plan for Global/Intl] qwen3-coder-plus',
       baseUrl: 'https://coding-intl.dashscope.aliyuncs.com/v1',
       envKey: CODING_PLAN_ENV_KEY,
-      generationConfig: {
-        contextWindowSize: 1000000,
-      },
     },
     {
       id: 'qwen3-coder-next',
       name: '[Bailian Coding Plan for Global/Intl] qwen3-coder-next',
       baseUrl: 'https://coding-intl.dashscope.aliyuncs.com/v1',
       envKey: CODING_PLAN_ENV_KEY,
-      generationConfig: {
-        contextWindowSize: 262144,
-      },
     },
     {
       id: 'qwen3-max-2026-01-23',
@@ -186,7 +167,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 262144,
       },
     },
     {
@@ -198,7 +178,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 202752,
       },
     },
     {
@@ -210,7 +189,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 202752,
       },
     },
     {
@@ -222,7 +200,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 1000000,
       },
     },
     {
@@ -234,7 +211,6 @@ export function generateCodingPlanTemplate(
         extra_body: {
           enable_thinking: true,
         },
-        contextWindowSize: 262144,
       },
     },
   ];

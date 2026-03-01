@@ -21,7 +21,6 @@ import {
 import { StreamContentError } from './openaiContentGenerator/pipeline.js';
 import type { Config } from '../config/config.js';
 import { setSimulate429 } from '../utils/testUtils.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 // Mock fs module to prevent actual file system operations during tests
 const mockFileSystem = new Map<string, string>();
@@ -63,22 +62,6 @@ vi.mock('../utils/retry.js', async (importOriginal) => {
   };
 });
 
-const { mockLogContentRetry, mockLogContentRetryFailure } = vi.hoisted(() => ({
-  mockLogContentRetry: vi.fn(),
-  mockLogContentRetryFailure: vi.fn(),
-}));
-
-vi.mock('../telemetry/loggers.js', () => ({
-  logContentRetry: mockLogContentRetry,
-  logContentRetryFailure: mockLogContentRetryFailure,
-}));
-
-vi.mock('../telemetry/uiTelemetry.js', () => ({
-  uiTelemetryService: {
-    setLastPromptTokenCount: vi.fn(),
-  },
-}));
-
 describe('GeminiChat', () => {
   let mockContentGenerator: ContentGenerator;
   let chat: GeminiChat;
@@ -87,7 +70,6 @@ describe('GeminiChat', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(uiTelemetryService.setLastPromptTokenCount).mockClear();
     mockContentGenerator = {
       generateContent: vi.fn(),
       generateContentStream: vi.fn(),
@@ -101,7 +83,6 @@ describe('GeminiChat', () => {
     mockRetryWithBackoff.mockImplementation(async (apiCall) => apiCall());
     mockConfig = {
       getSessionId: () => 'test-session-id',
-      getTelemetryLogPromptsEnabled: () => true,
       getUsageStatisticsEnabled: () => true,
       getDebugMode: () => false,
       getContentGeneratorConfig: vi.fn().mockReturnValue({
@@ -700,13 +681,6 @@ describe('GeminiChat', () => {
         'prompt-id-1',
       );
 
-      // Verify that token counting is called when usageMetadata is present
-      expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalledWith(
-        57,
-      );
-      expect(uiTelemetryService.setLastPromptTokenCount).toHaveBeenCalledTimes(
-        1,
-      );
     });
 
     it('should keep parts with thoughtSignature when consolidating history', async () => {
@@ -852,8 +826,6 @@ describe('GeminiChat', () => {
       }
 
       // Assertions
-      expect(mockLogContentRetry).toHaveBeenCalledTimes(1);
-      expect(mockLogContentRetryFailure).not.toHaveBeenCalled();
       expect(mockContentGenerator.generateContentStream).toHaveBeenCalledTimes(
         2,
       );
@@ -883,8 +855,6 @@ describe('GeminiChat', () => {
         parts: [{ text: 'Successful response' }],
       });
 
-      // Verify that token counting is not called when usageMetadata is missing
-      expect(uiTelemetryService.setLastPromptTokenCount).not.toHaveBeenCalled();
     });
 
     it('should fail after all retries on persistent invalid content and report metrics', async () => {
@@ -919,8 +889,6 @@ describe('GeminiChat', () => {
       expect(mockContentGenerator.generateContentStream).toHaveBeenCalledTimes(
         2,
       );
-      expect(mockLogContentRetry).toHaveBeenCalledTimes(1);
-      expect(mockLogContentRetryFailure).toHaveBeenCalledTimes(1);
 
       // History should still contain the user message.
       const history = chat.getHistory();
@@ -1001,7 +969,6 @@ describe('GeminiChat', () => {
                 'Success after TPM retry',
           ),
         ).toBe(true);
-        expect(mockLogContentRetry).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
@@ -1301,8 +1268,6 @@ describe('GeminiChat', () => {
     const history = chat.getHistory();
     expect(history.length).toBe(4);
 
-    // Assert that the correct metrics were reported for one empty-stream retry
-    expect(mockLogContentRetry).toHaveBeenCalledTimes(1);
 
     // Explicitly verify the structure of each part to satisfy TypeScript
     const turn1 = history[0];

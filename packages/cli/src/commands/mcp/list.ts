@@ -28,7 +28,6 @@ async function getMcpServersFromConfig(): Promise<
   const settings = loadSettings();
   const extensionManager = new ExtensionManager({
     isWorkspaceTrusted: !!isWorkspaceTrusted(settings.merged),
-    telemetrySettings: settings.merged.telemetry,
   });
   await extensionManager.refreshCache();
   const extensions = extensionManager.getLoadedExtensions();

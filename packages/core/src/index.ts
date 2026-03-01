@@ -18,7 +18,6 @@ export {
   DEFAULT_QWEN_MODEL,
   DEFAULT_QWEN_FLASH_MODEL,
   DEFAULT_QWEN_EMBEDDING_MODEL,
-  MAINLINE_CODER_MODEL,
 } from './config/models.js';
 export {
   type AvailableModel,
@@ -215,31 +214,7 @@ export type {
 } from './mcp/oauth-utils.js';
 
 // ============================================================================
-// Telemetry
-// ============================================================================
-
-export { QwenLogger } from './telemetry/qwen-logger/qwen-logger.js';
-export * from './telemetry/index.js';
-export {
-  logAuth,
-  logExtensionDisable,
-  logExtensionEnable,
-  logIdeConnection,
-  logModelSlashCommand,
-} from './telemetry/loggers.js';
-export {
-  AuthEvent,
-  ExtensionDisableEvent,
-  ExtensionEnableEvent,
-  ExtensionInstallEvent,
-  ExtensionUninstallEvent,
-  IdeConnectionEvent,
-  IdeConnectionType,
-  ModelSlashCommandEvent,
-} from './telemetry/types.js';
-
-// ============================================================================
-// Extensions & Subagents
+// Testing Utilities
 // ============================================================================
 
 export * from './extension/index.js';

@@ -11,10 +11,8 @@ import type {
   ProviderModelConfig,
 } from '@qwen-code/qwen-code-core';
 import {
-  AuthEvent,
   AuthType,
   getErrorMessage,
-  logAuth,
 } from '@qwen-code/qwen-code-core';
 import { useCallback, useEffect, useState } from 'react';
 import type { LoadedSettings } from '../../config/settings.js';
@@ -35,7 +33,6 @@ import {
   CodingPlanRegion,
   CODING_PLAN_ENV_KEY,
 } from '../../constants/codingPlan.js';
-import { backupSettingsFile } from '../../utils/settingsUtils.js';
 
 export type { QwenAuthState } from '../hooks/useQwenAuth.js';
 
@@ -82,19 +79,8 @@ export const useAuthCommand = (
         message: getErrorMessage(error),
       });
       onAuthError(errorMessage);
-
-      // Log authentication failure
-      if (pendingAuthType) {
-        const authEvent = new AuthEvent(
-          pendingAuthType,
-          'manual',
-          'error',
-          errorMessage,
-        );
-        logAuth(config, authEvent);
-      }
     },
-    [onAuthError, pendingAuthType, config],
+    [onAuthError],
   );
 
   const handleAuthSuccess = useCallback(
@@ -163,10 +149,6 @@ export const useAuthCommand = (
         },
         Date.now(),
       );
-
-      // Log authentication success
-      const authEvent = new AuthEvent(authType, 'manual', 'success');
-      logAuth(config, authEvent);
     },
     [settings, handleAuthFailure, config, addItem, onAuthChange],
   );
@@ -273,17 +255,11 @@ export const useAuthCommand = (
       cancelQwenAuth();
     }
 
-    // Log authentication cancellation
-    if (isAuthenticating && pendingAuthType) {
-      const authEvent = new AuthEvent(pendingAuthType, 'manual', 'cancelled');
-      logAuth(config, authEvent);
-    }
-
     // Do not reset pendingAuthType here, persist the previously selected type.
     setIsAuthenticating(false);
     setIsAuthDialogOpen(true);
     setAuthError(null);
-  }, [isAuthenticating, pendingAuthType, cancelQwenAuth, config]);
+  }, [isAuthenticating, pendingAuthType, cancelQwenAuth]);
 
   /**
    * Handle coding plan submission - generates configs from template and stores api-key
@@ -304,10 +280,6 @@ export const useAuthCommand = (
 
         // Get persist scope
         const persistScope = getPersistScopeForModelSelection(settings);
-
-        // Backup settings file before modification
-        const settingsFile = settings.forScope(persistScope);
-        backupSettingsFile(settingsFile.path);
 
         // Store api-key in settings.env (unified env key)
         settings.setValue(persistScope, `env.${CODING_PLAN_ENV_KEY}`, apiKey);
@@ -389,20 +361,12 @@ export const useAuthCommand = (
           {
             type: MessageType.INFO,
             text: t(
-              'Authenticated successfully with {{region}}. API key and model configs saved to settings.json (backed up).',
+              'Authenticated successfully with {{region}}. API key is stored in settings.env.',
               { region: regionName },
             ),
           },
           Date.now(),
         );
-
-        // Log success
-        const authEvent = new AuthEvent(
-          AuthType.USE_OPENAI,
-          'coding-plan',
-          'success',
-        );
-        logAuth(config, authEvent);
       } catch (error) {
         handleAuthFailure(error);
       }

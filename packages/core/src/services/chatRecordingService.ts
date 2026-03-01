@@ -26,7 +26,6 @@ import type {
 } from '../core/turn.js';
 import type { Status } from '../core/coreToolScheduler.js';
 import type { TaskResultDisplay } from '../tools/tools.js';
-import type { UiEvent } from '../telemetry/uiTelemetry.js';
 
 /**
  * A single record stored in the JSONL file.
@@ -143,7 +142,7 @@ export interface AtCommandRecordPayload {
  * Stored payload for UI telemetry replay.
  */
 export interface UiTelemetryRecordPayload {
-  uiEvent: UiEvent;
+  uiEvent: unknown;
 }
 
 /**
@@ -413,7 +412,7 @@ export class ChatRecordingService {
   /**
    * Records a UI telemetry event for replaying metrics on resume.
    */
-  recordUiTelemetryEvent(uiEvent: UiEvent): void {
+  recordUiTelemetryEvent(uiEvent: unknown): void {
     try {
       const record: ChatRecord = {
         ...this.createBaseRecord('system'),

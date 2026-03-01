@@ -55,7 +55,6 @@ describe('Session', () => {
       switchModel: switchModelSpy,
       getModel: vi.fn().mockImplementation(() => currentModel),
       getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getTelemetryLogPromptsEnabled: vi.fn().mockReturnValue(false),
       getUsageStatisticsEnabled: vi.fn().mockReturnValue(false),
       getContentGeneratorConfig: vi.fn().mockReturnValue(undefined),
       getChatRecordingService: vi.fn().mockReturnValue({

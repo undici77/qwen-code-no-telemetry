@@ -6,8 +6,6 @@
 
 import {
   InputFormat,
-  isDebugLoggingDegraded,
-  logUserPrompt,
   Storage,
   type Config,
   createDebugLogger,
@@ -411,7 +409,6 @@ export async function main() {
           useBuiltinRipgrep: settings.merged.tools?.useBuiltinRipgrep ?? true,
         })),
         ...getSettingsWarnings(settings),
-        ...config.getWarnings(),
       ]),
     ];
 
@@ -435,11 +432,6 @@ export async function main() {
       writeStderrLine(
         `Logging to: ${Storage.getDebugLogPath(config.getSessionId())}`,
       );
-      if (isDebugLoggingDegraded()) {
-        writeStderrLine(
-          'Warning: Debug logging is degraded (write failures occurred)',
-        );
-      }
     }
 
     // For non-stream-json mode, initialize config here
@@ -482,15 +474,6 @@ export async function main() {
       );
       process.exit(1);
     }
-
-    logUserPrompt(config, {
-      'event.name': 'user_prompt',
-      'event.timestamp': new Date().toISOString(),
-      prompt: input,
-      prompt_id,
-      auth_type: config.getContentGeneratorConfig()?.authType,
-      prompt_length: input.length,
-    });
 
     debugLogger.debug(`Session ID: ${config.getSessionId()}`);
 

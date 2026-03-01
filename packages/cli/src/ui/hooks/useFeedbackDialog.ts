@@ -3,9 +3,6 @@ import * as fs from 'node:fs';
 import {
   type Config,
   createDebugLogger,
-  logUserFeedback,
-  UserFeedbackEvent,
-  type UserFeedbackRating,
   isNodeError,
   AuthType,
 } from '@qwen-code/qwen-code-core';
@@ -16,7 +13,6 @@ import {
   USER_SETTINGS_PATH,
 } from '../../config/settings.js';
 import type { SessionStatsState } from '../contexts/SessionContext.js';
-import { FEEDBACK_OPTIONS } from '../FeedbackDialog.js';
 import stripJsonComments from 'strip-json-comments';
 
 const FEEDBACK_SHOW_PROBABILITY = 0.25; // 25% probability of showing feedback dialog
@@ -120,17 +116,6 @@ export const useFeedbackDialog = ({
     (rating: number) => {
       // Only create and log feedback event for ratings 1-3 (GOOD, BAD, FINE)
       // Rating 0 (DISMISS) should not trigger any telemetry
-      if (rating >= FEEDBACK_OPTIONS.GOOD && rating <= FEEDBACK_OPTIONS.FINE) {
-        const feedbackEvent = new UserFeedbackEvent(
-          sessionStats.sessionId,
-          rating as UserFeedbackRating,
-          config.getModel(),
-          config.getApprovalMode(),
-        );
-
-        logUserFeedback(config, feedbackEvent);
-      }
-
       // Record the timestamp when feedback dialog is submitted
       settings.setValue(
         SettingScope.User,

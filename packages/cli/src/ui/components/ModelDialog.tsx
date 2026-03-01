@@ -9,9 +9,6 @@ import { useCallback, useContext, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import {
   AuthType,
-  ModelSlashCommandEvent,
-  logModelSlashCommand,
-  MAINLINE_CODER_MODEL,
   type AvailableModel as CoreAvailableModel,
   type ContentGeneratorConfig,
   type ContentGeneratorConfigSource,
@@ -23,6 +20,7 @@ import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSel
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
+import { MAINLINE_CODER } from '../models/availableModels.js';
 import { getPersistScopeForModelSelection } from '../../config/modelProvidersScope.js';
 import { t } from '../../i18n/index.js';
 
@@ -293,7 +291,7 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
     [availableModelEntries],
   );
 
-  const preferredModelId = config?.getModel() || MAINLINE_CODER_MODEL;
+  const preferredModelId = config?.getModel() || MAINLINE_CODER;
   // Check if current model is a runtime model
   // Runtime snapshot ID is already in $runtime|${authType}|${modelId} format
   const activeRuntimeSnapshot = config?.getActiveRuntimeModelSnapshot?.();
@@ -368,11 +366,6 @@ export function ModelDialog({ onClose }: ModelDialogProps): React.JSX.Element {
             ? { requireCachedCredentials: true }
             : undefined,
         );
-
-        if (!isRuntime) {
-          const event = new ModelSlashCommandEvent(modelId);
-          logModelSlashCommand(config, event);
-        }
 
         after = config.getContentGeneratorConfig?.() as
           | ContentGeneratorConfig

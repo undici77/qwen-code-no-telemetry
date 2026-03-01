@@ -60,19 +60,20 @@ const MockedGeminiClientClass = vi.hoisted(() =>
   }),
 );
 
-const MockedUserPromptEvent = vi.hoisted(() =>
-  vi.fn().mockImplementation(() => {}),
-);
-const MockedApiCancelEvent = vi.hoisted(() =>
-  vi.fn().mockImplementation(() => {}),
-);
 const mockParseAndFormatApiError = vi.hoisted(() =>
   vi.fn(
     (msg: unknown) =>
       `[API Error: ${typeof msg === 'string' ? msg : 'An unknown error occurred.'}]`,
   ),
 );
-const mockLogApiCancel = vi.hoisted(() => vi.fn());
+
+// Vision auto-switch mocks (hoisted)
+const mockHandleVisionSwitch = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ shouldProceed: true }),
+);
+const mockRestoreOriginalModel = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 
 vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
   const actualCoreModule = (await importOriginal()) as any;
@@ -80,10 +81,7 @@ vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
     ...actualCoreModule,
     GitService: vi.fn(),
     GeminiClient: MockedGeminiClientClass,
-    UserPromptEvent: MockedUserPromptEvent,
-    ApiCancelEvent: MockedApiCancelEvent,
     parseAndFormatApiError: mockParseAndFormatApiError,
-    logApiCancel: mockLogApiCancel,
   };
 });
 
@@ -95,6 +93,13 @@ vi.mock('./useReactToolScheduler.js', async (importOriginal) => {
     useReactToolScheduler: vi.fn(),
   };
 });
+
+vi.mock('./useVisionAutoSwitch.js', () => ({
+  useVisionAutoSwitch: vi.fn(() => ({
+    handleVisionSwitch: mockHandleVisionSwitch,
+    restoreOriginalModel: mockRestoreOriginalModel,
+  })),
+}));
 
 vi.mock('./shellCommandProcessor.js', () => ({
   useShellCommandProcessor: vi.fn().mockReturnValue({
@@ -291,6 +296,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -456,6 +462,7 @@ describe('useGeminiStream', () => {
         () => {},
         () => {},
         () => {},
+        false, // visionModelPreviewEnabled
         () => {},
         80,
         24,
@@ -540,6 +547,7 @@ describe('useGeminiStream', () => {
         () => {},
         () => {},
         () => {},
+        false, // visionModelPreviewEnabled
         () => {},
         80,
         24,
@@ -652,6 +660,7 @@ describe('useGeminiStream', () => {
         () => {},
         () => {},
         () => {},
+        false, // visionModelPreviewEnabled
         () => {},
         80,
         24,
@@ -765,6 +774,7 @@ describe('useGeminiStream', () => {
         () => {},
         () => {},
         () => {},
+        false, // visionModelPreviewEnabled
         () => {},
         80,
         24,
@@ -881,6 +891,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           cancelSubmitSpy,
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -924,6 +935,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           vi.fn(),
+          false,
           setShellInputFocusedSpy, // Pass the spy here
           80,
           24,
@@ -1251,6 +1263,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -1308,6 +1321,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -1801,6 +1815,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -1856,6 +1871,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -1912,6 +1928,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -2008,6 +2025,7 @@ describe('useGeminiStream', () => {
             () => {},
             () => {},
             () => {},
+            false, // visionModelPreviewEnabled
             vi.fn(),
             80,
             24,
@@ -2062,6 +2080,7 @@ describe('useGeminiStream', () => {
         vi.fn(), // setModelSwitched
         vi.fn(), // onEditorClose
         vi.fn(), // onCancelSubmit
+        false, // visionModelPreviewEnabled
         vi.fn(), // setShellInputFocused
         80, // terminalWidth
         24, // terminalHeight
@@ -2135,6 +2154,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -2226,6 +2246,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -2286,6 +2307,7 @@ describe('useGeminiStream', () => {
             () => {},
             () => {},
             () => {},
+            false, // visionModelPreviewEnabled
             () => {},
             80,
             24,
@@ -2386,6 +2408,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           vi.fn(), // setShellInputFocused
           80,
           24,
@@ -2456,6 +2479,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -2514,6 +2538,7 @@ describe('useGeminiStream', () => {
           () => {},
           () => {},
           () => {},
+          false, // visionModelPreviewEnabled
           () => {},
           80,
           24,
@@ -2701,6 +2726,187 @@ describe('useGeminiStream', () => {
   });
 
   // --- New tests focused on recent modifications ---
+  describe('Vision Auto Switch Integration', () => {
+    it('should call handleVisionSwitch and proceed to send when allowed', async () => {
+      mockHandleVisionSwitch.mockResolvedValueOnce({ shouldProceed: true });
+      mockSendMessageStream.mockReturnValue(
+        (async function* () {
+          yield { type: ServerGeminiEventType.Content, value: 'ok' };
+          yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
+        })(),
+      );
+
+      const { result } = renderHook(() =>
+        useGeminiStream(
+          new MockedGeminiClientClass(mockConfig),
+          [],
+          mockAddItem,
+          mockConfig,
+          mockLoadedSettings,
+          mockOnDebugMessage,
+          mockHandleSlashCommand,
+          false,
+          () => 'vscode' as EditorType,
+          () => {},
+          () => Promise.resolve(),
+          false,
+          () => {},
+          () => {},
+          () => {},
+          false, // visionModelPreviewEnabled
+          vi.fn(), // setShellInputFocused
+          80,
+          24,
+        ),
+      );
+
+      await act(async () => {
+        await result.current.submitQuery('image prompt');
+      });
+
+      await waitFor(() => {
+        expect(mockHandleVisionSwitch).toHaveBeenCalled();
+        expect(mockSendMessageStream).toHaveBeenCalled();
+      });
+    });
+
+    it('should gate submission when handleVisionSwitch returns shouldProceed=false', async () => {
+      mockHandleVisionSwitch.mockResolvedValueOnce({ shouldProceed: false });
+
+      const { result } = renderHook(() =>
+        useGeminiStream(
+          new MockedGeminiClientClass(mockConfig),
+          [],
+          mockAddItem,
+          mockConfig,
+          mockLoadedSettings,
+          mockOnDebugMessage,
+          mockHandleSlashCommand,
+          false,
+          () => 'vscode' as EditorType,
+          () => {},
+          () => Promise.resolve(),
+          false,
+          () => {},
+          () => {},
+          () => {},
+          false, // visionModelPreviewEnabled
+          vi.fn(), // setShellInputFocused
+          80,
+          24,
+        ),
+      );
+
+      await act(async () => {
+        await result.current.submitQuery('vision-gated');
+      });
+
+      // No call to API, no restoreOriginalModel needed since no override occurred
+      expect(mockSendMessageStream).not.toHaveBeenCalled();
+      expect(mockRestoreOriginalModel).not.toHaveBeenCalled();
+
+      // Next call allowed (flag reset path)
+      mockHandleVisionSwitch.mockResolvedValueOnce({ shouldProceed: true });
+      mockSendMessageStream.mockReturnValue(
+        (async function* () {
+          yield { type: ServerGeminiEventType.Content, value: 'ok' };
+          yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
+        })(),
+      );
+      await act(async () => {
+        await result.current.submitQuery('after-gate');
+      });
+      await waitFor(() => {
+        expect(mockSendMessageStream).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Model restore on completion and errors', () => {
+    it('should restore model after successful stream completion', async () => {
+      mockSendMessageStream.mockReturnValue(
+        (async function* () {
+          yield { type: ServerGeminiEventType.Content, value: 'content' };
+          yield { type: ServerGeminiEventType.Finished, value: 'STOP' };
+        })(),
+      );
+
+      const { result } = renderHook(() =>
+        useGeminiStream(
+          new MockedGeminiClientClass(mockConfig),
+          [],
+          mockAddItem,
+          mockConfig,
+          mockLoadedSettings,
+          mockOnDebugMessage,
+          mockHandleSlashCommand,
+          false,
+          () => 'vscode' as EditorType,
+          () => {},
+          () => Promise.resolve(),
+          false,
+          () => {},
+          () => {},
+          () => {},
+          false, // visionModelPreviewEnabled
+          vi.fn(), // setShellInputFocused
+          80,
+          24,
+        ),
+      );
+
+      await act(async () => {
+        await result.current.submitQuery('restore-success');
+      });
+
+      await waitFor(() => {
+        expect(mockRestoreOriginalModel).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should restore model when an error occurs during streaming', async () => {
+      const testError = new Error('stream failure');
+      mockSendMessageStream.mockReturnValue(
+        (async function* () {
+          yield { type: ServerGeminiEventType.Content, value: 'content' };
+          throw testError;
+        })(),
+      );
+
+      const { result } = renderHook(() =>
+        useGeminiStream(
+          new MockedGeminiClientClass(mockConfig),
+          [],
+          mockAddItem,
+          mockConfig,
+          mockLoadedSettings,
+          mockOnDebugMessage,
+          mockHandleSlashCommand,
+          false,
+          () => 'vscode' as EditorType,
+          () => {},
+          () => Promise.resolve(),
+          false,
+          () => {},
+          () => {},
+          () => {},
+          false, // visionModelPreviewEnabled
+          vi.fn(), // setShellInputFocused
+          80,
+          24,
+        ),
+      );
+
+      await act(async () => {
+        await result.current.submitQuery('restore-error');
+      });
+
+      await waitFor(() => {
+        expect(mockRestoreOriginalModel).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
   describe('Loop Detection Confirmation', () => {
     beforeEach(() => {
       // Add mock for getLoopDetectionService to the config

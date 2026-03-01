@@ -170,17 +170,7 @@ export class TestRig {
     // Create a settings file to point the CLI to the local collector
     const qwenDir = join(this.testDir, '.qwen');
     mkdirSync(qwenDir, { recursive: true });
-    // In sandbox mode, use an absolute path for telemetry inside the container
-    // The container mounts the test directory at the same path as the host
-    const telemetryPath = join(this.testDir, 'telemetry.log'); // Always use test directory for telemetry
-
     const settings = {
-      telemetry: {
-        enabled: true,
-        target: 'local',
-        otlpEndpoint: '',
-        outfile: telemetryPath,
-      },
       sandbox: env.GEMINI_SANDBOX !== 'false' ? env.GEMINI_SANDBOX : false,
       ...options.settings, // Allow tests to override/add settings
     };
@@ -295,46 +285,7 @@ export class TestRig {
     const promise = new Promise<string>((resolve, reject) => {
       child.on('close', (code: number) => {
         if (code === 0) {
-          // Store the raw stdout for Podman telemetry parsing
-          this._lastRunStdout = stdout;
-
-          // Filter out telemetry output when running with Podman
-          // Podman seems to output telemetry to stdout even when writing to file
           let result = stdout;
-          if (env['GEMINI_SANDBOX'] === 'podman') {
-            // Remove telemetry JSON objects from output
-            // They are multi-line JSON objects that start with { and contain telemetry fields
-            const lines = result.split(EOL);
-            const filteredLines = [];
-            let inTelemetryObject = false;
-            let braceDepth = 0;
-
-            for (const line of lines) {
-              if (!inTelemetryObject && line.trim() === '{') {
-                // Check if this might be start of telemetry object
-                inTelemetryObject = true;
-                braceDepth = 1;
-              } else if (inTelemetryObject) {
-                // Count braces to track nesting
-                for (const char of line) {
-                  if (char === '{') braceDepth++;
-                  else if (char === '}') braceDepth--;
-                }
-
-                // Check if we've closed all braces
-                if (braceDepth === 0) {
-                  inTelemetryObject = false;
-                  // Skip this line (the closing brace)
-                  continue;
-                }
-              } else {
-                // Not in telemetry object, keep the line
-                filteredLines.push(line);
-              }
-            }
-
-            result = filteredLines.join('\n');
-          }
 
           // Check if this is a JSON output test - if so, don't include stderr
           // as it would corrupt the JSON
@@ -411,7 +362,6 @@ export class TestRig {
     const promise = new Promise<string>((resolve, reject) => {
       child.on('close', (code: number) => {
         if (code === 0) {
-          this._lastRunStdout = stdout;
           let result = stdout;
           if (stderr) {
             result += `\n\nStdErr:\n${stderr}`;
@@ -451,48 +401,9 @@ export class TestRig {
     }
   }
 
-  async waitForTelemetryReady() {
-    // Telemetry is always written to the test directory
-    const logFilePath = join(this.testDir!, 'telemetry.log');
-
-    if (!logFilePath) return;
-
-    // Wait for telemetry file to exist and have content
-    await this.poll(
-      () => {
-        if (!fs.existsSync(logFilePath)) return false;
-        try {
-          const content = readFileSync(logFilePath, 'utf-8');
-          // Check if file has meaningful content (at least one complete JSON object)
-          return content.includes('"event.name"');
-        } catch {
-          return false;
-        }
-      },
-      2000, // 2 seconds max - reduced since telemetry should flush on exit now
-      100, // check every 100ms
-    );
-  }
-
-  async waitForTelemetryEvent(eventName: string, timeout?: number) {
-    if (!timeout) {
-      timeout = this.getDefaultTimeout();
-    }
-
-    await this.waitForTelemetryReady();
-
-    return this.poll(
-      () => {
-        const logs = this._readAndParseTelemetryLog();
-        return logs.some(
-          (logData) =>
-            logData.attributes &&
-            logData.attributes['event.name'] === `qwen-code.${eventName}`,
-        );
-      },
-      timeout,
-      100,
-    );
+  async waitForTelemetryEvent(_eventName: string, _timeout?: number) {
+    // Telemetry has been removed - always return false
+    return false;
   }
 
   async waitForToolCall(toolName: string, timeout?: number) {
@@ -500,9 +411,6 @@ export class TestRig {
     if (!timeout) {
       timeout = this.getDefaultTimeout();
     }
-
-    // Wait for telemetry to be ready before polling for tool calls
-    await this.waitForTelemetryReady();
 
     return this.poll(
       () => {
@@ -519,9 +427,6 @@ export class TestRig {
     if (!timeout) {
       timeout = this.getDefaultTimeout();
     }
-
-    // Wait for telemetry to be ready before polling for tool calls
-    await this.waitForTelemetryReady();
 
     return this.poll(
       () => {
@@ -686,73 +591,11 @@ export class TestRig {
   }
 
   private _readAndParseTelemetryLog(): ParsedLog[] {
-    // Telemetry is always written to the test directory
-    const logFilePath = join(this.testDir!, 'telemetry.log');
-
-    if (!logFilePath || !fs.existsSync(logFilePath)) {
-      return [];
-    }
-
-    const content = readFileSync(logFilePath, 'utf-8');
-
-    // Split the content into individual JSON objects
-    // They are separated by "}\n{"
-    const jsonObjects = content
-      .split(/}\n{/)
-      .map((obj, index, array) => {
-        // Add back the braces we removed during split
-        if (index > 0) obj = '{' + obj;
-        if (index < array.length - 1) obj = obj + '}';
-        return obj.trim();
-      })
-      .filter((obj) => obj);
-
-    const logs: ParsedLog[] = [];
-
-    for (const jsonStr of jsonObjects) {
-      try {
-        const logData = JSON.parse(jsonStr);
-        logs.push(logData);
-      } catch (e) {
-        // Skip objects that aren't valid JSON
-        if (env.VERBOSE === 'true') {
-          console.error('Failed to parse telemetry object:', e);
-        }
-      }
-    }
-
-    return logs;
+    // Telemetry has been removed - return empty array
+    return [];
   }
 
   readToolLogs() {
-    // For Podman, first check if telemetry file exists and has content
-    // If not, fall back to parsing from stdout
-    if (env['GEMINI_SANDBOX'] === 'podman') {
-      // Try reading from file first
-      const logFilePath = join(this.testDir!, 'telemetry.log');
-
-      if (fs.existsSync(logFilePath)) {
-        try {
-          const content = readFileSync(logFilePath, 'utf-8');
-          if (content && content.includes('"event.name"')) {
-            // File has content, use normal file parsing
-            // Continue to the normal file parsing logic below
-          } else if (this._lastRunStdout) {
-            // File exists but is empty or doesn't have events, parse from stdout
-            return this._parseToolLogsFromStdout(this._lastRunStdout);
-          }
-        } catch {
-          // Error reading file, fall back to stdout
-          if (this._lastRunStdout) {
-            return this._parseToolLogsFromStdout(this._lastRunStdout);
-          }
-        }
-      } else if (this._lastRunStdout) {
-        // No file exists, parse from stdout
-        return this._parseToolLogsFromStdout(this._lastRunStdout);
-      }
-    }
-
     const parsedLogs = this._readAndParseTelemetryLog();
     const logs: {
       toolRequest: {

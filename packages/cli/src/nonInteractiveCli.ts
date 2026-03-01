@@ -9,14 +9,11 @@ import { isSlashCommand } from './ui/utils/commandUtils.js';
 import type { LoadedSettings } from './config/settings.js';
 import {
   executeToolCall,
-  shutdownTelemetry,
-  isTelemetrySdkInitialized,
   GeminiEventType,
   FatalInputError,
   promptIdContext,
   OutputFormat,
   InputFormat,
-  uiTelemetryService,
   parseAndFormatApiError,
   createDebugLogger,
 } from '@qwen-code/qwen-code-core';
@@ -43,7 +40,7 @@ import {
   buildSystemMessage,
   createToolProgressHandler,
   createTaskToolProgressHandler,
-  computeUsageFromMetrics,
+  extractUsageFromGeminiClient,
 } from './utils/nonInteractiveHelpers.js';
 
 /**
@@ -57,7 +54,7 @@ async function emitNonInteractiveFinalMessage(params: {
   config: Config;
   startTimeMs: number;
 }): Promise<void> {
-  const { message, isError, adapter, config } = params;
+  const { message, isError, adapter } = params;
 
   // JSON output mode: emit assistant message and result
   // (systemMessage should already be emitted by caller)
@@ -68,13 +65,8 @@ async function emitNonInteractiveFinalMessage(params: {
   } as unknown as Parameters<JsonOutputAdapterInterface['processEvent']>[0]);
   adapter.finalizeAssistantMessage();
 
-  const metrics = uiTelemetryService.getMetrics();
-  const usage = computeUsageFromMetrics(metrics);
-  const outputFormat = config.getOutputFormat();
-  const stats =
-    outputFormat === OutputFormat.JSON
-      ? uiTelemetryService.getMetrics()
-      : undefined;
+  const usage = { input_tokens: 0, output_tokens: 0 };
+  const stats = undefined;
 
   adapter.emitResult({
     isError,
@@ -366,13 +358,9 @@ export async function runNonInteractive(
           }
           currentMessages = [{ role: 'user', parts: toolResponseParts }];
         } else {
-          const metrics = uiTelemetryService.getMetrics();
-          const usage = computeUsageFromMetrics(metrics);
-          // Get stats for JSON format output
-          const stats =
-            outputFormat === OutputFormat.JSON
-              ? uiTelemetryService.getMetrics()
-              : undefined;
+          const usage = extractUsageFromGeminiClient(geminiClient) ?? { input_tokens: 0, output_tokens: 0 };
+          // Stats are not available without telemetry service
+          const stats = undefined;
           adapter.emitResult({
             isError: false,
             durationMs: Date.now() - startTime,
@@ -385,15 +373,10 @@ export async function runNonInteractive(
         }
       }
     } catch (error) {
-      // For JSON and STREAM_JSON modes, compute usage from metrics
       const message = error instanceof Error ? error.message : String(error);
-      const metrics = uiTelemetryService.getMetrics();
-      const usage = computeUsageFromMetrics(metrics);
-      // Get stats for JSON format output
-      const stats =
-        outputFormat === OutputFormat.JSON
-          ? uiTelemetryService.getMetrics()
-          : undefined;
+      const usage = extractUsageFromGeminiClient(geminiClient) ?? { input_tokens: 0, output_tokens: 0 };
+      // Stats are not available without telemetry service
+      const stats = undefined;
       adapter.emitResult({
         isError: true,
         durationMs: Date.now() - startTime,
@@ -409,9 +392,7 @@ export async function runNonInteractive(
       // Cleanup signal handlers
       process.removeListener('SIGINT', shutdownHandler);
       process.removeListener('SIGTERM', shutdownHandler);
-      if (isTelemetrySdkInitialized()) {
-        await shutdownTelemetry();
-      }
+
     }
   });
 }
