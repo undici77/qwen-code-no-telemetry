@@ -42,11 +42,14 @@ RUN cd /tmp \
 # Create default settings.json for LM Studio
 RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
 {
+  "general": {
+    "enableAutoUpdate": false
+  },
   "modelProviders": {
     "anthropic": [
       {
-        "id": "qwen/qwen3-coder-next",
-        "name": "qwen/qwen3-coder-next",
+        "id": "qwen/qwen3-coder-30b",
+        "name": "qwen/qwen3-coder-30b",
         "baseUrl": "http://host.docker.internal:1234",
         "description": "Qwen3-Coder via LM STUDIO",
         "envKey": "DASHSCOPE_API_KEY"
@@ -62,7 +65,7 @@ RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
     }
   },
   "model": {
-    "name": "qwen3-coder-next"
+    "name": "qwen/qwen3-coder-30b"
   },
   "$version": 3
 }
