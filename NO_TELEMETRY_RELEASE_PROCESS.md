@@ -158,6 +158,27 @@ CMD ["qwen"]
 
 ---
 
+## Using the Cherry-Pick Script (Recommended)
+
+For future versions, use the automated cherry-pick script instead of manual cherry-picking:
+
+```bash
+# From your new branch (e.g., v0.12.0-no-telemetry)
+./scripts/cherry-pick-no-telemetry.sh
+
+# Or specify a commit hash
+./scripts/cherry-pick-no-telemetry.sh <commit-hash>
+```
+
+This script automatically finds and cherry-picks the no-telemetry commit from
+the v0.11.1-no-telemetry branch, applying all changes at once.
+
+**Manual cherry-pick (alternative):**
+If you prefer manual cherry-picking, the no-telemetry changes are in commit:
+`c87a15bbfe5a3ab8e5994a0193e9462334723dda`
+
+---
+
 ## Verification Checklist
 
 After creating the branch, run:
