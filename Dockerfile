@@ -1,6 +1,6 @@
 FROM docker.io/library/node:20-slim
 
-ARG QWEN_REF="v0.11.0-no-telemetry"
+ARG QWEN_REF="v0.11.1-no-telemetry"
 ARG REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 
 ENV QWEN_REF=${QWEN_REF}
@@ -46,13 +46,34 @@ RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
     "enableAutoUpdate": false
   },
   "modelProviders": {
-    "anthropic": [
-      {
+    "openai": [
+    {
         "id": "qwen/qwen3-coder-30b",
         "name": "qwen/qwen3-coder-30b",
-        "baseUrl": "http://host.docker.internal:1234",
-        "description": "Qwen3-Coder via LM STUDIO",
-        "envKey": "DASHSCOPE_API_KEY"
+        "baseUrl": "http://host.docker.internal:1234/v1",
+        "description": "Qwen3-Coder-30b via LM STUDIO",
+        "envKey": "DASHSCOPE_API_KEY",
+        "generationConfig": {
+          "timeout": 600000,
+          "maxRetries": 3,
+          "extra_body": {
+            "stream": true
+          }
+        }
+      },
+      {
+        "id": "qwen/qwen3-coder-next",
+        "name": "qwen/qwen3-coder-next",
+        "baseUrl": "http://host.docker.internal:1234/v1",
+        "description": "Qwen3-Coder-Next via LM STUDIO",
+        "envKey": "DASHSCOPE_API_KEY",
+        "generationConfig": {
+          "timeout": 600000,
+          "maxRetries": 3,
+          "extra_body": {
+            "stream": true
+          }
+        }
       }
     ]
   },
@@ -61,7 +82,7 @@ RUN mkdir -p /root/.qwen && cat > /root/.qwen/settings.json << 'SETTINGS'
   },
   "security": {
     "auth": {
-      "selectedType": "anthropic"
+      "selectedType": "openai"
     }
   },
   "model": {
