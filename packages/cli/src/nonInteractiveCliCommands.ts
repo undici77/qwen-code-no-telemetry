@@ -8,7 +8,6 @@ import type { PartListUnion } from '@google/genai';
 import { parseSlashCommand } from './utils/commands.js';
 import {
   Logger,
-  uiTelemetryService,
   type Config,
   createDebugLogger,
 } from '@qwen-code/qwen-code-core';
@@ -301,7 +300,23 @@ export const handleSlashCommand = async (
   const sessionStats: SessionStatsState = {
     sessionId: config?.getSessionId(),
     sessionStartTime: new Date(),
-    metrics: uiTelemetryService.getMetrics(),
+    metrics: {
+      models: {},
+      tools: {
+        totalCalls: 0,
+        totalSuccess: 0,
+        totalFail: 0,
+        totalDurationMs: 0,
+        totalDecisions: {
+          accept: 0,
+          reject: 0,
+          modify: 0,
+          auto_accept: 0,
+        },
+        byName: {},
+      },
+      files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
+    },
     lastPromptTokenCount: 0,
     promptCount: 1,
   };

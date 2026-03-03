@@ -121,7 +121,6 @@ export type HistoryItemInfo = HistoryItemBase & {
 export type HistoryItemError = HistoryItemBase & {
   type: 'error';
   text: string;
-  hint?: string; // Optional inline hint (e.g., retry countdown) displayed in secondary color
 };
 
 export type HistoryItemWarning = HistoryItemBase & {

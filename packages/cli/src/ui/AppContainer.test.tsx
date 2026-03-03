@@ -209,7 +209,6 @@ describe('AppContainer State Management', () => {
       pendingHistoryItems: [],
       thought: null,
       cancelOngoingRequest: vi.fn(),
-      retryLastPrompt: vi.fn(),
     });
     mockedUseVim.mockReturnValue({ handleInput: vi.fn() });
     mockedUseFolderTrust.mockReturnValue({
@@ -608,7 +607,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: { subject: thoughtSubject },
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -654,7 +652,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: null,
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -701,7 +698,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: { subject: thoughtSubject },
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -748,7 +744,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: { subject: shortTitle },
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -799,7 +794,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: { subject: title },
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -847,7 +841,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: null,
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
       });
 
       // Act: Render the container
@@ -889,7 +882,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: null,
         cancelOngoingRequest: vi.fn(),
-        retryLastPrompt: vi.fn(),
         activePtyId: 'some-id',
       });
 
@@ -1021,7 +1013,6 @@ describe('AppContainer State Management', () => {
         pendingHistoryItems: [],
         thought: null,
         cancelOngoingRequest: mockCancelOngoingRequest,
-        retryLastPrompt: vi.fn(),
       });
 
       const mockHandleSlashCommand = vi.fn();

@@ -24,16 +24,7 @@ import { isRateLimitError, type RetryInfo } from '../utils/rateLimit.js';
 import type { Config } from '../config/config.js';
 import { hasCycleInSchema } from '../tools/tools.js';
 import type { StructuredError } from './turn.js';
-import {
-  logContentRetry,
-  logContentRetryFailure,
-} from '../telemetry/loggers.js';
 import { type ChatRecordingService } from '../services/chatRecordingService.js';
-import {
-  ContentRetryEvent,
-  ContentRetryFailureEvent,
-} from '../telemetry/types.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 
@@ -286,12 +277,6 @@ export class GeminiChat {
         let lastError: unknown = new Error('Request failed after all retries.');
         let rateLimitRetryCount = 0;
 
-        // Read per-config overrides; fall back to built-in defaults.
-        const cgConfig = self.config.getContentGeneratorConfig();
-        const maxRateLimitRetries =
-          cgConfig?.maxRetries ?? RATE_LIMIT_RETRY_OPTIONS.maxRetries;
-        const extraRetryErrorCodes = cgConfig?.retryErrorCodes;
-
         for (
           let attempt = 0;
           attempt < INVALID_CONTENT_RETRY_OPTIONS.maxAttempts;
@@ -322,15 +307,18 @@ export class GeminiChat {
             // These arrive as StreamContentError with finish_reason="error_finish"
             // from the pipeline, containing the throttling message in the content.
             // Covers TPM throttling, GLM rate limits, and other provider throttling.
-            const isRateLimit = isRateLimitError(error, extraRetryErrorCodes);
-            if (isRateLimit && rateLimitRetryCount < maxRateLimitRetries) {
+            const isRateLimit = isRateLimitError(error);
+            if (
+              isRateLimit &&
+              rateLimitRetryCount < RATE_LIMIT_RETRY_OPTIONS.maxRetries
+            ) {
               rateLimitRetryCount++;
               const delayMs = RATE_LIMIT_RETRY_OPTIONS.delayMs;
               const message = parseAndFormatApiError(
                 error instanceof Error ? error.message : String(error),
               );
               debugLogger.warn(
-                `Rate limit throttling detected (retry ${rateLimitRetryCount}/${maxRateLimitRetries}). ` +
+                `Rate limit throttling detected (retry ${rateLimitRetryCount}/${RATE_LIMIT_RETRY_OPTIONS.maxRetries}). ` +
                   `Waiting ${delayMs / 1000}s before retrying...`,
               );
               yield {
@@ -338,7 +326,7 @@ export class GeminiChat {
                 retryInfo: {
                   message,
                   attempt: rateLimitRetryCount,
-                  maxRetries: maxRateLimitRetries,
+                  maxRetries: RATE_LIMIT_RETRY_OPTIONS.maxRetries,
                   delayMs,
                 },
               };
@@ -353,15 +341,6 @@ export class GeminiChat {
             if (isContentError) {
               // Check if we have more attempts left.
               if (attempt < INVALID_CONTENT_RETRY_OPTIONS.maxAttempts - 1) {
-                logContentRetry(
-                  self.config,
-                  new ContentRetryEvent(
-                    attempt,
-                    (error as InvalidStreamError).type,
-                    INVALID_CONTENT_RETRY_OPTIONS.initialDelayMs,
-                    model,
-                  ),
-                );
                 await new Promise((res) =>
                   setTimeout(
                     res,
@@ -377,16 +356,6 @@ export class GeminiChat {
         }
 
         if (lastError) {
-          if (lastError instanceof InvalidStreamError) {
-            logContentRetryFailure(
-              self.config,
-              new ContentRetryFailureEvent(
-                INVALID_CONTENT_RETRY_OPTIONS.maxAttempts,
-                (lastError as InvalidStreamError).type,
-                model,
-              ),
-            );
-          }
           throw lastError;
         }
       } finally {
@@ -580,11 +549,6 @@ export class GeminiChat {
       // Collect token usage for consolidated recording
       if (chunk.usageMetadata) {
         usageMetadata = chunk.usageMetadata;
-        const lastPromptTokenCount =
-          usageMetadata.totalTokenCount ?? usageMetadata.promptTokenCount;
-        if (lastPromptTokenCount) {
-          uiTelemetryService.setLastPromptTokenCount(lastPromptTokenCount);
-        }
       }
 
       yield chunk; // Yield every chunk to the UI immediately.

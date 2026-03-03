@@ -117,7 +117,6 @@ const createMockUIState = (overrides: Partial<UIState> = {}): UIState =>
 const createMockUIActions = (): UIActions =>
   ({
     handleFinalSubmit: vi.fn(),
-    handleRetryLastPrompt: vi.fn(),
     handleClearScreen: vi.fn(),
     setShellModeActive: vi.fn(),
     onEscapePromptChange: vi.fn(),

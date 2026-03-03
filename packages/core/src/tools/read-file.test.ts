@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { ReadFileToolParams } from './read-file.js';
 import { ReadFileTool } from './read-file.js';
 import { ToolErrorType } from './tool-error.js';
@@ -17,10 +17,6 @@ import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import { StandardFileSystemService } from '../services/fileSystemService.js';
 import { createMockWorkspaceContext } from '../test-utils/mockWorkspaceContext.js';
 import type { ToolInvocation, ToolResult } from './tools.js';
-
-vi.mock('../telemetry/loggers.js', () => ({
-  logFileOperation: vi.fn(),
-}));
 
 describe('ReadFileTool', () => {
   let tempRootDir: string;
@@ -231,8 +227,8 @@ describe('ReadFileTool', () => {
 
     it('should return error for a file that is too large', async () => {
       const filePath = path.join(tempRootDir, 'largefile.txt');
-      // 11MB of content exceeds 10MB limit
-      const largeContent = 'x'.repeat(11 * 1024 * 1024);
+      // 21MB of content exceeds 20MB limit
+      const largeContent = 'x'.repeat(21 * 1024 * 1024);
       await fsp.writeFile(filePath, largeContent, 'utf-8');
       const params: ReadFileToolParams = { absolute_path: filePath };
       const invocation = tool.build(params) as ToolInvocation<
@@ -244,7 +240,7 @@ describe('ReadFileTool', () => {
       expect(result).toHaveProperty('error');
       expect(result.error?.type).toBe(ToolErrorType.FILE_TOO_LARGE);
       expect(result.error?.message).toContain(
-        'File size exceeds the 10MB limit',
+        'File size exceeds the 20MB limit',
       );
     });
 

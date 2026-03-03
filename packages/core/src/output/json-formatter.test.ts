@@ -5,7 +5,6 @@
  */
 
 import { expect, describe, it } from 'vitest';
-import type { SessionMetrics } from '../telemetry/uiTelemetry.js';
 import { JsonFormatter } from './json-formatter.js';
 import type { JsonError } from './types.js';
 
@@ -50,7 +49,7 @@ describe('JsonFormatter', () => {
   it('should format the response as JSON with stats', () => {
     const formatter = new JsonFormatter();
     const response = 'This is a test response.';
-    const stats: SessionMetrics = {
+    const stats = {
       models: {
         'gemini-2.5-pro': {
           api: {
@@ -191,7 +190,7 @@ describe('JsonFormatter', () => {
   it('should format complete JSON output with response, stats, and error', () => {
     const formatter = new JsonFormatter();
     const response = 'Partial response before error';
-    const stats: SessionMetrics = {
+    const stats = {
       models: {},
       tools: {
         totalCalls: 0,

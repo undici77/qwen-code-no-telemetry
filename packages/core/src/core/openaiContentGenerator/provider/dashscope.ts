@@ -35,13 +35,14 @@ export class DashScopeOpenAICompatibleProvider
   static isDashScopeProvider(
     contentGeneratorConfig: ContentGeneratorConfig,
   ): boolean {
-    const { authType, baseUrl } = contentGeneratorConfig;
-
-    if (authType === AuthType.QWEN_OAUTH) return true;
-    if (!baseUrl) return true;
-
-    // Matches: dashscope.aliyuncs.com, *.dashscope.aliyuncs.com, or *.dashscope-intl.aliyuncs.com
-    return /([\w-]+\.)?dashscope(-intl)?\.aliyuncs\.com/i.test(baseUrl);
+    const authType = contentGeneratorConfig.authType;
+    const baseUrl = contentGeneratorConfig.baseUrl;
+    return (
+      authType === AuthType.QWEN_OAUTH ||
+      baseUrl === 'https://dashscope.aliyuncs.com/compatible-mode/v1' ||
+      baseUrl === 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1' ||
+      !baseUrl
+    );
   }
 
   buildHeaders(): Record<string, string | undefined> {
@@ -278,18 +279,6 @@ export class DashScopeOpenAICompatibleProvider
     return contentArray;
   }
 
-  /**
-   * Vision-capable model patterns.
-   * Supports exact matches and prefix patterns for easy extension.
-   */
-  private static readonly VISION_MODEL_EXACT_MATCHES = new Set(['coder-model']);
-
-  private static readonly VISION_MODEL_PREFIX_PATTERNS = [
-    'qwen-vl', // qwen-vl-max, qwen-vl-max-latest, etc.
-    'qwen3-vl-plus', // qwen3-vl-plus variants
-    'qwen3.5-plus', // qwen3.5-plus (has built-in vision capabilities)
-  ];
-
   private isVisionModel(model: string | undefined): boolean {
     if (!model) {
       return false;
@@ -297,20 +286,16 @@ export class DashScopeOpenAICompatibleProvider
 
     const normalized = model.toLowerCase();
 
-    // Check exact matches
-    if (
-      DashScopeOpenAICompatibleProvider.VISION_MODEL_EXACT_MATCHES.has(
-        normalized,
-      )
-    ) {
+    if (normalized === 'vision-model') {
       return true;
     }
 
-    // Check prefix patterns
-    for (const prefix of DashScopeOpenAICompatibleProvider.VISION_MODEL_PREFIX_PATTERNS) {
-      if (normalized.startsWith(prefix)) {
-        return true;
-      }
+    if (normalized.startsWith('qwen-vl')) {
+      return true;
+    }
+
+    if (normalized.startsWith('qwen3-vl-plus')) {
+      return true;
     }
 
     return false;

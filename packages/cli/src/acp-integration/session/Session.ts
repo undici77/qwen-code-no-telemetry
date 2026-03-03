@@ -23,14 +23,10 @@ import {
   ApprovalMode,
   convertToFunctionResponse,
   createDebugLogger,
-  DiscoveredMCPTool,
   StreamEventType,
   ToolConfirmationOutcome,
-  logToolCall,
-  logUserPrompt,
   getErrorStatus,
   TaskTool,
-  UserPromptEvent,
   TodoWriteTool,
   ExitPlanModeTool,
   readManyFiles,
@@ -149,17 +145,6 @@ export class Session implements SessionContext {
       .filter((block) => block.type === 'text')
       .map((block) => (block.type === 'text' ? block.text : ''))
       .join(' ');
-
-    // Log user prompt
-    logUserPrompt(
-      this.config,
-      new UserPromptEvent(
-        promptText.length,
-        promptId,
-        this.config.getContentGeneratorConfig()?.authType,
-        promptText,
-      ),
-    );
 
     // record user message for session management
     this.config.getChatRecordingService()?.recordUserMessage(promptText);
@@ -429,26 +414,8 @@ export class Session implements SessionContext {
     const callId = fc.id ?? `${fc.name}-${Date.now()}`;
     const args = (fc.args ?? {}) as Record<string, unknown>;
 
-    const startTime = Date.now();
 
     const errorResponse = (error: Error) => {
-      const durationMs = Date.now() - startTime;
-      logToolCall(this.config, {
-        'event.name': 'tool_call',
-        'event.timestamp': new Date().toISOString(),
-        prompt_id: promptId,
-        function_name: fc.name ?? '',
-        function_args: args,
-        duration_ms: durationMs,
-        status: 'error',
-        success: false,
-        error: error.message,
-        tool_type:
-          typeof tool !== 'undefined' && tool instanceof DiscoveredMCPTool
-            ? 'mcp'
-            : 'native',
-      });
-
       return [
         {
           functionResponse: {
@@ -652,22 +619,6 @@ export class Session implements SessionContext {
           success: !toolResult.error,
         });
       }
-
-      const durationMs = Date.now() - startTime;
-      logToolCall(this.config, {
-        'event.name': 'tool_call',
-        'event.timestamp': new Date().toISOString(),
-        function_name: fc.name,
-        function_args: args,
-        duration_ms: durationMs,
-        status: 'success',
-        success: true,
-        prompt_id: promptId,
-        tool_type:
-          typeof tool !== 'undefined' && tool instanceof DiscoveredMCPTool
-            ? 'mcp'
-            : 'native',
-      });
 
       // Record tool result for session management
       this.config.getChatRecordingService()?.recordToolResult(responseParts, {

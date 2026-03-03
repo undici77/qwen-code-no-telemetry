@@ -801,6 +801,10 @@ function getToolCallExamples(model?: string): string {
     if (/coder-model/i.test(model)) {
       return qwenCoderToolCallExamples;
     }
+    // Match vision-model pattern (same as qwen3-vl)
+    if (/vision-model/i.test(model)) {
+      return qwenVlToolCallExamples;
+    }
   }
 
   return generalToolCallExamples;

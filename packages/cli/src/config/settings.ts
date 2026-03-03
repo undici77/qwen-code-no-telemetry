@@ -105,7 +105,6 @@ const MIGRATION_MAP: Record<string, string> = {
   shellShowColor: 'tools.shell.showColor',
   skipNextSpeakerCheck: 'model.skipNextSpeakerCheck',
   summarizeToolOutput: 'model.summarizeToolOutput',
-  telemetry: 'telemetry',
   theme: 'ui.theme',
   toolDiscoveryCommand: 'tools.discoveryCommand',
   toolCallCommand: 'tools.callCommand',
@@ -122,6 +121,8 @@ const MIGRATION_MAP: Record<string, string> = {
   skipStartupContext: 'model.skipStartupContext',
   enableOpenAILogging: 'model.enableOpenAILogging',
   tavilyApiKey: 'advanced.tavilyApiKey',
+  vlmSwitchMode: 'experimental.vlmSwitchMode',
+  visionModelPreview: 'experimental.visionModelPreview',
 };
 
 // Settings that need boolean inversion during migration (V1 -> V3)

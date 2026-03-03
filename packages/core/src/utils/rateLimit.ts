@@ -10,8 +10,7 @@ import { isApiError, isStructuredError } from './quotaErrorDetection.js';
 // 429  - Standard HTTP "Too Many Requests" (DashScope TPM, OpenAI, etc.)
 // 503  - Provider throttling/overload (treated as rate-limit for retry UI)
 // 1302 - Z.AI GLM rate limit (https://docs.z.ai/api-reference/api-code)
-// 1305 - DashScope/IdealTalk internal rate limit (issue #1918)
-const RATE_LIMIT_ERROR_CODES = new Set([429, 503, 1302, 1305]);
+const RATE_LIMIT_ERROR_CODES = new Set([429, 503, 1302]);
 
 export interface RetryInfo {
   /** Formatted error message for display, produced by parseAndFormatApiError. */
@@ -26,20 +25,10 @@ export interface RetryInfo {
 
 /**
  * Detects rate-limit / throttling errors and returns retry info.
- *
- * @param error - The error to check.
- * @param extraCodes - Additional error codes to treat as rate-limit errors,
- *   merged with the built-in set at call time (not mutating the default set).
  */
-export function isRateLimitError(
-  error: unknown,
-  extraCodes?: readonly number[],
-): boolean {
+export function isRateLimitError(error: unknown): boolean {
   const code = getErrorCode(error);
-  if (code === null) return false;
-  if (RATE_LIMIT_ERROR_CODES.has(code)) return true;
-  if (extraCodes && extraCodes.includes(code)) return true;
-  return false;
+  return code !== null && RATE_LIMIT_ERROR_CODES.has(code);
 }
 
 /**

@@ -14,8 +14,6 @@ import {
   getCurrentGeminiMdFilename,
   loadServerHierarchicalMemory,
   setGeminiMdFilename as setServerGeminiMdFilename,
-  resolveTelemetrySettings,
-  FatalConfigError,
   Storage,
   InputFormat,
   OutputFormat,
@@ -112,13 +110,7 @@ export interface CliArgs {
   promptInteractive: string | undefined;
   yolo: boolean | undefined;
   approvalMode: string | undefined;
-  telemetry: boolean | undefined;
   checkpointing: boolean | undefined;
-  telemetryTarget: string | undefined;
-  telemetryOtlpEndpoint: string | undefined;
-  telemetryOtlpProtocol: string | undefined;
-  telemetryLogPrompts: boolean | undefined;
-  telemetryOutfile: string | undefined;
   allowedMcpServerNames: string[] | undefined;
   allowedTools: string[] | undefined;
   acp: boolean | undefined;
@@ -137,6 +129,7 @@ export interface CliArgs {
   googleSearchEngineId: string | undefined;
   webSearchDefault: string | undefined;
   screenReader: boolean | undefined;
+  vlmSwitchMode: string | undefined;
   inputFormat?: string | undefined;
   outputFormat: string | undefined;
   includePartialMessages?: boolean;
@@ -191,61 +184,6 @@ export async function parseArguments(): Promise<CliArgs> {
     .scriptName('qwen')
     .usage(
       'Usage: qwen [options] [command]\n\nQwen Code - Launch an interactive CLI, use -p/--prompt for non-interactive mode',
-    )
-    .option('telemetry', {
-      type: 'boolean',
-      description:
-        'Enable telemetry? This flag specifically controls if telemetry is sent. Other --telemetry-* flags set specific values but do not enable telemetry on their own.',
-    })
-    .option('telemetry-target', {
-      type: 'string',
-      choices: ['local', 'gcp'],
-      description:
-        'Set the telemetry target (local or gcp). Overrides settings files.',
-    })
-    .option('telemetry-otlp-endpoint', {
-      type: 'string',
-      description:
-        'Set the OTLP endpoint for telemetry. Overrides environment variables and settings files.',
-    })
-    .option('telemetry-otlp-protocol', {
-      type: 'string',
-      choices: ['grpc', 'http'],
-      description:
-        'Set the OTLP protocol for telemetry (grpc or http). Overrides settings files.',
-    })
-    .option('telemetry-log-prompts', {
-      type: 'boolean',
-      description:
-        'Enable or disable logging of user prompts for telemetry. Overrides settings files.',
-    })
-    .option('telemetry-outfile', {
-      type: 'string',
-      description: 'Redirect all telemetry output to the specified file.',
-    })
-    .deprecateOption(
-      'telemetry',
-      'Use the "telemetry.enabled" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-target',
-      'Use the "telemetry.target" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-endpoint',
-      'Use the "telemetry.otlpEndpoint" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-otlp-protocol',
-      'Use the "telemetry.otlpProtocol" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-log-prompts',
-      'Use the "telemetry.logPrompts" setting in settings.json instead. This flag will be removed in a future version.',
-    )
-    .deprecateOption(
-      'telemetry-outfile',
-      'Use the "telemetry.outfile" setting in settings.json instead. This flag will be removed in a future version.',
     )
     .option('debug', {
       alias: 'd',
@@ -424,6 +362,13 @@ export async function parseArguments(): Promise<CliArgs> {
         .option('screen-reader', {
           type: 'boolean',
           description: 'Enable screen reader mode for accessibility.',
+        })
+        .option('vlm-switch-mode', {
+          type: 'string',
+          choices: ['once', 'session', 'persist'],
+          description:
+            'Default behavior when images are detected in input. Values: once (one-time switch), session (switch for entire session), persist (continue with current model). Overrides settings files.',
+          default: process.env['VLM_SWITCH_MODE'],
         })
         .option('input-format', {
           type: 'string',
@@ -693,21 +638,14 @@ export async function loadCliConfig(
   }
 
   // Automatically load output-language.md if it exists
-  const projectStorage = new Storage(cwd);
-  const projectOutputLanguagePath = path.join(
-    projectStorage.getQwenDir(),
-    'output-language.md',
-  );
-  const globalOutputLanguagePath = path.join(
+  let outputLanguageFilePath: string | undefined = path.join(
     Storage.getGlobalQwenDir(),
     'output-language.md',
   );
-
-  let outputLanguageFilePath: string | undefined;
-  if (fs.existsSync(projectOutputLanguagePath)) {
-    outputLanguageFilePath = projectOutputLanguagePath;
-  } else if (fs.existsSync(globalOutputLanguagePath)) {
-    outputLanguageFilePath = globalOutputLanguagePath;
+  if (fs.existsSync(outputLanguageFilePath)) {
+    // output-language.md found - will be added to context files
+  } else {
+    outputLanguageFilePath = undefined;
   }
 
   const fileService = new FileDiscoveryService(cwd);
@@ -759,22 +697,6 @@ export async function loadCliConfig(
       `Approval mode overridden to "default" because the current folder is not trusted.`,
     );
     approvalMode = ApprovalMode.DEFAULT;
-  }
-
-  let telemetrySettings;
-  try {
-    telemetrySettings = await resolveTelemetrySettings({
-      argv,
-      env: process.env as unknown as Record<string, string | undefined>,
-      settings: settings.telemetry,
-    });
-  } catch (err) {
-    if (err instanceof FatalConfigError) {
-      throw new FatalConfigError(
-        `Invalid telemetry configuration: ${err.message}.`,
-      );
-    }
-    throw err;
   }
 
   // Interactive mode determination with priority:
@@ -902,6 +824,9 @@ export async function loadCliConfig(
       ? argv.screenReader
       : (settings.ui?.accessibility?.screenReader ?? false);
 
+  const vlmSwitchMode =
+    argv.vlmSwitchMode || settings.experimental?.vlmSwitchMode;
+
   let sessionId: string | undefined;
   let sessionData: ResumedSessionData | undefined;
 
@@ -968,7 +893,6 @@ export async function loadCliConfig(
       ...settings.ui?.accessibility,
       screenReader,
     },
-    telemetry: telemetrySettings,
     usageStatisticsEnabled: settings.privacy?.usageStatisticsEnabled ?? true,
     fileFiltering: settings.context?.fileFiltering,
     checkpointing:
@@ -998,7 +922,6 @@ export async function loadCliConfig(
     modelProvidersConfig,
     generationConfigSources: resolvedCliConfig.sources,
     generationConfig: resolvedCliConfig.generationConfig,
-    warnings: resolvedCliConfig.warnings,
     cliVersion: await getCliVersion(),
     webSearch: buildWebSearchConfig(argv, settings, selectedAuthType),
     summarizeToolOutput: settings.model?.summarizeToolOutput,
@@ -1013,6 +936,7 @@ export async function loadCliConfig(
     skipNextSpeakerCheck: settings.model?.skipNextSpeakerCheck,
     skipLoopDetection: settings.model?.skipLoopDetection ?? false,
     skipStartupContext: settings.model?.skipStartupContext ?? false,
+    vlmSwitchMode,
     truncateToolOutputThreshold: settings.tools?.truncateToolOutputThreshold,
     truncateToolOutputLines: settings.tools?.truncateToolOutputLines,
     enableToolOutputTruncation: settings.tools?.enableToolOutputTruncation,

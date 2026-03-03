@@ -54,8 +54,6 @@ import {
   type SubagentStatsSummary,
 } from './subagent-statistics.js';
 import type { SubagentHooks } from './subagent-hooks.js';
-import { logSubagentExecution } from '../telemetry/loggers.js';
-import { SubagentExecutionEvent } from '../telemetry/types.js';
 import { TaskTool } from '../tools/task.js';
 import { DEFAULT_QWEN_MODEL } from '../config/models.js';
 
@@ -341,9 +339,6 @@ export class SubAgentScope {
         timestamp: Date.now(),
       } as SubAgentStartEvent);
 
-      // Log telemetry for subagent start
-      const startEvent = new SubagentExecutionEvent(this.name, 'started');
-      logSubagentExecution(this.runtimeContext, startEvent);
       while (true) {
         // Create a new AbortController for each round to avoid listener accumulation
         const roundAbortController = new AbortController();
@@ -559,21 +554,6 @@ export class SubAgentScope {
         outputTokens: summary.outputTokens,
         totalTokens: summary.totalTokens,
       } as SubAgentFinishEvent);
-
-      const completionEvent = new SubagentExecutionEvent(
-        this.name,
-        this.terminateMode === SubagentTerminateMode.GOAL
-          ? 'completed'
-          : 'failed',
-        {
-          terminate_reason: this.terminateMode,
-          result: this.finalText,
-          execution_summary: this.stats.formatCompact(
-            'Subagent execution completed',
-          ),
-        },
-      );
-      logSubagentExecution(this.runtimeContext, completionEvent);
 
       await this.hooks?.onStop?.({
         subagentId: this.subagentId,
@@ -998,12 +978,6 @@ Important Rules:
  - You operate in non-interactive mode: do not ask the user questions; proceed with available context.
  - Use tools only when necessary to obtain facts or make changes.
  - When the task is complete, return the final result as a normal model response (not a tool call) and stop.`;
-
-    // Append user memory (QWEN.md + output-language.md) to ensure subagent respects project conventions
-    const userMemory = this.runtimeContext.getUserMemory();
-    if (userMemory && userMemory.trim().length > 0) {
-      finalPrompt += `\n\n---\n\n${userMemory.trim()}`;
-    }
 
     return finalPrompt;
   }

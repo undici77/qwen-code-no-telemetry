@@ -9,7 +9,6 @@ import type {
   Config,
   ToolCallRequestInfo,
   ToolCallResponseInfo,
-  SessionMetrics,
   ServerGeminiStreamEvent,
   TaskResultDisplay,
   McpToolProgressData,
@@ -62,7 +61,7 @@ export interface ResultOptions {
   readonly apiDurationMs: number;
   readonly numTurns: number;
   readonly usage?: ExtendedUsage;
-  readonly stats?: SessionMetrics;
+  readonly stats?: unknown;
   readonly summary?: string;
   readonly subtype?: string;
 }
@@ -1120,7 +1119,7 @@ export abstract class BaseJsonOutputAdapter {
         error: { message: errorMessage },
       };
     } else {
-      const success: CLIResultMessageSuccess & { stats?: SessionMetrics } = {
+      const success: CLIResultMessageSuccess & { stats?: unknown } = {
         type: 'result',
         subtype:
           (options.subtype as CLIResultMessageSuccess['subtype']) ?? 'success',

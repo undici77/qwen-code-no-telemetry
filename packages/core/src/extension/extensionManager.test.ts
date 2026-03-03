@@ -59,28 +59,6 @@ vi.mock('os', async (importOriginal) => {
     homedir: mockHomedir,
   };
 });
-
-const mockLogExtensionEnable = vi.hoisted(() => vi.fn());
-const mockLogExtensionInstallEvent = vi.hoisted(() => vi.fn());
-const mockLogExtensionUninstall = vi.hoisted(() => vi.fn());
-const mockLogExtensionDisable = vi.hoisted(() => vi.fn());
-const mockLogExtensionUpdateEvent = vi.hoisted(() => vi.fn());
-vi.mock('../telemetry/loggers.js', () => ({
-  logExtensionEnable: mockLogExtensionEnable,
-  logExtensionUpdateEvent: mockLogExtensionUpdateEvent,
-}));
-
-vi.mock('../index.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../index.js')>();
-  return {
-    ...actual,
-    logExtensionEnable: mockLogExtensionEnable,
-    logExtensionInstallEvent: mockLogExtensionInstallEvent,
-    logExtensionUninstall: mockLogExtensionUninstall,
-    logExtensionDisable: mockLogExtensionDisable,
-  };
-});
-
 const EXTENSIONS_DIRECTORY_NAME = path.join(QWEN_DIR, 'extensions');
 
 function createExtension({
