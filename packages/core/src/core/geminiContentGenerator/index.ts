@@ -10,7 +10,6 @@ import type {
   ContentGeneratorConfig,
 } from '../contentGenerator.js';
 import type { Config } from '../../config/config.js';
-import { InstallationManager } from '../../utils/installationManager.js';
 
 export { GeminiContentGenerator } from './geminiContentGenerator.js';
 
@@ -30,14 +29,6 @@ export function createGeminiContentGenerator(
   };
 
   let headers: Record<string, string> = { ...baseHeaders };
-  if (gcConfig?.getUsageStatisticsEnabled()) {
-    const installationManager = new InstallationManager();
-    const installationId = installationManager.getInstallationId();
-    headers = {
-      ...headers,
-      'x-gemini-api-privileged-user-id': `${installationId}`,
-    };
-  }
   const httpOptions = { headers };
 
   const geminiContentGenerator = new GeminiContentGenerator(

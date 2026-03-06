@@ -291,7 +291,6 @@ export interface ConfigParameters {
   contextFileName?: string | string[];
   accessibility?: AccessibilitySettings;
   gitCoAuthor?: boolean;
-  usageStatisticsEnabled?: boolean;
   fileFiltering?: {
     respectGitIgnore?: boolean;
     respectQwenIgnore?: boolean;
@@ -445,7 +444,6 @@ export class Config {
   private approvalMode: ApprovalMode;
   private readonly accessibility: AccessibilitySettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
-  private readonly usageStatisticsEnabled: boolean;
   private geminiClient!: GeminiClient;
   private baseLlmClient!: BaseLlmClient;
   private readonly fileFiltering: {
@@ -558,7 +556,6 @@ export class Config {
       name: 'Qwen-Coder',
       email: 'qwen-coder@alibabacloud.com',
     };
-    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? true;
     this.outputLanguageFilePath = params.outputLanguageFilePath;
 
     this.fileFiltering = {
@@ -1379,10 +1376,6 @@ export class Config {
       this.fileDiscoveryService = new FileDiscoveryService(this.targetDir);
     }
     return this.fileDiscoveryService;
-  }
-
-  getUsageStatisticsEnabled(): boolean {
-    return this.usageStatisticsEnabled;
   }
 
   getExtensionContextFilePaths(): string[] {

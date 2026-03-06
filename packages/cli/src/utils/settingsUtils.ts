@@ -303,8 +303,7 @@ const SETTINGS_DIALOG_ORDER: readonly string[] = [
   // System Settings - rarely changed
   'general.disableAutoUpdate',
 
-  // Privacy
-  'privacy.usageStatisticsEnabled',
+  // Privacy (usage statistics removed)
 ] as const;
 
 /**

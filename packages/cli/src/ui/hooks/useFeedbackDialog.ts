@@ -113,7 +113,7 @@ export const useFeedbackDialog = ({
   }, []);
 
   const submitFeedback = useCallback(
-    (rating: number) => {
+    (_rating: number) => {
       // Only create and log feedback event for ratings 1-3 (GOOD, BAD, FINE)
       // Rating 0 (DISMISS) should not trigger any telemetry
       // Record the timestamp when feedback dialog is submitted
@@ -125,7 +125,7 @@ export const useFeedbackDialog = ({
 
       closeFeedbackDialog();
     },
-    [closeFeedbackDialog, sessionStats.sessionId, config, settings],
+    [closeFeedbackDialog, sessionStats.sessionId, settings],
   );
 
   useEffect(() => {
@@ -142,7 +142,6 @@ export const useFeedbackDialog = ({
         // 8. Not temporarily dismissed
         if (
           config.getAuthType() !== AuthType.QWEN_OAUTH ||
-          !config.getUsageStatisticsEnabled() ||
           settings.merged.ui?.enableUserFeedback === false ||
           !lastMessageIsAIResponse(history) ||
           Math.random() > FEEDBACK_SHOW_PROBABILITY ||

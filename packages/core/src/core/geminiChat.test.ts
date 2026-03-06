@@ -21,7 +21,6 @@ import {
 import { StreamContentError } from './openaiContentGenerator/pipeline.js';
 import type { Config } from '../config/config.js';
 import { setSimulate429 } from '../utils/testUtils.js';
-import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 // Mock fs module to prevent actual file system operations during tests
 const mockFileSystem = new Map<string, string>();
@@ -63,23 +62,6 @@ vi.mock('../utils/retry.js', async (importOriginal) => {
   };
 });
 
-// Mock telemetry loggers (no-op stubs for no-telemetry mode)
-const { mockLogContentRetry, mockLogContentRetryFailure } = vi.hoisted(() => ({
-  mockLogContentRetry: vi.fn(),
-  mockLogContentRetryFailure: vi.fn(),
-}));
-
-vi.mock('../telemetry/loggers.js', () => ({
-  logContentRetry: mockLogContentRetry,
-  logContentRetryFailure: mockLogContentRetryFailure,
-}));
-
-vi.mock('../telemetry/uiTelemetry.js', () => ({
-  uiTelemetryService: {
-    setLastPromptTokenCount: vi.fn(),
-  },
-}));
-
 describe('GeminiChat', () => {
   let mockContentGenerator: ContentGenerator;
   let chat: GeminiChat;
@@ -88,7 +70,6 @@ describe('GeminiChat', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(uiTelemetryService.setLastPromptTokenCount).mockClear();
     mockContentGenerator = {
       generateContent: vi.fn(),
       generateContentStream: vi.fn(),
@@ -875,8 +856,6 @@ describe('GeminiChat', () => {
         const chunks = await collectStreamWithFakeTimers(stream);
 
         // Assertions
-        expect(mockLogContentRetry).toHaveBeenCalledTimes(1);
-        expect(mockLogContentRetryFailure).not.toHaveBeenCalled();
         expect(
           mockContentGenerator.generateContentStream,
         ).toHaveBeenCalledTimes(2);
@@ -907,9 +886,6 @@ describe('GeminiChat', () => {
         });
 
         // Verify that token counting is not called when usageMetadata is missing
-        expect(
-          uiTelemetryService.setLastPromptTokenCount,
-        ).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
@@ -999,7 +975,6 @@ describe('GeminiChat', () => {
         expect(
           mockContentGenerator.generateContentStream,
         ).toHaveBeenCalledTimes(2);
-        expect(mockLogContentRetry).toHaveBeenCalledTimes(1);
         expect(
           events.some(
             (e) =>

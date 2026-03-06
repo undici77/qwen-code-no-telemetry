@@ -25,8 +25,6 @@ import type { Config } from '../config/config.js';
 import { hasCycleInSchema } from '../tools/tools.js';
 import type { StructuredError } from './turn.js';
 import { type ChatRecordingService } from '../services/chatRecordingService.js';
-import { logContentRetry } from '../telemetry/loggers.js';
-import { ContentRetryEvent } from '../telemetry/types.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 
@@ -369,15 +367,6 @@ export class GeminiChat {
                 `Invalid stream [${(error as InvalidStreamError).type}] ` +
                   `(retry ${invalidStreamRetryCount}/${INVALID_STREAM_RETRY_CONFIG.maxRetries}). ` +
                   `Waiting ${delayMs / 1000}s before retrying...`,
-              );
-              logContentRetry(
-                self.config,
-                new ContentRetryEvent(
-                  invalidStreamRetryCount - 1,
-                  (error as InvalidStreamError).type,
-                  delayMs,
-                  model,
-                ),
               );
               yield { type: StreamEventType.RETRY };
               // Don't count transient retries against content retry limit.

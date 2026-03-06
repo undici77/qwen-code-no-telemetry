@@ -196,7 +196,6 @@ describe('Server Config (config.ts)', () => {
     question: QUESTION,
     userMemory: USER_MEMORY,
     model: MODEL,
-    usageStatisticsEnabled: false,
     overrideExtensions: [],
   };
 
@@ -498,36 +497,6 @@ describe('Server Config (config.ts)', () => {
     expect(fileService).toBeDefined();
   });
 
-  describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
-      const config = new Config({
-        ...baseParams,
-        usageStatisticsEnabled: undefined,
-      });
-
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
-    });
-
-    it.each([{ enabled: true }, { enabled: false }])(
-      'sets usage statistics based on the provided value (enabled: $enabled)',
-      ({ enabled }) => {
-        const config = new Config({
-          ...baseParams,
-          usageStatisticsEnabled: enabled,
-        });
-        expect(config.getUsageStatisticsEnabled()).toBe(enabled);
-      },
-    );
-
-    it('logs the session start event', async () => {
-      const config = new Config({
-        ...baseParams,
-        usageStatisticsEnabled: true,
-      });
-      await config.initialize();
-
-    });
-  });
 
   describe('UseRipgrep Configuration', () => {
     it('should default useRipgrep to true when not provided', () => {
@@ -1084,7 +1053,6 @@ describe('BaseLlmClient Lifecycle', () => {
     question: QUESTION,
     userMemory: USER_MEMORY,
     model: MODEL,
-    usageStatisticsEnabled: false,
   };
 
   it('should throw an error if getBaseLlmClient is called before refreshAuth', () => {
@@ -1122,7 +1090,6 @@ describe('Model Switching and Config Updates', () => {
     targetDir: '/path/to/target',
     debugMode: false,
     model: 'qwen3-coder-plus',
-    usageStatisticsEnabled: false,
   };
 
   beforeEach(() => {

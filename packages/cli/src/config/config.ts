@@ -905,7 +905,6 @@ export async function loadCliConfig(
       ...settings.ui?.accessibility,
       screenReader,
     },
-    usageStatisticsEnabled: settings.privacy?.usageStatisticsEnabled ?? true,
     fileFiltering: settings.context?.fileFiltering,
     checkpointing:
       argv.checkpointing || settings.general?.checkpointing?.enabled,
