@@ -12,6 +12,8 @@ import type {
   ServerGeminiToolCallRequestEvent,
 } from '../core/turn.js';
 import { GeminiEventType } from '../core/turn.js';
+import type { GeminiClient } from '../core/client.js';
+import type { BaseLlmClient } from '../core/baseLlmClient.js';
 import { LoopDetectionService } from './loopDetectionService.js';
 
 const TOOL_CALL_LOOP_THRESHOLD = 5;

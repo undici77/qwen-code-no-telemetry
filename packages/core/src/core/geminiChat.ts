@@ -25,14 +25,8 @@ import type { Config } from '../config/config.js';
 import { hasCycleInSchema } from '../tools/tools.js';
 import type { StructuredError } from './turn.js';
 import { type ChatRecordingService } from '../services/chatRecordingService.js';
-import {
-  logContentRetry,
-  logContentRetryFailure,
-} from '../telemetry/loggers.js';
-import {
-  ContentRetryEvent,
-  ContentRetryFailureEvent,
-} from '../telemetry/types.js';
+import { logContentRetry } from '../telemetry/loggers.js';
+import { ContentRetryEvent } from '../telemetry/types.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 

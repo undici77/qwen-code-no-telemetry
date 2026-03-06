@@ -26,7 +26,6 @@ const LLM_CHECK_AFTER_TURNS = 30;
 const MIN_LLM_CHECK_INTERVAL = 5;
 const MAX_LLM_CHECK_INTERVAL = 15;
 const LLM_LOOP_CHECK_HISTORY_COUNT = 20;
-const LLM_LOOP_CONFIDENCE_THRESHOLD = 0.9;
 
 const LOOP_DETECTION_SYSTEM_PROMPT = `You are an expert at detecting unproductive repetitive patterns in AI conversations.
 Analyze the conversation history and determine if the AI is stuck in a loop, repeating the same actions or responses without making progress.
