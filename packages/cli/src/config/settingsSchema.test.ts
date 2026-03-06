@@ -171,10 +171,6 @@ describe('SettingsSchema', () => {
       expect(getSettingsSchema().ui.properties.hideTips.showInDialog).toBe(
         true,
       );
-      expect(
-        getSettingsSchema().privacy.properties.usageStatisticsEnabled
-          .showInDialog,
-      ).toBe(true);
 
       // Check that advanced settings are hidden from dialog
       expect(getSettingsSchema().security.properties.auth.showInDialog).toBe(

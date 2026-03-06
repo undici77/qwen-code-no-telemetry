@@ -216,13 +216,7 @@
     "privacy": {
       "description": "Privacy-related settings.",
       "type": "object",
-      "properties": {
-        "usageStatisticsEnabled": {
-          "description": "Enable collection of usage statistics",
-          "type": "boolean",
-          "default": true
-        }
-      }
+      "properties": {}
     },
     "model": {
       "description": "Settings related to the generative model.",
