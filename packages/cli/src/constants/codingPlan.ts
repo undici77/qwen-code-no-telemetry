@@ -64,6 +64,42 @@ export function generateCodingPlanTemplate(
         },
       },
       {
+        id: 'glm-5',
+        name: '[Bailian Coding Plan] glm-5',
+        baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+        envKey: CODING_PLAN_ENV_KEY,
+        generationConfig: {
+          extra_body: {
+            enable_thinking: true,
+          },
+          contextWindowSize: 202752,
+        },
+      },
+      {
+        id: 'kimi-k2.5',
+        name: '[Bailian Coding Plan] kimi-k2.5',
+        baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+        envKey: CODING_PLAN_ENV_KEY,
+        generationConfig: {
+          extra_body: {
+            enable_thinking: true,
+          },
+          contextWindowSize: 262144,
+        },
+      },
+      {
+        id: 'MiniMax-M2.5',
+        name: '[Bailian Coding Plan] MiniMax-M2.5',
+        baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+        envKey: CODING_PLAN_ENV_KEY,
+        generationConfig: {
+          extra_body: {
+            enable_thinking: true,
+          },
+          contextWindowSize: 1000000,
+        },
+      },
+      {
         id: 'qwen3-coder-plus',
         name: '[Bailian Coding Plan] qwen3-coder-plus',
         baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',

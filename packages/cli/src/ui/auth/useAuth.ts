@@ -367,6 +367,17 @@ export const useAuthCommand = (
           },
           Date.now(),
         );
+
+        // Hint about /model command
+        addItem(
+          {
+            type: MessageType.INFO,
+            text: t(
+              'Tip: Use /model to switch between available Coding Plan models.',
+            ),
+          },
+          Date.now(),
+        );
       } catch (error) {
         handleAuthFailure(error);
       }

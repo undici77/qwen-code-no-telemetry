@@ -104,6 +104,8 @@ import { type VisionSwitchOutcome } from './components/ModelSwitchDialog.js';
 import { processVisionSwitchOutcome } from './hooks/useVisionAutoSwitch.js';
 import { useSubagentCreateDialog } from './hooks/useSubagentCreateDialog.js';
 import { useAgentsManagerDialog } from './hooks/useAgentsManagerDialog.js';
+import { useExtensionsManagerDialog } from './hooks/useExtensionsManagerDialog.js';
+import { useMcpDialog } from './hooks/useMcpDialog.js';
 import { useAttentionNotifications } from './hooks/useAttentionNotifications.js';
 import {
   requestConsentInteractive,
@@ -495,6 +497,12 @@ export const AppContainer = (props: AppContainerProps) => {
     openAgentsManagerDialog,
     closeAgentsManagerDialog,
   } = useAgentsManagerDialog();
+  const {
+    isExtensionsManagerDialogOpen,
+    openExtensionsManagerDialog,
+    closeExtensionsManagerDialog,
+  } = useExtensionsManagerDialog();
+  const { isMcpDialogOpen, openMcpDialog, closeMcpDialog } = useMcpDialog();
 
   // Vision model auto-switch dialog state (must be before slashCommandActions)
   const [isVisionSwitchDialogOpen, setIsVisionSwitchDialogOpen] =
@@ -529,6 +537,8 @@ export const AppContainer = (props: AppContainerProps) => {
       addConfirmUpdateExtensionRequest,
       openSubagentCreateDialog,
       openAgentsManagerDialog,
+      openExtensionsManagerDialog,
+      openMcpDialog,
       openResumeDialog,
     }),
     [
@@ -544,6 +554,8 @@ export const AppContainer = (props: AppContainerProps) => {
       addConfirmUpdateExtensionRequest,
       openSubagentCreateDialog,
       openAgentsManagerDialog,
+      openExtensionsManagerDialog,
+      openMcpDialog,
       openResumeDialog,
     ],
   );
@@ -1342,8 +1354,10 @@ export const AppContainer = (props: AppContainerProps) => {
     showIdeRestartPrompt ||
     isSubagentCreateDialogOpen ||
     isAgentsManagerDialogOpen ||
+    isMcpDialogOpen ||
     isApprovalModeDialogOpen ||
-    isResumeDialogOpen;
+    isResumeDialogOpen ||
+    isExtensionsManagerDialogOpen;
 
   const {
     isFeedbackDialogOpen,
@@ -1455,6 +1469,10 @@ export const AppContainer = (props: AppContainerProps) => {
       // Subagent dialogs
       isSubagentCreateDialogOpen,
       isAgentsManagerDialogOpen,
+      // Extensions manager dialog
+      isExtensionsManagerDialogOpen,
+      // MCP dialog
+      isMcpDialogOpen,
       // Feedback dialog
       isFeedbackDialogOpen,
     }),
@@ -1547,6 +1565,10 @@ export const AppContainer = (props: AppContainerProps) => {
       // Subagent dialogs
       isSubagentCreateDialogOpen,
       isAgentsManagerDialogOpen,
+      // Extensions manager dialog
+      isExtensionsManagerDialogOpen,
+      // MCP dialog
+      isMcpDialogOpen,
       // Feedback dialog
       isFeedbackDialogOpen,
     ],
@@ -1589,6 +1611,10 @@ export const AppContainer = (props: AppContainerProps) => {
       // Subagent dialogs
       closeSubagentCreateDialog,
       closeAgentsManagerDialog,
+      // Extensions manager dialog
+      closeExtensionsManagerDialog,
+      // MCP dialog
+      closeMcpDialog,
       // Resume session dialog
       openResumeDialog,
       closeResumeDialog,
@@ -1632,6 +1658,10 @@ export const AppContainer = (props: AppContainerProps) => {
       // Subagent dialogs
       closeSubagentCreateDialog,
       closeAgentsManagerDialog,
+      // Extensions manager dialog
+      closeExtensionsManagerDialog,
+      // MCP dialog
+      closeMcpDialog,
       // Resume session dialog
       openResumeDialog,
       closeResumeDialog,

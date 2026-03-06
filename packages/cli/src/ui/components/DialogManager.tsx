@@ -35,6 +35,8 @@ import { WelcomeBackDialog } from './WelcomeBackDialog.js';
 import { ModelSwitchDialog } from './ModelSwitchDialog.js';
 import { AgentCreationWizard } from './subagents/create/AgentCreationWizard.js';
 import { AgentsManagerDialog } from './subagents/manage/AgentsManagerDialog.js';
+import { ExtensionsManagerDialog } from './extensions/ExtensionsManagerDialog.js';
+import { MCPManagementDialog } from './mcp/MCPManagementDialog.js';
 import { SessionPicker } from './SessionPicker.js';
 
 interface DialogManagerProps {
@@ -295,6 +297,18 @@ export const DialogManager = ({
         config={config}
       />
     );
+  }
+
+  if (uiState.isExtensionsManagerDialogOpen) {
+    return (
+      <ExtensionsManagerDialog
+        onClose={uiActions.closeExtensionsManagerDialog}
+        config={config}
+      />
+    );
+  }
+  if (uiState.isMcpDialogOpen) {
+    return <MCPManagementDialog onClose={uiActions.closeMcpDialog} />;
   }
 
   if (uiState.isResumeDialogOpen) {

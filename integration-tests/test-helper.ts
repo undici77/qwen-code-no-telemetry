@@ -154,7 +154,7 @@ export class TestRig {
   // Get timeout based on environment
   getDefaultTimeout() {
     if (env['CI']) return 60000; // 1 minute in CI
-    if (env['GEMINI_SANDBOX']) return 30000; // 30s in containers
+    if (env['QWEN_SANDBOX']) return 30000; // 30s in containers
     return 15000; // 15s locally
   }
 
@@ -171,7 +171,7 @@ export class TestRig {
     const qwenDir = join(this.testDir, '.qwen');
     mkdirSync(qwenDir, { recursive: true });
     const settings = {
-      sandbox: env.GEMINI_SANDBOX !== 'false' ? env.GEMINI_SANDBOX : false,
+      sandbox: env.QWEN_SANDBOX !== 'false' ? env.QWEN_SANDBOX : false,
       ...options.settings, // Allow tests to override/add settings
     };
     writeFileSync(
