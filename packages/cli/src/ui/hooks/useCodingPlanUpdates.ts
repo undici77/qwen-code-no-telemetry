@@ -140,18 +140,17 @@ export function useCodingPlanUpdates(
             },
             Date.now(),
           );
+          addItem(
+            {
+              type: 'info',
+              text: t(
+                '{{region}} configuration updated successfully. Model switched to "{{model}}".',
+                { region: regionName, model: activeModel },
+              ),
+            },
+            Date.now(),
+          );
         }
-
-        addItem(
-          {
-            type: 'info',
-            text: t(
-              '{{region}} configuration updated successfully. Model switched to "{{model}}".',
-              { region: regionName, model: activeModel },
-            ),
-          },
-          Date.now(),
-        );
 
         return true;
       } catch (error) {

@@ -25,6 +25,14 @@ import type { Config } from '../config/config.js';
 import { hasCycleInSchema } from '../tools/tools.js';
 import type { StructuredError } from './turn.js';
 import { type ChatRecordingService } from '../services/chatRecordingService.js';
+import {
+  logContentRetry,
+  logContentRetryFailure,
+} from '../telemetry/loggers.js';
+import {
+  ContentRetryEvent,
+  ContentRetryFailureEvent,
+} from '../telemetry/types.js';
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
 
@@ -61,7 +69,7 @@ const INVALID_CONTENT_RETRY_OPTIONS: ContentRetryOptions = {
 // reason. All are retried with an independent budget (similar to rate-limit
 // retries) so they do not consume each other's retry budgets.
 const INVALID_STREAM_RETRY_CONFIG = {
-  maxRetries: 2,
+  maxRetries: 1,
   initialDelayMs: 2000,
 };
 

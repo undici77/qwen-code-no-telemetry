@@ -355,6 +355,25 @@ export class StreamingToolCallParser {
   }
 
   /**
+   * Returns true if any named tool call has an incomplete JSON structure
+   * (depth > 0 or still inside a string literal), indicating truncated streaming.
+   *
+   * Tool calls without name metadata are ignored.
+   */
+  hasIncompleteToolCalls(): boolean {
+    for (const [index] of this.buffers.entries()) {
+      const meta = this.toolCallMeta.get(index);
+      if (!meta?.name) continue;
+      const depth = this.depths.get(index) || 0;
+      const inString = this.inStrings.get(index) || false;
+      if (depth > 0 || inString) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Resets the parser state for a specific tool call index
    *
    * @param index - The tool call index to reset

@@ -5,14 +5,34 @@
  */
 
 import { createHash } from 'node:crypto';
+import type { Content } from '@google/genai';
 import type { ServerGeminiStreamEvent } from '../core/turn.js';
 import { GeminiEventType } from '../core/turn.js';
 import type { Config } from '../config/config.js';
+import { DEFAULT_QWEN_MODEL } from '../config/models.js';
+import { createDebugLogger } from '../utils/debugLogger.js';
+import {
+  isFunctionCall,
+  isFunctionResponse,
+} from '../utils/messageInspectors.js';
 
 const TOOL_CALL_LOOP_THRESHOLD = 5;
 const CONTENT_LOOP_THRESHOLD = 10;
 const CONTENT_CHUNK_SIZE = 50;
 const MAX_HISTORY_LENGTH = 1000;
+
+// LLM-based loop detection constants
+const LLM_CHECK_AFTER_TURNS = 30;
+const MIN_LLM_CHECK_INTERVAL = 5;
+const MAX_LLM_CHECK_INTERVAL = 15;
+const LLM_LOOP_CHECK_HISTORY_COUNT = 20;
+const LLM_LOOP_CONFIDENCE_THRESHOLD = 0.9;
+
+const LOOP_DETECTION_SYSTEM_PROMPT = `You are an expert at detecting unproductive repetitive patterns in AI conversations.
+Analyze the conversation history and determine if the AI is stuck in a loop, repeating the same actions or responses without making progress.
+Respond with a JSON object containing 'reasoning' (string) and 'confidence' (number 0.0-1.0) where 1.0 means definitely stuck in a loop.`;
+
+const debugLogger = createDebugLogger('LOOP_DETECTION');
 
 /**
  * Service for detecting and preventing infinite loops in AI responses.
@@ -35,6 +55,11 @@ export class LoopDetectionService {
 
   // Session-level disable flag
   private disabledForSession = false;
+
+  // LLM-based loop detection state
+  private turnCount = 0;
+  private lastLLMCheckTurn = 0;
+  private llmCheckInterval = MAX_LLM_CHECK_INTERVAL;
 
   constructor(config: Config) {
     this.config = config;
@@ -350,6 +375,35 @@ export class LoopDetectionService {
 
 
   /**
+   * Called at the start of each turn. Performs LLM-based loop detection after
+   * a minimum number of turns, then periodically based on confidence.
+   *
+   * @param signal - AbortSignal for cancellation
+   * @returns true if a loop is detected, false otherwise
+   */
+  async turnStarted(signal: AbortSignal): Promise<boolean> {
+    if (this.disabledForSession) {
+      return false;
+    }
+
+    this.turnCount++;
+
+    const isFirstCheck =
+      this.lastLLMCheckTurn === 0 &&
+      this.turnCount >= LLM_CHECK_AFTER_TURNS;
+    const isSubsequentCheck =
+      this.lastLLMCheckTurn > 0 &&
+      this.turnCount - this.lastLLMCheckTurn >= this.llmCheckInterval;
+
+    if (isFirstCheck || isSubsequentCheck) {
+      this.lastLLMCheckTurn = this.turnCount;
+      return this.checkForLoopWithLLM(signal);
+    }
+
+    return false;
+  }
+
+  /**
    * Resets all loop detection state.
    */
   reset(promptId: string): void {
@@ -357,6 +411,9 @@ export class LoopDetectionService {
     this.resetToolCallCount();
     this.resetContentTracking();
     this.loopDetected = false;
+    this.turnCount = 0;
+    this.lastLLMCheckTurn = 0;
+    this.llmCheckInterval = MAX_LLM_CHECK_INTERVAL;
   }
 
   private resetToolCallCount(): void {
