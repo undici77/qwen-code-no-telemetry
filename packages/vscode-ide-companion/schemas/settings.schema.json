@@ -24,7 +24,7 @@
       }
     },
     "env": {
-      "description": "Environment variables to set as fallback defaults. These are loaded with the lowest priority: system environment variables > .env files > settings.json env field.",
+      "description": "Environment variables to set as fallback defaults. These are loaded with the lowest priority: system environment variables > .env files > settings.env.",
       "type": "object",
       "additionalProperties": true
     },
@@ -44,7 +44,7 @@
         "enableAutoUpdate": {
           "description": "Enable automatic update checks and installations on startup.",
           "type": "boolean",
-          "default": true
+          "default": false
         },
         "gitCoAuthor": {
           "description": "Automatically add a Co-authored-by trailer to git commit messages when commits are made through Qwen Code.",
@@ -223,11 +223,6 @@
           "default": true
         }
       }
-    },
-    "telemetry": {
-      "description": "Telemetry configuration.",
-      "type": "object",
-      "additionalProperties": true
     },
     "model": {
       "description": "Settings related to the generative model.",
@@ -573,6 +568,21 @@
       "description": "Configuration for web search providers.",
       "type": "object",
       "additionalProperties": true
+    },
+    "experimental": {
+      "description": "Setting to enable experimental features",
+      "type": "object",
+      "properties": {
+        "visionModelPreview": {
+          "description": "Enable vision model support and auto-switching functionality. When disabled, vision models like qwen-vl-max-latest will be hidden and auto-switching will not occur.",
+          "type": "boolean",
+          "default": true
+        },
+        "vlmSwitchMode": {
+          "description": "Default behavior when images are detected in input. Values: once (one-time switch), session (switch for entire session), persist (continue with current model). If not set, user will be prompted each time. This is a temporary experimental feature.",
+          "type": "string"
+        }
+      }
     },
     "hooksConfig": {
       "description": "Hook configurations for intercepting and customizing agent behavior.",
