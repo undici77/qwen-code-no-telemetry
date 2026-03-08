@@ -73,7 +73,7 @@ else
     exit 1
 fi
 
-# --------------------------------------------------------------------------- 
+# ---------------------------------------------------------------------------
 # Final verification - check dist directory exists and has content
 # ---------------------------------------------------------------------------
 echo ""
@@ -91,20 +91,11 @@ else
     exit 1
 fi
 
-# --------------------------------------------------------------------------- 
-# Success
-# ---------------------------------------------------------------------------
+# Mark cleanup as done to suppress failure message
 CLEANUP_DONE=true
-trap - EXIT
 
-# Final cleanup after successful build
-echo ""
-echo "--- Step 5: Final cleanup ---"
-if npm run clean; then
-    echo "✓ Cleanup completed successfully"
-else
-    echo "✗ Final cleanup failed (non-fatal)"
-fi
+npm run clean
+rm -rf node_modules
 
 echo ""
 echo "==========================================="
