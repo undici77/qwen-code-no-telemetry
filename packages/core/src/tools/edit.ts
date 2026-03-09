@@ -478,39 +478,39 @@ export class EditTool
     super(
       EditTool.Name,
       ToolDisplayNames.EDIT,
-      `Replaces text within a file. By default, replaces a single occurrence. Set \`replace_all\` to true when you intend to modify every instance of \`old_string\`. This tool requires providing significant context around the change to ensure precise targeting. Always use the ${ReadFileTool.Name} tool to examine the file's current content before attempting a text replacement.
+      `Replaces text within a file. Always use ${ReadFileTool.Name} to read the file before editing.
 
-      The user has the ability to modify the \`new_string\` content. If modified, this will be stated in the response.
+RULES — each one is required; violating any will cause the tool to fail:
+1. file_path: absolute path only (must start with /).
+2. old_string: copy the exact text from the file — every character, space, indent, and newline. Do NOT escape it.
+3. new_string: the exact replacement text. Do NOT escape it. Ensure the result is correct.
+4. old_string must match exactly ONE location. Include at least 3 lines of context before AND after the target text so it is unique. If it matches 0 or 2+ places, the tool fails.
+5. To replace EVERY occurrence, set replace_all to true. Without it, multiple matches = error.
+6. To CREATE a new file, use old_string="" (empty). The file must not exist yet.
 
-Expectation for required parameters:
-1. \`file_path\` MUST be an absolute path; otherwise an error will be thrown.
-2. \`old_string\` MUST be the exact literal text to replace (including all whitespace, indentation, newlines, and surrounding code etc.).
-3. \`new_string\` MUST be the exact literal text to replace \`old_string\` with (also including all whitespace, indentation, newlines, and surrounding code etc.). Ensure the resulting code is correct and idiomatic.
-4. NEVER escape \`old_string\` or \`new_string\`, that would break the exact literal text requirement.
-**Important:** If ANY of the above are not satisfied, the tool will fail. CRITICAL for \`old_string\`: Must uniquely identify the single instance to change. Include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string matches multiple locations, or does not match exactly, the tool will fail.
-**Multiple replacements:** Set \`replace_all\` to true when you want to replace every occurrence that matches \`old_string\`.`,
+The user may modify new_string; if so, the response will indicate this.`,
       Kind.Edit,
       {
         properties: {
           file_path: {
             description:
-              "The absolute path to the file to modify. Must start with '/'.",
+              "Absolute path to the file to modify. Must start with '/'. Example: '/home/user/project/src/main.ts'",
             type: 'string',
           },
           old_string: {
             description:
-              'The exact literal text to replace, preferably unescaped. For single replacements (default), include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string is not the exact literal text (i.e. you escaped it) or does not match exactly, the tool will fail.',
+              'The exact text currently in the file to be replaced. Copy it verbatim — preserve every space, tab, and newline. Do NOT escape. Must match exactly one location; include 3+ lines of surrounding context to ensure uniqueness.',
             type: 'string',
           },
           new_string: {
             description:
-              'The exact literal text to replace `old_string` with, preferably unescaped. Provide the EXACT text. Ensure the resulting code is correct and idiomatic.',
+              'The exact text to insert in place of old_string. Do NOT escape. Must produce correct, valid code/content after substitution.',
             type: 'string',
           },
           replace_all: {
             type: 'boolean',
             description:
-              'Replace all occurrences of old_string (default false).',
+              'Set to true to replace every occurrence of old_string. Default false. Without this flag, more than one match causes an error.',
           },
         },
         required: ['file_path', 'old_string', 'new_string'],

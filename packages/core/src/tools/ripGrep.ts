@@ -260,29 +260,29 @@ export class RipGrepTool extends BaseDeclarativeTool<
     super(
       RipGrepTool.Name,
       'Grep',
-      'A powerful search tool built on ripgrep\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")\n  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx")\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: Uses ripgrep (not grep) - special regex characters need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n',
+      'Search for a regex pattern across files using ripgrep. Case-insensitive by default.\n\n  - ALWAYS use this tool for search tasks. NEVER run `grep` or `rg` as a shell command.\n  - pattern supports full ripgrep regex (e.g., "log.*Error", "function\\s+\\w+")\n  - Special regex characters must be escaped: to find `interface{}` use `interface\\{\\}`\n  - Narrow results with glob (e.g., "*.ts") and/or path\n  - Only pattern is required; all other parameters are optional\n',
       Kind.Search,
       {
         properties: {
           pattern: {
             type: 'string',
             description:
-              'The regular expression pattern to search for in file contents',
+              'Ripgrep regex pattern to search for. Examples: "TODO", "function\\s+\\w+", "log.*Error". Escape special chars: `interface\\{\\}` to find `interface{}`. Case-insensitive.',
           },
           glob: {
             type: 'string',
             description:
-              'Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}") - maps to rg --glob',
+              'Optional glob to restrict which files are searched. Examples: "*.ts", "**/*.{js,jsx}", "src/**/*.py". Maps to rg --glob.',
           },
           path: {
             type: 'string',
             description:
-              'File or directory to search in (rg PATH). Defaults to current working directory.',
+              'File or directory to search in. Accepts absolute or relative paths. Defaults to the workspace root.',
           },
           limit: {
             type: 'number',
             description:
-              'Limit output to first N lines/entries. Optional - shows all matches if not specified.',
+              'Maximum number of matching lines to return. Omit to return all matches. Use to avoid huge outputs on broad patterns.',
           },
         },
         required: ['pattern'],
