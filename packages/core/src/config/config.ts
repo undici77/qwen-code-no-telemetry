@@ -370,6 +370,12 @@ export interface ConfigParameters {
   hooksConfig?: Record<string, unknown>;
   /** Warnings generated during configuration resolution */
   warnings?: string[];
+
+  /** Disable LLM self-correction for edit tool failures */
+  disableLLMCorrection?: boolean;
+
+  /** Optional path validation callback (for project temp dirs etc.) */
+  validatePathAccess?: (path: string) => string | null;
 }
 
 function normalizeConfigOutputFormat(
@@ -513,6 +519,19 @@ export class Config {
   private readonly hooksConfig?: Record<string, unknown>;
   private hookSystem?: HookSystem;
   private messageBus?: MessageBus;
+  
+  /** Disable LLM self-correction for edit tool failures */
+  private readonly disableLLMCorrection: boolean;
+  
+  /** Optional path validation callback (for project temp dirs etc.) */
+  private readonly validatePathAccess?: (path: string) => string | null;
+
+  /**
+   * Get the path validation callback
+   */
+  getValidatePathAccess(): ((path: string) => string | null) | undefined {
+    return this.validatePathAccess;
+  }
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId ?? randomUUID();
@@ -616,6 +635,8 @@ export class Config {
     this.enableToolOutputTruncation = params.enableToolOutputTruncation ?? true;
     this.channel = params.channel;
     this.defaultFileEncoding = params.defaultFileEncoding ?? FileEncoding.UTF8;
+    this.disableLLMCorrection = params.disableLLMCorrection ?? false;
+    this.validatePathAccess = params.validatePathAccess;
     this.storage = new Storage(this.targetDir);
     this.vlmSwitchMode = params.vlmSwitchMode;
     this.inputFormat = params.inputFormat ?? InputFormat.TEXT;
@@ -1583,6 +1604,14 @@ export class Config {
    */
   getDefaultFileEncoding(): FileEncodingType {
     return this.defaultFileEncoding;
+  }
+
+  /**
+   * Get whether to disable LLM self-correction for edit tool failures.
+   * @returns boolean
+   */
+  getDisableLLMCorrection(): boolean {
+    return this.disableLLMCorrection;
   }
 
   /**

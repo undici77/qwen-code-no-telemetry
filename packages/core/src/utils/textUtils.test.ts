@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { safeLiteralReplace, normalizeContent } from './textUtils.js';
+import {
+  safeLiteralReplace,
+  truncateString,
+  safeTemplateReplace,
+  normalizeContent,
+} from './textUtils.js';
 
 describe('safeLiteralReplace', () => {
   it('returns original string when oldString empty or not found', () => {
@@ -78,42 +83,116 @@ describe('safeLiteralReplace', () => {
   });
 });
 
+describe('truncateString', () => {
+  it('should not truncate string shorter than maxLength', () => {
+    expect(truncateString('abc', 5)).toBe('abc');
+  });
+
+  it('should not truncate string equal to maxLength', () => {
+    expect(truncateString('abcde', 5)).toBe('abcde');
+  });
+
+  it('should truncate string longer than maxLength and append default suffix', () => {
+    expect(truncateString('abcdef', 5)).toBe('abcde...[TRUNCATED]');
+  });
+
+  it('should truncate string longer than maxLength and append custom suffix', () => {
+    expect(truncateString('abcdef', 5, '...')).toBe('abcde...');
+  });
+
+  it('should handle empty string', () => {
+    expect(truncateString('', 5)).toBe('');
+  });
+});
+
+describe('safeTemplateReplace', () => {
+  it('replaces all occurrences of known keys', () => {
+    const tmpl = 'Hello {{name}}, welcome to {{place}}. {{name}} is happy.';
+    const replacements = { name: 'Alice', place: 'Wonderland' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'Hello Alice, welcome to Wonderland. Alice is happy.',
+    );
+  });
+
+  it('ignores keys not present in replacements', () => {
+    const tmpl = 'Hello {{name}}, welcome to {{unknown}}.';
+    const replacements = { name: 'Bob' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'Hello Bob, welcome to {{unknown}}.',
+    );
+  });
+
+  it('ignores extra keys in replacements', () => {
+    const tmpl = 'Hello {{name}}';
+    const replacements = { name: 'Charlie', age: '30' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Hello Charlie');
+  });
+
+  it('handles empty template', () => {
+    expect(safeTemplateReplace('', { key: 'val' })).toBe('');
+  });
+
+  it('handles template with no placeholders', () => {
+    expect(safeTemplateReplace('No keys here', { key: 'val' })).toBe(
+      'No keys here',
+    );
+  });
+
+  it('prevents double interpolation (security check)', () => {
+    const tmpl = 'User said: {{userInput}}';
+    const replacements = {
+      userInput: '{{secret}}',
+      secret: 'super_secret_value',
+    };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe(
+      'User said: {{secret}}',
+    );
+  });
+
+  it('handles values with $ signs correctly (no regex group substitution)', () => {
+    const tmpl = 'Price: {{price}}';
+    const replacements = { price: '$100' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Price: $100');
+  });
+
+  it('treats special replacement patterns (e.g. "$&") as literal strings', () => {
+    const tmpl = 'Value: {{val}}';
+    const replacements = { val: '$&' };
+    expect(safeTemplateReplace(tmpl, replacements)).toBe('Value: $&');
+  });
+});
+
 describe('normalizeContent', () => {
-  it('strips UTF-8 BOM from the beginning of the string', () => {
-    const contentWithBOM = '\uFEFFHello World';
-    expect(normalizeContent(contentWithBOM)).toBe('Hello World');
+  it('should return original string without BOM or CRLF unchanged', () => {
+    expect(normalizeContent('hello world')).toBe('hello world');
   });
 
-  it('preserves BOM-like characters not at the beginning', () => {
-    const content = 'Hello\uFEFFWorld';
-    expect(normalizeContent(content)).toBe('Hello\uFEFFWorld');
+  it('should strip UTF-8 BOM', () => {
+    // UTF-8 BOM is \ufeff
+    const withBOM = '\ufeffhello world';
+    expect(normalizeContent(withBOM)).toBe('hello world');
   });
 
-  it('converts CRLF to LF', () => {
-    const content = 'Line 1\r\nLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should normalize CRLF to LF', () => {
+    const withCRLF = 'line1\r\nline2\r\nline3';
+    expect(normalizeContent(withCRLF)).toBe('line1\nline2\nline3');
   });
 
-  it('converts standalone CR to LF', () => {
-    const content = 'Line 1\rLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should normalize CR only (old Mac) to LF', () => {
+    const withCR = 'line1\rline2\rline3';
+    expect(normalizeContent(withCR)).toBe('line1\nline2\nline3');
   });
 
-  it('leaves existing LF unchanged', () => {
-    const content = 'Line 1\nLine 2';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2');
+  it('should strip BOM and normalize CRLF together', () => {
+    const withBOMAndCRLF = '\ufeffline1\r\nline2';
+    expect(normalizeContent(withBOMAndCRLF)).toBe('line1\nline2');
   });
 
-  it('handles mixed line endings correctly', () => {
-    const content = 'Line 1\r\nLine 2\rLine 3\nLine 4';
-    expect(normalizeContent(content)).toBe('Line 1\nLine 2\nLine 3\nLine 4');
-  });
-
-  it('handles empty strings', () => {
+  it('should handle empty string', () => {
     expect(normalizeContent('')).toBe('');
   });
 
-  it('handles strings without newlines or BOM', () => {
-    expect(normalizeContent('Just a single line')).toBe('Just a single line');
+  it('should handle only BOM', () => {
+    expect(normalizeContent('\ufeff')).toBe('');
   });
 });

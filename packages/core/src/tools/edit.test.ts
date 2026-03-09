@@ -6,10 +6,15 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+const mockFixLLMEditWithInstruction = vi.hoisted(() => vi.fn());
 const mockGenerateJson = vi.hoisted(() => vi.fn());
 const mockOpenDiff = vi.hoisted(() => vi.fn());
 
 import { IdeClient } from '../ide/ide-client.js';
+
+vi.mock('../utils/llm-edit-fixer.js', () => ({
+  FixLLMEditWithInstruction: mockFixLLMEditWithInstruction,
+}));
 
 vi.mock('../ide/ide-client.js', () => ({
   IdeClient: {
@@ -24,7 +29,7 @@ vi.mock('../utils/editor.js', () => ({
 import type { Mock } from 'vitest';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { EditToolParams } from './edit.js';
-import { applyReplacement, EditTool } from './edit.js';
+import { applyReplacement, calculateReplacement, EditTool } from './edit.js';
 import type { FileDiff } from './tools.js';
 import { ToolConfirmationOutcome } from './tools.js';
 import { ToolErrorType } from './tool-error.js';
@@ -84,12 +89,21 @@ describe('EditTool', () => {
       setGeminiMdFileCount: vi.fn(),
       getToolRegistry: () => ({}) as any, // Minimal mock for ToolRegistry
       getDefaultFileEncoding: vi.fn().mockReturnValue('utf-8'),
+      getDisableLLMCorrection: vi.fn().mockReturnValue(true),
+      getValidatePathAccess: vi.fn().mockReturnValue(null),
     } as unknown as Config;
 
-    // Reset mocks before each test
     (mockConfig.getApprovalMode as Mock).mockClear();
     // Default to not skipping confirmation
     (mockConfig.getApprovalMode as Mock).mockReturnValue(ApprovalMode.DEFAULT);
+
+    mockFixLLMEditWithInstruction.mockReset();
+    mockFixLLMEditWithInstruction.mockResolvedValue({
+      noChangesRequired: false,
+      search: '',
+      replace: '',
+      explanation: 'LLM fix failed',
+    });
 
     tool = new EditTool(mockConfig);
   });
@@ -423,7 +437,7 @@ describe('EditTool', () => {
       const result = await invocation.execute(new AbortController().signal);
 
       expect(result.llmContent).toMatch(
-        /Showing lines \d+-\d+ of \d+ from the edited file:/,
+        /Successfully modified file|Showing lines \d+-\d+ of \d+ from the edited file:/,
       );
       expect(fs.readFileSync(filePath, 'utf8')).toBe(newContent);
       const display = result.returnDisplay as FileDiff;
@@ -570,9 +584,9 @@ describe('EditTool', () => {
       };
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
-      expect(result.llmContent).toMatch(/replace_all was not enabled/);
+      expect(result.llmContent).toMatch(/expected 1 occurrence but found 2/);
       expect(result.returnDisplay).toMatch(
-        /Failed to edit because the text matches multiple locations/,
+        /Failed to edit, expected 1 occurrence but found 2/,
       );
     });
 
@@ -589,7 +603,7 @@ describe('EditTool', () => {
       const result = await invocation.execute(new AbortController().signal);
 
       expect(result.llmContent).toMatch(
-        /Showing lines \d+-\d+ of \d+ from the edited file/,
+        /Successfully modified file|Showing lines \d+-\d+ of \d+ from the edited file/,
       );
       expect(fs.readFileSync(filePath, 'utf8')).toBe(
         'new text\nnew text\nnew text',
@@ -620,9 +634,9 @@ describe('EditTool', () => {
       };
       const invocation = tool.build(params);
       const result = await invocation.execute(new AbortController().signal);
-      expect(result.llmContent).toMatch(/File already exists, cannot create/);
+      expect(result.llmContent).toMatch(/File already exists/);
       expect(result.returnDisplay).toMatch(
-        /Attempted to create a file that already exists/,
+        /Cannot create.*file already exists/,
       );
     });
 
@@ -681,26 +695,22 @@ describe('EditTool', () => {
       expect(result.returnDisplay).toMatch(/No changes to apply/);
     });
 
-    it('should return EDIT_NO_CHANGE error if replacement results in identical content', async () => {
-      // This can happen if the literal string replacement with `replaceAll` results in no change.
-      const initialContent = 'line 1\nline  2\nline 3'; // Note the double space
+    it('should handle whitespace differences with flexible matching', async () => {
+      // The new flexible strategy can match despite minor whitespace differences
+      const initialContent = 'line 1\nline  2\nline 3'; // double space in line 2
       fs.writeFileSync(filePath, initialContent, 'utf8');
       const params: EditToolParams = {
         file_path: filePath,
-        // old_string has a single space, so it won't be found by replaceAll
+        // old_string has a single space
         old_string: 'line 1\nline 2\nline 3',
         new_string: 'line 1\nnew line 2\nline 3',
       };
 
       const invocation = tool.build(params);
-      const result = await invocation.execute(new AbortController().signal);
+      await invocation.execute(new AbortController().signal);
 
-      expect(result.error?.type).toBe(ToolErrorType.EDIT_NO_OCCURRENCE_FOUND);
-      expect(result.returnDisplay).toMatch(
-        /Failed to edit, could not find the string to replace./,
-      );
-      // Ensure the file was not actually changed
-      expect(fs.readFileSync(filePath, 'utf8')).toBe(initialContent);
+      // Flexible matching now handles this case by trimming lines
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('line 1\nnew line 2\nline 3');
     });
   });
 
@@ -928,5 +938,164 @@ describe('EditTool', () => {
       expect(params.old_string).toBe(initialContent);
       expect(params.new_string).toBe(modifiedContent);
     });
+  });
+
+  describe('calculateReplacement', () => {
+    const abortSignal = new AbortController().signal;
+
+    it('should perform an exact replacement', async () => {
+      const result = await calculateReplacement({
+        params: { file_path: 'test.txt', old_string: 'world', new_string: 'moon' },
+        currentContent: 'hello world',
+        abortSignal,
+      });
+      expect(result.newContent).toBe('hello moon');
+      expect(result.occurrences).toBe(1);
+    });
+
+    it('should perform a flexible, whitespace-insensitive replacement', async () => {
+      const result = await calculateReplacement({
+        params: { file_path: 'test.txt', old_string: 'hello\nworld', new_string: 'goodbye\nmoon' },
+        currentContent: '  hello\n    world\n',
+        abortSignal,
+      });
+      expect(result.newContent).toBe('  goodbye\n  moon\n');
+      expect(result.occurrences).toBe(1);
+    });
+
+    it('should return 0 occurrences if no match is found', async () => {
+      const result = await calculateReplacement({
+        params: { file_path: 'test.txt', old_string: 'nomatch', new_string: 'moon' },
+        currentContent: 'hello world',
+        abortSignal,
+      });
+      expect(result.newContent).toBe('hello world');
+      expect(result.occurrences).toBe(0);
+    });
+
+    it('should perform a regex-based replacement for flexible intra-line whitespace', async () => {
+      const content = '  function  myFunc( a, b ) {\n    return a + b;\n  }';
+      const result = await calculateReplacement({
+        params: { file_path: 'test.js', old_string: 'function myFunc(a, b) {', new_string: 'const yourFunc = (a, b) => {' },
+        currentContent: content,
+        abortSignal,
+      });
+      expect(result.newContent).toBe('  const yourFunc = (a, b) => {\n    return a + b;\n  }');
+      expect(result.occurrences).toBe(1);
+    });
+
+    it('should perform a fuzzy replacement when exact match fails but similarity is high', async () => {
+      const content = 'const myConfig = {\n  enableFeature: true,\n  retries: 3\n};';
+      const result = await calculateReplacement({
+        params: {
+          file_path: 'config.ts',
+          old_string: 'const myConfig = {\n  enableFeature: true\n  retries: 3\n};',
+          new_string: 'const myConfig = {\n  enableFeature: false,\n  retries: 5\n};',
+        },
+        currentContent: content,
+        abortSignal,
+      });
+      expect(result.occurrences).toBe(1);
+      expect(result.newContent).toBe('const myConfig = {\n  enableFeature: false,\n  retries: 5\n};');
+    });
+  });
+
+  describe('CRLF line ending preservation', () => {
+    const testFile = 'crlf_test.txt';
+    let filePath: string;
+
+    beforeEach(() => {
+      filePath = path.join(rootDir, testFile);
+    });
+
+    it('should preserve CRLF line endings when editing a file', async () => {
+      const initialContent = 'line one\r\nline two\r\n';
+      const expectedContent = 'line one\r\nline three\r\n';
+      fs.writeFileSync(filePath, initialContent, 'utf8');
+      const params: EditToolParams = {
+        file_path: filePath,
+        old_string: 'line two',
+        new_string: 'line three',
+      };
+
+      const invocation = tool.build(params);
+      await invocation.execute(new AbortController().signal);
+
+      expect(fs.readFileSync(filePath, 'utf8')).toBe(expectedContent);
+    });
+  });
+
+  describe('disableLLMCorrection', () => {
+    it('should NOT call FixLLMEditWithInstruction when getDisableLLMCorrection is true', async () => {
+      const filePath = path.join(rootDir, 'disable_llm_test.txt');
+      fs.writeFileSync(filePath, 'Some content.', 'utf8');
+      (mockConfig.getDisableLLMCorrection as Mock).mockReturnValue(true);
+
+      const params: EditToolParams = {
+        file_path: filePath,
+        instruction: 'Replace non-existent text',
+        old_string: 'nonexistent',
+        new_string: 'replacement',
+      };
+      const invocation = tool.build(params);
+      const result = await invocation.execute(new AbortController().signal);
+
+      expect(result.error?.type).toBe(ToolErrorType.EDIT_NO_OCCURRENCE_FOUND);
+      expect(mockFixLLMEditWithInstruction).not.toHaveBeenCalled();
+    });
+
+    it('should call FixLLMEditWithInstruction when getDisableLLMCorrection is false', async () => {
+      const filePath = path.join(rootDir, 'enable_llm_test.txt');
+      fs.writeFileSync(filePath, 'Some content.', 'utf8');
+      (mockConfig.getDisableLLMCorrection as Mock).mockReturnValue(false);
+
+      const params: EditToolParams = {
+        file_path: filePath,
+        instruction: 'Replace non-existent text',
+        old_string: 'nonexistent',
+        new_string: 'replacement',
+      };
+      const invocation = tool.build(params);
+      await invocation.execute(new AbortController().signal);
+
+      expect(mockFixLLMEditWithInstruction).toHaveBeenCalled();
+    });
+  });
+
+  describe('allow_multiple / replace_all', () => {
+    const testFile = 'replacements_test.txt';
+    let filePath: string;
+
+    beforeEach(() => {
+      filePath = path.join(rootDir, testFile);
+    });
+
+    it.each([
+      { name: 'succeed when replace_all is true and there are multiple occurrences', content: 'foo foo foo', replace_all: true, shouldSucceed: true, finalContent: 'bar bar bar' },
+      { name: 'succeed when replace_all is true and there is exactly 1 occurrence', content: 'foo', replace_all: true, shouldSucceed: true, finalContent: 'bar' },
+      { name: 'fail when replace_all is false and there are multiple occurrences', content: 'foo foo foo', replace_all: false, shouldSucceed: false, expectedError: ToolErrorType.EDIT_EXPECTED_OCCURRENCE_MISMATCH },
+      { name: 'succeed when replace_all is false and there is exactly 1 occurrence', content: 'foo', replace_all: false, shouldSucceed: true, finalContent: 'bar' },
+      { name: 'fail when replace_all is true but there are 0 occurrences', content: 'baz', replace_all: true, shouldSucceed: false, expectedError: ToolErrorType.EDIT_NO_OCCURRENCE_FOUND },
+    ])(
+      'should $name',
+      async ({ content, replace_all, shouldSucceed, finalContent, expectedError }) => {
+        fs.writeFileSync(filePath, content, 'utf8');
+        const params: EditToolParams = {
+          file_path: filePath,
+          old_string: 'foo',
+          new_string: 'bar',
+          ...(replace_all !== undefined && { replace_all }),
+        };
+        const invocation = tool.build(params);
+        const result = await invocation.execute(new AbortController().signal);
+
+        if (shouldSucceed) {
+          expect(result.error).toBeUndefined();
+          if (finalContent) expect(fs.readFileSync(filePath, 'utf8')).toBe(finalContent);
+        } else {
+          expect(result.error?.type).toBe(expectedError);
+        }
+      },
+    );
   });
 });
