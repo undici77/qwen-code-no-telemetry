@@ -1,7 +1,7 @@
 # No-Telemetry Merge Strategy for Qwen Code
 
-## Branch: v0.11.0-no-telemetry
-**Date:** February 26, 2026 (updated for v0.11.0 release)
+## Branch: v0.12.1-no-telemetry
+**Date:** February 26, 2026 (updated for v0.12.1 release)
 
 ---
 
@@ -157,8 +157,8 @@ The no-telemetry branch includes these additional changes to disable data collec
 git fetch origin
 git fetch upstream
 
-# Create base branch from target version (e.g., v0.12.0)
-git checkout -b v0.12.0-no-telemetry origin/v0.12.0
+# Create base branch from target version (e.g., v0.12.1)
+git checkout -b v0.12.1-no-telemetry origin/v0.12.1
 ```
 
 ### Cherry-Pick Flow

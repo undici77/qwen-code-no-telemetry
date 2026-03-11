@@ -83,7 +83,7 @@ interface ReplacementResult {
   occurrences: number;
   finalOldString: string;
   finalNewString: string;
-  strategy?: 'exact' | 'flexible' | 'regex' | 'fuzzy';
+  strategy?: 'exact' | 'flexible' | 'regex' | 'fuzzy' | 'context-strip' | 'anchor' | 'lcs';
   matchRanges?: Array<{ start: number; end: number }>;
 }
 
@@ -265,6 +265,209 @@ async function calculateFuzzyReplacement(
   return { newContent: modifiedCode, occurrences: selectedMatches.length, finalOldString: normalizedSearch, finalNewString: normalizedReplace, strategy: 'fuzzy', matchRanges };
 }
 
+// ─── Strategy 5: Context-strip ────────────────────────────────────────────────
+// Rimuove progressivamente righe di bordo dall'old_string e riprova exact+flexible.
+// Copre il caso: il modello include righe di contesto che nel file sono leggermente diverse.
+async function calculateContextStripReplacement(
+  context: ReplacementContext,
+): Promise<ReplacementResult | null> {
+  const { currentContent, params, abortSignal } = context;
+  const searchLines = params.old_string.replace(/\r\n/g, '\n').split('\n');
+  const replaceLines = params.new_string.replace(/\r\n/g, '\n').split('\n');
+
+  // Servono almeno 3 righe per avere senso di strippare (1 bordo + 1 core + 1 bordo)
+  if (searchLines.length < 3) return null;
+
+  // Massimo 2 righe rimosse per lato — oltre è troppo aggressivo
+  const maxStrip = Math.min(2, Math.floor((searchLines.length - 1) / 2));
+
+  for (let stripTop = 1; stripTop <= maxStrip; stripTop++) {
+    for (let stripBottom = 0; stripBottom <= maxStrip; stripBottom++) {
+      const coreSearchLines = searchLines.slice(stripTop, searchLines.length - stripBottom || undefined);
+      if (coreSearchLines.length === 0) continue;
+
+      // Le righe di new_string corrispondenti al core (stesso offset)
+      const coreReplaceLines = replaceLines.slice(stripTop, replaceLines.length - stripBottom || undefined);
+
+      const strippedContext: ReplacementContext = {
+        params: {
+          ...params,
+          old_string: coreSearchLines.join('\n'),
+          new_string: coreReplaceLines.join('\n'),
+        },
+        currentContent,
+        abortSignal,
+      };
+
+      // Riprova con exact e flexible sul core
+      const exact = await calculateExactReplacement(strippedContext);
+      if (exact && exact.occurrences === 1) {
+        debugLogger.debug(`Context-strip matched: removed ${stripTop} top / ${stripBottom} bottom lines`);
+        return { ...exact, strategy: 'flexible' }; // riusa 'flexible' per compatibilità
+      }
+      const flexible = await calculateFlexibleReplacement(strippedContext);
+      if (flexible && flexible.occurrences === 1) {
+        debugLogger.debug(`Context-strip (flexible) matched: removed ${stripTop} top / ${stripBottom} bottom lines`);
+        return flexible;
+      }
+    }
+  }
+  return null;
+}
+
+// ─── Strategy 6: Anchor-match ─────────────────────────────────────────────────
+// Usa la prima e ultima riga non-vuota di old_string come "anchor" univoche nel file.
+// Tutto ciò che sta tra le due anchor viene sostituito con new_string.
+// Copre: typo/punteggiatura nelle righe interne, purché i bordi siano corretti.
+async function calculateAnchorReplacement(
+  context: ReplacementContext,
+): Promise<ReplacementResult | null> {
+  const { currentContent, params } = context;
+  const normalizedSearch = params.old_string.replace(/\r\n/g, '\n');
+  const normalizedReplace = params.new_string.replace(/\r\n/g, '\n');
+  const searchLines = normalizedSearch.split('\n');
+
+  // Trova prima e ultima riga non-vuota
+  const firstAnchor = searchLines.find(l => l.trim() !== '');
+  const lastAnchor = [...searchLines].reverse().find(l => l.trim() !== '');
+  if (!firstAnchor || !lastAnchor || firstAnchor === lastAnchor) return null;
+
+  const sourceLines = currentContent.split('\n');
+
+  // Cerca le anchor nel file (trim per tolleranza indentazione)
+  const firstAnchorTrimmed = firstAnchor.trim();
+  const lastAnchorTrimmed = lastAnchor.trim();
+
+  const firstIndices = sourceLines
+    .map((l, i) => ({ i, match: l.trim() === firstAnchorTrimmed }))
+    .filter(x => x.match)
+    .map(x => x.i);
+  const lastIndices = sourceLines
+    .map((l, i) => ({ i, match: l.trim() === lastAnchorTrimmed }))
+    .filter(x => x.match)
+    .map(x => x.i);
+
+  // Le anchor devono essere univoche e nell'ordine corretto
+  if (firstIndices.length !== 1 || lastIndices.length !== 1) return null;
+  const startIdx = firstIndices[0];
+  const endIdx = lastIndices[0];
+  if (endIdx <= startIdx) return null;
+
+  // Verifica che il numero di righe sia ragionevolmente simile (±50%)
+  const fileBlockSize = endIdx - startIdx + 1;
+  const searchBlockSize = searchLines.length;
+  if (Math.abs(fileBlockSize - searchBlockSize) / searchBlockSize > 0.5) return null;
+
+  // Applica la sostituzione preservando l'indentazione della prima anchor
+  const indentMatch = sourceLines[startIdx].match(/^([ \t]*)/);
+  const indentation = indentMatch ? indentMatch[1] : '';
+  const replaceLines = normalizedReplace.split('\n');
+  const indentedReplace = applyIndentation(replaceLines, indentation).join('\n');
+
+  const newSourceLines = [
+    ...sourceLines.slice(0, startIdx),
+    indentedReplace,
+    ...sourceLines.slice(endIdx + 1),
+  ];
+
+  let modifiedCode = newSourceLines.join('\n');
+  modifiedCode = restoreTrailingNewline(currentContent, modifiedCode);
+
+  debugLogger.debug(`Anchor-match: lines ${startIdx + 1}-${endIdx + 1}`);
+  return {
+    newContent: modifiedCode,
+    occurrences: 1,
+    finalOldString: normalizedSearch,
+    finalNewString: normalizedReplace,
+    strategy: 'flexible', // riusa 'flexible' per compatibilità
+    matchRanges: [{ start: startIdx + 1, end: endIdx + 1 }],
+  };
+}
+
+// ─── Strategy 7: LCS (Largest Common Subsequence) ────────────────────────────
+// Trova la sequenza di righe comuni più lunga tra old_string e il file.
+// Se coprono abbastanza del blocco cercato, usa quella regione come target.
+// Copre: casi misti dove né bordi né anchor sono sufficientemente affidabili.
+const LCS_MIN_COVERAGE = 0.6; // almeno 60% delle righe di old_string devono matchare
+
+async function calculateLCSReplacement(
+  context: ReplacementContext,
+): Promise<ReplacementResult | null> {
+  const { currentContent, params } = context;
+  const normalizedSearch = params.old_string.replace(/\r\n/g, '\n');
+  const normalizedReplace = params.new_string.replace(/\r\n/g, '\n');
+  const searchLines = normalizedSearch.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const sourceLines = currentContent.split('\n');
+
+  if (searchLines.length < 3) return null;
+
+  // Costruisce mappa riga → indici nel file (trim per tolleranza)
+  const lineToIndices = new Map<string, number[]>();
+  for (let i = 0; i < sourceLines.length; i++) {
+    const trimmed = sourceLines[i].trim();
+    if (trimmed === '') continue;
+    if (!lineToIndices.has(trimmed)) lineToIndices.set(trimmed, []);
+    lineToIndices.get(trimmed)!.push(i);
+  }
+
+  // Trova la sequenza comune più lunga e il suo span nel file
+  let bestStart = -1;
+  let bestEnd = -1;
+  let bestCount = 0;
+
+  // Sliding window: per ogni possibile startIdx nel file, conta quante righe di
+  // searchLines si trovano in sequenza (ordine relativo preservato)
+  for (let fileStart = 0; fileStart < sourceLines.length; fileStart++) {
+    let searchIdx = 0;
+    let fileIdx = fileStart;
+    let count = 0;
+    let lastFileIdx = fileStart;
+
+    while (fileIdx < sourceLines.length && searchIdx < searchLines.length) {
+      if (sourceLines[fileIdx].trim() === searchLines[searchIdx]) {
+        count++;
+        lastFileIdx = fileIdx;
+        searchIdx++;
+      }
+      fileIdx++;
+    }
+
+    if (count > bestCount) {
+      bestCount = count;
+      bestStart = fileStart;
+      bestEnd = lastFileIdx;
+    }
+  }
+
+  const coverage = bestCount / searchLines.length;
+  if (coverage < LCS_MIN_COVERAGE || bestStart === -1) return null;
+
+  // Applica preservando indentazione
+  const indentMatch = sourceLines[bestStart].match(/^([ \t]*)/);
+  const indentation = indentMatch ? indentMatch[1] : '';
+  const replaceLines = normalizedReplace.split('\n');
+  const indentedReplace = applyIndentation(replaceLines, indentation).join('\n');
+
+  const newSourceLines = [
+    ...sourceLines.slice(0, bestStart),
+    indentedReplace,
+    ...sourceLines.slice(bestEnd + 1),
+  ];
+
+  let modifiedCode = newSourceLines.join('\n');
+  modifiedCode = restoreTrailingNewline(currentContent, modifiedCode);
+
+  debugLogger.debug(`LCS-match: coverage ${Math.round(coverage * 100)}%, lines ${bestStart + 1}-${bestEnd + 1}`);
+  return {
+    newContent: modifiedCode,
+    occurrences: 1,
+    finalOldString: normalizedSearch,
+    finalNewString: normalizedReplace,
+    strategy: 'fuzzy', // riusa 'fuzzy' per compatibilità
+    matchRanges: [{ start: bestStart + 1, end: bestEnd + 1 }],
+  };
+}
+
 // ─── Cascade orchestrator ─────────────────────────────────────────────────────
 export async function calculateReplacement(
   context: ReplacementContext,
@@ -284,6 +487,12 @@ export async function calculateReplacement(
     const fuzzy = await calculateFuzzyReplacement(context);
     if (fuzzy) return fuzzy;
   }
+  const contextStrip = await calculateContextStripReplacement(context);
+  if (contextStrip) return contextStrip;
+  const anchor = await calculateAnchorReplacement(context);
+  if (anchor) return anchor;
+  const lcs = await calculateLCSReplacement(context);
+  if (lcs) return lcs;
   return { newContent: context.currentContent, occurrences: 0, finalOldString: normalizedSearch, finalNewString: normalizedReplace };
 }
 
@@ -373,22 +582,24 @@ interface CalculatedEdit {
   /** Original line ending of the file (\r\n or \n) */
   originalLineEnding: '\r\n' | '\n';
   /** Which replacement strategy succeeded */
-  strategy?: 'exact' | 'flexible' | 'regex' | 'fuzzy';
+  strategy?: 'exact' | 'flexible' | 'regex' | 'fuzzy' | 'context-strip' | 'anchor' | 'lcs';
   matchRanges?: Array<{ start: number; end: number }>;
 }
 
 function getFuzzyMatchFeedback(editData: CalculatedEdit): string | null {
-  if (
-    editData.strategy === 'fuzzy' &&
-    editData.matchRanges &&
-    editData.matchRanges.length > 0
-  ) {
-    const ranges = editData.matchRanges
-      .map((r) => (r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`))
-      .join(', ');
-    return `Applied fuzzy match at line${editData.matchRanges.length > 1 ? 's' : ''} ${ranges}.`;
-  }
-  return null;
+  if (!editData.strategy || editData.strategy === 'exact' || editData.strategy === 'flexible') return null;
+  const strategyLabel: Record<string, string> = {
+    regex: 'regex (whitespace-flexible)',
+    fuzzy: 'fuzzy (Levenshtein)',
+    'context-strip': 'context-strip (border lines removed)',
+    anchor: 'anchor (first+last line match)',
+    lcs: 'LCS (largest common subsequence)',
+  };
+  const label = strategyLabel[editData.strategy] ?? editData.strategy;
+  const rangeStr = editData.matchRanges && editData.matchRanges.length > 0
+    ? ` at line${editData.matchRanges.length > 1 ? 's' : ''} ${editData.matchRanges.map(r => r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`).join(', ')}`
+    : '';
+  return `Applied ${label} match${rangeStr}. Verify the edit is correct.`;
 }
 
 class EditToolInvocation implements ToolInvocation<EditToolParams, ToolResult> {
@@ -410,6 +621,21 @@ class EditToolInvocation implements ToolInvocation<EditToolParams, ToolResult> {
     params: EditToolParams,
     abortSignal: AbortSignal,
   ): Promise<CalculatedEdit> {
+    // ── Fast path: identical strings, no point reading the file ─────────────
+    const normalizedOld = params.old_string.replace(/\r\n/g, '\n');
+    const normalizedNew = params.new_string.replace(/\r\n/g, '\n');
+    if (normalizedOld !== '' && normalizedOld === normalizedNew) {
+      return {
+        currentContent: null, newContent: '', occurrences: 1,
+        isNewFile: false, encoding: 'utf-8', bom: false, originalLineEnding: '\n',
+        error: {
+          display: `No changes to apply. The old_string and new_string are identical.`,
+          raw: `No changes to apply. old_string and new_string are identical in: ${params.file_path}`,
+          type: ToolErrorType.EDIT_NO_CHANGE,
+        },
+      };
+    }
+
     let currentContent: string | null = null;
     let fileExists = false;
     let encoding = 'utf-8';
@@ -936,9 +1162,9 @@ The user may modify new_string; if so, the response will indicate this.`,
     const workspaceContext = this.config.getWorkspaceContext();
     if (!workspaceContext.isPathWithinWorkspace(params.file_path)) {
       // Try validatePathAccess if available (supports project temp dir etc.)
-      const pathValidator = this.config.getValidatePathAccess();
-      if (pathValidator) {
-        const pathError = pathValidator(params.file_path);
+      const validator = this.config.getValidatePathAccess();
+      if (validator) {
+        const pathError = validator(params.file_path);
         if (pathError) return pathError;
       } else {
         const directories = workspaceContext.getDirectories();

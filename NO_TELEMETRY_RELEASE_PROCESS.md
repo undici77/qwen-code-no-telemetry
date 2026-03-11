@@ -8,7 +8,7 @@ This document describes the process for creating no-telemetry releases of Qwen C
 |-------------|---------------------|
 | `v0.10.6` | `v0.10.6-no-telemetry` |
 | `v0.11.0` | `v0.11.0-no-telemetry` |
-| `release/v0.12.0` | `v0.12.0-no-telemetry` |
+| `release/v0.12.1` | `v0.12.1-no-telemetry` |
 
 **Rule:** `<target>-no-telemetry`
 
@@ -27,7 +27,7 @@ To create a new no-telemetry branch from any target:
 ./scripts/apply-no-telemetry.sh v0.12.0 origin/v0.12.0
 
 # Or manually
-git checkout -b v0.12.0-no-telemetry origin/v0.12.0
+git checkout -b v0.12.1-no-telemetry origin/v0.12.1
 # Then follow the cherry-pick steps below
 ```
 
@@ -38,7 +38,7 @@ git checkout -b v0.12.0-no-telemetry origin/v0.12.0
 ### Step 1: Create the base branch
 ```bash
 git fetch origin
-git checkout -b v0.12.0-no-telemetry origin/v0.12.0
+git checkout -b v0.12.1-no-telemetry origin/v0.12.1
 ```
 
 ### Step 2: Cherry-pick commits (oldest first)
@@ -84,7 +84,7 @@ grep 'QWEN_REF=' Dockerfile   # Should show <target>-no-telemetry
 
 # If not updated, fix it:
 git add package.json Dockerfile
-git commit --no-verify -m "chore: update version to v0.12.0-no-telemetry"
+git commit --no-verify -m "chore: update version to v0.12.1-no-telemetry"
 ```
 
 ---
@@ -163,7 +163,7 @@ CMD ["qwen"]
 For future versions, use the automated cherry-pick script instead of manual cherry-picking:
 
 ```bash
-# From your new branch (e.g., v0.12.0-no-telemetry)
+# From your new branch (e.g., v0.12.1-no-telemetry)
 ./scripts/cherry-pick-no-telemetry.sh
 
 # Or specify a commit hash
@@ -254,7 +254,7 @@ This prevents automatic update checks that would contact external servers.
 
 | Aspect | Mainline | No-Telemetry |
 |--------|----------|--------------|
-| Branch naming | `v0.12.0`, `release/v0.12.0` | `v0.12.0-no-telemetry` |
+| Branch naming | `v0.12.1`, `release/v0.12.1` | `v0.12.1-no-telemetry` |
 | Dockerfile | Multi-stage build (builder + runtime) | Single-stage (npm pack from GitHub) |
 | Build process | `npm run build` → bundle → pack | Direct `npm pack` from repo |
 | Telemetry code | Included | Removed entirely |
@@ -270,9 +270,9 @@ If issues are found after creating a no-telemetry branch:
 ```bash
 # Delete the problematic branch
 git checkout main
-git branch -D v0.12.0-no-telemetry
+git branch -D v0.12.1-no-telemetry
 
 # Start over with the fix
-git checkout -b v0.12.0-no-telemetry origin/v0.12.0
+git checkout -b v0.12.1-no-telemetry origin/v0.12.1
 # Repeat the cherry-pick process...
 ```
