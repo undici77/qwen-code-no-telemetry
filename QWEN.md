@@ -295,3 +295,6 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines. Key points:
 - `/exit` or `/quit` - Exit Qwen Code
 
 ---
+
+## Qwen Added Memories
+- When merging origin/main into a no-telemetry branch: New modifications cannot re-introduce telemetry. If telemetry code is introduced during the merge, I must safely remove only what is unnecessary while preserving the core functionality of the changes. Be vigilant about detecting and removing telemetry-related code.
