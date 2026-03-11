@@ -11,7 +11,9 @@ import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
 
 import type { PartUnion } from '@google/genai';
-import { processSingleFileContent } from '../utils/fileUtils.js';
+import {
+  processSingleFileContent,
+} from '../utils/fileUtils.js';
 import type { Config } from '../config/config.js';
 import { isSubpath } from '../utils/paths.js';
 import { Storage } from '../config/storage.js';

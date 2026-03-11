@@ -504,29 +504,29 @@ export class GrepTool extends BaseDeclarativeTool<GrepToolParams, ToolResult> {
     super(
       GrepTool.Name,
       ToolDisplayNames.GREP,
-      'Search for a regex pattern across files. Case-insensitive by default.\n\n  - ALWAYS use this tool for search tasks. NEVER run `grep` or `rg` as a shell command.\n  - pattern supports full regex (e.g., "log.*Error", "function\\s+\\w+")\n  - Narrow results with glob (e.g., "*.ts") and/or path\n  - Only pattern is required; all other parameters are optional\n',
+      'A powerful search tool for finding patterns in files\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")\n  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx")\n  - Case-insensitive by default\n  - Use Task tool for open-ended searches requiring multiple rounds\n',
       Kind.Search,
       {
         properties: {
           pattern: {
             type: 'string',
             description:
-              'Regex pattern to search for in file contents. Examples: "TODO", "function\\s+\\w+", "log.*Error". Case-insensitive.',
+              'The regular expression pattern to search for in file contents',
           },
           glob: {
             type: 'string',
             description:
-              'Optional glob to restrict which files are searched. Examples: "*.ts", "**/*.{js,jsx}", "src/**/*.py".',
+              'Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")',
           },
           path: {
             type: 'string',
             description:
-              'File or directory to search in. Accepts absolute or relative paths. Defaults to the workspace root.',
+              'File or directory to search in. Defaults to current working directory.',
           },
           limit: {
             type: 'number',
             description:
-              'Maximum number of matching lines to return. Omit to return all matches. Use to avoid huge outputs on broad patterns.',
+              'Limit output to first N matching lines. Optional - shows all matches if not specified.',
           },
         },
         required: ['pattern'],

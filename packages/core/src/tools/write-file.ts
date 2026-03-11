@@ -130,7 +130,8 @@ class WriteFileToolInvocation extends BaseToolInvocation<
   override async shouldConfirmExecute(
     _abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails | false> {
-    if (this.config.getApprovalMode() === ApprovalMode.AUTO_EDIT) {
+const mode = this.config.getApprovalMode();
+  if (mode === ApprovalMode.AUTO_EDIT || mode === ApprovalMode.YOLO) {
       return false;
     }
 
@@ -363,28 +364,19 @@ export class WriteFileTool
     super(
       WriteFileTool.Name,
       ToolDisplayNames.WRITE_FILE,
-      `Writes content to a file, REPLACING the entire file contents. Creates the file (and any missing parent directories) if it does not exist.
+      `Writes content to a specified file in the local filesystem.
 
-WHEN TO USE:
-- Creating a new file from scratch.
-- Completely rewriting an existing file.
-- Do NOT use this to make a small change to an existing file — use the Edit tool instead to avoid accidentally discarding content.
-
-RULES:
-1. file_path must be an absolute path (starts with /).
-2. content is the complete final content of the file. Everything currently in the file will be overwritten.
-
-The user may modify content; if so, the response will indicate this.`,
+      The user has the ability to modify \`content\`. If modified, this will be stated in the response.`,
       Kind.Edit,
       {
         properties: {
           file_path: {
             description:
-              "Absolute path to the file to write. Must start with '/'. Example: '/home/user/project/src/main.ts'. Relative paths are not supported.",
+              "The absolute path to the file to write to (e.g., '/home/user/project/file.txt'). Relative paths are not supported.",
             type: 'string',
           },
           content: {
-            description: 'The complete content to write. This REPLACES everything currently in the file. Include all lines — do not omit any existing content you want to keep.',
+            description: 'The content to write to the file.',
             type: 'string',
           },
         },
