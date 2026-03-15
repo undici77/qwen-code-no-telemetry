@@ -601,14 +601,12 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    it('logs the session start event', async () => {
+    it('usage statistics enabled returns value correctly', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: true,
       });
-      await config.initialize();
-
-      expect(QwenLogger.prototype.logStartSessionEvent).toHaveBeenCalledOnce();
+      expect(config.getUsageStatisticsEnabled()).toBe(true);
     });
   });
 

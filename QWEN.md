@@ -1,297 +1,372 @@
-# Qwen Code - Project Context
+# Qwen Code - Developer Memory
 
 ## Project Overview
 
-**Qwen Code** is an open-source AI agent for the terminal, optimized for [Qwen3-Coder](https://github.com/QwenLM/Qwen3-Coder). It helps developers understand large codebases, automate tedious work, and ship faster.
+This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) v0.12.3, designed for maximum privacy while maintaining compatibility with upstream changes.
 
-This project is based on [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) with adaptations to better support Qwen-Coder models.
+### Key Characteristics
 
-### Key Features
+- **Privacy-first**: All telemetry and tracking have been removed/replaced with no-op implementations
+- **Monorepo structure**: Uses npm workspaces with multiple packages (`cli`, `core`, `sdk-*`, etc.)
+- **Tech stack**: TypeScript, React (for TUI with Ink), Node.js >= 20
+- **Architecture**: CLI application with MCP (Model Context Protocol) server management and extension system
 
-- **OpenAI-compatible, OAuth free tier**: Use an OpenAI-compatible API, or sign in with Qwen OAuth to get 1,000 free requests/day
-- **Agentic workflow, feature-rich**: Rich built-in tools (Skills, SubAgents, Plan Mode) for a full agentic workflow
-- **Terminal-first, IDE-friendly**: Built for developers who live in the command line, with optional integration for VS Code, Zed, and JetBrains IDEs
+### No-Telemetry Implementation Strategy
 
-## Technology Stack
+Instead of deleting telemetry files (which made merging difficult), this fork uses a **dummy layer approach**:
 
-- **Runtime**: Node.js 20+
-- **Language**: TypeScript 5.3+
-- **Package Manager**: npm with workspaces
-- **Build Tool**: esbuild
-- **Testing**: Vitest
-- **Linting**: ESLint + Prettier
-- **UI Framework**: Ink (React for CLI)
-- **React Version**: 19.x
+1. All `@opentelemetry/*` packages removed from dependencies
+2. Telemetry exports in `packages/core/src/telemetry/` replaced with no-op functions
+3. `InstallationManager.getInstallationId()` returns static UUID: `00000000-0000-0000-0000-000000000000`
+4. Usage statistics and auto-updates disabled by default
+
+This keeps the application codebase aligned with upstream while ensuring zero external data leakage.
+
+---
 
 ## Project Structure
 
 ```
-├── packages/
-│   ├── cli/              # Command-line interface (main entry point)
-│   ├── core/             # Core backend logic and tool implementations
-│   ├── sdk-java/         # Java SDK
-│   ├── sdk-typescript/   # TypeScript SDK
-│   ├── test-utils/       # Shared testing utilities
-│   ├── vscode-ide-companion/  # VS Code extension companion
-│   ├── webui/            # Web UI components
-│   └── zed-extension/    # Zed editor extension
-├── scripts/              # Build and utility scripts
-├── docs/                 # Documentation source
-├── docs-site/            # Documentation website (Next.js)
-├── integration-tests/    # End-to-end integration tests
-└── eslint-rules/         # Custom ESLint rules
+/workspace/
+├── packages/                    # Monorepo workspaces
+│   ├── cli/                     # Command-line interface (main entry point)
+│   ├── core/                    # Core backend logic, telemetry dummy layer
+│   ├── sdk-java/                # Java SDK for Qwen Code
+│   ├── sdk-typescript/          # TypeScript SDK for Qwen Code
+│   ├── test-utils/              # Shared testing utilities
+│   ├── vscode-ide-companion/    # VS Code extension
+│   ├── web-templates/           # Web UI templates
+│   ├── webui/                   # Web-based UI component
+│   └── zed-extension/           # Zed editor extension
+├── docs/                        # Project documentation (source)
+├── docs-site/                   # Next.js documentation site
+├── integration-tests/           # End-to-end integration tests
+├── scripts/                     # Build, test, and development utilities
+├── eslint-rules/                # Custom ESLint rules
+├── build.sh / install.sh        # Installation scripts
+├── Dockerfile                   # Sandbox container definition
+└── Makefile                     # Convenience make targets
 ```
 
-### Package Details
-
-#### `@qwen-code/qwen-code` (packages/cli/)
-
-The main CLI package providing:
-
-- Interactive terminal UI using Ink/React
-- Non-interactive/headless mode
-- Authentication handling (OAuth, API keys)
-- Configuration management
-- Command system (`/help`, `/clear`, `/compress`, etc.)
-
-#### `@qwen-code/qwen-code-core` (packages/core/)
-
-Core library containing:
-
-- **Tools**: File operations (read, write, edit, glob, grep), shell execution, web fetch, LSP integration, MCP client
-- **Subagents**: Task delegation to specialized agents
-- **Skills**: Reusable skill system
-- **Models**: Model configuration and registry for Qwen and OpenAI-compatible APIs
-- **Services**: Git integration, file discovery, session management
-- **LSP Support**: Language Server Protocol integration
-- **MCP**: Model Context Protocol implementation
+---
 
 ## Building and Running
 
 ### Prerequisites
 
-- **Node.js**: ~20.19.0 for development (use nvm to manage versions)
-- **Git**
-- For sandboxing: Docker or Podman (optional but recommended)
+- **Node.js**: Use `~20.19.0` for development (specific version due to dependency issues). Any `>=20` for production.
+- **npm**: Default package manager (workspaces enabled)
 
 ### Setup
 
 ```bash
-# Clone and install
-git clone https://github.com/QwenLM/qwen-code.git
-cd qwen-code
+# Install dependencies (including all workspace packages)
 npm install
-```
 
-### Build Commands
-
-```bash
-# Build all packages
+# Build the entire project
 npm run build
 
-# Build everything including sandbox and VSCode companion
+# Build everything including sandbox container
 npm run build:all
-
-# Build only packages
-npm run build:packages
-
-# Development mode with hot reload
-npm run dev
-
-# Bundle for distribution
-npm run bundle
 ```
 
-### Running
+### Development Commands
 
-```bash
-# Start interactive CLI
-npm start
-
-# Or after global installation
-qwen
-
-# Debug mode
-npm run debug
-
-# With environment variables
-DEBUG=1 npm start
-```
+| Command                     | Description                                    |
+| --------------------------- | ---------------------------------------------- |
+| `npm start`                 | Start the Qwen Code CLI from source            |
+| `npm run dev`               | Development mode (watch for changes)           |
+| `npm run debug`             | Start with debugger attached (`--inspect-brk`) |
+| `make start` / `make debug` | Makefile aliases for above                     |
 
 ### Testing
 
 ```bash
-# Run all unit tests
+# Run all unit tests across workspaces
 npm run test
 
-# Run integration tests (no sandbox)
+# Run integration tests (end-to-end)
 npm run test:e2e
 
 # Run all integration tests with different sandbox modes
 npm run test:integration:all
 
+# Run CI test suite (includes linting checks)
+npm run test:ci
+
 # Terminal benchmark tests
 npm run test:terminal-bench
+npm run test:terminal-bench:oracle
+npm run test:terminal-bench:qwen
 ```
 
 ### Code Quality
 
 ```bash
-# Run all checks (lint, format, build, test)
+# Run all checks (format, lint, tests)
 npm run preflight
 
-# Lint only
-npm run lint
-npm run lint:fix
-
-# Format only
+# Format code with Prettier
 npm run format
 
-# Type check
+# Lint TypeScript/TSX files
+npm run lint
+
+# Lint with zero warnings (CI mode)
+npm run lint:ci
+
+# Type check all packages
 npm run typecheck
 ```
 
+---
+
+## Key Configuration Files
+
+| File                | Purpose                                                             |
+| ------------------- | ------------------------------------------------------------------- |
+| `package.json`      | Root config, scripts, dependencies, workspace definitions           |
+| `tsconfig.json`     | TypeScript compiler options (strict mode, ES2023, NodeNext modules) |
+| `eslint.config.js`  | ESLint configuration for the project                                |
+| `.eslintrc.json`    | Legacy ESLint config (if exists)                                    |
+| `vitest.config.ts`  | Vitest unit test configuration                                      |
+| `esbuild.config.js` | Bundle configuration for production                                 |
+
+---
+
 ## Development Conventions
 
-### Code Style
+### Coding Style
 
-- **Strict TypeScript**: All strict flags enabled (`strictNullChecks`, `noImplicitAny`, etc.)
-- **Module System**: ES modules (`"type": "module"`)
-- **Import Style**: Node.js native ESM with `.js` extensions in imports
-- **No Relative Imports Between Packages**: ESLint enforces this restriction
+- **TypeScript**: Strict mode enabled, ES2022 target
+- **Module system**: ES modules (`"type": "module"` in package.json)
+- **JSX**: React JSX transform (no need to import React)
+- **Imports**: No relative imports between packages - use absolute paths like `@qwen-code/qwen-code-core`
 
-### Key Configuration Files
+### Commit Messages
 
-- `tsconfig.json`: Base TypeScript configuration with strict settings
-- `eslint.config.js`: ESLint flat config with custom rules
-- `esbuild.config.js`: Build configuration
-- `vitest.config.ts`: Test configuration
+Follow [Conventional Commits](https://www.conventionalcommits.org/) standard:
 
-### Import Patterns
+- `feat(cli): Add --json flag to 'config get' command` ✅
+- `fix: Resolve issue with telemetry` ✅
+- `docs: Update architecture documentation` ✅
 
-```typescript
-// Within a package - use relative paths
-import { something } from './utils/something.js';
+### PR Guidelines
 
-// Between packages - use package names
-import { Config } from '@qwen-code/qwen-code-core';
-```
+1. **Link to existing issue** - All PRs should reference an open issue
+2. **Small and focused** - One change per PR
+3. **Use Draft PRs** for work-in-progress feedback
+4. **All checks must pass** - Run `npm run preflight` before submitting
+5. **Update documentation** for user-facing changes
 
-### Testing Patterns
+### Testing Practices
 
-- Unit tests co-located with source files (`.test.ts` suffix)
-- Integration tests in separate `integration-tests/` directory
-- Uses Vitest with globals enabled
-- Mocking via `msw` for HTTP, `memfs`/`mock-fs` for filesystem
+- Unit tests in each package's `__tests__/` directory
+- Integration tests in `integration-tests/` root
+- Tests use Vitest with DOM testing library for TUI components
+- Run tests with `npm run test` before committing
 
-### Architecture Patterns
+---
 
-#### Tools System
+## Sandboxing
 
-All tools extend `BaseDeclarativeTool` or implement the tool interfaces:
+The project supports multiple sandbox modes for secure code execution:
 
-- Located in `packages/core/src/tools/`
-- Each tool has a corresponding `.test.ts` file
-- Tools are registered in the tool registry
+- **Docker** (`QWEN_SANDBOX=docker`)
+- **Podman** (`QWEN_SANDBOX=podman`)
+- **None/Disabled** (`QWEN_SANDBOX=false` or unset)
 
-#### Subagents System
-
-Task delegation framework:
-
-- Configuration stored as Markdown + YAML frontmatter
-- Supports both project-level and user-level subagents
-- Event-driven architecture for UI updates
-
-#### Configuration System
-
-Hierarchical configuration loading:
-
-1. Default values
-2. User settings (`~/.qwen/settings.json`)
-3. Project settings (`.qwen/settings.json`)
-4. Environment variables
-5. CLI flags
-
-### Authentication Methods
-
-1. **Qwen OAuth** (recommended): Browser-based OAuth flow
-2. **OpenAI-compatible API**: Via `OPENAI_API_KEY` environment variable
-
-Environment variables for API mode:
+To build the sandbox container:
 
 ```bash
-export OPENAI_API_KEY="your-api-key"
-export OPENAI_BASE_URL="https://api.openai.com/v1"  # optional
-export OPENAI_MODEL="gpt-4o"                        # optional
+npm run build:sandbox
+# Or include in build:all
+npm run build:all
 ```
+
+Sandbox image URI is configured in root `package.json` as `config.sandboxImageUri`.
+
+---
 
 ## Debugging
 
 ### VS Code
 
-Press `F5` to launch with debugger attached, or:
+1. Press `F5` to attach to the CLI
+2. Or run `npm run debug` and attach via Chrome DevTools
 
-```bash
-npm run debug  # Runs with --inspect-brk
-```
-
-### React DevTools (for CLI UI)
+### React DevTools (for TUI debugging)
 
 ```bash
 DEV=true npm start
+# In another terminal:
 npx react-devtools@4.28.5
 ```
 
-### Sandbox Debugging
+### Debug Mode in Container
 
 ```bash
-DEBUG=1 qwen
+DEBUG=1 qwen-code
 ```
 
-## Documentation
-
-- User documentation: <https://qwenlm.github.io/qwen-code-docs/>
-- Local docs development:
-
-  ```bash
-  cd docs-site
-  npm install
-  npm run link  # Links ../docs to content
-  npm run dev   # http://localhost:3000
-  ```
-
-## Contributing Guidelines
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines. Key points:
-
-1. Link PRs to existing issues
-2. Keep PRs small and focused
-3. Use Draft PRs for WIP
-4. Ensure `npm run preflight` passes
-5. Update documentation for user-facing changes
-6. Follow Conventional Commits for commit messages
-
-## Useful Commands Reference
-
-| Command             | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `npm start`         | Start CLI in interactive mode                                        |
-| `npm run dev`       | Development mode with hot reload                                     |
-| `npm run build`     | Build all packages                                                   |
-| `npm run test`      | Run unit tests                                                       |
-| `npm run test:e2e`  | Run integration tests                                                |
-| `npm run preflight` | Full CI check (clean, install, format, lint, build, typecheck, test) |
-| `npm run lint`      | Run ESLint                                                           |
-| `npm run format`    | Run Prettier                                                         |
-| `npm run clean`     | Clean build artifacts                                                |
-
-## Session Commands (within CLI)
-
-- `/help` - Display available commands
-- `/clear` - Clear conversation history
-- `/compress` - Compress history to save tokens
-- `/stats` - Show session information
-- `/bug` - Submit bug report
-- `/exit` or `/quit` - Exit Qwen Code
+Note: Use `.qwen-code/.env` for qwen-specific debug settings (`.env` files in projects are excluded).
 
 ---
+
+## LM Studio Configuration
+
+To use Qwen Code with a local model via [LM Studio](https://lmstudio.ai/):
+
+1. Start LM Studio and load your model
+2. Enable local server (default: port 1234)
+3. Edit `~/.qwen/settings.json`:
+
+```json
+{
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "qwen/qwen3-coder-30b",
+        "name": "qwen/qwen3-coder-30b",
+        "baseUrl": "http://host.docker.internal:1234/v1",
+        "description": "Qwen3-Coder via LM STUDIO",
+        "envKey": "DASHSCOPE_API_KEY"
+      }
+    ]
+  },
+  "env": {
+    "DASHSCOPE_API_KEY": "none"
+  },
+  "security": {
+    "auth": {
+      "selectedType": "openai"
+    }
+  },
+  "model": {
+    "name": "qwen3-coder-30b"
+  },
+  "$version": 3
+}
+```
+
+For Docker, use `host.docker.internal` to reach the host machine.
+
+---
+
+## Documentation Development
+
+The documentation site uses Next.js:
+
+```bash
+cd docs-site
+npm install
+npm run link     # Link ../docs to content/
+npm run dev      # Start dev server at http://localhost:3000
+```
+
+Changes to `docs/` files are immediately reflected.
+
+---
+
+## No-Telemetry Merge Protocol
+
+**CRITICAL**: When merging upstream `main` into this branch:
+
+### DO NOT use `git merge main` directly!
+
+**Correct approach:**
+
+```bash
+# 1. Start from current no-telemetry branch
+git checkout v0.12.3-no-telemetry
+git pull origin v0.12.3-no-telemetry
+
+# 2. Create new branch for changes
+git checkout -b v0.12.4-no-telemetry
+
+# 3. Find merge base and cherry-pick commits
+MERGE_BASE=$(git merge-base v0.12.3-no-telemetry main)
+git log --oneline $MERGE_BASE..main
+
+# 4. Cherry-pick each commit from main
+git cherry-pick <commit-hash> || {
+  echo "Conflict - resolve manually"
+  break
+}
+
+# 5. After merge, verify no-telemetry files exist
+git diff v0.12.3-no-telemetry..v0.12.4-no-telemetry --name-status
+```
+
+### Files that must be preserved:
+
+- `NO_TELEMETRY_GUIDELINES.md`
+- `build.sh`, `install.sh`, `local-install.sh`
+- Dockerfile (may need special handling)
+- Telemetry dummy layer in `packages/core/src/telemetry/`
+
+### Post-Merge Verification:
+
+```bash
+# Check version consistency
+grep -r "version.*no-telemetry" package.json packages/*/package.json
+
+# Verify no telemetry packages in dependencies
+grep -r "@opentelemetry" package.json packages/*/package.json || echo "No OTEL found ✓"
+
+# Build and test
+npm run build:packages && npm run lint && npm run test
+```
+
+See `NO_TELEMETRY_GUIDELINES.md` for detailed merge strategy.
+
+---
+
+## Important Notes
+
+### Version String Convention
+
+The version displayed in the UI must follow this format:
+
+```
+[VERSION]-no-telemetry · ❌📡 · [SHORT GIT HASH]
+```
+
+The clean version (for User-Agent headers) must remain ASCII-only.
+
+### Build Scripts
+
+Key scripts in `/scripts/`:
+
+- `build.js` - Main build process
+- `build_sandbox.js` - Build Docker sandbox image
+- `build_vscode_companion.js` - Build VS Code extension
+- `start.js` - CLI entry point
+- `dev.js` - Development watch mode
+
+### Workspace Packages
+
+Each package in `/packages/` has its own `package.json` and follows the monorepo pattern. Common package types:
+
+- `cli/` - Main command-line interface
+- `core/` - Shared logic and telemetry dummy layer
+- `sdk-*` - Language-specific SDKs
+
+---
+
+## Quick Reference Commands
+
+| Task           | Command                                 |
+| -------------- | --------------------------------------- |
+| Install deps   | `npm install`                           |
+| Build          | `npm run build` or `make build`         |
+| Run CLI        | `npm start` or `make start`             |
+| Run tests      | `npm run test`                          |
+| Format code    | `npm run format`                        |
+| Lint code      | `npm run lint`                          |
+| Full preflight | `npm run preflight` or `make preflight` |
+| Debug mode     | `npm run debug`                         |
+
+---
+
+_This QWEN.md was auto-generated based on project analysis. Update as needed for new conventions or project evolution._
