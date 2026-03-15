@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) v0.12.3, designed for maximum privacy while maintaining compatibility with upstream changes.
+This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code), designed for maximum privacy while maintaining compatibility with upstream changes.
 
 ### Key Characteristics
 
@@ -21,6 +21,52 @@ Instead of deleting telemetry files (which made merging difficult), this fork us
 4. Usage statistics and auto-updates disabled by default
 
 This keeps the application codebase aligned with upstream while ensuring zero external data leakage.
+
+---
+
+### Versioning Strategy
+
+**Two-Layer Version Management:**
+
+| Layer                                     | Purpose                                      | How to Handle                                            |
+| ----------------------------------------- | -------------------------------------------- | -------------------------------------------------------- |
+| **Upstream version** (e.g., `0.12.4`)     | Package compatibility, dependency resolution | **Keep identical** to upstream `main` to avoid conflicts |
+| **No-telemetry suffix** (`-no-telemetry`) | Identify privacy fork                        | **Always append** to indicate no-telemetry policy        |
+
+**Conflict Resolution Priority:**
+
+When merging from `main`, conflicts may arise due to:
+
+- `@opentelemetry/*` packages (dependencies or imports)
+- Metrics/analytics/tracking code
+- Installation ID generation
+
+**RULE: No-telemetry policy ALWAYS takes priority. If there's a conflict, REMOVAL is mandatory.**
+
+- ❌ **DO NOT** keep telemetry packages "just to match versions"
+- ✅ **ALWAYS** remove/replace with no-op implementations
+- ✅ Version strings in `package.json` must match upstream (e.g., `"version": "0.12.4"`), but the no-telemetry policy overrides any telemetry-related code
+
+---
+
+### Release Process: Updating Version References
+
+When releasing a new version (e.g., bumping from `v0.12.3-no-telemetry` to `v0.12.4-no-telemetry`), update **ALL** references across the codebase:
+
+| File                                         | What to Update                              |
+| -------------------------------------------- | ------------------------------------------- |
+| `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`    |
+| All `.md` files                              | Any `[old-version]-no-telemetry` references |
+| `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references            |
+| CI/CD configuration files                    | Version tags and refs                       |
+
+**Search command to find all occurrences:**
+
+```bash
+grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
+```
+
+**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.12.4"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---
 
@@ -308,15 +354,21 @@ git diff v0.12.3-no-telemetry..v0.12.4-no-telemetry --name-status
 ### Post-Merge Verification:
 
 ```bash
-# Check version consistency
-grep -r "version.*no-telemetry" package.json packages/*/package.json
+# 1. Check version matches upstream (without -no-telemetry suffix)
+grep '"version"' package.json
+# Should show: "version": "0.12.4" (same as upstream main)
 
-# Verify no telemetry packages in dependencies
+# 2. Verify no telemetry packages in dependencies
 grep -r "@opentelemetry" package.json packages/*/package.json || echo "No OTEL found ✓"
 
-# Build and test
+# 3. Verify no-telemetry suffix in UI/version display
+grep -r "no-telemetry" packages/cli/src/ | head -5
+
+# 4. Build and test
 npm run build:packages && npm run lint && npm run test
 ```
+
+**Critical Check:** After merging, the `package.json` version should match upstream (e.g., `0.12.4`), NOT include `-no-telemetry`. The no-telemetry policy is enforced through code (dummy layer), not version strings.
 
 See `NO_TELEMETRY_GUIDELINES.md` for detailed merge strategy.
 

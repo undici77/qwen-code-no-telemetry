@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/qwen-code",
-  "version": "0.12.3-no-telemetry",
+  "version": "0.12.4",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/undici77/qwen-code-no-telemetry.git"
   },
   "config": {
-    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.12.3-no-telemetry"
+    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.12.4"
   },
   "scripts": {
     "start": "cross-env node scripts/start.js",

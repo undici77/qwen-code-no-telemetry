@@ -69,6 +69,11 @@ if (cliVersion === 'UNKNOWN') {
   }
 }
 
+// Add -no-telemetry suffix for display version
+const cliVersionDisplay = cliVersion.endsWith('-no-telemetry')
+  ? cliVersion
+  : `${cliVersion}-no-telemetry`;
+
 const fileContent = `/**
  * @license
  * Copyright ${new Date().getFullYear()} Google LLC
@@ -81,7 +86,7 @@ export const GIT_COMMIT_INFO = '${gitCommitInfo}';
 // CLI_VERSION is the clean version string for internal use (e.g. headers)
 export const CLI_VERSION = '${cliVersion}';
 // CLI_VERSION_DISPLAY is the formatted version string for the GUI
-export const CLI_VERSION_DISPLAY = '${cliVersion} · ❌📡 · ${gitCommitInfo}';
+export const CLI_VERSION_DISPLAY = '${cliVersionDisplay} · ❌📡 · ${gitCommitInfo}';
 `;
 
 writeFileSync(cliGitCommitFile, fileContent);
