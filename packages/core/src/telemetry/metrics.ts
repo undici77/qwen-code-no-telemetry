@@ -19,19 +19,19 @@ export const ARENA_AGENT_DURATION = 'qwen-code.arena.agent.duration';
 export const ARENA_AGENT_TOKENS = 'qwen-code.arena.agent.tokens';
 export const ARENA_RESULT_SELECTED = 'qwen-code.arena.result.selected';
 
-// Performance Monitoring Metrics (no-op)
-const STARTUP_TIME = 'qwen-code.startup.duration';
-const MEMORY_USAGE = 'qwen-code.memory.usage';
-const CPU_USAGE = 'qwen-code.cpu.usage';
-const TOOL_QUEUE_DEPTH = 'qwen-code.tool.queue.depth';
-const TOOL_EXECUTION_BREAKDOWN = 'qwen-code.tool.execution.breakdown';
-const TOKEN_EFFICIENCY = 'qwen-code.token.efficiency';
-const API_REQUEST_BREAKDOWN = 'qwen-code.api.request.breakdown';
-const PERFORMANCE_SCORE = 'qwen-code.performance.score';
-const REGRESSION_DETECTION = 'qwen-code.performance.regression';
-const REGRESSION_PERCENTAGE_CHANGE =
+// Performance Monitoring Metrics (no-op - kept for compatibility)
+export const STARTUP_TIME = 'qwen-code.startup.duration';
+export const MEMORY_USAGE = 'qwen-code.memory.usage';
+export const CPU_USAGE = 'qwen-code.cpu.usage';
+export const TOOL_QUEUE_DEPTH = 'qwen-code.tool.queue.depth';
+export const TOOL_EXECUTION_BREAKDOWN = 'qwen-code.tool.execution.breakdown';
+export const TOKEN_EFFICIENCY = 'qwen-code.token.efficiency';
+export const API_REQUEST_BREAKDOWN = 'qwen-code.api.request.breakdown';
+export const PERFORMANCE_SCORE = 'qwen-code.performance.score';
+export const REGRESSION_DETECTION = 'qwen-code.performance.regression';
+export const REGRESSION_PERCENTAGE_CHANGE =
   'qwen-code.performance.regression.percentage_change';
-const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
+export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
 export enum FileOperation {
   CREATE = 'create',

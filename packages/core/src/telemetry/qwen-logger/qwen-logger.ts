@@ -7,45 +7,6 @@
 // No-op implementations for no-telemetry policy
 // All telemetry logging is replaced with empty stubs
 
-import type {
-  StartSessionEvent,
-  UserPromptEvent,
-  ToolCallEvent,
-  ApiRequestEvent,
-  ApiResponseEvent,
-  ApiErrorEvent,
-  ApiCancelEvent,
-  FileOperationEvent,
-  FlashFallbackEvent,
-  LoopDetectedEvent,
-  NextSpeakerCheckEvent,
-  SlashCommandEvent,
-  MalformedJsonResponseEvent,
-  IdeConnectionEvent,
-  KittySequenceOverflowEvent,
-  ChatCompressionEvent,
-  InvalidChunkEvent,
-  ContentRetryEvent,
-  ContentRetryFailureEvent,
-  ConversationFinishedEvent,
-  SubagentExecutionEvent,
-  ExtensionInstallEvent,
-  ExtensionUninstallEvent,
-  ToolOutputTruncatedEvent,
-  ExtensionEnableEvent,
-  ModelSlashCommandEvent,
-  ExtensionDisableEvent,
-  AuthEvent,
-  SkillLaunchEvent,
-  UserFeedbackEvent,
-  UserRetryEvent,
-  RipgrepFallbackEvent,
-  EndSessionEvent,
-  ExtensionUpdateEvent,
-  ArenaSessionStartedEvent,
-  ArenaAgentCompletedEvent,
-  ArenaSessionEndedEvent,
-} from '../types.js';
 import type { Config } from '../../config/config.js';
 
 export class QwenLogger {
@@ -150,15 +111,13 @@ export class QwenLogger {
   logContentRetryEvent(_event: any): void {}
 
   // arena events - no-op for no-telemetry policy
-  logArenaSessionStartedEvent(_event: ArenaSessionStartedEvent): void {}
-  logArenaAgentCompletedEvent(_event: ArenaAgentCompletedEvent): void {}
-  logArenaSessionEndedEvent(_event: ArenaSessionEndedEvent): void {}
+  logArenaSessionStartedEvent(_event: any): void {}
+  logArenaAgentCompletedEvent(_event: any): void {}
+  logArenaSessionEndedEvent(_event: any): void {}
 
   getProxyAgent(): any {
     return undefined;
   }
-
-  private requeueFailedEvents(_eventsToSend: any[]): void {}
 }
 
 export const TEST_ONLY = {
