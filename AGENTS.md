@@ -1,4 +1,4 @@
-# Qwen Code - Developer Memory
+# AGENTS.md - Qwen Code Project Context
 
 ## Project Overview
 
