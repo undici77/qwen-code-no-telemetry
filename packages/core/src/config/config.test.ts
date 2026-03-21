@@ -665,13 +665,13 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
+    it('defaults usage statistics to disabled for no-telemetry policy', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
       });
 
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
@@ -685,12 +685,12 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    it('usage statistics enabled returns value correctly', () => {
+    it('usage statistics disabled returns value correctly', () => {
       const config = new Config({
         ...baseParams,
-        usageStatisticsEnabled: true,
+        usageStatisticsEnabled: false,
       });
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
   });
 
