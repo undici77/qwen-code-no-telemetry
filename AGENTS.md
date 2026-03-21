@@ -51,7 +51,7 @@ When merging from `main`, conflicts may arise due to:
 
 ### Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.12.3-no-telemetry` to `v0.12.4-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.13.0-no-telemetry` to `v0.13.1-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
@@ -66,7 +66,7 @@ When releasing a new version (e.g., bumping from `v0.12.3-no-telemetry` to `v0.1
 grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 ```
 
-**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.12.4"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.13.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---
 
@@ -324,14 +324,14 @@ Changes to `docs/` files are immediately reflected.
 
 ```bash
 # 1. Start from current no-telemetry branch
-git checkout v0.12.3-no-telemetry
-git pull origin v0.12.3-no-telemetry
+git checkout v0.13.0-no-telemetry
+git pull origin v0.13.0-no-telemetry
 
 # 2. Create new branch for changes
-git checkout -b v0.12.4-no-telemetry
+git checkout -b v0.13.1-no-telemetry
 
 # 3. Find merge base and cherry-pick commits
-MERGE_BASE=$(git merge-base v0.12.3-no-telemetry main)
+MERGE_BASE=$(git merge-base v0.13.0-no-telemetry main)
 git log --oneline $MERGE_BASE..main
 
 # 4. Cherry-pick each commit from main
@@ -341,7 +341,7 @@ git cherry-pick <commit-hash> || {
 }
 
 # 5. After merge, verify no-telemetry files exist
-git diff v0.12.3-no-telemetry..v0.12.4-no-telemetry --name-status
+git diff v0.13.0-no-telemetry..v0.13.1-no-telemetry --name-status
 ```
 
 ### Files that must be preserved:
@@ -356,7 +356,7 @@ git diff v0.12.3-no-telemetry..v0.12.4-no-telemetry --name-status
 ```bash
 # 1. Check version matches upstream (without -no-telemetry suffix)
 grep '"version"' package.json
-# Should show: "version": "0.12.4" (same as upstream main)
+# Should show: "version": "0.13.1" (same as upstream main)
 
 # 2. Verify no telemetry packages in dependencies
 grep -r "@opentelemetry" package.json packages/*/package.json || echo "No OTEL found ✓"
