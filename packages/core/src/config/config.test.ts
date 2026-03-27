@@ -665,34 +665,32 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
+    it('defaults usage statistics to disabled for no-telemetry policy', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
       });
 
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
-      'sets usage statistics based on the provided value (enabled: $enabled)',
+      'always returns false for usage statistics (input: $enabled)',
       ({ enabled }) => {
         const config = new Config({
           ...baseParams,
           usageStatisticsEnabled: enabled,
         });
-        expect(config.getUsageStatisticsEnabled()).toBe(enabled);
+        expect(config.getUsageStatisticsEnabled()).toBe(false);
       },
     );
 
-    it('logs the session start event', async () => {
+    it('usage statistics disabled returns value correctly', () => {
       const config = new Config({
         ...baseParams,
-        usageStatisticsEnabled: true,
+        usageStatisticsEnabled: false,
       });
-      await config.initialize();
-
-      expect(QwenLogger.prototype.logStartSessionEvent).toHaveBeenCalledOnce();
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
   });
 
