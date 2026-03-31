@@ -4,58 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import * as path from 'node:path';
-import { Storage } from '../config/storage.js';
-import { createDebugLogger } from '../utils/debugLogger.js';
-
-const debugLogger = createDebugLogger('INSTALLATION');
-
 export class InstallationManager {
-  private getInstallationIdPath(): string {
-    return Storage.getInstallationIdPath();
-  }
-
-  private readInstallationIdFromFile(): string | null {
-    const installationIdFile = this.getInstallationIdPath();
-    if (fs.existsSync(installationIdFile)) {
-      const installationid = fs
-        .readFileSync(installationIdFile, 'utf-8')
-        .trim();
-      return installationid || null;
-    }
-    return null;
-  }
-
-  private writeInstallationIdToFile(installationId: string) {
-    const installationIdFile = this.getInstallationIdPath();
-    const dir = path.dirname(installationIdFile);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(installationIdFile, installationId, 'utf-8');
-  }
-
   /**
-   * Retrieves the installation ID from a file, creating it if it doesn't exist.
-   * This ID is used for unique user installation tracking.
-   * @returns A UUID string for the user.
+   * Retrieves the installation ID.
+   * Returns a static non-unique ID for the no-telemetry version.
+   * @returns A static UUID string.
    */
   getInstallationId(): string {
-    try {
-      let installationId = this.readInstallationIdFromFile();
-
-      if (!installationId) {
-        installationId = randomUUID();
-        this.writeInstallationIdToFile(installationId);
-      }
-
-      return installationId;
-    } catch (error) {
-      debugLogger.error(
-        'Error accessing installation ID file, generating ephemeral ID:',
-        error,
-      );
-      return '123456789';
-    }
+    return '00000000-0000-0000-0000-000000000000';
   }
 }

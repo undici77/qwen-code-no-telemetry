@@ -48,6 +48,8 @@ describe('EditTool', () => {
   let geminiClient: any;
   let baseLlmClient: any;
 
+  let fsService: StandardFileSystemService;
+
   beforeEach(() => {
     vi.restoreAllMocks();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edit-tool-test-'));
@@ -62,6 +64,8 @@ describe('EditTool', () => {
       generateJson: vi.fn(),
     };
 
+    fsService = new StandardFileSystemService();
+
     mockConfig = {
       getGeminiClient: vi.fn().mockReturnValue(geminiClient),
       getBaseLlmClient: vi.fn().mockReturnValue(baseLlmClient),
@@ -69,7 +73,7 @@ describe('EditTool', () => {
       getApprovalMode: vi.fn(),
       setApprovalMode: vi.fn(),
       getWorkspaceContext: () => createMockWorkspaceContext(rootDir),
-      getFileSystemService: () => new StandardFileSystemService(),
+      getFileSystemService: () => fsService,
       getIdeMode: () => false,
       getApiKey: () => 'test-api-key',
       getModel: () => 'test-model',
@@ -783,20 +787,25 @@ describe('EditTool', () => {
       };
       expect(() => tool.build(params)).toThrow();
     });
-
     it('should return FILE_WRITE_FAILURE on write error', async () => {
       fs.writeFileSync(filePath, 'content', 'utf8');
-      // Make file readonly to trigger a write error
-      fs.chmodSync(filePath, '444');
+      // Force a write error by spying on writeTextFile
+      const spy = vi
+        .spyOn(fsService, 'writeTextFile')
+        .mockRejectedValue(new Error('permission denied'));
 
-      const params: EditToolParams = {
-        file_path: filePath,
-        old_string: 'content',
-        new_string: 'new content',
-      };
-      const invocation = tool.build(params);
-      const result = await invocation.execute(new AbortController().signal);
-      expect(result.error?.type).toBe(ToolErrorType.FILE_WRITE_FAILURE);
+      try {
+        const params: EditToolParams = {
+          file_path: filePath,
+          old_string: 'content',
+          new_string: 'new content',
+        };
+        const invocation = tool.build(params);
+        const result = await invocation.execute(new AbortController().signal);
+        expect(result.error?.type).toBe(ToolErrorType.FILE_WRITE_FAILURE);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

@@ -184,7 +184,10 @@ describe('LoggingContentGenerator', () => {
 
     expect(response.responseId).toBe('resp-1');
     expect(logApiRequest).toHaveBeenCalledTimes(1);
-    const [, requestEvent] = vi.mocked(logApiRequest).mock.calls[0];
+    const [, requestEvent] = vi.mocked(logApiRequest).mock.calls[0] as [
+      any,
+      any,
+    ];
     const loggedContents = JSON.parse(requestEvent.request_text || '[]');
     expect(loggedContents[0].parts[0]).toEqual({
       text: 'Hello\n[Thought: internal]',
@@ -194,7 +197,10 @@ describe('LoggingContentGenerator', () => {
     });
 
     expect(logApiResponse).toHaveBeenCalledTimes(1);
-    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0] as [
+      any,
+      any,
+    ];
     expect(responseEvent.response_id).toBe('resp-1');
     expect(responseEvent.model).toBe('model-v2');
     expect(responseEvent.prompt_id).toBe('prompt-1');
@@ -262,7 +268,7 @@ describe('LoggingContentGenerator', () => {
     ).rejects.toThrow('boom');
 
     expect(logApiError).toHaveBeenCalledTimes(1);
-    const [, errorEvent] = vi.mocked(logApiError).mock.calls[0];
+    const [, errorEvent] = vi.mocked(logApiError).mock.calls[0] as [any, any];
     expect(errorEvent.response_id).toBe('req-99');
     expect(errorEvent.status_code).toBe(429);
     expect(errorEvent.error_type).toBe('rate_limit');
@@ -339,7 +345,10 @@ describe('LoggingContentGenerator', () => {
     expect(seen).toHaveLength(2);
 
     expect(logApiResponse).toHaveBeenCalledTimes(1);
-    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0] as [
+      any,
+      any,
+    ];
     expect(responseEvent.response_id).toBe('resp-1');
     expect(responseEvent.input_token_count).toBe(2);
 
