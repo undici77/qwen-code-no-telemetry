@@ -24,7 +24,7 @@
     "debug": "node --inspect-brk dist/index.js",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
-    "test": "vitest run",
+    "test": "cross-env FORCE_COLOR=0 vitest run",
     "test:ci": "vitest run",
     "typecheck": "tsc --noEmit",
     "check-i18n": "tsx ../../scripts/check-i18n.ts"

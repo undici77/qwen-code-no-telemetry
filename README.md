@@ -1,30 +1,39 @@
-<div align="center">
+# QWEN-CODE
 
-[![npm version](https://img.shields.io/npm/v/@qwen-code/qwen-code.svg)](https://www.npmjs.com/package/@qwen-code/qwen-code)
-[![License](https://img.shields.io/github/license/QwenLM/qwen-code.svg)](./LICENSE)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
-[![Downloads](https://img.shields.io/npm/dm/@qwen-code/qwen-code.svg)](https://www.npmjs.com/package/@qwen-code/qwen-code)
+> This README replaces the original one to document this fork specifically.
+> For full documentation on features, configuration, and usage refer to the
+> [original README at v0.12.3](https://github.com/QwenLM/qwen-code/blob/v0.12.3/README.md).
 
-<a href="https://trendshift.io/repositories/15287" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15287" alt="QwenLM%2Fqwen-code | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+---
 
-**An open-source AI agent that lives in your terminal.**
+## What is this?
 
-<a href="https://qwenlm.github.io/qwen-code-docs/zh/users/overview">中文</a> |
-<a href="https://qwenlm.github.io/qwen-code-docs/de/users/overview">Deutsch</a> |
-<a href="https://qwenlm.github.io/qwen-code-docs/fr/users/overview">français</a> |
-<a href="https://qwenlm.github.io/qwen-code-docs/ja/users/overview">日本語</a> |
-<a href="https://qwenlm.github.io/qwen-code-docs/ru/users/overview">Русский</a> |
-<a href="https://qwenlm.github.io/qwen-code-docs/pt-BR/users/overview">Português (Brasil)</a>
+This is a fork of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) with all telemetry removed.
+No data is sent to external servers during usage.
 
-</div>
+---
 
 ## 🎉 News
 
 - **2026-04-02**: Qwen3.6-Plus is now live! Sign in via Qwen OAuth to use it directly, or get an API key from [Alibaba Cloud ModelStudio](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3.6-plus) to access it through the OpenAI-compatible API.
-
 - **2026-02-16**: Qwen3.5-Plus is now live!
 
-## Why Qwen Code?
+## Privacy & Telemetry Policy
+
+### The Evolution of No-Telemetry
+
+- **Until v0.12.1-no-telemetry**: The policy was to **delete all telemetry-related files**. While effective for privacy, this made it difficult to maintain the fork and align it with upstream updates.
+- **From v0.12.3-no-telemetry onwards**: We have switched to a "privacy-first" dummy implementation. We now remove all `@opentelemetry/*` packages and replace the telemetry logic with an **empty/dummy layer**. This keeps the application code untouched and easy to merge, while ensuring maximum privacy.
+
+### Privacy Analysis
+
+The current implementation provides a high level of security:
+
+- **Zero External Tracking**: All OpenTelemetry dependencies are gone.
+- **Neutralized Core**: The `InstallationManager` returns a static non-unique ID, and all network-bound loggers are replaced with no-op functions.
+- **Local Only**: Data is only saved for local session history and hierarchical memory, as required for the application's core functionality.
+
+---
 
 Qwen Code is an open-source AI agent for the terminal, optimized for Qwen series models. It helps you understand large codebases, automate tedious work, and ship faster.
 
@@ -37,54 +46,56 @@ Qwen Code is an open-source AI agent for the terminal, optimized for Qwen series
 
 ## Installation
 
-### Quick Install (Recommended)
+### Option 1 — Install script (local, no root required)
 
-#### Linux / macOS
-
-```bash
-bash -c "$(curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen.sh)"
-```
-
-#### Windows (Run as Administrator CMD)
-
-```cmd
-curl -fsSL -o %TEMP%\install-qwen.bat https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen.bat && %TEMP%\install-qwen.bat
-```
-
-> **Note**: It's recommended to restart your terminal after installation to ensure environment variables take effect.
-
-### Manual Installation
-
-#### Prerequisites
-
-Make sure you have Node.js 20 or later installed. Download it from [nodejs.org](https://nodejs.org/en/download).
-
-#### NPM
+Installs Node.js via NVM and Qwen Code into your home directory.
+Safe to use inside ephemeral Docker containers.
 
 ```bash
-npm install -g @qwen-code/qwen-code@latest
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.14.0-no-telemetry/install.sh \
+    | bash -s v0.14.0-no-telemetry
 ```
 
-#### Homebrew (macOS, Linux)
+After installation, add this to your `~/.bashrc` if not already present:
 
 ```bash
-brew install qwen-code
+export NVM_DIR="${HOME}/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 20 >/dev/null 2>&1
+export PATH="${HOME}/.npm-global/bin:$PATH"
 ```
+
+Then run:
+
+```bash
+source ~/.bashrc
+qwen
+```
+
+---
+
+### Option 2 — Docker
+
+**Build the image:**
+
+```bash
+docker build -t qwen-coder-sandbox .
+```
+
+**Run (sharing the current directory as workspace):**
+
+```bash
+docker run -it \
+    --net=host \
+    --add-host=host.docker.internal:host-gateway \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    qwen-coder-sandbox
+```
+
+---
 
 ## Quick Start
-
-```bash
-# Start Qwen Code (interactive)
-qwen
-
-# Then, in the session:
-/help
-/auth
-```
-
-On first use, you'll be prompted to sign in. You can run `/auth` anytime to switch authentication methods.
-
-Example prompts:
 
 ```text
 What does this project do?
@@ -314,27 +325,29 @@ Use the `/model` command at any time to switch between all configured models.
 </details>
 
 <details>
-<summary>Enable thinking mode (for supported models like qwen3.5-plus)</summary>
+<summary>LM Studio Configuration</summary>
+
+To use Qwen Code with a local model served by [LM Studio](https://lmstudio.ai/):
+
+1. Start LM Studio and load your model (e.g. `qwen3-coder-30b`)
+2. Enable the local server in LM Studio (default port: `1234`)
+3. Use this `settings.json`:
 
 ```json
 {
   "modelProviders": {
     "openai": [
       {
-        "id": "qwen3.5-plus",
-        "name": "qwen3.5-plus (thinking)",
-        "envKey": "DASHSCOPE_API_KEY",
-        "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "generationConfig": {
-          "extra_body": {
-            "enable_thinking": true
-          }
-        }
+        "id": "qwen/qwen3-coder-30b",
+        "name": "qwen/qwen3-coder-30b",
+        "baseUrl": "http://host.docker.internal:1234/v1",
+        "description": "Qwen3-Coder via LM STUDIO",
+        "envKey": "DASHSCOPE_API_KEY"
       }
     ]
   },
   "env": {
-    "DASHSCOPE_API_KEY": "sk-xxxxxxxxxxxxx"
+    "DASHSCOPE_API_KEY": "none"
   },
   "security": {
     "auth": {
@@ -342,10 +355,16 @@ Use the `/model` command at any time to switch between all configured models.
     }
   },
   "model": {
-    "name": "qwen3.5-plus"
-  }
+    "name": "qwen3-coder-30b"
+  },
+  "$version": 3
 }
 ```
+
+> **Note:** `host.docker.internal` resolves to your host machine from inside the container.
+> If running outside Docker, replace it with `localhost` or `127.0.0.1`.
+
+The `DASHSCOPE_API_KEY` is set to `"none"` because LM Studio does not require authentication.
 
 </details>
 
@@ -433,35 +452,4 @@ The most commonly used top-level fields in `settings.json`:
 | `security.auth.selectedType` | The protocol to use on startup (e.g. `openai`).                                                      |
 | `model.name`                 | The default model to use when Qwen Code starts.                                                      |
 
-> See the [Authentication](#api-key-flexible) section above for complete `settings.json` examples, and the [settings reference](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/) for all available options.
-
-## Benchmark Results
-
-### Terminal-Bench Performance
-
-| Agent     | Model              | Accuracy |
-| --------- | ------------------ | -------- |
-| Qwen Code | Qwen3-Coder-480A35 | 37.5%    |
-| Qwen Code | Qwen3-Coder-30BA3B | 31.3%    |
-
-## Ecosystem
-
-Looking for a graphical interface?
-
-- [**AionUi**](https://github.com/iOfficeAI/AionUi) A modern GUI for command-line AI tools including Qwen Code
-- [**Gemini CLI Desktop**](https://github.com/Piebald-AI/gemini-cli-desktop) A cross-platform desktop/web/mobile UI for Qwen Code
-
-## Troubleshooting
-
-If you encounter issues, check the [troubleshooting guide](https://qwenlm.github.io/qwen-code-docs/en/users/support/troubleshooting/).
-
-To report a bug from within the CLI, run `/bug` and include a short title and repro steps.
-
-## Connect with Us
-
-- Discord: https://discord.gg/RN7tqZCeDK
-- Dingtalk: https://qr.dingtalk.com/action/joingroup?code=v1,k1,+FX6Gf/ZDlTahTIRi8AEQhIaBlqykA0j+eBKKdhLeAE=&_dt_no_comment=1&origin=1
-
-## Acknowledgments
-
-This project is based on [Google Gemini CLI](https://github.com/google-gemini/gemini-cli). We acknowledge and appreciate the excellent work of the Gemini CLI team. Our main contribution focuses on parser-level adaptations to better support Qwen-Coder models.
+> See the [settings reference](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/) for all available options.

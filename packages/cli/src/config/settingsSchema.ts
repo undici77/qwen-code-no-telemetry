@@ -282,7 +282,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Auto Update',
         category: 'General',
         requiresRestart: false,
-        default: true,
+        default: false,
         description:
           'Enable automatic update checks and installations on startup.',
         showInDialog: true,

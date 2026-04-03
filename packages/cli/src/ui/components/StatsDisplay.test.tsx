@@ -6,6 +6,7 @@
 
 import { render } from 'ink-testing-library';
 import { describe, it, expect, vi } from 'vitest';
+import stripAnsi from 'strip-ansi';
 import { StatsDisplay } from './StatsDisplay.js';
 import * as SessionContext from '../contexts/SessionContext.js';
 import type { SessionMetrics } from '../contexts/SessionContext.js';
@@ -57,7 +58,7 @@ describe('<StatsDisplay />', () => {
     };
 
     const { lastFrame } = renderWithMockedStats(zeroMetrics);
-    const output = lastFrame();
+    const output = stripAnsi(lastFrame() ?? '');
 
     expect(output).toContain('Performance');
     expect(output).toContain('Interaction Summary');
@@ -107,7 +108,7 @@ describe('<StatsDisplay />', () => {
     };
 
     const { lastFrame } = renderWithMockedStats(metrics);
-    const output = lastFrame();
+    const output = stripAnsi(lastFrame() ?? '');
 
     expect(output).toContain('gemini-2.5-pro');
     expect(output).toContain('gemini-2.5-flash');
@@ -154,7 +155,7 @@ describe('<StatsDisplay />', () => {
     };
 
     const { lastFrame } = renderWithMockedStats(metrics);
-    const output = lastFrame();
+    const output = stripAnsi(lastFrame() ?? '');
 
     expect(output).toContain('Performance');
     expect(output).toContain('Interaction Summary');
@@ -191,7 +192,7 @@ describe('<StatsDisplay />', () => {
       };
 
       const { lastFrame } = renderWithMockedStats(metrics);
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
 
       expect(output).toContain('Interaction Summary');
       expect(output).toContain('Success Rate');
@@ -229,7 +230,7 @@ describe('<StatsDisplay />', () => {
       };
 
       const { lastFrame } = renderWithMockedStats(metrics);
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
 
       expect(output).not.toContain('Efficiency & Optimizations');
       expect(output).toMatchSnapshot();
@@ -317,7 +318,7 @@ describe('<StatsDisplay />', () => {
       };
 
       const { lastFrame } = renderWithMockedStats(metrics);
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
 
       expect(output).toContain('Code Changes:');
       expect(output).toContain('+42');
@@ -343,7 +344,7 @@ describe('<StatsDisplay />', () => {
       };
 
       const { lastFrame } = renderWithMockedStats(metrics);
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
 
       expect(output).not.toContain('Code Changes:');
       expect(output).toMatchSnapshot();
@@ -369,7 +370,7 @@ describe('<StatsDisplay />', () => {
 
     it('renders the default title when no title prop is provided', () => {
       const { lastFrame } = renderWithMockedStats(zeroMetrics);
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
       expect(output).toContain('Session Stats');
       expect(output).not.toContain('Agent powering down');
       expect(output).toMatchSnapshot();
@@ -392,7 +393,7 @@ describe('<StatsDisplay />', () => {
       const { lastFrame } = render(
         <StatsDisplay duration="1s" title="Agent powering down. Goodbye!" />,
       );
-      const output = lastFrame();
+      const output = stripAnsi(lastFrame() ?? '');
       expect(output).toContain('Agent powering down. Goodbye!');
       expect(output).not.toContain('Session Stats');
       expect(output).toMatchSnapshot();
