@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.12.3](https://github.com/QwenLM/qwen-code/blob/v0.12.3/README.md).
+> [original README at v0.14.1](https://github.com/QwenLM/qwen-code/blob/v0.14.1/README.md).
 
 ---
 
@@ -12,11 +12,6 @@ This is a fork of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) with a
 No data is sent to external servers during usage.
 
 ---
-
-## 🎉 News
-
-- **2026-04-02**: Qwen3.6-Plus is now live! Sign in via Qwen OAuth to use it directly, or get an API key from [Alibaba Cloud ModelStudio](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3.6-plus) to access it through the OpenAI-compatible API.
-- **2026-02-16**: Qwen3.5-Plus is now live!
 
 ## Privacy & Telemetry Policy
 
@@ -52,8 +47,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.14.0-no-telemetry/install.sh \
-    | bash -s v0.14.0-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.14.1-no-telemetry/install.sh \
+    | bash -s v0.14.1-no-telemetry
 ```
 
 After installation, add this to your `~/.bashrc` if not already present:

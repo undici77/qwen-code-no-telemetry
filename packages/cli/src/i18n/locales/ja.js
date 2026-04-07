@@ -66,6 +66,7 @@ export default {
   'CLI Version': 'CLIバージョン',
   'Git Commit': 'Gitコミット',
   Model: 'モデル',
+  'Fast Model': '高速モデル',
   Sandbox: 'サンドボックス',
   'OS Platform': 'OSプラットフォーム',
   'OS Arch': 'OSアーキテクチャ',
@@ -385,6 +386,9 @@ export default {
   'Loading hooks...': 'フックを読み込んでいます...',
   'Error loading hooks:': 'フックの読み込みエラー：',
   'Press Escape to close': 'Escape キーで閉じる',
+  'Press Escape, Ctrl+C, or Ctrl+D to cancel':
+    'Escape、Ctrl+C、Ctrl+D でキャンセル',
+  'Press Space, Enter, or Escape to dismiss': 'Space、Enter、Escape で閉じる',
   'No hook selected': 'フックが選択されていません',
   // Hooks - List Step
   'No hook events found.': 'フックイベントが見つかりません。',
@@ -740,6 +744,8 @@ export default {
     'サマリーの生成に失敗 - LLMレスポンスからテキストコンテンツを受信できませんでした',
   // Model
   'Switch the model for this session': 'このセッションのモデルを切り替え',
+  'Set fast model for background tasks':
+    'バックグラウンドタスク用の高速モデルを設定',
   'Content generator configuration not available.':
     'コンテンツジェネレーター設定が利用できません',
   'Authentication type not available.': '認証タイプが利用できません',
@@ -1454,4 +1460,8 @@ export default {
     'Rawモードが利用できません。インタラクティブターミナルで実行してください。',
   '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n':
     '(↑ ↓ 矢印キーで移動、Enter で選択、Ctrl+C で終了)\n',
+  verbose: '詳細',
+  'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).':
+    '詳細モードで完全なツール出力と思考を表示します（Ctrl+O で切り替え）。',
+  'Press Ctrl+O to show full tool output': 'Ctrl+O で完全なツール出力を表示',
 };

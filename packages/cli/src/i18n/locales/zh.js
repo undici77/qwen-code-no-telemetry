@@ -96,6 +96,7 @@ export default {
   'CLI Version': 'CLI 版本',
   'Git Commit': 'Git 提交',
   Model: '模型',
+  'Fast Model': '快速模型',
   Sandbox: '沙箱',
   'OS Platform': '操作系统平台',
   'OS Arch': '操作系统架构',
@@ -637,6 +638,9 @@ export default {
   'Loading hooks...': '正在加载 Hook...',
   'Error loading hooks:': '加载 Hook 出错：',
   'Press Escape to close': '按 Escape 关闭',
+  'Press Escape, Ctrl+C, or Ctrl+D to cancel':
+    '按 Escape、Ctrl+C 或 Ctrl+D 取消',
+  'Press Space, Enter, or Escape to dismiss': '按空格、回车或 Escape 关闭',
   'No hook selected': '未选择 Hook',
   // Hooks - List Step
   'No hook events found.': '未找到 Hook 事件。',
@@ -1089,6 +1093,7 @@ export default {
   // Commands - Model
   // ============================================================================
   'Switch the model for this session': '切换此会话的模型',
+  'Set fast model for background tasks': '设置后台任务的快速模型',
   'Content generator configuration not available.': '内容生成器配置不可用',
   'Authentication type not available.': '认证类型不可用',
   'No models available for the current authentication type ({{authType}}).':
@@ -1808,4 +1813,8 @@ export default {
     '原始模式不可用。请在交互式终端中运行。',
   '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n':
     '(使用 ↑ ↓ 箭头导航，Enter 选择，Ctrl+C 退出)\n',
+  verbose: '详细',
+  'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).':
+    '详细模式下显示完整工具输出和思考过程（Ctrl+O 切换）。',
+  'Press Ctrl+O to show full tool output': '按 Ctrl+O 查看详细工具调用结果',
 };

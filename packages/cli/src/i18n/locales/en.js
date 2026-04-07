@@ -98,6 +98,7 @@ export default {
   'CLI Version': 'CLI Version',
   'Git Commit': 'Git Commit',
   Model: 'Model',
+  'Fast Model': 'Fast Model',
   Sandbox: 'Sandbox',
   'OS Platform': 'OS Platform',
   'OS Arch': 'OS Arch',
@@ -673,6 +674,10 @@ export default {
   'Loading hooks...': 'Loading hooks...',
   'Error loading hooks:': 'Error loading hooks:',
   'Press Escape to close': 'Press Escape to close',
+  'Press Escape, Ctrl+C, or Ctrl+D to cancel':
+    'Press Escape, Ctrl+C, or Ctrl+D to cancel',
+  'Press Space, Enter, or Escape to dismiss':
+    'Press Space, Enter, or Escape to dismiss',
   'No hook selected': 'No hook selected',
   // Hooks - List Step
   'No hook events found.': 'No hook events found.',
@@ -1147,6 +1152,7 @@ export default {
   // Commands - Model
   // ============================================================================
   'Switch the model for this session': 'Switch the model for this session',
+  'Set fast model for background tasks': 'Set fast model for background tasks',
   'Content generator configuration not available.':
     'Content generator configuration not available.',
   'Authentication type not available.': 'Authentication type not available.',
@@ -2002,4 +2008,9 @@ export default {
     'Raw mode not available. Please run in an interactive terminal.',
   '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n':
     '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n',
+  verbose: 'verbose',
+  'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).':
+    'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).',
+  'Press Ctrl+O to show full tool output':
+    'Press Ctrl+O to show full tool output',
 };

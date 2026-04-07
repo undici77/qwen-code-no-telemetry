@@ -324,14 +324,14 @@ Changes to `docs/` files are immediately reflected.
 
 ```bash
 # 1. Start from current no-telemetry branch
-git checkout v0.14.0-no-telemetry
-git pull origin v0.14.0-no-telemetry
+git checkout v0.14.1-no-telemetry
+git pull origin v0.14.1-no-telemetry
 
 # 2. Create new branch for changes
-git checkout -b v0.14.0-no-telemetry
+git checkout -b v0.14.1-no-telemetry
 
 # 3. Find merge base and cherry-pick commits
-MERGE_BASE=$(git merge-base v0.14.0-no-telemetry main)
+MERGE_BASE=$(git merge-base v0.14.1-no-telemetry main)
 git log --oneline $MERGE_BASE..main
 
 # 4. Cherry-pick each commit from main
@@ -341,7 +341,7 @@ git cherry-pick <commit-hash> || {
 }
 
 # 5. After merge, verify no-telemetry files exist
-git diff v0.14.0-no-telemetry..v0.14.0-no-telemetry --name-status
+git diff v0.14.1-no-telemetry..v0.14.1-no-telemetry --name-status
 ```
 
 ### Files that must be preserved:

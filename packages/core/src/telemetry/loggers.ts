@@ -88,3 +88,6 @@ export function logArenaAgentCompleted(
 export function logArenaSessionEnded(_config: Config, _event: unknown): void {}
 
 export function logHookCall(_config: Config, _event: unknown): void {}
+
+export function logPromptSuggestion(_config: Config, _event: unknown): void {}
+export function logSpeculation(_config: Config, _event: unknown): void {}

@@ -22,6 +22,11 @@ This branch must remain aligned with upstream `main`.
 - **BE PRAGMATIC**: Do not wait for a "clean" upstream state. Merge frequently.
 - **BE ASSERTIVE**: Conflicts are expected. **RESOLVE THEM!** Do not use conflicts as an excuse to avoid alignment.
 - **STRATEGY**: Merge the latest `main` HEAD (or a stable commit near HEAD) into the current `no-telemetry` branch.
+- **SINGLE-MERGE SQUASH**: To produce a single commit for a release while keeping `main` aligned, use the "Single-Merge" approach:
+  1. `git reset --hard [LAST_RELEASE_TAG]` (e.g., `v0.14.0-no-telemetry`)
+  2. `git merge --no-ff main -m "feat: release [NEW_VERSION]"`
+  3. Resolve conflicts, neutralize telemetry, and `git commit --amend` to finalize.
+     _This ensures `main` is a parent (alignment) while keeping all changes in one commit._
 - **NEUTRALIZATION**: During resolution, ALWAYS prioritize the dummy/no-op implementations for anything telemetry-related.
 
 ### Implementation Pattern (Dummy Layer)
@@ -36,7 +41,7 @@ This branch must remain aligned with upstream `main`.
 
 Every successful merge REQUIRES:
 
-1.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.12.4`). **DO NOT** append `-no-telemetry` to the version string.
+1.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.14.1`). **DO NOT** append `-no-telemetry` to the version string.
 2.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
 3.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
 4.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
@@ -49,12 +54,12 @@ The version system has two distinct layers that serve different purposes:
 
 | Layer                | Format          | Purpose                                      | Conflict Resolution                   |
 | -------------------- | --------------- | -------------------------------------------- | ------------------------------------- |
-| **Upstream version** | `0.13.1`        | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
+| **Upstream version** | `0.14.1`        | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
 | **No-telemetry标识** | `-no-telemetry` | UI identification, user awareness            | Always present in display strings     |
 
 ### Critical Rules:
 
-1.  **`package.json` version field**: Must match upstream exactly (e.g., `"0.13.1"`). Never include `-no-telemetry` here.
+1.  **`package.json` version field**: Must match upstream exactly (e.g., `"0.14.1"`). Never include `-no-telemetry` here.
 2.  **UI display version**: Should show `[VERSION]-no-telemetry · ❌📡 · [HASH]` for user clarity.
 3.  **Dependency conflicts**: If upstream adds `@opentelemetry/*` or similar telemetry packages, **REMOVE THEM** even if it creates a version mismatch. Privacy > compatibility.
 4.  **Code conflicts**: If telemetry code is added upstream, replace with no-op implementations during merge resolution.
@@ -63,7 +68,7 @@ The version system has two distinct layers that serve different purposes:
 
 ## 5. Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.13.1-no-telemetry` to `v0.13.1-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.1-no-telemetry` to `v0.14.1-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
@@ -78,7 +83,7 @@ When releasing a new version (e.g., bumping from `v0.13.1-no-telemetry` to `v0.1
 grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 ```
 
-**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.13.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---
 
