@@ -99,6 +99,7 @@ export default {
   'CLI Version': 'Версия CLI',
   'Git Commit': 'Git-коммит',
   Model: 'Модель',
+  'Fast Model': 'Быстрая модель',
   Sandbox: 'Песочница',
   'OS Platform': 'Платформа ОС',
   'OS Arch': 'Архитектура ОС',
@@ -610,6 +611,10 @@ export default {
   'Loading hooks...': 'Загрузка хуков...',
   'Error loading hooks:': 'Ошибка загрузки хуков:',
   'Press Escape to close': 'Нажмите Escape для закрытия',
+  'Press Escape, Ctrl+C, or Ctrl+D to cancel':
+    'Нажмите Escape, Ctrl+C или Ctrl+D для отмены',
+  'Press Space, Enter, or Escape to dismiss':
+    'Нажмите Пробел, Enter или Escape для закрытия',
   'No hook selected': 'Хук не выбран',
   // Hooks - List Step
   'No hook events found.': 'События хуков не найдены.',
@@ -993,6 +998,8 @@ export default {
   // Команды - Модель
   // ============================================================================
   'Switch the model for this session': 'Переключение модели для этой сессии',
+  'Set fast model for background tasks':
+    'Установить быструю модель для фоновых задач',
   'Content generator configuration not available.':
     'Конфигурация генератора содержимого недоступна.',
   'Authentication type not available.': 'Тип авторизации недоступен.',
@@ -1958,4 +1965,9 @@ export default {
     'Raw-режим недоступен. Пожалуйста, запустите в интерактивном терминале.',
   '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n':
     '(↑ ↓ стрелки для навигации, Enter для выбора, Ctrl+C для выхода)\n',
+  verbose: 'подробный',
+  'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).':
+    'Показывать полный вывод инструментов и процесс рассуждений в подробном режиме (переключить с помощью Ctrl+O).',
+  'Press Ctrl+O to show full tool output':
+    'Нажмите Ctrl+O для показа полного вывода инструментов',
 };

@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.13.1-no-telemetry to v0.13.1-no-telemetry), ALWAYS update these files with the new version number:
+- When releasing a new version (e.g., bumping from v0.14.1-no-telemetry to v0.14.1-no-telemetry), ALWAYS update these files with the new version number:
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
@@ -9,7 +9,13 @@
 
 Search command before releasing: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
 
-The `package.json` version field should match upstream exactly (e.g., `"0.13.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+The `package.json` version field should match upstream exactly (e.g., `"0.14.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+
+- **Single-Merge Strategy**: To produce a single release commit while keeping `main` aligned:
+  1. `git reset --hard [LAST_TAG]`
+  2. `git merge --no-ff main -m "feat: release [VERSION]"`
+  3. Resolve/neutralize and `git commit --amend`
+     _Avoid `reset --soft` after merge as it breaks the history link to `main`._
 
 - When running tests in this no-telemetry fork, be aware of these pre-existing test failures that are NOT related to our changes:
 
@@ -36,11 +42,11 @@ These tests were already failing before our changes and are expected when runnin
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs and examples (e.g., `v0.14.0-no-telemetry`)
+3. **README.md**: Install script URLs and examples (e.g., `v0.14.1-no-telemetry`)
 4. **AGENTS.md**: Merge protocol examples
 5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
 6. **QWEN.md**: Memory documentation (if updating version examples)
 
 Search command: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
 
-The `package.json` version field should match upstream exactly (e.g., `"0.13.2"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+The `package.json` version field should match upstream exactly (e.g., `"0.14.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.

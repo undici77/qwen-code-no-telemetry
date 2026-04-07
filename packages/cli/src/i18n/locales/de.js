@@ -79,6 +79,7 @@ export default {
   'CLI Version': 'CLI-Version',
   'Git Commit': 'Git-Commit',
   Model: 'Modell',
+  'Fast Model': 'Schnelles Modell',
   Sandbox: 'Sandbox',
   'OS Platform': 'Betriebssystem',
   'OS Arch': 'OS-Architektur',
@@ -599,6 +600,10 @@ export default {
   'Loading hooks...': 'Hooks werden geladen...',
   'Error loading hooks:': 'Fehler beim Laden der Hooks:',
   'Press Escape to close': 'Escape zum Schließen drücken',
+  'Press Escape, Ctrl+C, or Ctrl+D to cancel':
+    'Escape, Ctrl+C oder Ctrl+D zum Abbrechen',
+  'Press Space, Enter, or Escape to dismiss':
+    'Leertaste, Enter oder Escape zum Schließen',
   'No hook selected': 'Kein Hook ausgewählt',
   // Hooks - List Step
   'No hook events found.': 'Keine Hook-Ereignisse gefunden.',
@@ -985,6 +990,8 @@ export default {
   // Commands - Model
   // ============================================================================
   'Switch the model for this session': 'Modell für diese Sitzung wechseln',
+  'Set fast model for background tasks':
+    'Schnelles Modell für Hintergrundaufgaben festlegen',
   'Content generator configuration not available.':
     'Inhaltsgenerator-Konfiguration nicht verfügbar.',
   'Authentication type not available.':
@@ -1961,4 +1968,9 @@ export default {
     'Raw-Modus nicht verfügbar. Bitte in einem interaktiven Terminal ausführen.',
   '(Use ↑ ↓ arrows to navigate, Enter to select, Ctrl+C to exit)\n':
     '(↑ ↓ Pfeiltasten zum Navigieren, Enter zum Auswählen, Strg+C zum Beenden)\n',
+  verbose: 'ausführlich',
+  'Show full tool output and thinking in verbose mode (toggle with Ctrl+O).':
+    'Vollständige Tool-Ausgabe und Denkprozess im ausführlichen Modus anzeigen (mit Strg+O umschalten).',
+  'Press Ctrl+O to show full tool output':
+    'Strg+O für vollständige Tool-Ausgabe drücken',
 };
