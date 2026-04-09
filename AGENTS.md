@@ -1,10 +1,20 @@
-# AGENTS.md - Qwen Code Project Context
+# AGENTS.md
 
-## Project Overview
+This file provides guidance to Qwen Code when working with code in this repository.
 
 This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code), designed for maximum privacy while maintaining compatibility with upstream changes.
 
-### Key Characteristics
+## Common Commands
+
+- `npm install` - Install all dependencies
+- `npm run build` - Build all packages (TypeScript compilation + asset copying)
+- `npm run build:all` - Build everything including sandbox container
+- `npm run bundle` - Bundle dist/ into a single dist/cli.js via esbuild (requires build first)
+- `npm start` - Start the Qwen Code CLI from source
+- `npm run dev` - Development mode (watch for changes)
+- `npm run preflight` - Full check: clean → install → format → lint → build → typecheck → test
+
+## Key Characteristics
 
 - **Privacy-first**: All telemetry and tracking have been removed/replaced with no-op implementations
 - **Monorepo structure**: Uses npm workspaces with multiple packages (`cli`, `core`, `sdk-*`, etc.)
@@ -30,7 +40,7 @@ This keeps the application codebase aligned with upstream while ensuring zero ex
 
 | Layer                                     | Purpose                                      | How to Handle                                            |
 | ----------------------------------------- | -------------------------------------------- | -------------------------------------------------------- |
-| **Upstream version** (e.g., `0.12.4`)     | Package compatibility, dependency resolution | **Keep identical** to upstream `main` to avoid conflicts |
+| **Upstream version** (e.g., `0.14.2`)     | Package compatibility, dependency resolution | **Keep identical** to upstream `main` to avoid conflicts |
 | **No-telemetry suffix** (`-no-telemetry`) | Identify privacy fork                        | **Always append** to indicate no-telemetry policy        |
 
 **Conflict Resolution Priority:**
@@ -45,13 +55,13 @@ When merging from `main`, conflicts may arise due to:
 
 - ❌ **DO NOT** keep telemetry packages "just to match versions"
 - ✅ **ALWAYS** remove/replace with no-op implementations
-- ✅ Version strings in `package.json` must match upstream (e.g., `"version": "0.12.4"`), but the no-telemetry policy overrides any telemetry-related code
+- ✅ Version strings in `package.json` must match upstream (e.g., `"version": "0.14.2"`), but the no-telemetry policy overrides any telemetry-related code
 
 ---
 
 ### Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.13.1-no-telemetry` to `v0.13.1-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.2-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
@@ -66,7 +76,7 @@ When releasing a new version (e.g., bumping from `v0.13.1-no-telemetry` to `v0.1
 grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 ```
 
-**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.13.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.2"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---
 
@@ -96,329 +106,54 @@ grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 
 ---
 
-## Building and Running
+## Unit Testing
 
-### Prerequisites
+Tests must be run from within the specific package directory, not the project root.
 
-- **Node.js**: Use `~20.19.0` for development (specific version due to dependency issues). Any `>=20` for production.
-- **npm**: Default package manager (workspaces enabled)
-
-### Setup
+**Run individual test files** (always preferred):
 
 ```bash
-# Install dependencies (including all workspace packages)
-npm install
-
-# Build the entire project
-npm run build
-
-# Build everything including sandbox container
-npm run build:all
+cd packages/core && npx vitest run src/path/to/file.test.ts
+cd packages/cli && npx vitest run src/path/to/file.test.ts
 ```
 
-### Development Commands
-
-| Command                     | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `npm start`                 | Start the Qwen Code CLI from source            |
-| `npm run dev`               | Development mode (watch for changes)           |
-| `npm run debug`             | Start with debugger attached (`--inspect-brk`) |
-| `make start` / `make debug` | Makefile aliases for above                     |
-
-### Testing
+**Update snapshots:**
 
 ```bash
-# Run all unit tests across workspaces
-npm run test
-
-# Run integration tests (end-to-end)
-npm run test:e2e
-
-# Run all integration tests with different sandbox modes
-npm run test:integration:all
-
-# Run CI test suite (includes linting checks)
-npm run test:ci
-
-# Terminal benchmark tests
-npm run test:terminal-bench
-npm run test:terminal-bench:oracle
-npm run test:terminal-bench:qwen
+cd packages/cli && npx vitest run src/path/to/file.test.ts --update
 ```
 
-### Code Quality
+### Integration Testing
+
+Build the bundle first: `npm run build && npm run bundle`
+
+Run from the project root using the dedicated npm scripts:
 
 ```bash
-# Run all checks (format, lint, tests)
-npm run preflight
-
-# Format code with Prettier
-npm run format
-
-# Lint TypeScript/TSX files
-npm run lint
-
-# Lint with zero warnings (CI mode)
-npm run lint:ci
-
-# Type check all packages
-npm run typecheck
+npm run test:integration:cli:sandbox:none
+npm run test:integration:interactive:sandbox:none
 ```
 
 ---
 
-## Key Configuration Files
+## Code Conventions
 
-| File                | Purpose                                                             |
-| ------------------- | ------------------------------------------------------------------- |
-| `package.json`      | Root config, scripts, dependencies, workspace definitions           |
-| `tsconfig.json`     | TypeScript compiler options (strict mode, ES2023, NodeNext modules) |
-| `eslint.config.js`  | ESLint configuration for the project                                |
-| `.eslintrc.json`    | Legacy ESLint config (if exists)                                    |
-| `vitest.config.ts`  | Vitest unit test configuration                                      |
-| `esbuild.config.js` | Bundle configuration for production                                 |
-
----
-
-## Development Conventions
-
-### Coding Style
-
-- **TypeScript**: Strict mode enabled, ES2022 target
-- **Module system**: ES modules (`"type": "module"` in package.json)
-- **JSX**: React JSX transform (no need to import React)
-- **Imports**: No relative imports between packages - use absolute paths like `@qwen-code/qwen-code-core`
-
-### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/) standard:
-
-- `feat(cli): Add --json flag to 'config get' command` ✅
-- `fix: Resolve issue with telemetry` ✅
-- `docs: Update architecture documentation` ✅
-
-### PR Guidelines
-
-1. **Link to existing issue** - All PRs should reference an open issue
-2. **Small and focused** - One change per PR
-3. **Use Draft PRs** for work-in-progress feedback
-4. **All checks must pass** - Run `npm run preflight` before submitting
-5. **Update documentation** for user-facing changes
-
-### Testing Practices
-
-- Unit tests in each package's `__tests__/` directory
-- Integration tests in `integration-tests/` root
-- Tests use Vitest with DOM testing library for TUI components
-- Run tests with `npm run test` before committing
+- **Module system**: ESM throughout (`"type": "module"` in all packages)
+- **TypeScript**: Strict mode with `noImplicitAny`, `strictNullChecks`, `noUnusedLocals`, `verbatimModuleSyntax`
+- **Formatting**: Prettier — single quotes, semicolons, trailing commas, 2-space indent, 80-char width
+- **Linting**: No `any` types, consistent type imports, no relative imports between packages
+- **Tests**: Collocated with source (`file.test.ts` next to `file.ts`), vitest framework
+- **Commits**: Conventional Commits (e.g., `feat(cli): Add --json flag`)
+- **Node.js**: Development requires `~20.19.0`; production requires `>=20`
 
 ---
 
-## Sandboxing
+## Testing, Debugging, and Bug Fixes
 
-The project supports multiple sandbox modes for secure code execution:
-
-- **Docker** (`QWEN_SANDBOX=docker`)
-- **Podman** (`QWEN_SANDBOX=podman`)
-- **None/Disabled** (`QWEN_SANDBOX=false` or unset)
-
-To build the sandbox container:
-
-```bash
-npm run build:sandbox
-# Or include in build:all
-npm run build:all
-```
-
-Sandbox image URI is configured in root `package.json` as `config.sandboxImageUri`.
+- **Bug reproduction & verification**: spawn the `test-engineer` agent. It reads code and docs to understand the bug, then reproduces it via E2E testing (or a test-script fallback). It also handles post-fix verification. It cannot edit source code — only observe and report.
+- **Hard bugs**: use the `structured-debugging` skill when debugging requires more than a quick glance — especially when the first attempt at a fix didn't work or the behavior seems impossible.
+- **E2E testing**: the `e2e-testing` skill covers headless mode, interactive (tmux) mode, MCP server testing, and API traffic inspection. The `test-engineer` agent invokes this skill internally — you typically don't need to use it directly.
 
 ---
 
-## Debugging
-
-### VS Code
-
-1. Press `F5` to attach to the CLI
-2. Or run `npm run debug` and attach via Chrome DevTools
-
-### React DevTools (for TUI debugging)
-
-```bash
-DEV=true npm start
-# In another terminal:
-npx react-devtools@4.28.5
-```
-
-### Debug Mode in Container
-
-```bash
-DEBUG=1 qwen-code
-```
-
-Note: Use `.qwen-code/.env` for qwen-specific debug settings (`.env` files in projects are excluded).
-
----
-
-## LM Studio Configuration
-
-To use Qwen Code with a local model via [LM Studio](https://lmstudio.ai/):
-
-1. Start LM Studio and load your model
-2. Enable local server (default: port 1234)
-3. Edit `~/.qwen/settings.json`:
-
-```json
-{
-  "modelProviders": {
-    "openai": [
-      {
-        "id": "qwen/qwen3-coder-30b",
-        "name": "qwen/qwen3-coder-30b",
-        "baseUrl": "http://host.docker.internal:1234/v1",
-        "description": "Qwen3-Coder via LM STUDIO",
-        "envKey": "DASHSCOPE_API_KEY"
-      }
-    ]
-  },
-  "env": {
-    "DASHSCOPE_API_KEY": "none"
-  },
-  "security": {
-    "auth": {
-      "selectedType": "openai"
-    }
-  },
-  "model": {
-    "name": "qwen3-coder-30b"
-  },
-  "$version": 3
-}
-```
-
-For Docker, use `host.docker.internal` to reach the host machine.
-
----
-
-## Documentation Development
-
-The documentation site uses Next.js:
-
-```bash
-cd docs-site
-npm install
-npm run link     # Link ../docs to content/
-npm run dev      # Start dev server at http://localhost:3000
-```
-
-Changes to `docs/` files are immediately reflected.
-
----
-
-## No-Telemetry Merge Protocol
-
-**CRITICAL**: When merging upstream `main` into this branch:
-
-### DO NOT use `git merge main` directly!
-
-**Correct approach:**
-
-```bash
-# 1. Start from current no-telemetry branch
-git checkout v0.14.1-no-telemetry
-git pull origin v0.14.1-no-telemetry
-
-# 2. Create new branch for changes
-git checkout -b v0.14.1-no-telemetry
-
-# 3. Find merge base and cherry-pick commits
-MERGE_BASE=$(git merge-base v0.14.1-no-telemetry main)
-git log --oneline $MERGE_BASE..main
-
-# 4. Cherry-pick each commit from main
-git cherry-pick <commit-hash> || {
-  echo "Conflict - resolve manually"
-  break
-}
-
-# 5. After merge, verify no-telemetry files exist
-git diff v0.14.1-no-telemetry..v0.14.1-no-telemetry --name-status
-```
-
-### Files that must be preserved:
-
-- `NO_TELEMETRY_GUIDELINES.md`
-- `build.sh`, `install.sh`, `local-install.sh`
-- Dockerfile (may need special handling)
-- Telemetry dummy layer in `packages/core/src/telemetry/`
-
-### Post-Merge Verification:
-
-```bash
-# 1. Check version matches upstream (without -no-telemetry suffix)
-grep '"version"' package.json
-# Should show: "version": "0.13.2" (same as upstream main)
-
-# 2. Verify no telemetry packages in dependencies
-grep -r "@opentelemetry" package.json packages/*/package.json || echo "No OTEL found ✓"
-
-# 3. Verify no-telemetry suffix in UI/version display
-grep -r "no-telemetry" packages/cli/src/ | head -5
-
-# 4. Build and test
-npm run build:packages && npm run lint && npm run test
-```
-
-**Critical Check:** After merging, the `package.json` version should match upstream (e.g., `0.12.4`), NOT include `-no-telemetry`. The no-telemetry policy is enforced through code (dummy layer), not version strings.
-
-See `NO_TELEMETRY_GUIDELINES.md` for detailed merge strategy.
-
----
-
-## Important Notes
-
-### Version String Convention
-
-The version displayed in the UI must follow this format:
-
-```
-[VERSION]-no-telemetry · ❌📡 · [SHORT GIT HASH]
-```
-
-The clean version (for User-Agent headers) must remain ASCII-only.
-
-### Build Scripts
-
-Key scripts in `/scripts/`:
-
-- `build.js` - Main build process
-- `build_sandbox.js` - Build Docker sandbox image
-- `build_vscode_companion.js` - Build VS Code extension
-- `start.js` - CLI entry point
-- `dev.js` - Development watch mode
-
-### Workspace Packages
-
-Each package in `/packages/` has its own `package.json` and follows the monorepo pattern. Common package types:
-
-- `cli/` - Main command-line interface
-- `core/` - Shared logic and telemetry dummy layer
-- `sdk-*` - Language-specific SDKs
-
----
-
-## Quick Reference Commands
-
-| Task           | Command                                 |
-| -------------- | --------------------------------------- |
-| Install deps   | `npm install`                           |
-| Build          | `npm run build` or `make build`         |
-| Run CLI        | `npm start` or `make start`             |
-| Run tests      | `npm run test`                          |
-| Format code    | `npm run format`                        |
-| Lint code      | `npm run lint`                          |
-| Full preflight | `npm run preflight` or `make preflight` |
-| Debug mode     | `npm run debug`                         |
-
----
-
-_This QWEN.md was auto-generated based on project analysis. Update as needed for new conventions or project evolution._
+_This QWEN.md was updated to maintain no-telemetry guidelines while aligning with upstream changes._
