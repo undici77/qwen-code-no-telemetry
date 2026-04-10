@@ -306,5 +306,15 @@ describe('SettingsSchema', () => {
           .description,
       ).toBe('Enable debug logging of keystrokes to the console.');
     });
+
+    it('should have gitCoAuthor setting in schema with default false', () => {
+      expect(getSettingsSchema().general.properties.gitCoAuthor).toBeDefined();
+      expect(getSettingsSchema().general.properties.gitCoAuthor.type).toBe(
+        'boolean',
+      );
+      expect(getSettingsSchema().general.properties.gitCoAuthor.default).toBe(
+        false,
+      );
+    });
   });
 });

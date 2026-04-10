@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.14.2-no-telemetry to v0.14.2-no-telemetry), ALWAYS update these files with the new version number:
+- When releasing a new version (e.g., bumping from v0.14.3-no-telemetry to v0.14.3-no-telemetry), ALWAYS update these files with the new version number:
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
@@ -29,8 +29,9 @@ These tests were already failing before our changes and are expected when runnin
 **Tests we fixed for no-telemetry:**
 
 1. `installationManager.test.ts` - Updated to test static UUID return value
-2. `config.test.ts` - Usage statistics tests now expect disabled by default
-3. `gemini.test.tsx` - Fixed mock for `getCliVersionDisplay` (was incorrectly checking for non-existent `getCliVersion`)
+2. `config.test.ts` - Usage statistics tests and gitCoAuthor tests now expect disabled by default
+3. `settingsSchema.test.ts` - Added test to verify gitCoAuthor default is false
+4. `gemini.test.tsx` - Fixed mock for `getCliVersionDisplay` (was incorrectly checking for non-existent `getCliVersion`)
 
 **Telemetry Implementation:**
 
@@ -42,7 +43,7 @@ These tests were already failing before our changes and are expected when runnin
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs and examples (e.g., `v0.14.2-no-telemetry`)
+3. **README.md**: Install script URLs and examples (e.g., `v0.14.3-no-telemetry`)
 4. **AGENTS.md**: Merge protocol examples
 5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
 6. **QWEN.md**: Memory documentation (if updating version examples)

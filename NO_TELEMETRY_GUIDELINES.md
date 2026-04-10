@@ -10,6 +10,7 @@ This document defines the privacy policy, technical architecture, and maintenanc
 2.  **NO IDENTITY**: No unique installation IDs. `getInstallationId()` must ALWAYS return `00000000-0000-0000-0000-000000000000`.
 3.  **LOCAL PERSISTENCE ONLY**: Data is strictly local.
 4.  **DISABLED AUTO-UPDATES**: Hardcode `enableAutoUpdate` to `false` in default settings.
+5.  **DISABLED GIT CO-AUTHOR**: Hardcode `gitCoAuthor` to `false` in default settings to prevent accidental identity leakage in commit history.
 
 ---
 
@@ -68,7 +69,7 @@ The version system has two distinct layers that serve different purposes:
 
 ## 5. Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.2-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.3-no-telemetry` to `v0.14.3-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |

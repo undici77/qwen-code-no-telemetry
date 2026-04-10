@@ -860,6 +860,22 @@ describe('Server Config (config.ts)', () => {
     });
   });
 
+  describe('GitCoAuthor Configuration', () => {
+    it('should default gitCoAuthor.enabled to false when not provided', () => {
+      const config = new Config(baseParams);
+      expect(config.getGitCoAuthor().enabled).toBe(false);
+    });
+
+    it('should set gitCoAuthor.enabled to true when explicitly provided as true', () => {
+      const paramsWithCoAuthor: ConfigParameters = {
+        ...baseParams,
+        gitCoAuthor: true,
+      };
+      const config = new Config(paramsWithCoAuthor);
+      expect(config.getGitCoAuthor().enabled).toBe(true);
+    });
+  });
+
   describe('createToolRegistry', () => {
     it('should register a tool if coreTools contains an argument-specific pattern', async () => {
       const params: ConfigParameters = {
