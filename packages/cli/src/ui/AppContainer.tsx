@@ -781,6 +781,7 @@ export const AppContainer = (props: AppContainerProps) => {
     addMessage,
     clearQueue,
     getQueuedMessagesText,
+    popAllMessages,
     drainQueue,
   } = useMessageQueue({
     isConfigInitialized,
@@ -789,8 +790,8 @@ export const AppContainer = (props: AppContainerProps) => {
   });
 
   // Bridge message queue to mid-turn drain via ref.
-  // drainQueue reads from the synchronous queueRef inside useMessageQueue,
-  // so it always sees the latest state even between renders.
+  // drainQueue reads the synchronous queueRef inside the hook, so it
+  // stays consistent with popAllMessages even before React re-renders.
   midTurnDrainRef.current = drainQueue;
 
   // Callback for handling final submit (must be after addMessage from useMessageQueue)
@@ -2054,6 +2055,7 @@ export const AppContainer = (props: AppContainerProps) => {
       exitEditorDialog,
       closeSettingsDialog,
       closeModelDialog,
+      openModelDialog,
       openArenaDialog,
       closeArenaDialog,
       handleArenaModelsSelected,
@@ -2072,6 +2074,7 @@ export const AppContainer = (props: AppContainerProps) => {
       handleFinalSubmit,
       handleRetryLastPrompt: retryLastPrompt,
       handleClearScreen,
+      popAllQueuedMessages: popAllMessages,
       // Welcome back dialog
       handleWelcomeBackSelection,
       handleWelcomeBackClose,
@@ -2112,6 +2115,7 @@ export const AppContainer = (props: AppContainerProps) => {
       exitEditorDialog,
       closeSettingsDialog,
       closeModelDialog,
+      openModelDialog,
       openArenaDialog,
       closeArenaDialog,
       handleArenaModelsSelected,
@@ -2129,6 +2133,7 @@ export const AppContainer = (props: AppContainerProps) => {
       handleFinalSubmit,
       retryLastPrompt,
       handleClearScreen,
+      popAllMessages,
       handleWelcomeBackSelection,
       handleWelcomeBackClose,
       // Subagent dialogs
