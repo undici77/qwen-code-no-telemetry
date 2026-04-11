@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.14.3-no-telemetry to v0.14.3-no-telemetry), ALWAYS update these files with the new version number:
+- When releasing a new version (e.g., bumping from v0.14.2-no-telemetry to v0.14.3-no-telemetry), ALWAYS update these files with the new version number:
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
@@ -9,7 +9,7 @@
 
 Search command before releasing: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
 
-The `package.json` version field should match upstream exactly (e.g., `"0.14.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 - **Single-Merge Strategy**: To produce a single release commit while keeping `main` aligned:
   1. `git reset --hard [LAST_TAG]`
@@ -50,4 +50,4 @@ These tests were already failing before our changes and are expected when runnin
 
 Search command: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
 
-The `package.json` version field should match upstream exactly (e.g., `"0.14.1"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.

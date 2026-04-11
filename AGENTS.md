@@ -40,7 +40,7 @@ This keeps the application codebase aligned with upstream while ensuring zero ex
 
 | Layer                                     | Purpose                                      | How to Handle                                            |
 | ----------------------------------------- | -------------------------------------------- | -------------------------------------------------------- |
-| **Upstream version** (e.g., `0.14.2`)     | Package compatibility, dependency resolution | **Keep identical** to upstream `main` to avoid conflicts |
+| **Upstream version** (e.g., `0.14.3`)     | Package compatibility, dependency resolution | **Keep identical** to upstream `main` to avoid conflicts |
 | **No-telemetry suffix** (`-no-telemetry`) | Identify privacy fork                        | **Always append** to indicate no-telemetry policy        |
 
 **Conflict Resolution Priority:**
@@ -55,13 +55,13 @@ When merging from `main`, conflicts may arise due to:
 
 - ❌ **DO NOT** keep telemetry packages "just to match versions"
 - ✅ **ALWAYS** remove/replace with no-op implementations
-- ✅ Version strings in `package.json` must match upstream (e.g., `"version": "0.14.2"`), but the no-telemetry policy overrides any telemetry-related code
+- ✅ Version strings in `package.json` must match upstream (e.g., `"version": "0.14.3"`), but the no-telemetry policy overrides any telemetry-related code
 
 ---
 
 ### Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.3-no-telemetry` to `v0.14.3-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.3-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
@@ -76,7 +76,7 @@ When releasing a new version (e.g., bumping from `v0.14.3-no-telemetry` to `v0.1
 grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 ```
 
-**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.2"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---
 
