@@ -61,7 +61,7 @@ When merging from `main`, conflicts may arise due to:
 
 ### Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.3-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.4-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |

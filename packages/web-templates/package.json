@@ -1,10 +1,10 @@
 {
   "name": "@qwen-code/web-templates",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "description": "Web templates bundled as embeddable JS/CSS strings",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QwenLM/qwen-code.git"
+    "url": "git+https://github.com/undici77/qwen-code-no-telemetry.git"
   },
   "type": "module",
   "main": "dist/index.js",
