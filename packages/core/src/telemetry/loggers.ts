@@ -46,6 +46,9 @@ import type {
   IdeConnectionEvent,
   KittySequenceOverflowEvent,
   HookCallEvent,
+  MemoryExtractEvent,
+  MemoryDreamEvent,
+  MemoryRecallEvent,
 } from './types.js';
 
 // No-op implementations for no-telemetry policy
@@ -201,4 +204,21 @@ export function logPromptSuggestion(
 export function logSpeculation(
   _config: Config,
   _event: SpeculationEvent,
+): void {}
+
+// ─── Auto-Memory Log Functions ───────────────────────────────────────────────
+
+export function logMemoryExtract(
+  _config: Config,
+  _event: MemoryExtractEvent,
+): void {}
+
+export function logMemoryDream(
+  _config: Config,
+  _event: MemoryDreamEvent,
+): void {}
+
+export function logMemoryRecall(
+  _config: Config,
+  _event: MemoryRecallEvent,
 ): void {}

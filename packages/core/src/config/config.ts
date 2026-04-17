@@ -52,13 +52,13 @@ import { GlobTool } from '../tools/glob.js';
 import { GrepTool } from '../tools/grep.js';
 import { LSTool } from '../tools/ls.js';
 import type { SendSdkMcpMessage } from '../tools/mcp-client.js';
-import { MemoryTool, setGeminiMdFilename } from '../tools/memoryTool.js';
+import { setGeminiMdFilename } from '../memory/const.js';
 import { ReadFileTool } from '../tools/read-file.js';
 import { canUseRipgrep } from '../utils/ripgrepUtils.js';
 import { RipGrepTool } from '../tools/ripGrep.js';
 import { ShellTool } from '../tools/shell.js';
 import { SkillTool } from '../tools/skill.js';
-import { AgentTool } from '../tools/agent.js';
+import { AgentTool } from '../tools/agent/agent.js';
 import { TodoWriteTool } from '../tools/todoWrite.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
@@ -78,6 +78,7 @@ import { SkillManager } from '../skills/skill-manager.js';
 import { PermissionManager } from '../permissions/permission-manager.js';
 import { SubagentManager } from '../subagents/subagent-manager.js';
 import type { SubagentConfig } from '../subagents/types.js';
+import { BackgroundTaskRegistry } from '../agents/background-tasks.js';
 import {
   DEFAULT_OTLP_ENDPOINT,
   DEFAULT_TELEMETRY_TARGET,
@@ -132,11 +133,15 @@ import {
 } from '../services/sessionService.js';
 import { randomUUID } from 'node:crypto';
 import { loadServerHierarchicalMemory } from '../utils/memoryDiscovery.js';
+import { ConditionalRulesRegistry } from '../utils/rulesDiscovery.js';
 import {
   createDebugLogger,
   setDebugLogSession,
   type DebugLogger,
 } from '../utils/debugLogger.js';
+import { getAutoMemoryRoot } from '../memory/paths.js';
+import { readAutoMemoryIndex } from '../memory/store.js';
+import { MemoryManager } from '../memory/manager.js';
 
 import {
   ModelsConfig,
@@ -438,10 +443,41 @@ export interface ConfigParameters {
   sdkMode?: boolean;
   sessionSubagents?: SubagentConfig[];
   channel?: string;
+  /**
+   * File descriptor number for structured JSON event output (dual output mode).
+   * When set, Qwen Code outputs structured JSON events to this fd while
+   * continuing to render the TUI on stdout. The caller must provide this fd
+   * via spawn stdio configuration.
+   * Mutually exclusive with jsonFile.
+   */
+  jsonFd?: number;
+  /**
+   * File path for structured JSON event output (dual output mode).
+   * Can be a regular file, FIFO (named pipe), or /dev/fd/N.
+   * Mutually exclusive with jsonFd.
+   */
+  jsonFile?: string;
+  /**
+   * File path for receiving remote input commands (bidirectional sync mode).
+   * An external process writes JSONL commands to this file, and the TUI
+   * watches it to process messages as if the user typed them.
+   */
+  inputFile?: string;
   /** Model providers configuration grouped by authType */
   modelProvidersConfig?: ModelProvidersConfig;
   /** Multi-agent collaboration settings (Arena, Team, Swarm) */
   agents?: AgentsCollabSettings;
+  /** Enable managed auto-memory background extraction and dream. Defaults to true. */
+  enableManagedAutoMemory?: boolean;
+  /** Enable managed auto-dream consolidation separately from extraction. Defaults to true. */
+  enableManagedAutoDream?: boolean;
+  /**
+   * Lightweight model for background tasks (memory extraction, dream, /btw side questions).
+   * When set and valid for the current auth type, forked agents use this model instead of
+   * the main session model, reducing latency and cost.
+   * Corresponds to the `fastModel` setting (configurable via `/model --fast`).
+   */
+  fastModel?: string;
   /**
    * Disable all hooks (default: false, hooks enabled).
    * Migration note: This replaces the deprecated hooksConfig.enabled setting.
@@ -462,6 +498,8 @@ export interface ConfigParameters {
   projectHooks?: Record<string, unknown>;
 
   hooks?: Record<string, unknown>;
+  /** Glob patterns to exclude from .qwen/rules/ loading. */
+  contextRuleExcludes?: string[];
   /** Warnings generated during configuration resolution */
   warnings?: string[];
   /** Allowed HTTP hook URLs whitelist (from security.allowedHttpHookUrls) */
@@ -519,6 +557,7 @@ export class Config {
   private toolRegistry!: ToolRegistry;
   private promptRegistry!: PromptRegistry;
   private subagentManager!: SubagentManager;
+  private readonly backgroundTaskRegistry = new BackgroundTaskRegistry();
   private extensionManager!: ExtensionManager;
   private skillManager: SkillManager | null = null;
   private permissionManager: PermissionManager | null = null;
@@ -558,6 +597,8 @@ export class Config {
   private userMemory: string;
   private sdkMode: boolean;
   private geminiMdFileCount: number;
+  private conditionalRulesRegistry: ConditionalRulesRegistry | undefined;
+  private readonly contextRuleExcludes: string[];
   private approvalMode: ApprovalMode;
   private prePlanMode?: ApprovalMode;
   private readonly accessibility: AccessibilitySettings;
@@ -636,7 +677,13 @@ export class Config {
   private readonly truncateToolOutputLines: number;
   private readonly eventEmitter?: EventEmitter;
   private readonly channel: string | undefined;
+  private readonly jsonFd: number | undefined;
+  private readonly jsonFile: string | undefined;
+  private readonly inputFile: string | undefined;
   private readonly defaultFileEncoding: FileEncodingType | undefined;
+  private readonly enableManagedAutoMemory: boolean;
+  private readonly enableManagedAutoDream: boolean;
+  private fastModel?: string;
   private readonly disableAllHooks: boolean;
   /** User-level hooks (always loaded regardless of trust) */
   private readonly userHooks?: Record<string, unknown>;
@@ -646,6 +693,7 @@ export class Config {
   private readonly hooks?: Record<string, unknown>;
   private hookSystem?: HookSystem;
   private messageBus?: MessageBus;
+  private readonly memoryManager: MemoryManager;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId ?? randomUUID();
@@ -688,6 +736,7 @@ export class Config {
     this.sdkMode = params.sdkMode ?? false;
     this.userMemory = params.userMemory ?? '';
     this.geminiMdFileCount = params.geminiMdFileCount ?? 0;
+    this.contextRuleExcludes = params.contextRuleExcludes ?? [];
     this.approvalMode = params.approvalMode ?? ApprovalMode.DEFAULT;
     this.accessibility = params.accessibility ?? {};
     this.telemetrySettings = {
@@ -773,6 +822,9 @@ export class Config {
     this.truncateToolOutputLines =
       params.truncateToolOutputLines ?? DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES;
     this.channel = params.channel;
+    this.jsonFd = params.jsonFd;
+    this.jsonFile = params.jsonFile;
+    this.inputFile = params.inputFile;
     this.defaultFileEncoding = params.defaultFileEncoding;
     this.storage = new Storage(this.targetDir);
     this.inputFormat = params.inputFormat ?? InputFormat.TEXT;
@@ -817,12 +869,16 @@ export class Config {
       enabledExtensionOverrides: this.overrideExtensions,
       isWorkspaceTrusted: this.isTrustedFolder(),
     });
+    this.enableManagedAutoMemory = params.enableManagedAutoMemory ?? true;
+    this.enableManagedAutoDream = params.enableManagedAutoDream ?? false;
+    this.fastModel = params.fastModel || undefined;
     this.disableAllHooks = params.disableAllHooks ?? false;
     // Store user and project hooks separately for proper source attribution
     this.userHooks = params.userHooks;
     this.projectHooks = params.projectHooks;
     // Legacy: fall back to merged hooks if new fields are not provided
     this.hooks = params.hooks;
+    this.memoryManager = new MemoryManager();
   }
 
   /**
@@ -1050,18 +1106,56 @@ export class Config {
   }
 
   async refreshHierarchicalMemory(): Promise<void> {
-    const { memoryContent, fileCount } = await loadServerHierarchicalMemory(
-      this.getWorkingDir(),
-      this.shouldLoadMemoryFromIncludeDirectories()
-        ? this.getWorkspaceContext().getDirectories()
-        : [],
-      this.getFileService(),
-      this.getExtensionContextFilePaths(),
-      this.isTrustedFolder(),
-      this.getImportFormat(),
-    );
-    this.setUserMemory(memoryContent);
+    const { memoryContent, fileCount, conditionalRules, projectRoot } =
+      await loadServerHierarchicalMemory(
+        this.getWorkingDir(),
+        this.shouldLoadMemoryFromIncludeDirectories()
+          ? this.getWorkspaceContext().getDirectories()
+          : [],
+        this.getFileService(),
+        this.getExtensionContextFilePaths(),
+        this.isTrustedFolder(),
+        this.getImportFormat(),
+        this.contextRuleExcludes,
+      );
+    if (this.getManagedAutoMemoryEnabled()) {
+      const managedAutoMemoryIndex = await readAutoMemoryIndex(
+        this.getProjectRoot(),
+      );
+      this.setUserMemory(
+        this.memoryManager.appendToUserMemory(
+          memoryContent,
+          getAutoMemoryRoot(this.getProjectRoot()),
+          managedAutoMemoryIndex,
+        ),
+      );
+    } else {
+      this.setUserMemory(memoryContent);
+    }
     this.setGeminiMdFileCount(fileCount);
+    this.conditionalRulesRegistry = new ConditionalRulesRegistry(
+      conditionalRules,
+      projectRoot,
+    );
+  }
+
+  getConditionalRulesRegistry(): ConditionalRulesRegistry | undefined {
+    return this.conditionalRulesRegistry;
+  }
+
+  /**
+   * Update the conditional rules registry. Called after external refresh
+   * paths (e.g. /memory refresh or /directory add) that bypass
+   * refreshHierarchicalMemory().
+   */
+  setConditionalRulesRegistry(
+    registry: ConditionalRulesRegistry | undefined,
+  ): void {
+    this.conditionalRulesRegistry = registry;
+  }
+
+  getContextRuleExcludes(): string[] {
+    return this.contextRuleExcludes;
   }
 
   getContentGenerator(): ContentGenerator {
@@ -1248,6 +1342,29 @@ export class Config {
   }
 
   /**
+   * Returns the fast model if one is configured and valid for the current auth type,
+   * otherwise returns undefined. Background agents (memory extraction, dream, /btw)
+   * use this as a cheaper alternative to the main session model.
+   */
+  getFastModel(): string | undefined {
+    if (!this.fastModel) return undefined;
+    const authType = this.contentGeneratorConfig?.authType;
+    if (!authType) return undefined;
+    const available = this.getAvailableModelsForAuthType(authType);
+    return available.some((m) => m.id === this.fastModel)
+      ? this.fastModel
+      : undefined;
+  }
+
+  /**
+   * Update the fast model at runtime (e.g., when the user runs `/model --fast <model>`).
+   * Pass undefined or an empty string to clear the fast model override.
+   */
+  setFastModel(model: string | undefined): void {
+    this.fastModel = model || undefined;
+  }
+
+  /**
    * Set model programmatically (e.g., VLM auto-switch, fallback).
    * Delegates to ModelsConfig.
    */
@@ -1273,6 +1390,12 @@ export class Config {
     if (!this.contentGeneratorConfig) {
       return;
     }
+
+    // Strip thinking blocks from conversation history on model switch.
+    // reasoning_content is a non-standard field that causes strict
+    // OpenAI-compatible providers to reject requests with 422 errors
+    // when thought parts from a previous model leak into the payload (#3304).
+    this.geminiClient.stripThoughtsFromHistory();
 
     // Hot update path: only supported for qwen-oauth.
     // For other auth types we always refresh to recreate the ContentGenerator.
@@ -1441,6 +1564,8 @@ export class Config {
       if (this.toolRegistry) {
         await this.toolRegistry.stop();
       }
+
+      this.backgroundTaskRegistry.abortAll();
 
       await this.cleanupArenaRuntime();
     } catch (error) {
@@ -1925,6 +2050,24 @@ export class Config {
     return this.disableAllHooks;
   }
 
+  getManagedAutoMemoryEnabled(): boolean {
+    return this.enableManagedAutoMemory;
+  }
+
+  getManagedAutoDreamEnabled(): boolean {
+    return this.enableManagedAutoDream;
+  }
+
+  /**
+   * Return the MemoryManager instance created for this Config.
+   * Use this to share background-task state (registry, drainer) with memory
+   * module runtimes (extract, dream) instead of relying on module-level
+   * globals.
+   */
+  getMemoryManager(): MemoryManager {
+    return this.memoryManager;
+  }
+
   /**
    * Get the message bus instance.
    * Returns undefined if not set.
@@ -2086,6 +2229,31 @@ export class Config {
   }
 
   /**
+   * Get the file descriptor for dual output JSON event stream.
+   * When set, the TUI mode will also emit structured JSON events to this fd.
+   */
+  getJsonFd(): number | undefined {
+    return this.jsonFd;
+  }
+
+  /**
+   * Get the file path for dual output JSON event stream.
+   * When set, the TUI mode will also emit structured JSON events to this file.
+   */
+  getJsonFile(): string | undefined {
+    return this.jsonFile;
+  }
+
+  /**
+   * Get the file path for remote input commands (bidirectional sync).
+   * When set, the TUI mode will watch this file for JSONL commands written
+   * by an external process and submit them as user messages.
+   */
+  getInputFile(): string | undefined {
+    return this.inputFile;
+  }
+
+  /**
    * Get the default file encoding for new files.
    * @returns FileEncodingType
    */
@@ -2231,6 +2399,19 @@ export class Config {
     return this.subagentManager;
   }
 
+  getBackgroundTaskRegistry(): BackgroundTaskRegistry {
+    return this.backgroundTaskRegistry;
+  }
+
+  /**
+   * Whether interactive permission prompts should be auto-denied.
+   * True for background agents that have no UI to show prompts.
+   * PermissionRequest hooks still run and can override the denial.
+   */
+  getShouldAvoidPermissionPrompts(): boolean {
+    return false;
+  }
+
   getSkillManager(): SkillManager | null {
     return this.skillManager;
   }
@@ -2332,7 +2513,6 @@ export class Config {
     await registerCoreTool(EditTool, this);
     await registerCoreTool(WriteFileTool, this);
     await registerCoreTool(ShellTool, this);
-    await registerCoreTool(MemoryTool);
     await registerCoreTool(TodoWriteTool, this);
     await registerCoreTool(AskUserQuestionTool, this);
     !this.sdkMode && (await registerCoreTool(ExitPlanModeTool, this));

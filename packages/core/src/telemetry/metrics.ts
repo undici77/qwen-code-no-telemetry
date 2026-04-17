@@ -174,3 +174,31 @@ export function recordArenaSessionEndedMetrics(
   _durationMs?: number,
   _winnerModelId?: string,
 ): void {}
+
+// ─── Auto-Memory Metric Recording Functions ─────────────────────────────────
+
+export function recordMemoryExtractMetrics(
+  _config: Config,
+  _durationMs: number,
+  _attrs: {
+    trigger: 'auto' | 'manual';
+    status: 'completed' | 'skipped' | 'failed';
+    patches_count: number;
+  },
+): void {}
+
+export function recordMemoryDreamMetrics(
+  _config: Config,
+  _durationMs: number,
+  _attrs: {
+    trigger: 'auto' | 'manual';
+    status: 'updated' | 'noop' | 'failed';
+    deduped_entries: number;
+  },
+): void {}
+
+export function recordMemoryRecallMetrics(
+  _config: Config,
+  _durationMs: number,
+  _attrs: { strategy: 'none' | 'heuristic' | 'model'; docs_selected: number },
+): void {}

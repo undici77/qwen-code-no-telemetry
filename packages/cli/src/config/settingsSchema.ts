@@ -448,6 +448,44 @@ const SETTINGS_SCHEMA = {
     },
   },
 
+  dualOutput: {
+    type: 'object',
+    label: 'Dual Output',
+    category: 'Advanced',
+    requiresRestart: true,
+    default: {},
+    description:
+      'Dual-output sidecar mode: emit structured JSON events to a ' +
+      'second channel while the TUI renders normally on stdout. See ' +
+      'docs/users/features/dual-output.md. CLI flags take precedence ' +
+      'over these settings.',
+    showInDialog: false,
+    properties: {
+      jsonFile: {
+        type: 'string',
+        label: 'JSON Event File',
+        category: 'Advanced',
+        requiresRestart: true,
+        default: undefined as string | undefined,
+        description:
+          'File path for structured JSON event output. Equivalent to ' +
+          '--json-file. Ignored if --json-fd or --json-file is also set.',
+        showInDialog: false,
+      },
+      inputFile: {
+        type: 'string',
+        label: 'Remote Input File',
+        category: 'Advanced',
+        requiresRestart: true,
+        default: undefined as string | undefined,
+        description:
+          'File path for remote input commands (JSONL). Equivalent to ' +
+          '--input-file. Ignored if --input-file is also set.',
+        showInDialog: false,
+      },
+    },
+  },
+
   ui: {
     type: 'object',
     label: 'UI',
@@ -1011,6 +1049,38 @@ const SETTINGS_SCHEMA = {
             showInDialog: true,
           },
         },
+      },
+    },
+  },
+
+  memory: {
+    type: 'object',
+    label: 'Memory',
+    category: 'Memory',
+    requiresRestart: false,
+    default: {},
+    description: 'Settings for managed auto-memory.',
+    showInDialog: false,
+    properties: {
+      enableManagedAutoMemory: {
+        type: 'boolean',
+        label: 'Enable Managed Auto-Memory',
+        category: 'Memory',
+        requiresRestart: false,
+        default: true,
+        description:
+          'Enable background extraction of memories from conversations.',
+        showInDialog: false,
+      },
+      enableManagedAutoDream: {
+        type: 'boolean',
+        label: 'Enable Managed Auto-Dream',
+        category: 'Memory',
+        requiresRestart: false,
+        default: false,
+        description:
+          'Enable automatic consolidation (dream) of collected memories.',
+        showInDialog: false,
       },
     },
   },
