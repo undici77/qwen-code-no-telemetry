@@ -70,6 +70,7 @@ import { DualOutputBridge } from './dualOutput/DualOutputBridge.js';
 import { DualOutputContext } from './dualOutput/DualOutputContext.js';
 import { RemoteInputWatcher } from './remoteInput/RemoteInputWatcher.js';
 import { RemoteInputContext } from './remoteInput/RemoteInputContext.js';
+import { installTerminalRedrawOptimizer } from './ui/utils/terminalRedrawOptimizer.js';
 
 const debugLogger = createDebugLogger('STARTUP');
 
@@ -155,6 +156,10 @@ export async function startInteractiveUI(
 ) {
   const version = await getCliVersionDisplay();
   setWindowTitle(basename(workspaceRoot), settings);
+  const restoreTerminalRedrawOptimizer =
+    process.stdout.isTTY && !config.getScreenReader()
+      ? installTerminalRedrawOptimizer(process.stdout)
+      : () => {};
 
   // Create dual output bridge if --json-fd or --json-file is specified.
   // Errors are caught so a bad fd/path degrades gracefully instead of
@@ -251,9 +256,9 @@ export async function startInteractiveUI(
     },
   );
 
-  // Check for updates only if enableAutoUpdate is not explicitly disabled.
-  // Using !== false ensures updates are enabled by default when undefined.
-  if (settings.merged.general?.enableAutoUpdate !== false) {
+  // Check for updates ONLY if enableAutoUpdate is explicitly set to true.
+  // This follows the no-telemetry policy where updates are disabled by default.
+  if (settings.merged.general?.enableAutoUpdate === true) {
     checkForUpdates()
       .then((info) => {
         handleAutoUpdate(info, settings, config.getProjectRoot());
@@ -264,10 +269,11 @@ export async function startInteractiveUI(
       });
   }
 
-  registerCleanup(() => {
+  registerCleanup(async () => {
     remoteInputWatcher?.shutdown();
-    dualOutputBridge?.shutdown();
+    await dualOutputBridge?.shutdown();
     instance.unmount();
+    restoreTerminalRedrawOptimizer();
   });
 }
 

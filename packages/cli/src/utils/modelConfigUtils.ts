@@ -50,31 +50,26 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
     return AuthType.QWEN_OAUTH;
   }
 
-  if (
-    process.env['OPENAI_API_KEY'] &&
-    process.env['OPENAI_MODEL'] &&
-    process.env['OPENAI_BASE_URL']
-  ) {
+  if (process.env['OPENAI_API_KEY']) {
     return AuthType.USE_OPENAI;
   }
 
-  if (process.env['GEMINI_API_KEY'] && process.env['GEMINI_MODEL']) {
+  if (process.env['GEMINI_API_KEY']) {
     return AuthType.USE_GEMINI;
   }
 
-  if (process.env['GOOGLE_API_KEY'] && process.env['GOOGLE_MODEL']) {
+  if (process.env['GOOGLE_API_KEY']) {
     return AuthType.USE_VERTEX_AI;
   }
 
-  if (
-    process.env['ANTHROPIC_API_KEY'] &&
-    process.env['ANTHROPIC_MODEL'] &&
-    process.env['ANTHROPIC_BASE_URL']
-  ) {
+  if (process.env['ANTHROPIC_API_KEY']) {
     return AuthType.USE_ANTHROPIC;
   }
 
-  return undefined;
+  // Default to OpenAI for the no-telemetry version if no other type is specified.
+  // This ensures compatibility with common development and test environments
+  // where OPENAI_API_KEY might be provided but other markers are missing.
+  return AuthType.USE_OPENAI;
 }
 
 /**

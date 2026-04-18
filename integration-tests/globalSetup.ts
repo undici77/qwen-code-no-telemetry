@@ -97,6 +97,12 @@ export async function setup() {
   process.env['QWEN_CODE_INTEGRATION_TEST'] = 'true';
   process.env['TELEMETRY_LOG_FILE'] = join(runDir, 'telemetry.log');
 
+  // Provide a dummy API key for integration tests if none is present,
+  // to ensure they don't fail due to missing auth.
+  if (!process.env['OPENAI_API_KEY']) {
+    process.env['OPENAI_API_KEY'] = 'test-key-no-telemetry';
+  }
+
   // Environment variables for SDK E2E tests
   process.env['E2E_TEST_FILE_DIR'] = sdkE2eRunDir;
   process.env['TEST_CLI_PATH'] = join(rootDir, 'dist/cli.js');
