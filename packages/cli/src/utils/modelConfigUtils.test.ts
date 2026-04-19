@@ -55,12 +55,12 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
 
-    it('should return undefined when OpenAI env vars are incomplete', () => {
+    it('should return USE_OPENAI when OpenAI env vars are incomplete', () => {
       process.env['OPENAI_API_KEY'] = 'test-key';
       process.env['OPENAI_MODEL'] = 'gpt-4';
       // Missing OPENAI_BASE_URL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
 
     it('should return QWEN_OAUTH when QWEN_OAUTH is set', () => {
@@ -76,11 +76,11 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_GEMINI);
     });
 
-    it('should return undefined when Gemini env vars are incomplete', () => {
+    it('should return USE_GEMINI when Gemini env vars are incomplete', () => {
       process.env['GEMINI_API_KEY'] = 'test-key';
       // Missing GEMINI_MODEL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_GEMINI);
     });
 
     it('should return USE_VERTEX_AI when Google env vars are set', () => {
@@ -90,11 +90,11 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_VERTEX_AI);
     });
 
-    it('should return undefined when Google env vars are incomplete', () => {
+    it('should return USE_VERTEX_AI when Google env vars are incomplete', () => {
       process.env['GOOGLE_API_KEY'] = 'test-key';
       // Missing GOOGLE_MODEL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_VERTEX_AI);
     });
 
     it('should return USE_ANTHROPIC when Anthropic env vars are set', () => {
@@ -105,12 +105,12 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_ANTHROPIC);
     });
 
-    it('should return undefined when Anthropic env vars are incomplete', () => {
+    it('should return USE_ANTHROPIC when Anthropic env vars are incomplete', () => {
       process.env['ANTHROPIC_API_KEY'] = 'test-key';
       process.env['ANTHROPIC_MODEL'] = 'claude-3';
       // Missing ANTHROPIC_BASE_URL
 
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_ANTHROPIC);
     });
 
     it('should prioritize QWEN_OAUTH over other auth types when explicitly set', () => {
@@ -124,7 +124,7 @@ describe('modelConfigUtils', () => {
     });
 
     it('should return undefined when no auth env vars are set', () => {
-      expect(getAuthTypeFromEnv()).toBeUndefined();
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
   });
 

@@ -566,6 +566,9 @@ describe('startInteractiveUI', () => {
   } as Config;
   const mockSettings = {
     merged: {
+      general: {
+        enableAutoUpdate: true,
+      },
       ui: {
         hideWindowTitle: false,
       },
