@@ -108,6 +108,7 @@ export type {
 } from './tools/shell.js';
 export type { SkillTool, SkillParams } from './tools/skill.js';
 export type { AgentTool, AgentParams } from './tools/agent/agent.js';
+export type { SwarmTool, SwarmParams, SwarmTask } from './tools/swarm.js';
 export type {
   TodoWriteTool,
   TodoItem,
@@ -135,6 +136,7 @@ export * from './services/fileDiscoveryService.js';
 export * from './services/fileSystemService.js';
 export * from './services/gitService.js';
 export * from './services/gitWorktreeService.js';
+export * from './services/sessionRecap.js';
 export * from './services/sessionService.js';
 export * from './services/shellExecutionService.js';
 
@@ -227,6 +229,7 @@ export {
   ExtensionUninstallEvent,
   IdeConnectionEvent,
   IdeConnectionType,
+  LoopType,
   ModelSlashCommandEvent,
   PromptSuggestionEvent,
   SpeculationEvent,
