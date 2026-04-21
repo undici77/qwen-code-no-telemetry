@@ -31,6 +31,7 @@ import type {
   Message,
   HistoryItemWithoutId,
   HistoryItemBtw,
+  HistoryItemAwayRecap,
   SlashCommandProcessorResult,
   HistoryItem,
   ConfirmationRequest,
@@ -155,6 +156,9 @@ export const useSlashCommandProcessor = (
   const [btwItem, setBtwItem] = useState<HistoryItemBtw | null>(null);
   const btwAbortControllerRef = useRef<AbortController | null>(null);
 
+  const [awayRecapItem, setAwayRecapItem] =
+    useState<HistoryItemAwayRecap | null>(null);
+
   const cancelBtw = useCallback(() => {
     btwAbortControllerRef.current?.abort();
     btwAbortControllerRef.current = null;
@@ -268,6 +272,7 @@ export const useSlashCommandProcessor = (
         addItem,
         clear: () => {
           cancelBtw();
+          setAwayRecapItem(null);
           clearItems();
           clearScreen();
           refreshStatic();
@@ -280,6 +285,8 @@ export const useSlashCommandProcessor = (
         setBtwItem,
         cancelBtw,
         btwAbortControllerRef,
+        awayRecapItem,
+        setAwayRecapItem,
         isIdleRef,
         toggleVimEnabled,
         setGeminiMdFileCount,
@@ -312,6 +319,8 @@ export const useSlashCommandProcessor = (
       btwItem,
       setBtwItem,
       cancelBtw,
+      awayRecapItem,
+      setAwayRecapItem,
       toggleVimEnabled,
       sessionShellAllowlist,
       setGeminiMdFileCount,
@@ -353,13 +362,15 @@ export const useSlashCommandProcessor = (
           new BundledSkillLoader(config),
           new FileCommandLoader(config),
         ];
+        const disabled = config?.getDisabledSlashCommands() ?? [];
         const commandService = await CommandService.create(
           loaders,
           controller.signal,
+          disabled.length > 0 ? new Set(disabled) : undefined,
         );
         // Avoid overwriting newer results from a subsequent effect run
         if (!controller.signal.aborted) {
-          setCommands(commandService.getCommands());
+          setCommands(commandService.getCommandsForMode('interactive'));
         }
       } catch (error) {
         debugLogger.error('Failed to load slash commands:', error);
@@ -783,6 +794,8 @@ export const useSlashCommandProcessor = (
     btwItem,
     setBtwItem,
     cancelBtw,
+    awayRecapItem,
+    setAwayRecapItem,
     commandContext,
     shellConfirmationRequest,
     confirmationRequest,
