@@ -24,7 +24,7 @@ This branch must remain aligned with upstream `main`.
 - **BE ASSERTIVE**: Conflicts are expected. **RESOLVE THEM!** Do not use conflicts as an excuse to avoid alignment.
 - **STRATEGY**: Merge the latest `main` HEAD (or a stable commit near HEAD) into the current `no-telemetry` branch.
 - **SINGLE-MERGE SQUASH**: To produce a single commit for a release while keeping `main` aligned, use the "Single-Merge" approach:
-  1. `git reset --hard [LAST_RELEASE_TAG]` (e.g., `v0.14.2-no-telemetry`)
+  1. `git reset --hard [LAST_RELEASE_TAG]` (e.g., `v0.14.5-no-telemetry`)
   2. `git merge --no-ff main -m "feat: release [NEW_VERSION]"`
   3. Resolve conflicts, neutralize telemetry, and `git commit --amend` to finalize.
      _This ensures `main` is a parent (alignment) while keeping all changes in one commit._
@@ -69,7 +69,7 @@ The version system has two distinct layers that serve different purposes:
 
 ## 5. Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.2-no-telemetry` to `v0.14.5-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.5-no-telemetry` to `v0.15.0-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
