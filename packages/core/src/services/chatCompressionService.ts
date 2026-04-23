@@ -104,7 +104,11 @@ export class ChatCompressionService {
     config: Config,
     hasFailedCompressionAttempt: boolean,
     signal?: AbortSignal,
-  ): Promise<{ newHistory: Content[] | null; info: ChatCompressionInfo }> {
+  ): Promise<{
+    newHistory: Content[] | null;
+    info: ChatCompressionInfo;
+    summary?: string;
+  }> {
     const curatedHistory = chat.getHistory(true);
     const threshold =
       config.getChatCompression()?.contextPercentageThreshold ??
@@ -378,6 +382,7 @@ export class ChatCompressionService {
           newTokenCount,
           compressionStatus: CompressionStatus.COMPRESSED,
         },
+        summary,
       };
     }
   }

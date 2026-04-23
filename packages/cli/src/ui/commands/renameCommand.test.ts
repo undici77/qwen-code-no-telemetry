@@ -4,159 +4,146 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renameCommand } from './renameCommand.js';
-import { type CommandContext } from './types.js';
-import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
+import { CommandKind } from './types.js';
+
+vi.mock('@qwen-code/qwen-code-core', async () => {
+  const actual = await vi.importActual<
+    typeof import('@qwen-code/qwen-code-core')
+  >('@qwen-code/qwen-code-core');
+  return {
+    ...actual,
+    tryGenerateSessionTitle: vi.fn(),
+  };
+});
 
 describe('renameCommand', () => {
-  let mockContext: CommandContext;
+  const mockConfig = {
+    getChatRecordingService: vi.fn(),
+    getSessionService: vi.fn(),
+    getSessionId: vi.fn().mockReturnValue('session-123'),
+    getFastModel: vi.fn(),
+    getModel: vi.fn().mockReturnValue('main-model'),
+    getContentGenerator: vi.fn(),
+    getGeminiClient: vi.fn().mockReturnValue({
+      getHistory: vi.fn().mockReturnValue([]),
+    }),
+  };
+
+  const mockUi = {
+    setPendingItem: vi.fn(),
+    setSessionName: vi.fn(),
+  };
+
+  const mockContext = {
+    services: { config: mockConfig },
+    ui: mockUi,
+    abortSignal: new AbortController().signal,
+  };
 
   beforeEach(() => {
-    mockContext = createMockCommandContext();
+    vi.clearAllMocks();
   });
 
-  it('should have the correct name and description', () => {
+  it('has correct metadata', () => {
     expect(renameCommand.name).toBe('rename');
-    expect(renameCommand.description).toBe('Rename the current conversation');
+    expect(renameCommand.kind).toBe(CommandKind.BUILT_IN);
+    expect(renameCommand.altNames).toContain('tag');
   });
 
-  it('should return error when config is not available', async () => {
-    mockContext.services.config = null;
-
-    const result = await renameCommand.action!(mockContext, 'my-feature');
-
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'error',
-      content: 'Config is not available.',
-    });
-  });
-
-  it('should return error when no name is provided and auto-generate fails', async () => {
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue(undefined),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: vi.fn().mockResolvedValue(true),
-      }),
-      getGeminiClient: vi.fn().mockReturnValue({
-        getHistory: vi.fn().mockReturnValue([]),
-      }),
-      getContentGenerator: vi.fn(),
-      getModel: vi.fn(),
+  it('renames session with explicit name', async () => {
+    const mockRecordingService = {
+      recordCustomTitle: vi.fn().mockReturnValue(true),
     };
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
+    mockConfig.getChatRecordingService.mockReturnValue(mockRecordingService);
 
-    const result = await renameCommand.action!(mockContext, '');
+    const result = (await renameCommand.action!(
+      mockContext as any,
+      'my-new-name',
+    )) as any;
 
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'error',
-      content: 'Could not generate a title. Usage: /rename <name>',
-    });
-  });
-
-  it('should return error when only whitespace is provided and auto-generate fails', async () => {
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue(undefined),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: vi.fn().mockResolvedValue(true),
-      }),
-      getGeminiClient: vi.fn().mockReturnValue({
-        getHistory: vi.fn().mockReturnValue([]),
-      }),
-      getContentGenerator: vi.fn(),
-      getModel: vi.fn(),
-    };
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
-
-    const result = await renameCommand.action!(mockContext, '   ');
-
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'error',
-      content: 'Could not generate a title. Usage: /rename <name>',
-    });
-  });
-
-  it('should rename via ChatRecordingService when available', async () => {
-    const mockRecordCustomTitle = vi.fn().mockReturnValue(true);
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue({
-        recordCustomTitle: mockRecordCustomTitle,
-      }),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: vi.fn().mockResolvedValue(true),
-      }),
-    };
-
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
-
-    const result = await renameCommand.action!(mockContext, 'my-feature');
-
-    expect(mockRecordCustomTitle).toHaveBeenCalledWith('my-feature');
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content: 'Session renamed to "my-feature"',
-    });
-  });
-
-  it('should fall back to SessionService when ChatRecordingService is unavailable', async () => {
-    const mockRenameSession = vi.fn().mockResolvedValue(true);
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue(undefined),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: mockRenameSession,
-      }),
-    };
-
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
-
-    const result = await renameCommand.action!(mockContext, 'my-feature');
-
-    expect(mockRenameSession).toHaveBeenCalledWith(
-      'test-session-id',
-      'my-feature',
+    expect(mockRecordingService.recordCustomTitle).toHaveBeenCalledWith(
+      'my-new-name',
+      'manual',
     );
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content: 'Session renamed to "my-feature"',
-    });
+    expect(mockUi.setSessionName).toHaveBeenCalledWith('my-new-name');
+    expect(result.type).toBe('message');
+    expect(result.messageType).toBe('info');
   });
 
-  it('should return error when SessionService fallback fails', async () => {
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue(undefined),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: vi.fn().mockResolvedValue(false),
-      }),
+  it('fails if name is too long', async () => {
+    const longName = 'a'.repeat(300);
+    const result = (await renameCommand.action!(
+      mockContext as any,
+      longName,
+    )) as any;
+
+    expect(result.messageType).toBe('error');
+    expect(result.content).toContain('too long');
+  });
+
+  it('supports --auto flag for fast-model title generation', async () => {
+    const { tryGenerateSessionTitle } = await import(
+      '@qwen-code/qwen-code-core'
+    );
+    vi.mocked(tryGenerateSessionTitle).mockResolvedValue({
+      ok: true,
+      title: 'Auto Generated Title',
+      modelUsed: 'fast-model',
+    });
+    mockConfig.getFastModel.mockReturnValue('fast-model');
+    const mockRecordingService = {
+      recordCustomTitle: vi.fn().mockReturnValue(true),
     };
+    mockConfig.getChatRecordingService.mockReturnValue(mockRecordingService);
 
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
+    const result = (await renameCommand.action!(
+      mockContext as any,
+      '--auto',
+    )) as any;
 
-    const result = await renameCommand.action!(mockContext, 'my-feature');
+    expect(tryGenerateSessionTitle).toHaveBeenCalled();
+    expect(mockRecordingService.recordCustomTitle).toHaveBeenCalledWith(
+      'Auto Generated Title',
+      'auto',
+    );
+    expect(mockUi.setSessionName).toHaveBeenCalledWith('Auto Generated Title');
+    expect(result.messageType).toBe('info');
+    expect(result.content).toContain('Auto Generated Title');
+  });
 
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'error',
-      content: 'Failed to rename session.',
-    });
+  it('fails --auto if no fast model is configured', async () => {
+    mockConfig.getFastModel.mockReturnValue(undefined);
+
+    const result = (await renameCommand.action!(
+      mockContext as any,
+      '--auto',
+    )) as any;
+
+    expect(result.messageType).toBe('error');
+    expect(result.content).toContain('requires a fast model');
+  });
+
+  it('supports -- separator for literal names starting with dashes', async () => {
+    const mockRecordingService = {
+      recordCustomTitle: vi.fn().mockReturnValue(true),
+    };
+    mockConfig.getChatRecordingService.mockReturnValue(mockRecordingService);
+
+    // Should NOT treat --auto as a flag here
+    const result = (await renameCommand.action!(
+      mockContext as any,
+      '-- --auto',
+    )) as any;
+
+    expect(mockRecordingService.recordCustomTitle).toHaveBeenCalledWith(
+      '--auto',
+      'manual',
+    );
+    expect(mockUi.setSessionName).toHaveBeenCalledWith('--auto');
+    expect(result.messageType).toBe('info');
   });
 });

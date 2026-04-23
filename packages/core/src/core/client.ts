@@ -1173,7 +1173,7 @@ export class GeminiClient {
   ): Promise<ChatCompressionInfo> {
     const compressionService = new ChatCompressionService();
 
-    const { newHistory, info } = await compressionService.compress(
+    const { newHistory, info, summary } = await compressionService.compress(
       this.getChat(),
       prompt_id,
       force,
@@ -1191,6 +1191,7 @@ export class GeminiClient {
         chatRecordingService?.recordChatCompression({
           info,
           compressedHistory: newHistory,
+          summary: summary ?? '',
         });
 
         await this.startChat(newHistory);
