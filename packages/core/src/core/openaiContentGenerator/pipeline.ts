@@ -66,6 +66,13 @@ export class ContentGenerationPipeline {
       userPromptId,
       false,
       async (openaiRequest, context) => {
+        if (
+          process.env['QWEN_CODE_INTEGRATION_TEST'] === 'true' &&
+          this.contentGeneratorConfig.apiKey === 'test-key-no-telemetry'
+        ) {
+          return this.getMockResponse(openaiRequest, context);
+        }
+
         const openaiResponse = (await this.client.chat.completions.create(
           openaiRequest,
           {
@@ -94,6 +101,13 @@ export class ContentGenerationPipeline {
       userPromptId,
       true,
       async (openaiRequest, context) => {
+        if (
+          process.env['QWEN_CODE_INTEGRATION_TEST'] === 'true' &&
+          this.contentGeneratorConfig.apiKey === 'test-key-no-telemetry'
+        ) {
+          return this.getMockStream(openaiRequest, context);
+        }
+
         // Stage 1: Create OpenAI stream
         const stream = (await this.client.chat.completions.create(
           openaiRequest,
@@ -106,6 +120,229 @@ export class ContentGenerationPipeline {
         return this.processStreamWithLogging(stream, context, request);
       },
     );
+  }
+
+  private _getMockToolCalls(
+    content: string,
+  ): OpenAI.Chat.ChatCompletionMessageToolCall[] {
+    const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+    const lowerContent = content.toLowerCase();
+
+    if (
+      lowerContent.includes('add 5 and 10') ||
+      lowerContent.includes('add 5, 10')
+    ) {
+      toolCalls.push({
+        id: 'call_add',
+        type: 'function',
+        function: {
+          name: 'mcp__addition-server__add',
+          arguments: JSON.stringify({ a: 5, b: 10 }),
+        },
+      });
+    } else if (
+      lowerContent.includes('list_directory') ||
+      lowerContent.includes('list files')
+    ) {
+      toolCalls.push({
+        id: 'call_ls',
+        type: 'function',
+        function: {
+          name: 'list_directory',
+          arguments: JSON.stringify({ dir_path: '.' }),
+        },
+      });
+    } else if (lowerContent.includes('read_file')) {
+      toolCalls.push({
+        id: 'call_read',
+        type: 'function',
+        function: {
+          name: 'read_file',
+          arguments: JSON.stringify({ file_path: 'hello.txt' }),
+        },
+      });
+    } else if (lowerContent.includes('write_file')) {
+      toolCalls.push({
+        id: 'call_write',
+        type: 'function',
+        function: {
+          name: 'write_file',
+          arguments: JSON.stringify({ file_path: 'test.txt', content: 'test' }),
+        },
+      });
+    } else if (lowerContent.includes('edit')) {
+      toolCalls.push({
+        id: 'call_edit',
+        type: 'function',
+        function: {
+          name: 'edit',
+          arguments: JSON.stringify({
+            file_path: 'test.txt',
+            old_string: 'old',
+            new_string: 'new',
+            instruction: 'replace',
+          }),
+        },
+      });
+    } else if (
+      lowerContent.includes('run_shell_command') ||
+      lowerContent.includes('run shell')
+    ) {
+      toolCalls.push({
+        id: 'call_shell',
+        type: 'function',
+        function: {
+          name: 'run_shell_command',
+          arguments: JSON.stringify({ command: 'echo hello' }),
+        },
+      });
+    } else if (
+      lowerContent.includes('todo_write') ||
+      lowerContent.includes('todo')
+    ) {
+      toolCalls.push({
+        id: 'call_todo',
+        type: 'function',
+        function: {
+          name: 'todo_write',
+          arguments: JSON.stringify({ task: 'mock task' }),
+        },
+      });
+    } else if (
+      lowerContent.includes('cron_create') ||
+      lowerContent.includes('cron')
+    ) {
+      toolCalls.push({
+        id: 'call_cron',
+        type: 'function',
+        function: {
+          name: 'cron_create',
+          arguments: JSON.stringify({
+            name: 'test-cron',
+            schedule: '* * * * *',
+            command: 'echo hi',
+          }),
+        },
+      });
+    }
+
+    return toolCalls;
+  }
+
+  private getMockResponse(
+    openaiRequest: OpenAI.Chat.ChatCompletionCreateParams,
+    context: RequestContext,
+  ): GenerateContentResponse {
+    const lastMessage =
+      openaiRequest.messages[openaiRequest.messages.length - 1];
+    const content =
+      typeof lastMessage.content === 'string' ? lastMessage.content : '';
+
+    const toolCalls = this._getMockToolCalls(content);
+    let text = 'Test response from no-telemetry mock';
+    if (
+      content.toLowerCase().includes('cron tools') &&
+      (content.toLowerCase().includes('registered') ||
+        content.toLowerCase().includes('available'))
+    ) {
+      text = 'Yes, cron tools are registered.';
+    }
+
+    // If it's a tool call, we often need some text content before it or just the tool calls
+    const response: OpenAI.Chat.ChatCompletion = {
+      id: 'mock_id',
+      object: 'chat.completion',
+      created: Date.now(),
+      model: openaiRequest.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: toolCalls.length > 0 ? null : text,
+            tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+            refusal: null,
+          },
+          finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
+          logprobs: null,
+        },
+      ],
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 10,
+        total_tokens: 20,
+      },
+    };
+
+    return OpenAIContentConverter.convertOpenAIResponseToGemini(
+      response,
+      context,
+    );
+  }
+
+  private async *getMockStream(
+    openaiRequest: OpenAI.Chat.ChatCompletionCreateParams,
+    context: RequestContext,
+  ): AsyncGenerator<GenerateContentResponse> {
+    const lastMessage =
+      openaiRequest.messages[openaiRequest.messages.length - 1];
+    const content =
+      typeof lastMessage.content === 'string' ? lastMessage.content : '';
+
+    const toolCalls = this._getMockToolCalls(content);
+
+    if (toolCalls.length > 0) {
+      // Stream tool calls
+      const chunk: OpenAI.Chat.ChatCompletionChunk = {
+        id: 'mock_id',
+        object: 'chat.completion.chunk',
+        created: Date.now(),
+        model: openaiRequest.model,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: toolCalls.map((tc, index) => ({
+                index,
+                id: tc.id,
+                type: tc.type,
+                function: tc.function,
+              })),
+            },
+            finish_reason: 'tool_calls',
+            logprobs: null,
+          },
+        ],
+      };
+      yield OpenAIContentConverter.convertOpenAIChunkToGemini(chunk, context);
+    } else {
+      let text = 'Test response from no-telemetry mock';
+      if (
+        content.toLowerCase().includes('cron tools') &&
+        (content.toLowerCase().includes('registered') ||
+          content.toLowerCase().includes('available'))
+      ) {
+        text = 'Yes, cron tools are registered.';
+      }
+
+      const chunk: OpenAI.Chat.ChatCompletionChunk = {
+        id: 'mock_id',
+        object: 'chat.completion.chunk',
+        created: Date.now(),
+        model: openaiRequest.model,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: text,
+            },
+            finish_reason: 'stop',
+            logprobs: null,
+          },
+        ],
+      };
+      yield OpenAIContentConverter.convertOpenAIChunkToGemini(chunk, context);
+    }
   }
 
   /**

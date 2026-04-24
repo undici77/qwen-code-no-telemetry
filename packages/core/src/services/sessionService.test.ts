@@ -869,6 +869,7 @@ describe('SessionService', () => {
         version: '1.0.0',
         gitBranch: 'main',
         systemPayload: {
+          summary: 'test-summary',
           info: {
             originalTokenCount: 100,
             newTokenCount: 50,
