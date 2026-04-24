@@ -4,113 +4,23 @@
 >
 > **Authentication / API keys:** Authentication (API Key, Alibaba Cloud Coding Plan) and auth-related environment variables (like `OPENAI_API_KEY`) are documented in **[Authentication](../configuration/authentication.md)**.
 
-You can configure Qwen Code by creating or editing a `settings.json` file in your configuration directory:
+The Qwen Code CLI can be configured via a JSON file. The default location is:
 
-- **Linux/macOS:** `~/.qwen/settings.json`
+- **Linux:** `~/.config/qwen/settings.json`
+- **macOS:** `~/Library/Application Support/qwen/settings.json`
 - **Windows:** `%APPDATA%\qwen\settings.json`
 
-## Settings Reference
-
-The following settings are available in the `settings.json` file.
-
-### Available settings in `settings.json`
-
-Settings are organized into categories. All settings should be placed within their corresponding top-level category object in your `settings.json` file.
-
-#### general
-
-| Setting                                    | Type    | Description                                                                                                                                                                     | Default     |
-| ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `general.preferredEditor`                  | string  | The preferred editor to open files in.                                                                                                                                          | `undefined` |
-| `general.vimMode`                          | boolean | Enable Vim keybindings.                                                                                                                                                         | `false`     |
-| `general.enableAutoUpdate`                 | boolean | Enable automatic update checks and installations on startup.                                                                                                                    | `false`     |
-| `general.showSessionRecap`                 | boolean | Auto-show a one-line "where you left off" recap when returning to the terminal after being away. Off by default. Use `/recap` to trigger manually regardless of this setting.   | `false`     |
-| `general.sessionRecapAwayThresholdMinutes` | number  | Minutes the terminal must be blurred before an auto-recap fires on focus-in. Only used when `showSessionRecap` is enabled.                                                      | `5`         |
-| `general.gitCoAuthor`                      | boolean | Automatically add a Co-authored-by trailer to git commit messages when commits are made through Qwen Code.                                                                      | `false`     |
-| `general.checkpointing.enabled`            | boolean | Enable session checkpointing for recovery.                                                                                                                                      | `false`     |
-| `general.defaultFileEncoding`              | string  | Default encoding for new files. Use `"utf-8"` (default) for UTF-8 without BOM, or `"utf-8-bom"` for UTF-8 with BOM. Only change this if your project specifically requires BOM. | `"utf-8"`   |
-
-#### output
-
-| Setting         | Type   | Description                   | Default  | Possible Values    |
-| --------------- | ------ | ----------------------------- | -------- | ------------------ |
-| `output.format` | string | The format of the CLI output. | `"text"` | `"text"`, `"json"` |
-
-#### ui
-
-| Setting                                 | Type             | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Default     |
-| --------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `ui.theme`                              | string           | The color theme for the UI. See [Themes](../configuration/themes) for available options.                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `undefined` |
-| `ui.customThemes`                       | object           | Custom theme definitions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `{}`        |
-| `ui.statusLine`                         | object           | Custom status line configuration. A shell command whose output is shown in the footer's left section. See [Status Line](../features/status-line).                                                                                                                                                                                                                                                                                                                                                                                                  | `undefined` |
-| `ui.hideWindowTitle`                    | boolean          | Hide the window title bar.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `false`     |
-| `ui.hideTips`                           | boolean          | Hide all tips (startup and post-response) in the UI. See [Contextual Tips](../features/tips).                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `false`     |
-| `ui.hideBanner`                         | boolean          | Hide the application banner.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `false`     |
-| `ui.hideFooter`                         | boolean          | Hide the footer from the UI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `false`     |
-| `ui.showMemoryUsage`                    | boolean          | Display memory usage information in the UI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `false`     |
-| `ui.showLineNumbers`                    | boolean          | Show line numbers in code blocks in the CLI output.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `true`      |
-| `ui.showCitations`                      | boolean          | Show citations for generated text in the chat.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `true`      |
-| `ui.compactMode`                        | boolean          | Hide tool output and thinking for a cleaner view. Toggle with `Ctrl+O` during a session or via the Settings dialog. Tool approval prompts are never hidden, even in compact mode. The setting persists across sessions.                                                                                                                                                                                                                                                                                                                            | `false`     |
-| `ui.shellOutputMaxLines`                | number           | Max number of shell output lines shown inline. Set to `0` to disable the cap and show full output. Hidden lines are surfaced via the `+N lines` indicator. Errors, `!`-prefix user-initiated commands, confirming tools, and focused embedded shells always show full output.                                                                                                                                                                                                                                                                      | `5`         |
-| `enableWelcomeBack`                     | boolean          | Show welcome back dialog when returning to a project with conversation history. When enabled, Qwen Code will automatically detect if you're returning to a project with a previously generated project summary (`.qwen/PROJECT_SUMMARY.md`) and show a dialog allowing you to continue your previous conversation or start fresh. If you choose **Start new chat session**, that choice is remembered for the current project until the project summary changes. This feature integrates with the `/summary` command and quit confirmation dialog. | `true`      |
-| `ui.accessibility.enableLoadingPhrases` | boolean          | Enable loading phrases (disable for accessibility).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `true`      |
-| `ui.accessibility.screenReader`         | boolean          | Enables screen reader mode, which adjusts the TUI for better compatibility with screen readers.                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `false`     |
-| `ui.customWittyPhrases`                 | array of strings | A list of custom phrases to display during loading states. When provided, the CLI will cycle through these phrases instead of the default ones.                                                                                                                                                                                                                                                                                                                                                                                                    | `[]`        |
-| `ui.enableFollowupSuggestions`          | boolean          | Enable [followup suggestions](../features/followup-suggestions) that predict what you want to type next after the model responds. Suggestions appear as ghost text and can be accepted with Tab, Enter, or Right Arrow.                                                                                                                                                                                                                                                                                                                            | `true`      |
-| `ui.enableCacheSharing`                 | boolean          | Use cache-aware forked queries for suggestion generation. Reduces cost on providers that support prefix caching (experimental).                                                                                                                                                                                                                                                                                                                                                                                                                    | `true`      |
-| `ui.enableSpeculation`                  | boolean          | Speculatively execute accepted suggestions before submission. Results appear instantly when you accept (experimental).                                                                                                                                                                                                                                                                                                                                                                                                                             | `false`     |
-
-#### ide
-
-| Setting            | Type    | Description                                          | Default |
-| ------------------ | ------- | ---------------------------------------------------- | ------- |
-| `ide.enabled`      | boolean | Enable IDE integration mode.                         | `false` |
-| `ide.hasSeenNudge` | boolean | Whether the user has seen the IDE integration nudge. | `false` |
-
-#### privacy
-
-| Setting                          | Type    | Description                            | Default |
-| -------------------------------- | ------- | -------------------------------------- | ------- |
-| `privacy.usageStatisticsEnabled` | boolean | Enable collection of usage statistics. | `false` |
-
-#### model
-
-| Setting                                            | Type    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Default     |
-| -------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `model.name`                                       | string  | The Qwen model to use for conversations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `undefined` |
-| `model.maxSessionTurns`                            | number  | Maximum number of user/model/tool turns to keep in a session. -1 means unlimited.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `-1`        |
-| `model.generationConfig`                           | object  | Advanced overrides passed to the underlying content generator. Supports request controls such as `timeout`, `maxRetries`, `enableCacheControl`, `contextWindowSize` (override model's context window size), `modalities` (override auto-detected input modalities), `customHeaders` (custom HTTP headers for API requests), and `extra_body` (additional body parameters for OpenAI-compatible API requests only), along with fine-tuning knobs under `samplingParams` (for example `temperature`, `top_p`, `max_tokens`). Leave unset to rely on provider defaults. | `undefined` |
-| `model.chatCompression.contextPercentageThreshold` | number  | Sets the threshold for chat history compression as a percentage of the model's total token limit. This is a value between 0 and 1 that applies to both automatic compression and the manual `/compress` command. For example, a value of `0.6` will trigger compression when the chat history exceeds 60% of the token limit. Use `0` to disable compression entirely.                                                                                                                                                                                               | `0.7`       |
-| `model.skipNextSpeakerCheck`                       | boolean | Skip the next speaker check.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `false`     |
-| `model.skipLoopDetection`                          | boolean | Disables loop detection checks. Loop detection prevents infinite loops in AI responses but can generate false positives that interrupt legitimate workflows. Enable this option if you experience frequent false positive loop detection interruptions.                                                                                                                                                                                                                                                                                                              | `false`     |
-| `model.skipStartupContext`                         | boolean | Skips sending the startup workspace context (environment summary and acknowledgement) at the beginning of each session. Enable this if you prefer to provide context manually or want to save tokens on startup.                                                                                                                                                                                                                                                                                                                                                     | `false`     |
-| `model.enableOpenAILogging`                        | boolean | Enables logging of OpenAI API calls for debugging and analysis. When enabled, API requests and responses are logged to JSON files.                                                                                                                                                                                                                                                                                                                                                                                                                                   | `false`     |
-| `model.openAILoggingDir`                           | string  | Custom directory path for OpenAI API logs. If not specified, defaults to `logs/openai` in the current working directory. Supports absolute paths, relative paths (resolved from current working directory), and `~` expansion (home directory).                                                                                                                                                                                                                                                                                                                      | `undefined` |
-
-## Example `settings.json`
+## Example Settings
 
 ```json
 {
-  "general": {
-    "vimMode": true,
-    "enableAutoUpdate": false
-  },
-  "ui": {
-    "theme": "Qwen Light",
-    "compactMode": true
-  },
-  "model": {
-    "name": "qwen-max"
-  }
-}
-```
-
-## Disabling Telemetry (No-Telemetry Version)
-
-In the no-telemetry version of Qwen Code, telemetry is disabled by default. You can verify this by checking the `privacy` category in your `settings.json` file:
-
-```json
-{
+  "model": "qwen-2.5-coder-32b",
+  "temperature": 0,
+  "maxTokens": 4096,
+  "contextWindow": 128000,
+  "systemPrompt": "You are Qwen Code, an expert AI assistant...",
+  "enableAutoUpdate": false,
+  "gitCoAuthor": false,
   "privacy": {
     "usageStatisticsEnabled": false
   }
@@ -119,4 +29,4 @@ In the no-telemetry version of Qwen Code, telemetry is disabled by default. You 
 
 > [!note]
 >
-> In the no-telemetry version, all telemetry collection is replaced with no-op implementations. No data is sent to external servers regardless of this setting.
+> In the no-telemetry version, all telemetry collection is replaced with no-op implementations. No data is sent to external servers regardless of these setting.
