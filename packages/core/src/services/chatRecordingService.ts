@@ -34,7 +34,103 @@ import type { UiEvent } from '../telemetry/uiTelemetry.js';
 const debugLogger = createDebugLogger('CHAT_RECORDING');
 
 /**
- * Snapshot of conversation state saved to disk for reconstruction.
+ * A single record stored in the JSONL file.
+ * Forms a tree structure via uuid/parentUuid for future checkpointing support.
+ *
+ * Each record is self-contained with full metadata, enabling:
+ * - Append-only writes (crash-safe)
+ * - Tree reconstruction by following parentUuid chain
+ * - Future checkpointing by branching from any historical record
+ */
+export interface ChatRecord {
+  /** Unique identifier for this logical message */
+  uuid: string;
+  /** UUID of the parent message; null for root (first message in session) */
+  parentUuid: string | null;
+  /** Session identifier - groups records into a logical conversation */
+  sessionId: string;
+  /** ISO 8601 timestamp of when the record was created */
+  timestamp: string;
+  /**
+   * Message type: user input, assistant response, tool result, or system event.
+   * System records are append-only events that can alter how history is reconstructed
+   * (e.g., chat compression checkpoints) while keeping the original UI history intact.
+   */
+  type: 'user' | 'assistant' | 'tool_result' | 'system';
+  /** Optional system subtype for distinguishing system behaviors */
+  subtype?:
+    | 'chat_compression'
+    | 'slash_command'
+    | 'ui_telemetry'
+    | 'at_command'
+    | 'notification'
+    | 'cron'
+    | 'custom_title'
+    | 'rewind';
+  /** Working directory at time of message */
+  cwd: string;
+  /** CLI version for compatibility tracking */
+  version: string;
+  /** Current git branch, if available */
+  gitBranch?: string;
+
+  // Content field - raw API format for history reconstruction
+
+  /**
+   * The actual Content object (role + parts) sent to/from LLM.
+   * This is stored in the exact format needed for API calls, enabling
+   * direct aggregation into Content[] for session resumption.
+   * Contains: text, functionCall, functionResponse, thought parts, etc.
+   */
+  message?: Content;
+
+  // Metadata fields (not part of API Content)
+
+  /** Token usage statistics */
+  usageMetadata?: GenerateContentResponseUsageMetadata;
+  /** Model used for this response */
+  model?: string;
+  /** Context window size of the model used for this response */
+  contextWindowSize?: number;
+  /**
+   * Tool call metadata for UI recovery.
+   * Contains enriched info (displayName, status, result, etc.) not in API format.
+   */
+  toolCallResult?: Partial<ToolCallResponseInfo> & { status: Status };
+
+  /**
+   * Payload for system records. For chat compression, this stores all data needed
+   * to reconstruct the compressed history without mutating the original UI list.
+   */
+  systemPayload?:
+    | ChatCompressionRecordPayload
+    | SlashCommandRecordPayload
+    | UiTelemetryRecordPayload
+    | AtCommandRecordPayload
+    | CustomTitleRecordPayload
+    | NotificationRecordPayload
+    | RewindRecordPayload;
+}
+
+/**
+ * Stored payload for background notifications (cron or agent alerts).
+ */
+export interface NotificationRecordPayload {
+  /** Summary text for display in the Session Picker or notification UI. */
+  displayText: string;
+}
+
+/**
+ * Stored payload for conversation rewind events.
+ */
+export interface RewindRecordPayload {
+  /** Number of UI history items truncated. */
+  truncatedCount: number;
+}
+
+/**
+ * Stored payload for chat compression checkpoints. This allows us to rebuild the
+ * effective chat history on resume while keeping the original UI-visible history.
  */
 export interface ChatCompressionRecordPayload {
   /** Summary of the history that was removed during compaction. */
@@ -107,91 +203,6 @@ export interface UiTelemetryRecordPayload {
 }
 
 /**
- * Stored payload for background notifications (cron or agent alerts).
- */
-export interface NotificationRecordPayload {
-  /** Summary text for display in the Session Picker or notification UI. */
-  displayText: string;
-}
-
-/**
- * A single record stored in the JSONL file.
- * Forms a tree structure via uuid/parentUuid for future checkpointing support.
- *
- * Each record is self-contained with full metadata, enabling:
- * - Append-only writes (crash-safe)
- * - Tree reconstruction by following parentUuid chain
- * - Future checkpointing by branching from any historical record
- */
-export interface ChatRecord {
-  /** Unique identifier for this logical message */
-  uuid: string;
-  /** UUID of the parent message; null for root (first message in session) */
-  parentUuid: string | null;
-  /** Session identifier - groups records into a logical conversation */
-  sessionId: string;
-  /** ISO 8601 timestamp of when the record was created */
-  timestamp: string;
-  /**
-   * Message type: user input, assistant response, tool result, or system event.
-   * System records are append-only events that can alter how history is reconstructed
-   * (e.g., chat compression checkpoints) while keeping the original UI history intact.
-   */
-  type: 'user' | 'assistant' | 'tool_result' | 'system';
-  /** Optional system subtype for distinguishing system behaviors */
-  subtype?:
-    | 'chat_compression'
-    | 'slash_command'
-    | 'ui_telemetry'
-    | 'at_command'
-    | 'notification'
-    | 'cron'
-    | 'custom_title';
-  /** Working directory at time of message */
-  cwd: string;
-  /** CLI version for compatibility tracking */
-  version: string;
-  /** Current git branch, if available */
-  gitBranch?: string;
-
-  // Content field - raw API format for history reconstruction
-
-  /**
-   * The actual Content object (role + parts) sent to/from LLM.
-   * This is stored in the exact format needed for API calls, enabling
-   * direct aggregation into Content[] for session resumption.
-   * Contains: text, functionCall, functionResponse, thought parts, etc.
-   */
-  message?: Content;
-
-  // Metadata fields (not part of API Content)
-
-  /** Token usage statistics */
-  usageMetadata?: GenerateContentResponseUsageMetadata;
-  /** Model used for this response */
-  model?: string;
-  /** Context window size of the model used for this response */
-  contextWindowSize?: number;
-  /**
-   * Tool call metadata for UI recovery.
-   * Contains enriched info (displayName, status, result, etc.) not in API format.
-   */
-  toolCallResult?: Partial<ToolCallResponseInfo> & { status: Status };
-
-  /**
-   * Payload for system records. For chat compression, this stores all data needed
-   * to reconstruct the compressed history without mutating the original UI list.
-   */
-  systemPayload?:
-    | ChatCompressionRecordPayload
-    | SlashCommandRecordPayload
-    | UiTelemetryRecordPayload
-    | AtCommandRecordPayload
-    | CustomTitleRecordPayload
-    | NotificationRecordPayload;
-}
-
-/**
  * Service for recording the current chat session to disk.
  *
  * This service provides comprehensive conversation recording that captures:
@@ -219,6 +230,18 @@ export class ChatRecordingService {
   /** UUID of the last written record in the chain */
   private lastRecordUuid: string | null = null;
   private readonly config: Config;
+  /**
+   * Tracks the `lastRecordUuid` value just before each user turn was recorded.
+   * Used by {@link rewindRecording} to re-root the parentUuid chain so that
+   * rewound messages end up on a dead branch in the tree, making
+   * `reconstructHistory()` skip them automatically on resume.
+   *
+   * Index `i` holds the UUID of the last record written before the (i+1)th
+   * user message was appended. For example, `turnParentUuids[0]` is the UUID
+   * right before the very first user message (often `null` or the startup
+   * context record).
+   */
+  private turnParentUuids: Array<string | null> = [];
   /**
    * Cached chats-dir / conversation-file path so per-record appendRecord
    * doesn't re-stat them on every write. The first call performs the
@@ -442,6 +465,7 @@ export class ChatRecordingService {
    */
   recordUserMessage(message: PartListUnion): void {
     try {
+      this.turnParentUuids.push(this.lastRecordUuid);
       const record: ChatRecord = {
         ...this.createBaseRecord('user'),
         message: createUserContent(message),
@@ -715,6 +739,70 @@ export class ChatRecordingService {
       this.appendRecord(record);
     } catch (error) {
       debugLogger.error('Error saving ui telemetry record:', error);
+    }
+  }
+
+  /**
+   * Records a conversation rewind and re-roots the parentUuid chain.
+   *
+   * Sets `lastRecordUuid` back to the UUID that was current just before the
+   * target user turn was recorded, then appends a rewind system record.
+   * This makes all messages after that point sit on a dead branch in the
+   * UUID tree, so `reconstructHistory()` will skip them on resume.
+   *
+   * @param targetTurnIndex 0-based index of the user turn to rewind to.
+   *   For example, 0 means rewind to the very first user message (keeping
+   *   nothing before it), 1 means keep the first user turn, etc.
+   * @param payload Additional metadata to persist with the rewind record.
+   */
+  rewindRecording(targetTurnIndex: number, payload: RewindRecordPayload): void {
+    try {
+      // Re-root: point back to the record just before the target user turn.
+      this.lastRecordUuid = this.turnParentUuids[targetTurnIndex] ?? null;
+      // Trim future boundaries — they no longer exist in the active branch.
+      this.turnParentUuids = this.turnParentUuids.slice(0, targetTurnIndex);
+
+      const record: ChatRecord = {
+        ...this.createBaseRecord('system'),
+        type: 'system',
+        subtype: 'rewind',
+        systemPayload: payload,
+      };
+
+      this.appendRecord(record);
+    } catch (error) {
+      debugLogger.error('Error saving rewind record:', error);
+    }
+  }
+
+  /**
+   * Rebuilds `turnParentUuids` from a reconstructed message list.
+   *
+   * Call this after resuming a session so that subsequent rewinds within
+   * the resumed session have correct boundary data. Also updates
+   * `lastRecordUuid` to the last record in the chain.
+   */
+  rebuildTurnBoundaries(messages: ChatRecord[]): void {
+    this.turnParentUuids = [];
+    let prevUuid: string | null =
+      this.config.getResumedSessionData()?.lastCompletedUuid !== undefined
+        ? null
+        : this.lastRecordUuid;
+
+    for (let i = 0; i < messages.length; i++) {
+      const record = messages[i];
+      if (
+        record.type === 'user' &&
+        record.subtype !== 'notification' &&
+        record.subtype !== 'cron'
+      ) {
+        this.turnParentUuids.push(prevUuid);
+      }
+      prevUuid = record.uuid;
+    }
+    // Ensure lastRecordUuid points to the end of the reconstructed chain.
+    if (messages.length > 0) {
+      this.lastRecordUuid = messages[messages.length - 1].uuid;
     }
   }
 
