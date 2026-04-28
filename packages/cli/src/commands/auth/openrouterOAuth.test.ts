@@ -127,7 +127,7 @@ describe('openrouterOAuth', () => {
 
   it('resolves callback code without waiting for server close completion', async () => {
     const listener = startOAuthCallbackListener(
-      'http://localhost:3100/openrouter/callback',
+      'http://127.0.0.1:3100/openrouter/callback',
       5000,
       'state-123',
     );
@@ -136,7 +136,7 @@ describe('openrouterOAuth', () => {
     const codePromise = listener.waitForCode;
     await new Promise<void>((resolve, reject) => {
       const req = request(
-        'http://localhost:3100/openrouter/callback?code=fast-code-123&state=state-123',
+        'http://127.0.0.1:3100/openrouter/callback?code=fast-code-123&state=state-123',
         (res) => {
           res.resume();
           res.on('end', resolve);
@@ -151,7 +151,7 @@ describe('openrouterOAuth', () => {
 
   it('rejects callback codes with mismatched OAuth state', async () => {
     const listener = startOAuthCallbackListener(
-      'http://localhost:3101/openrouter/callback',
+      'http://127.0.0.1:3101/openrouter/callback',
       5000,
       'expected-state',
     );
@@ -160,7 +160,7 @@ describe('openrouterOAuth', () => {
     const codePromise = listener.waitForCode.catch((error: unknown) => error);
     await new Promise<void>((resolve, reject) => {
       const req = request(
-        'http://localhost:3101/openrouter/callback?code=fast-code-123&state=wrong-state',
+        'http://127.0.0.1:3101/openrouter/callback?code=fast-code-123&state=wrong-state',
         (res) => {
           expect(res.statusCode).toBe(400);
           res.resume();
