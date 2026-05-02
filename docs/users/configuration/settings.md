@@ -72,7 +72,13 @@ When both legacy settings are present with different values, the migration follo
 
 ### Available settings in `settings.json`
 
-Settings are organized into categories. All settings should be placed within their corresponding top-level category object in your `settings.json` file.
+Settings are organized into categories. Most settings should be placed within their corresponding top-level category object in your `settings.json` file. A few compatibility settings, such as `proxy`, are top-level keys.
+
+#### top-level
+
+| Setting | Type   | Description                                                                                                                                                                | Default     |
+| ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `proxy` | string | Proxy URL for CLI HTTP requests. Precedence is `--proxy` > `proxy` in `settings.json` > `HTTPS_PROXY` / `https_proxy` / `HTTP_PROXY` / `http_proxy` environment variables. | `undefined` |
 
 #### general
 
@@ -155,6 +161,1087 @@ Settings are organized into categories. All settings should be placed within the
   "systemPrompt": "You are Qwen Code, an expert AI assistant...",
   "enableAutoUpdate": false,
   "gitCoAuthor": false,
+  "privacy": {
+    "usageStatisticsEnabled": false
+  }
+}
+```
+
+**max_tokens (adaptive output tokens):**
+
+When `samplingParams.max_tokens` is not set, Qwen Code uses an adaptive output token strategy to optimize GPU resource usage:
+
+1. Requests start with a default limit of **8K** output tokens
+2. If the response is truncated (the model hits the limit), Qwen Code automatically retries with **64K** tokens
+3. The partial output is discarded and replaced with the full response from the retry
+
+This is transparent to users — you may briefly see a retry indicator if escalation occurs. Since 99% of responses are under 5K tokens, the retry happens rarely (<1% of requests).
+
+To override this behavior, either set `samplingParams.max_tokens` in your settings or use the `QWEN_CODE_MAX_OUTPUT_TOKENS` environment variable.
+
+**contextWindowSize:**
+
+Overrides the default context window size for the selected model. Qwen Code determines the context window using built-in defaults based on model name matching, with a constant fallback value. Use this setting when a provider's effective context limit differs from Qwen Code's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.
+
+**modalities:**
+
+Overrides the auto-detected input modalities for the selected model. Qwen Code automatically detects supported modalities (image, PDF, audio, video) based on model name pattern matching. Use this setting when the auto-detection is incorrect — for example, to enable `pdf` for a model that supports it but isn't recognized. Format: `{ "image": true, "pdf": true, "audio": true, "video": true }`. Omit a key or set it to `false` for unsupported types.
+
+**customHeaders:**
+
+Allows you to add custom HTTP headers to all API requests. This is useful for request tracing, monitoring, API gateway routing, or when different models require different headers. If `customHeaders` is defined in `modelProviders[].generationConfig.customHeaders`, it will be used directly; otherwise, headers from `model.generationConfig.customHeaders` will be used. No merging occurs between the two levels.
+
+The `extra_body` field allows you to add custom parameters to the request body sent to the API. This is useful for provider-specific options that are not covered by the standard configuration fields. **Note: This field is only supported for OpenAI-compatible providers (`openai`, `qwen-oauth`). It is ignored for Anthropic and Gemini providers.** If `extra_body` is defined in `modelProviders[].generationConfig.extra_body`, it will be used directly; otherwise, values from `model.generationConfig.extra_body` will be used.
+
+**model.openAILoggingDir examples:**
+
+- `"~/qwen-logs"` - Logs to `~/qwen-logs` directory
+- `"./custom-logs"` - Logs to `./custom-logs` relative to current directory
+- `"/tmp/openai-logs"` - Logs to absolute path `/tmp/openai-logs`
+
+#### fastModel
+
+| Setting     | Type   | Description                                                                                                                                                                                                                                                      | Default |
+| ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `fastModel` | string | Model used for generating [prompt suggestions](../features/followup-suggestions) and speculative execution. Leave empty to use the main model. A smaller/faster model (e.g., `qwen3-coder-flash`) reduces latency and cost. Can also be set via `/model --fast`. | `""`    |
+
+#### context
+
+| Setting                                                  | Type                       | Description                                                                                                                                                                                                                                                                                                                                                           | Default     |
+| -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `context.fileName`                                       | string or array of strings | The name of the context file(s).                                                                                                                                                                                                                                                                                                                                      | `undefined` |
+| `context.importFormat`                                   | string                     | The format to use when importing memory.                                                                                                                                                                                                                                                                                                                              | `undefined` |
+| `context.includeDirectories`                             | array                      | Additional directories to include in the workspace context. Specifies an array of additional absolute or relative paths to include in the workspace context. Missing directories will be skipped with a warning by default. Paths can use `~` to refer to the user's home directory. This setting can be combined with the `--include-directories` command-line flag. | `[]`        |
+| `context.loadFromIncludeDirectories`                     | boolean                    | Controls the behavior of the `/memory refresh` command. If set to `true`, `QWEN.md` files should be loaded from all directories that are added. If set to `false`, `QWEN.md` should only be loaded from the current directory.                                                                                                                                        | `false`     |
+| `context.fileFiltering.respectGitIgnore`                 | boolean                    | Respect .gitignore files when searching.                                                                                                                                                                                                                                                                                                                              | `true`      |
+| `context.fileFiltering.respectQwenIgnore`                | boolean                    | Respect .qwenignore files when searching.                                                                                                                                                                                                                                                                                                                             | `true`      |
+| `context.fileFiltering.enableRecursiveFileSearch`        | boolean                    | Whether to enable searching recursively for filenames under the current tree when completing `@` prefixes in the prompt.                                                                                                                                                                                                                                              | `true`      |
+| `context.fileFiltering.enableFuzzySearch`                | boolean                    | When `true`, enables fuzzy search capabilities when searching for files. Set to `false` to improve performance on projects with a large number of files.                                                                                                                                                                                                              | `true`      |
+| `context.clearContextOnIdle.toolResultsThresholdMinutes` | number                     | Minutes of inactivity before clearing old tool result content. Use `-1` to disable.                                                                                                                                                                                                                                                                                   | `60`        |
+| `context.clearContextOnIdle.toolResultsNumToKeep`        | number                     | Number of most-recent compactable tool results to preserve when clearing. Floor at 1.                                                                                                                                                                                                                                                                                 | `5`         |
+
+#### Troubleshooting File Search Performance
+
+If you are experiencing performance issues with file searching (e.g., with `@` completions), especially in projects with a very large number of files, here are a few things you can try in order of recommendation:
+
+1. **Use `.qwenignore`:** Create a `.qwenignore` file in your project root to exclude directories that contain a large number of files that you don't need to reference (e.g., build artifacts, logs, `node_modules`). Reducing the total number of files crawled is the most effective way to improve performance.
+2. **Disable Fuzzy Search:** If ignoring files is not enough, you can disable fuzzy search by setting `enableFuzzySearch` to `false` in your `settings.json` file. This will use a simpler, non-fuzzy matching algorithm, which can be faster.
+3. **Disable Recursive File Search:** As a last resort, you can disable recursive file search entirely by setting `enableRecursiveFileSearch` to `false`. This will be the fastest option as it avoids a recursive crawl of your project. However, it means you will need to type the full path to files when using `@` completions.
+
+#### tools
+
+| Setting                              | Type              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Default     | Notes                                                                                                                                                                                                                                                |
+| ------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools.sandbox`                      | boolean or string | Sandbox execution environment (can be a boolean or a path string).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.sandboxImage`                 | string            | Sandbox image URI used by Docker/Podman when `--sandbox-image` and `QWEN_SANDBOX_IMAGE` are not set.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.shell.enableInteractiveShell` | boolean           | Use `node-pty` for an interactive shell experience. Fallback to `child_process` still applies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `false`     |                                                                                                                                                                                                                                                      |
+| `tools.core`                         | array of strings  | **Deprecated.** Will be removed in next version. Use `permissions.allow` + `permissions.deny` instead. Restricts built-in tools to an allowlist. All tools not in the list are disabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.exclude`                      | array of strings  | **Deprecated.** Use `permissions.deny` instead. Tool names to exclude from discovery. Automatically migrated to the `permissions` format on first load.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.allowed`                      | array of strings  | **Deprecated.** Use `permissions.allow` instead. Tool names that bypass the confirmation dialog. Automatically migrated to the `permissions` format on first load.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.approvalMode`                 | string            | Sets the default approval mode for tool usage.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `default`   | Possible values: `plan` (analyze only, do not modify files or execute commands), `default` (require approval before file edits or shell commands run), `auto-edit` (automatically approve file edits), `yolo` (automatically approve all tool calls) |
+| `tools.discoveryCommand`             | string            | Command to run for tool discovery.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.callCommand`                  | string            | Defines a custom shell command for calling a specific tool that was discovered using `tools.discoveryCommand`. The shell command must meet the following criteria: It must take function `name` (exactly as in [function declaration](https://ai.google.dev/gemini-api/docs/function-calling#function-declarations)) as first command line argument. It must read function arguments as JSON on `stdin`, analogous to [`functionCall.args`](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#functioncall). It must return function output as JSON on `stdout`, analogous to [`functionResponse.response.content`](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#functionresponse). | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.useRipgrep`                   | boolean           | Use ripgrep for file content search instead of the fallback implementation. Provides faster search performance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `true`      |                                                                                                                                                                                                                                                      |
+| `tools.useBuiltinRipgrep`            | boolean           | Use the bundled ripgrep binary. When set to `false`, the system-level `rg` command will be used instead. This setting is only effective when `tools.useRipgrep` is `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `true`      |                                                                                                                                                                                                                                                      |
+| `tools.truncateToolOutputThreshold`  | number            | Truncate tool output if it is larger than this many characters. Applies to Shell, Grep, Glob, ReadFile and ReadManyFiles tools.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `25000`     | Requires restart: Yes                                                                                                                                                                                                                                |
+| `tools.truncateToolOutputLines`      | number            | Maximum lines or entries kept when truncating tool output. Applies to Shell, Grep, Glob, ReadFile and ReadManyFiles tools.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `1000`      | Requires restart: Yes                                                                                                                                                                                                                                |
+
+> [!note]
+>
+> **Migrating from `tools.core` / `tools.exclude` / `tools.allowed`:** These legacy settings are **deprecated** and automatically migrated to the new `permissions` format on first load. Prefer configuring `permissions.allow` / `permissions.deny` directly. Use `/permissions` to manage rules interactively.
+
+#### memory
+
+| Setting                          | Type    | Description                                                                       | Default |
+| -------------------------------- | ------- | --------------------------------------------------------------------------------- | ------- |
+| `memory.enableManagedAutoMemory` | boolean | Enable background extraction of memories from conversations.                      | `true`  |
+| `memory.enableManagedAutoDream`  | boolean | Enable automatic consolidation (deduplication and cleanup) of collected memories. | `false` |
+
+See [Memory](../features/memory) for details on how auto-memory works and how to use the `/memory`, `/remember`, and `/dream` commands.
+
+#### permissions
+
+The permissions system provides fine-grained control over which tools can run, which require confirmation, and which are blocked.
+
+**Decision priority (highest first): `deny` > `ask` > `allow` > _(default/interactive mode)_**
+
+The first matching rule wins. Rules use the format `"ToolName"` or `"ToolName(specifier)"`.
+
+| Setting             | Type             | Description                                                                                                      | Default     |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
+| `permissions.allow` | array of strings | Rules for auto-approved tool calls (no confirmation needed). Merged across all scopes (user + project + system). | `undefined` |
+| `permissions.ask`   | array of strings | Rules for tool calls that always require user confirmation. Takes priority over `allow`.                         | `undefined` |
+| `permissions.deny`  | array of strings | Rules for blocked tool calls. Highest priority — overrides both `allow` and `ask`.                               | `undefined` |
+
+**Tool name aliases (any of these work in rules):**
+
+| Alias                 | Canonical tool      | Notes                     |
+| --------------------- | ------------------- | ------------------------- |
+| `Bash`, `Shell`       | `run_shell_command` |                           |
+| `Read`, `ReadFile`    | `read_file`         | Meta-category — see below |
+| `Edit`, `EditFile`    | `edit`              | Meta-category — see below |
+| `Write`, `WriteFile`  | `write_file`        |                           |
+| `Grep`, `SearchFiles` | `grep_search`       |                           |
+| `Glob`, `FindFiles`   | `glob`              |                           |
+| `ListFiles`           | `list_directory`    |                           |
+| `WebFetch`            | `web_fetch`         |                           |
+| `Agent`               | `task`              |                           |
+| `Skill`               | `skill`             |                           |
+
+**Meta-categories:**
+
+Some rule names automatically cover multiple tools:
+
+| Rule name | Tools covered                                        |
+| --------- | ---------------------------------------------------- |
+| `Read`    | `read_file`, `grep_search`, `glob`, `list_directory` |
+| `Edit`    | `edit`, `write_file`                                 |
+
+> [!important]
+> `Read(/path/**)` matches **all four** read tools (file read, grep, glob, and directory listing).
+> To restrict only file reading, use `ReadFile(/path/**)` or `read_file(/path/**)`.
+
+**Rule syntax examples:**
+
+| Rule                          | Meaning                                                        |
+| ----------------------------- | -------------------------------------------------------------- |
+| `"Bash"`                      | All shell commands                                             |
+| `"Bash(git *)"`               | Shell commands starting with `git` (word boundary: NOT `gitk`) |
+| `"Bash(git push *)"`          | Shell commands like `git push origin main`                     |
+| `"Bash(npm run *)"`           | Any `npm run` script                                           |
+| `"Read"`                      | All file read operations (read, grep, glob, list)              |
+| `"Read(./secrets/**)"`        | Read any file under `./secrets/` recursively                   |
+| `"Edit(/src/**/*.ts)"`        | Edit TypeScript files under project root `/src/`               |
+| `"WebFetch(api.example.com)"` | Fetch from `api.example.com` and all its subdomains            |
+| `"mcp__puppeteer"`            | All tools from the puppeteer MCP server                        |
+
+**Path pattern prefixes:**
+
+| Prefix | Meaning                               | Example             |
+| ------ | ------------------------------------- | ------------------- |
+| `//`   | Absolute path from filesystem root    | `//etc/passwd`      |
+| `~/`   | Relative to home directory            | `~/Documents/*.pdf` |
+| `/`    | Relative to project root              | `/src/**/*.ts`      |
+| `./`   | Relative to current working directory | `./secrets/**`      |
+| (none) | Same as `./`                          | `secrets/**`        |
+
+**Shell command bypass prevention:**
+
+Permission rules for `Read`, `Edit`, and `WebFetch` are also enforced when the agent runs equivalent shell commands. For example, if `Read(./.env)` is in `deny`, the agent cannot bypass it via `cat .env` in a shell command. Supported shell commands include `cat`, `grep`, `curl`, `wget`, `cp`, `mv`, `rm`, `chmod`, and many more. Unknown/safe commands (e.g. `git`) are unaffected by file/network rules.
+
+**Migrating from legacy settings:**
+
+| Legacy setting  | Equivalent `permissions` rule   | Notes                                                        |
+| --------------- | ------------------------------- | ------------------------------------------------------------ |
+| `tools.allowed` | `permissions.allow`             | Auto-migrated on first load                                  |
+| `tools.exclude` | `permissions.deny`              | Auto-migrated on first load                                  |
+| `tools.core`    | `permissions.allow` (allowlist) | Auto-migrated; unlisted tools are disabled at registry level |
+
+**Example configuration:**
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(git *)", "Bash(npm run *)", "Read(//Users/alice/code/**)"],
+    "ask": ["Bash(git push *)", "Edit"],
+    "deny": ["Bash(rm -rf *)", "Read(.env)", "WebFetch(malicious.com)"]
+  }
+}
+```
+
+> [!tip]
+> Use `/permissions` in the interactive CLI to view, add, and remove rules without editing `settings.json` directly.
+
+#### slashCommands
+
+Controls which slash commands are available in the CLI. Useful for locking down
+the command surface in multi-tenant or enterprise deployments.
+
+| Setting                  | Type             | Description                                                                                                                                                                                                                                                                                                                 | Default     |
+| ------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `slashCommands.disabled` | array of strings | Slash command names to hide and refuse to execute. Matched case-insensitively against the final command name (for extension commands this is the disambiguated form, e.g. `myext.deploy`). **Merged as a union across scopes**, so workspace settings can add to but not remove entries defined in user or system settings. | `undefined` |
+
+The same denylist can also be provided via the `--disabled-slash-commands` CLI
+flag (comma-separated or repeated) and the `QWEN_DISABLED_SLASH_COMMANDS`
+environment variable; values from all three sources are unioned together.
+
+**Example — lock down built-ins for a sandboxed deployment:**
+
+```json
+{
+  "slashCommands": {
+    "disabled": ["auth", "mcp", "extensions", "ide", "quit"]
+  }
+}
+```
+
+With these values in a system-level `settings.json` (`/etc/qwen-code/settings.json`
+or `QWEN_CODE_SYSTEM_SETTINGS_PATH`), users cannot shrink the denylist from
+their own scope, and the disabled commands will not appear in autocomplete or
+execute when typed.
+
+> [!note]
+> This setting only gates slash commands (e.g. `/auth`, `/mcp`). It does not
+> affect tool permissions — see `permissions.deny` for that. It also does not
+> intercept keyboard shortcuts such as `Ctrl+C` or `Esc`.
+
+#### mcp
+
+| Setting             | Type             | Description                                                                                                                                                                                                                                                                  | Default     |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `mcp.serverCommand` | string           | Command to start an MCP server.                                                                                                                                                                                                                                              | `undefined` |
+| `mcp.allowed`       | array of strings | An allowlist of MCP servers to allow. Allows you to specify a list of MCP server names that should be made available to the model. This can be used to restrict the set of MCP servers to connect to. Note that this will be ignored if `--allowed-mcp-server-names` is set. | `undefined` |
+| `mcp.excluded`      | array of strings | A denylist of MCP servers to exclude. A server listed in both `mcp.excluded` and `mcp.allowed` is excluded. Note that this will be ignored if `--allowed-mcp-server-names` is set.                                                                                           | `undefined` |
+
+> [!note]
+>
+> **Security Note for MCP servers:** These settings use simple string matching on MCP server names, which can be modified. If you're a system administrator looking to prevent users from bypassing this, consider configuring the `mcpServers` at the system settings level such that the user will not be able to configure any MCP servers of their own. This should not be used as an airtight security mechanism.
+
+#### lsp
+
+> [!warning]
+> **Experimental Feature**: LSP support is currently experimental and disabled by default. Enable it using the `--experimental-lsp` command line flag.
+
+Language Server Protocol (LSP) provides code intelligence features like go-to-definition, find references, and diagnostics.
+
+LSP server configuration is done through `.lsp.json` files in your project root directory, not through `settings.json`. See the [LSP documentation](../features/lsp) for configuration details and examples.
+
+#### security
+
+| Setting                        | Type    | Description                                       | Default     |
+| ------------------------------ | ------- | ------------------------------------------------- | ----------- |
+| `security.folderTrust.enabled` | boolean | Setting to track whether Folder trust is enabled. | `false`     |
+| `security.auth.selectedType`   | string  | The currently selected authentication type.       | `undefined` |
+| `security.auth.enforcedType`   | string  | The required auth type (useful for enterprises).  | `undefined` |
+| `security.auth.useExternal`    | boolean | Whether to use an external authentication flow.   | `undefined` |
+
+#### advanced
+
+| Setting                        | Type             | Description                                                                                                                                                                                                                                                                                                                        | Default                  |
+| ------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `advanced.autoConfigureMemory` | boolean          | Automatically configure Node.js memory limits.                                                                                                                                                                                                                                                                                     | `false`                  |
+| `advanced.dnsResolutionOrder`  | string           | The DNS resolution order.                                                                                                                                                                                                                                                                                                          | `undefined`              |
+| `advanced.excludedEnvVars`     | array of strings | Environment variables to exclude from project context. Specifies environment variables that should be excluded from being loaded from project `.env` files. This prevents project-specific environment variables (like `DEBUG=true`) from interfering with the CLI behavior. Variables from `.qwen/.env` files are never excluded. | `["DEBUG","DEBUG_MODE"]` |
+| `advanced.bugCommand`          | object           | Configuration for the bug report command. Overrides the default URL for the `/bug` command. Properties: `urlTemplate` (string): A URL that can contain `{title}` and `{info}` placeholders. Example: `"bugCommand": { "urlTemplate": "https://bug.example.com/new?title={title}&info={info}" }`                                    | `undefined`              |
+
+#### mcpServers
+
+Configures connections to one or more Model-Context Protocol (MCP) servers for discovering and using custom tools. Qwen Code attempts to connect to each configured MCP server to discover available tools. If multiple MCP servers expose a tool with the same name, the tool names will be prefixed with the server alias you defined in the configuration (e.g., `serverAlias__actualToolName`) to avoid conflicts. Note that the system might strip certain schema properties from MCP tool definitions for compatibility. At least one of `command`, `url`, or `httpUrl` must be provided. If multiple are specified, the order of precedence is `httpUrl`, then `url`, then `command`.
+
+| Property                                | Type             | Description                                                                                                                                                                                                                                                        | Optional |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `mcpServers.<SERVER_NAME>.command`      | string           | The command to execute to start the MCP server via standard I/O.                                                                                                                                                                                                   | Yes      |
+| `mcpServers.<SERVER_NAME>.args`         | array of strings | Arguments to pass to the command.                                                                                                                                                                                                                                  | Yes      |
+| `mcpServers.<SERVER_NAME>.env`          | object           | Environment variables to set for the server process.                                                                                                                                                                                                               | Yes      |
+| `mcpServers.<SERVER_NAME>.cwd`          | string           | The working directory in which to start the server.                                                                                                                                                                                                                | Yes      |
+| `mcpServers.<SERVER_NAME>.url`          | string           | The URL of an MCP server that uses Server-Sent Events (SSE) for communication.                                                                                                                                                                                     | Yes      |
+| `mcpServers.<SERVER_NAME>.httpUrl`      | string           | The URL of an MCP server that uses streamable HTTP for communication.                                                                                                                                                                                              | Yes      |
+| `mcpServers.<SERVER_NAME>.headers`      | object           | A map of HTTP headers to send with requests to `url` or `httpUrl`.                                                                                                                                                                                                 | Yes      |
+| `mcpServers.<SERVER_NAME>.timeout`      | number           | Timeout in milliseconds for requests to this MCP server.                                                                                                                                                                                                           | Yes      |
+| `mcpServers.<SERVER_NAME>.trust`        | boolean          | Trust this server and bypass all tool call confirmations.                                                                                                                                                                                                          | Yes      |
+| `mcpServers.<SERVER_NAME>.description`  | string           | A brief description of the server, which may be used for display purposes.                                                                                                                                                                                         | Yes      |
+| `mcpServers.<SERVER_NAME>.includeTools` | array of strings | List of tool names to include from this MCP server. When specified, only the tools listed here will be available from this server (allowlist behavior). If not specified, all tools from the server are enabled by default.                                        | Yes      |
+| `mcpServers.<SERVER_NAME>.excludeTools` | array of strings | List of tool names to exclude from this MCP server. Tools listed here will not be available to the model, even if they are exposed by the server. **Note:** `excludeTools` takes precedence over `includeTools` - if a tool is in both lists, it will be excluded. | Yes      |
+
+#### telemetry
+
+Configures logging and metrics collection for Qwen Code. For more information, see [telemetry](/developers/development/telemetry).
+
+| Setting                  | Type    | Description                                                                      | Default |
+| ------------------------ | ------- | -------------------------------------------------------------------------------- | ------- |
+| `telemetry.enabled`      | boolean | Whether or not telemetry is enabled.                                             |         |
+| `telemetry.target`       | string  | The destination for collected telemetry. Supported values are `local` and `gcp`. |         |
+| `telemetry.otlpEndpoint` | string  | The endpoint for the OTLP Exporter.                                              |         |
+| `telemetry.otlpProtocol` | string  | The protocol for the OTLP Exporter (`grpc` or `http`).                           |         |
+| `telemetry.logPrompts`   | boolean | Whether or not to include the content of user prompts in the logs.               |         |
+| `telemetry.outfile`      | string  | The file to write telemetry to when `target` is `local`.                         |         |
+| `telemetry.useCollector` | boolean | Whether to use an external OTLP collector.                                       |         |
+
+### Example `settings.json`
+
+Here is an example of a `settings.json` file with the nested structure, new as of v0.3.0:
+
+```
+{
+  "general": {
+    "vimMode": true,
+    "preferredEditor": "code"
+  },
+  "ui": {
+    "theme": "GitHub",
+    "hideTips": false,
+    "customWittyPhrases": [
+      "You forget a thousand things every day. Make sure this is one of 'em",
+      "Connecting to AGI"
+    ]
+  },
+  "tools": {
+    "approvalMode": "yolo",
+    "sandbox": "docker",
+    "sandboxImage": "ghcr.io/qwenlm/qwen-code:0.14.1",
+    "discoveryCommand": "bin/get_tools",
+    "callCommand": "bin/call_tool",
+    "exclude": ["write_file"]
+  },
+  "mcpServers": {
+    "mainServer": {
+      "command": "bin/mcp_server.py"
+    },
+    "anotherServer": {
+      "command": "node",
+      "args": ["mcp_server.js", "--verbose"]
+    }
+  },
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4317",
+    "logPrompts": true
+  },
+  "privacy": {
+    "usageStatisticsEnabled": true
+  },
+  "model": {
+    "name": "qwen3-coder-plus",
+    "maxSessionTurns": 10,
+    "enableOpenAILogging": false,
+    "openAILoggingDir": "~/qwen-logs",
+  },
+  "context": {
+    "fileName": ["CONTEXT.md", "QWEN.md"],
+    "includeDirectories": ["path/to/dir1", "~/path/to/dir2", "../path/to/dir3"],
+    "loadFromIncludeDirectories": true,
+    "fileFiltering": {
+      "respectGitIgnore": false
+    }
+  },
+  "advanced": {
+    "excludedEnvVars": ["DEBUG", "DEBUG_MODE", "NODE_ENV"]
+  }
+}
+```
+
+## Shell History
+
+The CLI keeps a history of shell commands you run. To avoid conflicts between different projects, this history is stored in a project-specific directory within your user's home folder.
+
+- **Location:** `~/.qwen/tmp/<project_hash>/shell_history`
+  - `<project_hash>` is a unique identifier generated from your project's root path.
+  - The history is stored in a file named `shell_history`.
+
+## Environment Variables & `.env` Files
+
+Environment variables are a common way to configure applications, especially for sensitive information (like tokens) or for settings that might change between environments.
+
+Qwen Code can automatically load environment variables from `.env` files.
+For authentication-related variables (like `OPENAI_*`) and the recommended `.qwen/.env` approach, see **[Authentication](../configuration/auth)**.
+
+> [!tip]
+>
+> **Environment Variable Exclusion:** Some environment variables (like `DEBUG` and `DEBUG_MODE`) are automatically excluded from project `.env` files by default to prevent interference with the CLI behavior. Variables from `.qwen/.env` files are never excluded. You can customize this behavior using the `advanced.excludedEnvVars`setting in your `settings.json` file.
+
+### Environment Variables Table
+
+| Variable                       | Description                                                                                                                                                                                                                                                                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QWEN_TELEMETRY_ENABLED`       | Set to `true` or `1` to enable telemetry. Any other value is treated as disabling it.                                                                                                                                                                                             | Overrides the `telemetry.enabled` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `QWEN_TELEMETRY_TARGET`        | Sets the telemetry target (`local` or `gcp`).                                                                                                                                                                                                                                     | Overrides the `telemetry.target` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `QWEN_TELEMETRY_OTLP_ENDPOINT` | Sets the OTLP endpoint for telemetry.                                                                                                                                                                                                                                             | Overrides the `telemetry.otlpEndpoint` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_TELEMETRY_OTLP_PROTOCOL` | Sets the OTLP protocol (`grpc` or `http`).                                                                                                                                                                                                                                        | Overrides the `telemetry.otlpProtocol` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_TELEMETRY_LOG_PROMPTS`   | Set to `true` or `1` to enable or disable logging of user prompts. Any other value is treated as disabling it.                                                                                                                                                                    | Overrides the `telemetry.logPrompts` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `QWEN_TELEMETRY_OUTFILE`       | Sets the file path to write telemetry to when the target is `local`.                                                                                                                                                                                                              | Overrides the `telemetry.outfile` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `QWEN_TELEMETRY_USE_COLLECTOR` | Set to `true` or `1` to enable or disable using an external OTLP collector. Any other value is treated as disabling it.                                                                                                                                                           | Overrides the `telemetry.useCollector` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_SANDBOX`                 | Alternative to the `sandbox` setting in `settings.json`.                                                                                                                                                                                                                          | Accepts `true`, `false`, `docker`, `podman`, or a custom command string.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `QWEN_SANDBOX_IMAGE`           | Overrides sandbox image selection for Docker/Podman.                                                                                                                                                                                                                              | Takes precedence over `tools.sandboxImage`.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `SEATBELT_PROFILE`             | (macOS specific) Switches the Seatbelt (`sandbox-exec`) profile on macOS.                                                                                                                                                                                                         | `permissive-open`: (Default) Restricts writes to the project folder (and a few other folders, see `packages/cli/src/utils/sandbox-macos-permissive-open.sb`) but allows other operations. `strict`: Uses a strict profile that declines operations by default. `<profile_name>`: Uses a custom profile. To define a custom profile, create a file named `sandbox-macos-<profile_name>.sb` in your project's `.qwen/` directory (e.g., `my-project/.qwen/sandbox-macos-custom.sb`). |
+| `DEBUG` or `DEBUG_MODE`        | (often used by underlying libraries or the CLI itself) Set to `true` or `1` to enable verbose debug logging, which can be helpful for troubleshooting.                                                                                                                            | **Note:** These variables are automatically excluded from project `.env` files by default to prevent interference with the CLI behavior. Use `.qwen/.env` files if you need to set these for Qwen Code specifically.                                                                                                                                                                                                                                                               |
+| `NO_COLOR`                     | Set to any value to disable all color output in the CLI.                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `CLI_TITLE`                    | Set to a string to customize the title of the CLI.                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `CODE_ASSIST_ENDPOINT`         | Specifies the endpoint for the code assist server.                                                                                                                                                                                                                                | This is useful for development and testing.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `QWEN_CODE_MAX_OUTPUT_TOKENS`  | Overrides the default maximum output tokens per response. When not set, Qwen Code uses an adaptive strategy: starts with 8K tokens and automatically retries with 64K if the response is truncated. Set this to a specific value (e.g., `16000`) to use a fixed limit instead.    | Takes precedence over the capped default (8K) but is overridden by `samplingParams.max_tokens` in settings. Disables automatic escalation when set. Example: `export QWEN_CODE_MAX_OUTPUT_TOKENS=16000`                                                                                                                                                                                                                                                                            |
+| `QWEN_CODE_UNATTENDED_RETRY`   | Set to `true` or `1` to enable persistent retry mode. When enabled, transient API capacity errors (HTTP 429 Rate Limit and 529 Overloaded) are retried indefinitely with exponential backoff (capped at 5 minutes per retry) and heartbeat keepalives every 30 seconds on stderr. | Designed for CI/CD pipelines and background automation where long-running tasks should survive temporary API outages. Must be set explicitly — `CI=true` alone does **not** activate this mode. See [Headless Mode](../features/headless#persistent-retry-mode) for details. Example: `export QWEN_CODE_UNATTENDED_RETRY=1`                                                                                                                                                        |
+| `QWEN_CODE_PROFILE_STARTUP`    | Set to `1` to enable startup performance profiling. Writes a JSON timing report to `~/.qwen/startup-perf/` with per-phase durations.                                                                                                                                              | Only active inside the sandbox child process. Zero overhead when not set. Example: `export QWEN_CODE_PROFILE_STARTUP=1`                                                                                                                                                                                                                                                                                                                                                            |
+
+## Command-Line Arguments
+
+Arguments passed directly when running the CLI can override other configurations for that specific session.
+
+For sandbox image selection, precedence is:
+`--sandbox-image` > `QWEN_SANDBOX_IMAGE` > `tools.sandboxImage` > built-in default image.
+
+### Command-Line Arguments Table
+
+| Argument                     | Alias | Description                                                                                                                                                                                                                                  | Possible Values                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--model`                    | `-m`  | Specifies the Qwen model to use for this session.                                                                                                                                                                                            | Model name                             | Example: `npm start -- --model qwen3-coder-plus`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--prompt`                   | `-p`  | Used to pass a prompt directly to the command. This invokes Qwen Code in a non-interactive mode.                                                                                                                                             | Your prompt text                       | For scripting examples, use the `--output-format json` flag to get structured output.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--prompt-interactive`       | `-i`  | Starts an interactive session with the provided prompt as the initial input.                                                                                                                                                                 | Your prompt text                       | The prompt is processed within the interactive session, not before it. Cannot be used when piping input from stdin. Example: `qwen -i "explain this code"`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--system-prompt`            |       | Overrides the built-in main session system prompt for this run.                                                                                                                                                                              | Your prompt text                       | Loaded context files such as `QWEN.md` are still appended after this override. Can be combined with `--append-system-prompt`.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--append-system-prompt`     |       | Appends extra instructions to the main session system prompt for this run.                                                                                                                                                                   | Your prompt text                       | Applied after the built-in prompt and loaded context files. Can be combined with `--system-prompt`. See [Headless Mode](../features/headless) for examples.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--output-format`            | `-o`  | Specifies the format of the CLI output for non-interactive mode.                                                                                                                                                                             | `text`, `json`, `stream-json`          | `text`: (Default) The standard human-readable output. `json`: A machine-readable JSON output emitted at the end of execution. `stream-json`: Streaming JSON messages emitted as they occur during execution. For structured output and scripting, use the `--output-format json` or `--output-format stream-json` flag. See [Headless Mode](../features/headless) for detailed information.                                                                                                                                                                     |
+| `--input-format`             |       | Specifies the format consumed from standard input.                                                                                                                                                                                           | `text`, `stream-json`                  | `text`: (Default) Standard text input from stdin or command-line arguments. `stream-json`: JSON message protocol via stdin for bidirectional communication. Requirement: `--input-format stream-json` requires `--output-format stream-json` to be set. When using `stream-json`, stdin is reserved for protocol messages. See [Headless Mode](../features/headless) for detailed information.                                                                                                                                                                  |
+| `--include-partial-messages` |       | Include partial assistant messages when using `stream-json` output format. When enabled, emits stream events (message_start, content_block_delta, etc.) as they occur during streaming.                                                      |                                        | Default: `false`. Requirement: Requires `--output-format stream-json` to be set. See [Headless Mode](../features/headless) for detailed information about stream events.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--sandbox`                  | `-s`  | Enables sandbox mode for this session.                                                                                                                                                                                                       |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--sandbox-image`            |       | Sets the sandbox image URI.                                                                                                                                                                                                                  |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--debug`                    | `-d`  | Enables debug mode for this session, providing more verbose output.                                                                                                                                                                          |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--all-files`                | `-a`  | If set, recursively includes all files within the current directory as context for the prompt.                                                                                                                                               |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--help`                     | `-h`  | Displays help information about command-line arguments.                                                                                                                                                                                      |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--show-memory-usage`        |       | Displays the current memory usage.                                                                                                                                                                                                           |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--yolo`                     |       | Enables YOLO mode, which automatically approves all tool calls.                                                                                                                                                                              |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--approval-mode`            |       | Sets the approval mode for tool calls.                                                                                                                                                                                                       | `plan`, `default`, `auto-edit`, `yolo` | Supported modes: `plan`: Analyze only—do not modify files or execute commands. `default`: Require approval for file edits or shell commands (default behavior). `auto-edit`: Automatically approve edit tools (edit, write_file) while prompting for others. `yolo`: Automatically approve all tool calls (equivalent to `--yolo`). Cannot be used together with `--yolo`. Use `--approval-mode=yolo` instead of `--yolo` for the new unified approach. Example: `qwen --approval-mode auto-edit`<br>See more about [Approval Mode](../features/approval-mode). |
+| `--allowed-tools`            |       | A comma-separated list of tool names that will bypass the confirmation dialog.                                                                                                                                                               | Tool names                             | Example: `qwen --allowed-tools "Shell(git status)"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--disabled-slash-commands`  |       | Slash command names to hide/disable (comma-separated or repeated). Unioned with the `slashCommands.disabled` setting and the `QWEN_DISABLED_SLASH_COMMANDS` environment variable. Matched case-insensitively against the final command name. | Command names                          | Example: `qwen --disabled-slash-commands "auth,mcp,extensions"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--telemetry`                |       | Enables [telemetry](/developers/development/telemetry).                                                                                                                                                                                      |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--telemetry-target`         |       | Sets the telemetry target.                                                                                                                                                                                                                   |                                        | See [telemetry](/developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--telemetry-otlp-endpoint`  |       | Sets the OTLP endpoint for telemetry.                                                                                                                                                                                                        |                                        | See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--telemetry-otlp-protocol`  |       | Sets the OTLP protocol for telemetry (`grpc` or `http`).                                                                                                                                                                                     |                                        | Defaults to `grpc`. See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--telemetry-log-prompts`    |       | Enables logging of prompts for telemetry.                                                                                                                                                                                                    |                                        | See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--checkpointing`            |       | Enables [checkpointing](../features/checkpointing).                                                                                                                                                                                          |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--acp`                      |       | Enables ACP mode (Agent Client Protocol). Useful for IDE/editor integrations like [Zed](../integration-zed).                                                                                                                                 |                                        | Stable. Replaces the deprecated `--experimental-acp` flag.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--experimental-lsp`         |       | Enables experimental [LSP (Language Server Protocol)](../features/lsp) feature for code intelligence (go-to-definition, find references, diagnostics, etc.).                                                                                 |                                        | Experimental. Requires language servers to be installed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--extensions`               | `-e`  | Specifies a list of extensions to use for the session.                                                                                                                                                                                       | Extension names                        | If not provided, all available extensions are used. Use the special term `qwen -e none` to disable all extensions. Example: `qwen -e my-extension -e my-other-extension`                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--list-extensions`          | `-l`  | Lists all available extensions and exits.                                                                                                                                                                                                    |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--proxy`                    |       | Sets the proxy for the CLI.                                                                                                                                                                                                                  | Proxy URL                              | Example: `--proxy http://localhost:7890`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--include-directories`      |       | Includes additional directories in the workspace for multi-directory support.                                                                                                                                                                | Directory paths                        | Can be specified multiple times or as comma-separated values. 5 directories can be added at maximum. Example: `--include-directories /path/to/project1,/path/to/project2` or `--include-directories /path/to/project1 --include-directories /path/to/project2`                                                                                                                                                                                                                                                                                                  |
+| `--screen-reader`            |       | Enables screen reader mode, which adjusts the TUI for better compatibility with screen readers.                                                                                                                                              |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--version`                  |       | Displays the version of the CLI.                                                                                                                                                                                                             |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--openai-logging`           |       | Enables logging of OpenAI API calls for debugging and analysis.                                                                                                                                                                              |                                        | This flag overrides the `enableOpenAILogging` setting in `settings.json`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--openai-logging-dir`       |       | Sets a custom directory path for OpenAI API logs.                                                                                                                                                                                            | Directory path                         | This flag overrides the `openAILoggingDir` setting in `settings.json`. Supports absolute paths, relative paths, and `~` expansion. Example: `qwen --openai-logging-dir "~/qwen-logs" --openai-logging`                                                                                                                                                                                                                                                                                                                                                          |
+
+## Context Files (Hierarchical Instructional Context)
+
+While not strictly configuration for the CLI's _behavior_, context files (defaulting to `QWEN.md` but configurable via the `context.fileName` setting) are crucial for configuring the _instructional context_ (also referred to as "memory"). This powerful feature allows you to give project-specific instructions, coding style guides, or any relevant background information to the AI, making its responses more tailored and accurate to your needs. The CLI includes UI elements, such as an indicator in the footer showing the number of loaded context files, to keep you informed about the active context.
+
+- **Purpose:** These Markdown files contain instructions, guidelines, or context that you want the Qwen model to be aware of during your interactions. The system is designed to manage this instructional context hierarchically.
+
+### Example Context File Content (e.g. `QWEN.md`)
+
+Here's a conceptual example of what a context file at the root of a TypeScript project might contain:
+
+```
+# Project: My Awesome TypeScript Library
+
+## General Instructions:
+- When generating new TypeScript code, please follow the existing coding style.
+- Ensure all new functions and classes have JSDoc comments.
+- Prefer functional programming paradigms where appropriate.
+- All code should be compatible with TypeScript 5.0 and Node.js 20+.
+
+## Coding Style:
+- Use 2 spaces for indentation.
+- Interface names should be prefixed with `I` (e.g., `IUserService`).
+- Private class members should be prefixed with an underscore (`_`).
+- Always use strict equality (`===` and `!==`).
+
+## Specific Component: `src/api/client.ts`
+- This file handles all outbound API requests.
+- When adding new API call functions, ensure they include robust error handling and logging.
+- Use the existing `fetchWithRetry` utility for all GET requests.
+
+## Regarding Dependencies:
+- Avoid introducing new external dependencies unless absolutely necessary.
+- If a new dependency is required, please state the reason.
+```
+
+This example demonstrates how you can provide general project context, specific coding conventions, and even notes about particular files or components. The more relevant and precise your context files are, the better the AI can assist you. Project-specific context files are highly encouraged to establish conventions and context.
+
+- **Hierarchical Loading and Precedence:** The CLI implements a hierarchical memory system by loading context files (e.g., `QWEN.md`) from several locations. Content from files lower in this list (more specific) typically overrides or supplements content from files higher up (more general). The exact concatenation order and final context can be inspected using the `/memory show` command. The typical loading order is:
+  1. **Global Context File:**
+     - Location: `~/.qwen/<configured-context-filename>` (e.g., `~/.qwen/QWEN.md` in your user home directory).
+     - Scope: Provides default instructions for all your projects.
+  2. **Project Root & Ancestors Context Files:**
+     - Location: The CLI searches for the configured context file in the current working directory and then in each parent directory up to either the project root (identified by a `.git` folder) or your home directory.
+     - Scope: Provides context relevant to the entire project or a significant portion of it.
+- **Concatenation & UI Indication:** The contents of all found context files are concatenated (with separators indicating their origin and path) and provided as part of the system prompt. The CLI footer displays the count of loaded context files, giving you a quick visual cue about the active instructional context.
+- **Importing Content:** You can modularize your context files by importing other Markdown files using the `@path/to/file.md` syntax. For more details, see the [Memory Import Processor documentation](../configuration/memory).
+- **Commands for Memory Management:**
+  - Use `/memory refresh` to force a re-scan and reload of all context files from all configured locations. This updates the AI's instructional context.
+  - Use `/memory show` to display the combined instructional context currently loaded, allowing you to verify the hierarchy and content being used by the AI.
+  - See the [Commands documentation](../features/commands) for full details on the `/memory` command and its sub-commands (`show` and `refresh`).
+
+By understanding and utilizing these configuration layers and the hierarchical nature of context files, you can effectively manage the AI's memory and tailor Qwen Code's responses to your specific needs and projects.
+
+## Sandbox
+
+Qwen Code can execute potentially unsafe operations (like shell commands and file modifications) within a sandboxed environment to protect your system.
+
+[Sandbox](../features/sandbox) is disabled by default, but you can enable it in a few ways:
+
+- Using `--sandbox` or `-s` flag.
+- Setting `QWEN_SANDBOX` environment variable.
+- Sandbox is enabled when using `--yolo` or `--approval-mode=yolo` by default.
+
+By default, it uses a pre-built `qwen-code-sandbox` Docker image.
+
+For project-specific sandboxing needs, you can create a custom Dockerfile at `.qwen/sandbox.Dockerfile` in your project's root directory. This Dockerfile can be based on the base sandbox image:
+
+```
+FROM qwen-code-sandbox
+# Add your custom dependencies or configurations here
+# For example:
+# RUN apt-get update && apt-get install -y some-package
+# COPY ./my-config /app/my-config
+```
+
+When `.qwen/sandbox.Dockerfile` exists, you can use `BUILD_SANDBOX` environment variable when running Qwen Code to automatically build the custom sandbox image:
+
+```
+BUILD_SANDBOX=1 qwen -s
+```
+
+## Usage Statistics
+
+To help us improve Qwen Code, we collect anonymized usage statistics. This data helps us understand how the CLI is used, identify common issues, and prioritize new features.
+
+**What we collect:**
+
+- **Tool Calls:** We log the names of the tools that are called, whether they succeed or fail, and how long they take to execute. We do not collect the arguments passed to the tools or any data returned by them.
+- **API Requests:** We log the model used for each request, the duration of the request, and whether it was successful. We do not collect the content of the prompts or responses.
+- **Session Information:** We collect information about the configuration of the CLI, such as the enabled tools and the approval mode.
+
+**What we DON'T collect:**
+
+- **Personally Identifiable Information (PII):** We do not collect any personal information, such as your name, email address, or API keys.
+- **Prompt and Response Content:** We do not log the content of your prompts or the responses from the model.
+- **File Content:** We do not log the content of any files that are read or written by the CLI.
+
+**How to opt out:**
+
+You can opt out of usage statistics collection at any time by setting the `usageStatisticsEnabled` property to `false` under the `privacy` category in your `settings.json` file:
+
+**contextWindowSize:**
+
+Overrides the default context window size for the selected model. Qwen Code determines the context window using built-in defaults based on model name matching, with a constant fallback value. Use this setting when a provider's effective context limit differs from Qwen Code's default. This value defines the model's assumed maximum context capacity, not a per-request token limit.
+
+**modalities:**
+
+Overrides the auto-detected input modalities for the selected model. Qwen Code automatically detects supported modalities (image, PDF, audio, video) based on model name pattern matching. Use this setting when the auto-detection is incorrect — for example, to enable `pdf` for a model that supports it but isn't recognized. Format: `{ "image": true, "pdf": true, "audio": true, "video": true }`. Omit a key or set it to `false` for unsupported types.
+
+**customHeaders:**
+
+Allows you to add custom HTTP headers to all API requests. This is useful for request tracing, monitoring, API gateway routing, or when different models require different headers. If `customHeaders` is defined in `modelProviders[].generationConfig.customHeaders`, it will be used directly; otherwise, headers from `model.generationConfig.customHeaders` will be used. No merging occurs between the two levels.
+
+The `extra_body` field allows you to add custom parameters to the request body sent to the API. This is useful for provider-specific options that are not covered by the standard configuration fields. **Note: This field is only supported for OpenAI-compatible providers (`openai`, `qwen-oauth`). It is ignored for Anthropic and Gemini providers.** If `extra_body` is defined in `modelProviders[].generationConfig.extra_body`, it will be used directly; otherwise, values from `model.generationConfig.extra_body` will be used.
+
+**model.openAILoggingDir examples:**
+
+- `"~/qwen-logs"` - Logs to `~/qwen-logs` directory
+- `"./custom-logs"` - Logs to `./custom-logs` relative to current directory
+- `"/tmp/openai-logs"` - Logs to absolute path `/tmp/openai-logs`
+
+#### fastModel
+
+| Setting     | Type   | Description                                                                                                                                                                                                                                                      | Default |
+| ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `fastModel` | string | Model used for generating [prompt suggestions](../features/followup-suggestions) and speculative execution. Leave empty to use the main model. A smaller/faster model (e.g., `qwen3-coder-flash`) reduces latency and cost. Can also be set via `/model --fast`. | `""`    |
+
+#### context
+
+| Setting                                                  | Type                       | Description                                                                                                                                                                                                                                                                                                                                                           | Default     |
+| -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `context.fileName`                                       | string or array of strings | The name of the context file(s).                                                                                                                                                                                                                                                                                                                                      | `undefined` |
+| `context.importFormat`                                   | string                     | The format to use when importing memory.                                                                                                                                                                                                                                                                                                                              | `undefined` |
+| `context.includeDirectories`                             | array                      | Additional directories to include in the workspace context. Specifies an array of additional absolute or relative paths to include in the workspace context. Missing directories will be skipped with a warning by default. Paths can use `~` to refer to the user's home directory. This setting can be combined with the `--include-directories` command-line flag. | `[]`        |
+| `context.loadFromIncludeDirectories`                     | boolean                    | Controls the behavior of the `/memory refresh` command. If set to `true`, `QWEN.md` files should be loaded from all directories that are added. If set to `false`, `QWEN.md` should only be loaded from the current directory.                                                                                                                                        | `false`     |
+| `context.fileFiltering.respectGitIgnore`                 | boolean                    | Respect .gitignore files when searching.                                                                                                                                                                                                                                                                                                                              | `true`      |
+| `context.fileFiltering.respectQwenIgnore`                | boolean                    | Respect .qwenignore files when searching.                                                                                                                                                                                                                                                                                                                             | `true`      |
+| `context.fileFiltering.enableRecursiveFileSearch`        | boolean                    | Whether to enable searching recursively for filenames under the current tree when completing `@` prefixes in the prompt.                                                                                                                                                                                                                                              | `true`      |
+| `context.fileFiltering.enableFuzzySearch`                | boolean                    | When `true`, enables fuzzy search capabilities when searching for files. Set to `false` to improve performance on projects with a large number of files.                                                                                                                                                                                                              | `true`      |
+| `context.clearContextOnIdle.toolResultsThresholdMinutes` | number                     | Minutes of inactivity before clearing old tool result content. Use `-1` to disable.                                                                                                                                                                                                                                                                                   | `60`        |
+| `context.clearContextOnIdle.toolResultsNumToKeep`        | number                     | Number of most-recent compactable tool results to preserve when clearing. Floor at 1.                                                                                                                                                                                                                                                                                 | `5`         |
+
+#### Troubleshooting File Search Performance
+
+If you are experiencing performance issues with file searching (e.g., with `@` completions), especially in projects with a very large number of files, here are a few things you can try in order of recommendation:
+
+1. **Use `.qwenignore`:** Create a `.qwenignore` file in your project root to exclude directories that contain a large number of files that you don't need to reference (e.g., build artifacts, logs, `node_modules`). Reducing the total number of files crawled is the most effective way to improve performance.
+2. **Disable Fuzzy Search:** If ignoring files is not enough, you can disable fuzzy search by setting `enableFuzzySearch` to `false` in your `settings.json` file. This will use a simpler, non-fuzzy matching algorithm, which can be faster.
+3. **Disable Recursive File Search:** As a last resort, you can disable recursive file search entirely by setting `enableRecursiveFileSearch` to `false`. This will be the fastest option as it avoids a recursive crawl of your project. However, it means you will need to type the full path to files when using `@` completions.
+
+#### tools
+
+| Setting                              | Type              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Default     | Notes                                                                                                                                                                                                                                                |
+| ------------------------------------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools.sandbox`                      | boolean or string | Sandbox execution environment (can be a boolean or a path string).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.sandboxImage`                 | string            | Sandbox image URI used by Docker/Podman when `--sandbox-image` and `QWEN_SANDBOX_IMAGE` are not set.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.shell.enableInteractiveShell` | boolean           | Use `node-pty` for an interactive shell experience. Fallback to `child_process` still applies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `false`     |                                                                                                                                                                                                                                                      |
+| `tools.core`                         | array of strings  | **Deprecated.** Will be removed in next version. Use `permissions.allow` + `permissions.deny` instead. Restricts built-in tools to an allowlist. All tools not in the list are disabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.exclude`                      | array of strings  | **Deprecated.** Use `permissions.deny` instead. Tool names to exclude from discovery. Automatically migrated to the `permissions` format on first load.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.allowed`                      | array of strings  | **Deprecated.** Use `permissions.allow` instead. Tool names that bypass the confirmation dialog. Automatically migrated to the `permissions` format on first load.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.approvalMode`                 | string            | Sets the default approval mode for tool usage.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `default`   | Possible values: `plan` (analyze only, do not modify files or execute commands), `default` (require approval before file edits or shell commands run), `auto-edit` (automatically approve file edits), `yolo` (automatically approve all tool calls) |
+| `tools.discoveryCommand`             | string            | Command to run for tool discovery.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.callCommand`                  | string            | Defines a custom shell command for calling a specific tool that was discovered using `tools.discoveryCommand`. The shell command must meet the following criteria: It must take function `name` (exactly as in [function declaration](https://ai.google.dev/gemini-api/docs/function-calling#function-declarations)) as first command line argument. It must read function arguments as JSON on `stdin`, analogous to [`functionCall.args`](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#functioncall). It must return function output as JSON on `stdout`, analogous to [`functionResponse.response.content`](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#functionresponse). | `undefined` |                                                                                                                                                                                                                                                      |
+| `tools.useRipgrep`                   | boolean           | Use ripgrep for file content search instead of the fallback implementation. Provides faster search performance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `true`      |                                                                                                                                                                                                                                                      |
+| `tools.useBuiltinRipgrep`            | boolean           | Use the bundled ripgrep binary. When set to `false`, the system-level `rg` command will be used instead. This setting is only effective when `tools.useRipgrep` is `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `true`      |                                                                                                                                                                                                                                                      |
+| `tools.truncateToolOutputThreshold`  | number            | Truncate tool output if it is larger than this many characters. Applies to Shell, Grep, Glob, ReadFile and ReadManyFiles tools.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `25000`     | Requires restart: Yes                                                                                                                                                                                                                                |
+| `tools.truncateToolOutputLines`      | number            | Maximum lines or entries kept when truncating tool output. Applies to Shell, Grep, Glob, ReadFile and ReadManyFiles tools.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `1000`      | Requires restart: Yes                                                                                                                                                                                                                                |
+
+> [!note]
+>
+> **Migrating from `tools.core` / `tools.exclude` / `tools.allowed`:** These legacy settings are **deprecated** and automatically migrated to the new `permissions` format on first load. Prefer configuring `permissions.allow` / `permissions.deny` directly. Use `/permissions` to manage rules interactively.
+
+#### memory
+
+| Setting                          | Type    | Description                                                                       | Default |
+| -------------------------------- | ------- | --------------------------------------------------------------------------------- | ------- |
+| `memory.enableManagedAutoMemory` | boolean | Enable background extraction of memories from conversations.                      | `true`  |
+| `memory.enableManagedAutoDream`  | boolean | Enable automatic consolidation (deduplication and cleanup) of collected memories. | `false` |
+
+See [Memory](../features/memory) for details on how auto-memory works and how to use the `/memory`, `/remember`, and `/dream` commands.
+
+#### permissions
+
+The permissions system provides fine-grained control over which tools can run, which require confirmation, and which are blocked.
+
+**Decision priority (highest first): `deny` > `ask` > `allow` > _(default/interactive mode)_**
+
+The first matching rule wins. Rules use the format `"ToolName"` or `"ToolName(specifier)"`.
+
+| Setting             | Type             | Description                                                                                                      | Default     |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ----------- |
+| `permissions.allow` | array of strings | Rules for auto-approved tool calls (no confirmation needed). Merged across all scopes (user + project + system). | `undefined` |
+| `permissions.ask`   | array of strings | Rules for tool calls that always require user confirmation. Takes priority over `allow`.                         | `undefined` |
+| `permissions.deny`  | array of strings | Rules for blocked tool calls. Highest priority — overrides both `allow` and `ask`.                               | `undefined` |
+
+**Tool name aliases (any of these work in rules):**
+
+| Alias                 | Canonical tool      | Notes                     |
+| --------------------- | ------------------- | ------------------------- |
+| `Bash`, `Shell`       | `run_shell_command` |                           |
+| `Read`, `ReadFile`    | `read_file`         | Meta-category — see below |
+| `Edit`, `EditFile`    | `edit`              | Meta-category — see below |
+| `Write`, `WriteFile`  | `write_file`        |                           |
+| `Grep`, `SearchFiles` | `grep_search`       |                           |
+| `Glob`, `FindFiles`   | `glob`              |                           |
+| `ListFiles`           | `list_directory`    |                           |
+| `WebFetch`            | `web_fetch`         |                           |
+| `Agent`               | `task`              |                           |
+| `Skill`               | `skill`             |                           |
+
+**Meta-categories:**
+
+Some rule names automatically cover multiple tools:
+
+| Rule name | Tools covered                                        |
+| --------- | ---------------------------------------------------- |
+| `Read`    | `read_file`, `grep_search`, `glob`, `list_directory` |
+| `Edit`    | `edit`, `write_file`                                 |
+
+> [!important]
+> `Read(/path/**)` matches **all four** read tools (file read, grep, glob, and directory listing).
+> To restrict only file reading, use `ReadFile(/path/**)` or `read_file(/path/**)`.
+
+**Rule syntax examples:**
+
+| Rule                          | Meaning                                                        |
+| ----------------------------- | -------------------------------------------------------------- |
+| `"Bash"`                      | All shell commands                                             |
+| `"Bash(git *)"`               | Shell commands starting with `git` (word boundary: NOT `gitk`) |
+| `"Bash(git push *)"`          | Shell commands like `git push origin main`                     |
+| `"Bash(npm run *)"`           | Any `npm run` script                                           |
+| `"Read"`                      | All file read operations (read, grep, glob, list)              |
+| `"Read(./secrets/**)"`        | Read any file under `./secrets/` recursively                   |
+| `"Edit(/src/**/*.ts)"`        | Edit TypeScript files under project root `/src/`               |
+| `"WebFetch(api.example.com)"` | Fetch from `api.example.com` and all its subdomains            |
+| `"mcp__puppeteer"`            | All tools from the puppeteer MCP server                        |
+
+**Path pattern prefixes:**
+
+| Prefix | Meaning                               | Example             |
+| ------ | ------------------------------------- | ------------------- |
+| `//`   | Absolute path from filesystem root    | `//etc/passwd`      |
+| `~/`   | Relative to home directory            | `~/Documents/*.pdf` |
+| `/`    | Relative to project root              | `/src/**/*.ts`      |
+| `./`   | Relative to current working directory | `./secrets/**`      |
+| (none) | Same as `./`                          | `secrets/**`        |
+
+**Shell command bypass prevention:**
+
+Permission rules for `Read`, `Edit`, and `WebFetch` are also enforced when the agent runs equivalent shell commands. For example, if `Read(./.env)` is in `deny`, the agent cannot bypass it via `cat .env` in a shell command. Supported shell commands include `cat`, `grep`, `curl`, `wget`, `cp`, `mv`, `rm`, `chmod`, and many more. Unknown/safe commands (e.g. `git`) are unaffected by file/network rules.
+
+**Migrating from legacy settings:**
+
+| Legacy setting  | Equivalent `permissions` rule   | Notes                                                        |
+| --------------- | ------------------------------- | ------------------------------------------------------------ |
+| `tools.allowed` | `permissions.allow`             | Auto-migrated on first load                                  |
+| `tools.exclude` | `permissions.deny`              | Auto-migrated on first load                                  |
+| `tools.core`    | `permissions.allow` (allowlist) | Auto-migrated; unlisted tools are disabled at registry level |
+
+**Example configuration:**
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(git *)", "Bash(npm run *)", "Read(//Users/alice/code/**)"],
+    "ask": ["Bash(git push *)", "Edit"],
+    "deny": ["Bash(rm -rf *)", "Read(.env)", "WebFetch(malicious.com)"]
+  }
+}
+```
+
+> [!tip]
+> Use `/permissions` in the interactive CLI to view, add, and remove rules without editing `settings.json` directly.
+
+#### slashCommands
+
+Controls which slash commands are available in the CLI. Useful for locking down
+the command surface in multi-tenant or enterprise deployments.
+
+| Setting                  | Type             | Description                                                                                                                                                                                                                                                                                                                 | Default     |
+| ------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `slashCommands.disabled` | array of strings | Slash command names to hide and refuse to execute. Matched case-insensitively against the final command name (for extension commands this is the disambiguated form, e.g. `myext.deploy`). **Merged as a union across scopes**, so workspace settings can add to but not remove entries defined in user or system settings. | `undefined` |
+
+The same denylist can also be provided via the `--disabled-slash-commands` CLI
+flag (comma-separated or repeated) and the `QWEN_DISABLED_SLASH_COMMANDS`
+environment variable; values from all three sources are unioned together.
+
+**Example — lock down built-ins for a sandboxed deployment:**
+
+```json
+{
+  "slashCommands": {
+    "disabled": ["auth", "mcp", "extensions", "ide", "quit"]
+  }
+}
+```
+
+With these values in a system-level `settings.json` (`/etc/qwen-code/settings.json`
+or `QWEN_CODE_SYSTEM_SETTINGS_PATH`), users cannot shrink the denylist from
+their own scope, and the disabled commands will not appear in autocomplete or
+execute when typed.
+
+> [!note]
+> This setting only gates slash commands (e.g. `/auth`, `/mcp`). It does not
+> affect tool permissions — see `permissions.deny` for that. It also does not
+> intercept keyboard shortcuts such as `Ctrl+C` or `Esc`.
+
+#### mcp
+
+| Setting             | Type             | Description                                                                                                                                                                                                                                                                  | Default     |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `mcp.serverCommand` | string           | Command to start an MCP server.                                                                                                                                                                                                                                              | `undefined` |
+| `mcp.allowed`       | array of strings | An allowlist of MCP servers to allow. Allows you to specify a list of MCP server names that should be made available to the model. This can be used to restrict the set of MCP servers to connect to. Note that this will be ignored if `--allowed-mcp-server-names` is set. | `undefined` |
+| `mcp.excluded`      | array of strings | A denylist of MCP servers to exclude. A server listed in both `mcp.excluded` and `mcp.allowed` is excluded. Note that this will be ignored if `--allowed-mcp-server-names` is set.                                                                                           | `undefined` |
+
+> [!note]
+>
+> **Security Note for MCP servers:** These settings use simple string matching on MCP server names, which can be modified. If you're a system administrator looking to prevent users from bypassing this, consider configuring the `mcpServers` at the system settings level such that the user will not be able to configure any MCP servers of their own. This should not be used as an airtight security mechanism.
+
+#### lsp
+
+> [!warning]
+> **Experimental Feature**: LSP support is currently experimental and disabled by default. Enable it using the `--experimental-lsp` command line flag.
+
+Language Server Protocol (LSP) provides code intelligence features like go-to-definition, find references, and diagnostics.
+
+LSP server configuration is done through `.lsp.json` files in your project root directory, not through `settings.json`. See the [LSP documentation](../features/lsp) for configuration details and examples.
+
+#### security
+
+| Setting                        | Type    | Description                                       | Default     |
+| ------------------------------ | ------- | ------------------------------------------------- | ----------- |
+| `security.folderTrust.enabled` | boolean | Setting to track whether Folder trust is enabled. | `false`     |
+| `security.auth.selectedType`   | string  | The currently selected authentication type.       | `undefined` |
+| `security.auth.enforcedType`   | string  | The required auth type (useful for enterprises).  | `undefined` |
+| `security.auth.useExternal`    | boolean | Whether to use an external authentication flow.   | `undefined` |
+
+#### advanced
+
+| Setting                        | Type             | Description                                                                                                                                                                                                                                                                                                                        | Default                  |
+| ------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `advanced.autoConfigureMemory` | boolean          | Automatically configure Node.js memory limits.                                                                                                                                                                                                                                                                                     | `false`                  |
+| `advanced.dnsResolutionOrder`  | string           | The DNS resolution order.                                                                                                                                                                                                                                                                                                          | `undefined`              |
+| `advanced.excludedEnvVars`     | array of strings | Environment variables to exclude from project context. Specifies environment variables that should be excluded from being loaded from project `.env` files. This prevents project-specific environment variables (like `DEBUG=true`) from interfering with the CLI behavior. Variables from `.qwen/.env` files are never excluded. | `["DEBUG","DEBUG_MODE"]` |
+| `advanced.bugCommand`          | object           | Configuration for the bug report command. Overrides the default URL for the `/bug` command. Properties: `urlTemplate` (string): A URL that can contain `{title}` and `{info}` placeholders. Example: `"bugCommand": { "urlTemplate": "https://bug.example.com/new?title={title}&info={info}" }`                                    | `undefined`              |
+
+#### mcpServers
+
+Configures connections to one or more Model-Context Protocol (MCP) servers for discovering and using custom tools. Qwen Code attempts to connect to each configured MCP server to discover available tools. If multiple MCP servers expose a tool with the same name, the tool names will be prefixed with the server alias you defined in the configuration (e.g., `serverAlias__actualToolName`) to avoid conflicts. Note that the system might strip certain schema properties from MCP tool definitions for compatibility. At least one of `command`, `url`, or `httpUrl` must be provided. If multiple are specified, the order of precedence is `httpUrl`, then `url`, then `command`.
+
+| Property                                | Type             | Description                                                                                                                                                                                                                                                        | Optional |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `mcpServers.<SERVER_NAME>.command`      | string           | The command to execute to start the MCP server via standard I/O.                                                                                                                                                                                                   | Yes      |
+| `mcpServers.<SERVER_NAME>.args`         | array of strings | Arguments to pass to the command.                                                                                                                                                                                                                                  | Yes      |
+| `mcpServers.<SERVER_NAME>.env`          | object           | Environment variables to set for the server process.                                                                                                                                                                                                               | Yes      |
+| `mcpServers.<SERVER_NAME>.cwd`          | string           | The working directory in which to start the server.                                                                                                                                                                                                                | Yes      |
+| `mcpServers.<SERVER_NAME>.url`          | string           | The URL of an MCP server that uses Server-Sent Events (SSE) for communication.                                                                                                                                                                                     | Yes      |
+| `mcpServers.<SERVER_NAME>.httpUrl`      | string           | The URL of an MCP server that uses streamable HTTP for communication.                                                                                                                                                                                              | Yes      |
+| `mcpServers.<SERVER_NAME>.headers`      | object           | A map of HTTP headers to send with requests to `url` or `httpUrl`.                                                                                                                                                                                                 | Yes      |
+| `mcpServers.<SERVER_NAME>.timeout`      | number           | Timeout in milliseconds for requests to this MCP server.                                                                                                                                                                                                           | Yes      |
+| `mcpServers.<SERVER_NAME>.trust`        | boolean          | Trust this server and bypass all tool call confirmations.                                                                                                                                                                                                          | Yes      |
+| `mcpServers.<SERVER_NAME>.description`  | string           | A brief description of the server, which may be used for display purposes.                                                                                                                                                                                         | Yes      |
+| `mcpServers.<SERVER_NAME>.includeTools` | array of strings | List of tool names to include from this MCP server. When specified, only the tools listed here will be available from this server (allowlist behavior). If not specified, all tools from the server are enabled by default.                                        | Yes      |
+| `mcpServers.<SERVER_NAME>.excludeTools` | array of strings | List of tool names to exclude from this MCP server. Tools listed here will not be available to the model, even if they are exposed by the server. **Note:** `excludeTools` takes precedence over `includeTools` - if a tool is in both lists, it will be excluded. | Yes      |
+
+#### telemetry
+
+Configures logging and metrics collection for Qwen Code. For more information, see [telemetry](/developers/development/telemetry).
+
+| Setting                  | Type    | Description                                                                      | Default |
+| ------------------------ | ------- | -------------------------------------------------------------------------------- | ------- |
+| `telemetry.enabled`      | boolean | Whether or not telemetry is enabled.                                             |         |
+| `telemetry.target`       | string  | The destination for collected telemetry. Supported values are `local` and `gcp`. |         |
+| `telemetry.otlpEndpoint` | string  | The endpoint for the OTLP Exporter.                                              |         |
+| `telemetry.otlpProtocol` | string  | The protocol for the OTLP Exporter (`grpc` or `http`).                           |         |
+| `telemetry.logPrompts`   | boolean | Whether or not to include the content of user prompts in the logs.               |         |
+| `telemetry.outfile`      | string  | The file to write telemetry to when `target` is `local`.                         |         |
+| `telemetry.useCollector` | boolean | Whether to use an external OTLP collector.                                       |         |
+
+### Example `settings.json`
+
+Here is an example of a `settings.json` file with the nested structure, new as of v0.3.0:
+
+```
+{
+  "proxy": "http://localhost:7890",
+  "general": {
+    "vimMode": true,
+    "preferredEditor": "code"
+  },
+  "ui": {
+    "theme": "GitHub",
+    "hideTips": false,
+    "customWittyPhrases": [
+      "You forget a thousand things every day. Make sure this is one of 'em",
+      "Connecting to AGI"
+    ]
+  },
+  "tools": {
+    "approvalMode": "yolo",
+    "sandbox": "docker",
+    "sandboxImage": "ghcr.io/qwenlm/qwen-code:0.14.1",
+    "discoveryCommand": "bin/get_tools",
+    "callCommand": "bin/call_tool",
+    "exclude": ["write_file"]
+  },
+  "mcpServers": {
+    "mainServer": {
+      "command": "bin/mcp_server.py"
+    },
+    "anotherServer": {
+      "command": "node",
+      "args": ["mcp_server.js", "--verbose"]
+    }
+  },
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "otlpEndpoint": "http://localhost:4317",
+    "logPrompts": true
+  },
+  "privacy": {
+    "usageStatisticsEnabled": true
+  },
+  "model": {
+    "name": "qwen3-coder-plus",
+    "maxSessionTurns": 10,
+    "enableOpenAILogging": false,
+    "openAILoggingDir": "~/qwen-logs",
+  },
+  "context": {
+    "fileName": ["CONTEXT.md", "QWEN.md"],
+    "includeDirectories": ["path/to/dir1", "~/path/to/dir2", "../path/to/dir3"],
+    "loadFromIncludeDirectories": true,
+    "fileFiltering": {
+      "respectGitIgnore": false
+    }
+  },
+  "advanced": {
+    "excludedEnvVars": ["DEBUG", "DEBUG_MODE", "NODE_ENV"]
+  }
+}
+```
+
+## Shell History
+
+The CLI keeps a history of shell commands you run. To avoid conflicts between different projects, this history is stored in a project-specific directory within your user's home folder.
+
+- **Location:** `~/.qwen/tmp/<project_hash>/shell_history`
+  - `<project_hash>` is a unique identifier generated from your project's root path.
+  - The history is stored in a file named `shell_history`.
+
+## Environment Variables & `.env` Files
+
+Environment variables are a common way to configure applications, especially for sensitive information (like tokens) or for settings that might change between environments.
+
+Qwen Code can automatically load environment variables from `.env` files.
+For authentication-related variables (like `OPENAI_*`) and the recommended `.qwen/.env` approach, see **[Authentication](../configuration/auth)**.
+
+> [!tip]
+>
+> **Environment Variable Exclusion:** Some environment variables (like `DEBUG` and `DEBUG_MODE`) are automatically excluded from project `.env` files by default to prevent interference with the CLI behavior. Variables from `.qwen/.env` files are never excluded. You can customize this behavior using the `advanced.excludedEnvVars`setting in your `settings.json` file.
+
+### Environment Variables Table
+
+| Variable                       | Description                                                                                                                                                                                                                                                                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QWEN_TELEMETRY_ENABLED`       | Set to `true` or `1` to enable telemetry. Any other value is treated as disabling it.                                                                                                                                                                                             | Overrides the `telemetry.enabled` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `QWEN_TELEMETRY_TARGET`        | Sets the telemetry target (`local` or `gcp`).                                                                                                                                                                                                                                     | Overrides the `telemetry.target` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `QWEN_TELEMETRY_OTLP_ENDPOINT` | Sets the OTLP endpoint for telemetry.                                                                                                                                                                                                                                             | Overrides the `telemetry.otlpEndpoint` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_TELEMETRY_OTLP_PROTOCOL` | Sets the OTLP protocol (`grpc` or `http`).                                                                                                                                                                                                                                        | Overrides the `telemetry.otlpProtocol` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_TELEMETRY_LOG_PROMPTS`   | Set to `true` or `1` to enable or disable logging of user prompts. Any other value is treated as disabling it.                                                                                                                                                                    | Overrides the `telemetry.logPrompts` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `QWEN_TELEMETRY_OUTFILE`       | Sets the file path to write telemetry to when the target is `local`.                                                                                                                                                                                                              | Overrides the `telemetry.outfile` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `QWEN_TELEMETRY_USE_COLLECTOR` | Set to `true` or `1` to enable or disable using an external OTLP collector. Any other value is treated as disabling it.                                                                                                                                                           | Overrides the `telemetry.useCollector` setting.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `QWEN_SANDBOX`                 | Alternative to the `sandbox` setting in `settings.json`.                                                                                                                                                                                                                          | Accepts `true`, `false`, `docker`, `podman`, or a custom command string.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `QWEN_SANDBOX_IMAGE`           | Overrides sandbox image selection for Docker/Podman.                                                                                                                                                                                                                              | Takes precedence over `tools.sandboxImage`.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `SEATBELT_PROFILE`             | (macOS specific) Switches the Seatbelt (`sandbox-exec`) profile on macOS.                                                                                                                                                                                                         | `permissive-open`: (Default) Restricts writes to the project folder (and a few other folders, see `packages/cli/src/utils/sandbox-macos-permissive-open.sb`) but allows other operations. `strict`: Uses a strict profile that declines operations by default. `<profile_name>`: Uses a custom profile. To define a custom profile, create a file named `sandbox-macos-<profile_name>.sb` in your project's `.qwen/` directory (e.g., `my-project/.qwen/sandbox-macos-custom.sb`). |
+| `DEBUG` or `DEBUG_MODE`        | (often used by underlying libraries or the CLI itself) Set to `true` or `1` to enable verbose debug logging, which can be helpful for troubleshooting.                                                                                                                            | **Note:** These variables are automatically excluded from project `.env` files by default to prevent interference with the CLI behavior. Use `.qwen/.env` files if you need to set these for Qwen Code specifically.                                                                                                                                                                                                                                                               |
+| `NO_COLOR`                     | Set to any value to disable all color output in the CLI.                                                                                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `CLI_TITLE`                    | Set to a string to customize the title of the CLI.                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `CODE_ASSIST_ENDPOINT`         | Specifies the endpoint for the code assist server.                                                                                                                                                                                                                                | This is useful for development and testing.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `QWEN_CODE_MAX_OUTPUT_TOKENS`  | Overrides the default maximum output tokens per response. When not set, Qwen Code uses an adaptive strategy: starts with 8K tokens and automatically retries with 64K if the response is truncated. Set this to a specific value (e.g., `16000`) to use a fixed limit instead.    | Takes precedence over the capped default (8K) but is overridden by `samplingParams.max_tokens` in settings. Disables automatic escalation when set. Example: `export QWEN_CODE_MAX_OUTPUT_TOKENS=16000`                                                                                                                                                                                                                                                                            |
+| `QWEN_CODE_UNATTENDED_RETRY`   | Set to `true` or `1` to enable persistent retry mode. When enabled, transient API capacity errors (HTTP 429 Rate Limit and 529 Overloaded) are retried indefinitely with exponential backoff (capped at 5 minutes per retry) and heartbeat keepalives every 30 seconds on stderr. | Designed for CI/CD pipelines and background automation where long-running tasks should survive temporary API outages. Must be set explicitly — `CI=true` alone does **not** activate this mode. See [Headless Mode](../features/headless#persistent-retry-mode) for details. Example: `export QWEN_CODE_UNATTENDED_RETRY=1`                                                                                                                                                        |
+| `QWEN_CODE_PROFILE_STARTUP`    | Set to `1` to enable startup performance profiling. Writes a JSON timing report to `~/.qwen/startup-perf/` with per-phase durations.                                                                                                                                              | Only active inside the sandbox child process. Zero overhead when not set. Example: `export QWEN_CODE_PROFILE_STARTUP=1`                                                                                                                                                                                                                                                                                                                                                            |
+
+## Command-Line Arguments
+
+Arguments passed directly when running the CLI can override other configurations for that specific session.
+
+For sandbox image selection, precedence is:
+`--sandbox-image` > `QWEN_SANDBOX_IMAGE` > `tools.sandboxImage` > built-in default image.
+
+### Command-Line Arguments Table
+
+| Argument                     | Alias | Description                                                                                                                                                                                                                                  | Possible Values                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--model`                    | `-m`  | Specifies the Qwen model to use for this session.                                                                                                                                                                                            | Model name                             | Example: `npm start -- --model qwen3-coder-plus`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `--prompt`                   | `-p`  | Used to pass a prompt directly to the command. This invokes Qwen Code in a non-interactive mode.                                                                                                                                             | Your prompt text                       | For scripting examples, use the `--output-format json` flag to get structured output.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--prompt-interactive`       | `-i`  | Starts an interactive session with the provided prompt as the initial input.                                                                                                                                                                 | Your prompt text                       | The prompt is processed within the interactive session, not before it. Cannot be used when piping input from stdin. Example: `qwen -i "explain this code"`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--system-prompt`            |       | Overrides the built-in main session system prompt for this run.                                                                                                                                                                              | Your prompt text                       | Loaded context files such as `QWEN.md` are still appended after this override. Can be combined with `--append-system-prompt`.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--append-system-prompt`     |       | Appends extra instructions to the main session system prompt for this run.                                                                                                                                                                   | Your prompt text                       | Applied after the built-in prompt and loaded context files. Can be combined with `--system-prompt`. See [Headless Mode](../features/headless) for examples.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--output-format`            | `-o`  | Specifies the format of the CLI output for non-interactive mode.                                                                                                                                                                             | `text`, `json`, `stream-json`          | `text`: (Default) The standard human-readable output. `json`: A machine-readable JSON output emitted at the end of execution. `stream-json`: Streaming JSON messages emitted as they occur during execution. For structured output and scripting, use the `--output-format json` or `--output-format stream-json` flag. See [Headless Mode](../features/headless) for detailed information.                                                                                                                                                                     |
+| `--input-format`             |       | Specifies the format consumed from standard input.                                                                                                                                                                                           | `text`, `stream-json`                  | `text`: (Default) Standard text input from stdin or command-line arguments. `stream-json`: JSON message protocol via stdin for bidirectional communication. Requirement: `--input-format stream-json` requires `--output-format stream-json` to be set. When using `stream-json`, stdin is reserved for protocol messages. See [Headless Mode](../features/headless) for detailed information.                                                                                                                                                                  |
+| `--include-partial-messages` |       | Include partial assistant messages when using `stream-json` output format. When enabled, emits stream events (message_start, content_block_delta, etc.) as they occur during streaming.                                                      |                                        | Default: `false`. Requirement: Requires `--output-format stream-json` to be set. See [Headless Mode](../features/headless) for detailed information about stream events.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--sandbox`                  | `-s`  | Enables sandbox mode for this session.                                                                                                                                                                                                       |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--sandbox-image`            |       | Sets the sandbox image URI.                                                                                                                                                                                                                  |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--debug`                    | `-d`  | Enables debug mode for this session, providing more verbose output.                                                                                                                                                                          |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--all-files`                | `-a`  | If set, recursively includes all files within the current directory as context for the prompt.                                                                                                                                               |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--help`                     | `-h`  | Displays help information about command-line arguments.                                                                                                                                                                                      |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--show-memory-usage`        |       | Displays the current memory usage.                                                                                                                                                                                                           |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--yolo`                     |       | Enables YOLO mode, which automatically approves all tool calls.                                                                                                                                                                              |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--approval-mode`            |       | Sets the approval mode for tool calls.                                                                                                                                                                                                       | `plan`, `default`, `auto-edit`, `yolo` | Supported modes: `plan`: Analyze only—do not modify files or execute commands. `default`: Require approval for file edits or shell commands (default behavior). `auto-edit`: Automatically approve edit tools (edit, write_file) while prompting for others. `yolo`: Automatically approve all tool calls (equivalent to `--yolo`). Cannot be used together with `--yolo`. Use `--approval-mode=yolo` instead of `--yolo` for the new unified approach. Example: `qwen --approval-mode auto-edit`<br>See more about [Approval Mode](../features/approval-mode). |
+| `--allowed-tools`            |       | A comma-separated list of tool names that will bypass the confirmation dialog.                                                                                                                                                               | Tool names                             | Example: `qwen --allowed-tools "Shell(git status)"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `--disabled-slash-commands`  |       | Slash command names to hide/disable (comma-separated or repeated). Unioned with the `slashCommands.disabled` setting and the `QWEN_DISABLED_SLASH_COMMANDS` environment variable. Matched case-insensitively against the final command name. | Command names                          | Example: `qwen --disabled-slash-commands "auth,mcp,extensions"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--telemetry`                |       | Enables [telemetry](/developers/development/telemetry).                                                                                                                                                                                      |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--telemetry-target`         |       | Sets the telemetry target.                                                                                                                                                                                                                   |                                        | See [telemetry](/developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--telemetry-otlp-endpoint`  |       | Sets the OTLP endpoint for telemetry.                                                                                                                                                                                                        |                                        | See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--telemetry-otlp-protocol`  |       | Sets the OTLP protocol for telemetry (`grpc` or `http`).                                                                                                                                                                                     |                                        | Defaults to `grpc`. See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--telemetry-log-prompts`    |       | Enables logging of prompts for telemetry.                                                                                                                                                                                                    |                                        | See [telemetry](../../developers/development/telemetry) for more information.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `--checkpointing`            |       | Enables [checkpointing](../features/checkpointing).                                                                                                                                                                                          |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--acp`                      |       | Enables ACP mode (Agent Client Protocol). Useful for IDE/editor integrations like [Zed](../integration-zed).                                                                                                                                 |                                        | Stable. Replaces the deprecated `--experimental-acp` flag.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--experimental-lsp`         |       | Enables experimental [LSP (Language Server Protocol)](../features/lsp) feature for code intelligence (go-to-definition, find references, diagnostics, etc.).                                                                                 |                                        | Experimental. Requires language servers to be installed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--extensions`               | `-e`  | Specifies a list of extensions to use for the session.                                                                                                                                                                                       | Extension names                        | If not provided, all available extensions are used. Use the special term `qwen -e none` to disable all extensions. Example: `qwen -e my-extension -e my-other-extension`                                                                                                                                                                                                                                                                                                                                                                                        |
+| `--list-extensions`          | `-l`  | Lists all available extensions and exits.                                                                                                                                                                                                    |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--proxy`                    |       | Sets the proxy for the CLI.                                                                                                                                                                                                                  | Proxy URL                              | Example: `--proxy http://localhost:7890`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--include-directories`      |       | Includes additional directories in the workspace for multi-directory support.                                                                                                                                                                | Directory paths                        | Can be specified multiple times or as comma-separated values. 5 directories can be added at maximum. Example: `--include-directories /path/to/project1,/path/to/project2` or `--include-directories /path/to/project1 --include-directories /path/to/project2`                                                                                                                                                                                                                                                                                                  |
+| `--screen-reader`            |       | Enables screen reader mode, which adjusts the TUI for better compatibility with screen readers.                                                                                                                                              |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--version`                  |       | Displays the version of the CLI.                                                                                                                                                                                                             |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--openai-logging`           |       | Enables logging of OpenAI API calls for debugging and analysis.                                                                                                                                                                              |                                        | This flag overrides the `enableOpenAILogging` setting in `settings.json`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `--openai-logging-dir`       |       | Sets a custom directory path for OpenAI API logs.                                                                                                                                                                                            | Directory path                         | This flag overrides the `openAILoggingDir` setting in `settings.json`. Supports absolute paths, relative paths, and `~` expansion. Example: `qwen --openai-logging-dir "~/qwen-logs" --openai-logging`                                                                                                                                                                                                                                                                                                                                                          |
+
+## Context Files (Hierarchical Instructional Context)
+
+While not strictly configuration for the CLI's _behavior_, context files (defaulting to `QWEN.md` but configurable via the `context.fileName` setting) are crucial for configuring the _instructional context_ (also referred to as "memory"). This powerful feature allows you to give project-specific instructions, coding style guides, or any relevant background information to the AI, making its responses more tailored and accurate to your needs. The CLI includes UI elements, such as an indicator in the footer showing the number of loaded context files, to keep you informed about the active context.
+
+- **Purpose:** These Markdown files contain instructions, guidelines, or context that you want the Qwen model to be aware of during your interactions. The system is designed to manage this instructional context hierarchically.
+
+### Example Context File Content (e.g. `QWEN.md`)
+
+Here's a conceptual example of what a context file at the root of a TypeScript project might contain:
+
+```
+# Project: My Awesome TypeScript Library
+
+## General Instructions:
+- When generating new TypeScript code, please follow the existing coding style.
+- Ensure all new functions and classes have JSDoc comments.
+- Prefer functional programming paradigms where appropriate.
+- All code should be compatible with TypeScript 5.0 and Node.js 20+.
+
+## Coding Style:
+- Use 2 spaces for indentation.
+- Interface names should be prefixed with `I` (e.g., `IUserService`).
+- Private class members should be prefixed with an underscore (`_`).
+- Always use strict equality (`===` and `!==`).
+
+## Specific Component: `src/api/client.ts`
+- This file handles all outbound API requests.
+- When adding new API call functions, ensure they include robust error handling and logging.
+- Use the existing `fetchWithRetry` utility for all GET requests.
+
+## Regarding Dependencies:
+- Avoid introducing new external dependencies unless absolutely necessary.
+- If a new dependency is required, please state the reason.
+```
+
+This example demonstrates how you can provide general project context, specific coding conventions, and even notes about particular files or components. The more relevant and precise your context files are, the better the AI can assist you. Project-specific context files are highly encouraged to establish conventions and context.
+
+- **Hierarchical Loading and Precedence:** The CLI implements a hierarchical memory system by loading context files (e.g., `QWEN.md`) from several locations. Content from files lower in this list (more specific) typically overrides or supplements content from files higher up (more general). The exact concatenation order and final context can be inspected using the `/memory show` command. The typical loading order is:
+  1. **Global Context File:**
+     - Location: `~/.qwen/<configured-context-filename>` (e.g., `~/.qwen/QWEN.md` in your user home directory).
+     - Scope: Provides default instructions for all your projects.
+  2. **Project Root & Ancestors Context Files:**
+     - Location: The CLI searches for the configured context file in the current working directory and then in each parent directory up to either the project root (identified by a `.git` folder) or your home directory.
+     - Scope: Provides context relevant to the entire project or a significant portion of it.
+- **Concatenation & UI Indication:** The contents of all found context files are concatenated (with separators indicating their origin and path) and provided as part of the system prompt. The CLI footer displays the count of loaded context files, giving you a quick visual cue about the active instructional context.
+- **Importing Content:** You can modularize your context files by importing other Markdown files using the `@path/to/file.md` syntax. For more details, see the [Memory Import Processor documentation](../configuration/memory).
+- **Commands for Memory Management:**
+  - Use `/memory refresh` to force a re-scan and reload of all context files from all configured locations. This updates the AI's instructional context.
+  - Use `/memory show` to display the combined instructional context currently loaded, allowing you to verify the hierarchy and content being used by the AI.
+  - See the [Commands documentation](../features/commands) for full details on the `/memory` command and its sub-commands (`show` and `refresh`).
+
+By understanding and utilizing these configuration layers and the hierarchical nature of context files, you can effectively manage the AI's memory and tailor Qwen Code's responses to your specific needs and projects.
+
+## Sandbox
+
+Qwen Code can execute potentially unsafe operations (like shell commands and file modifications) within a sandboxed environment to protect your system.
+
+[Sandbox](../features/sandbox) is disabled by default, but you can enable it in a few ways:
+
+- Using `--sandbox` or `-s` flag.
+- Setting `QWEN_SANDBOX` environment variable.
+- Sandbox is enabled when using `--yolo` or `--approval-mode=yolo` by default.
+
+By default, it uses a pre-built `qwen-code-sandbox` Docker image.
+
+For project-specific sandboxing needs, you can create a custom Dockerfile at `.qwen/sandbox.Dockerfile` in your project's root directory. This Dockerfile can be based on the base sandbox image:
+
+```
+FROM qwen-code-sandbox
+# Add your custom dependencies or configurations here
+# For example:
+# RUN apt-get update && apt-get install -y some-package
+# COPY ./my-config /app/my-config
+```
+
+When `.qwen/sandbox.Dockerfile` exists, you can use `BUILD_SANDBOX` environment variable when running Qwen Code to automatically build the custom sandbox image:
+
+```
+BUILD_SANDBOX=1 qwen -s
+```
+
+## Usage Statistics
+
+To help us improve Qwen Code, we collect anonymized usage statistics. This data helps us understand how the CLI is used, identify common issues, and prioritize new features.
+
+**What we collect:**
+
+- **Tool Calls:** We log the names of the tools that are called, whether they succeed or fail, and how long they take to execute. We do not collect the arguments passed to the tools or any data returned by them.
+- **API Requests:** We log the model used for each request, the duration of the request, and whether it was successful. We do not collect the content of the prompts or responses.
+- **Session Information:** We collect information about the configuration of the CLI, such as the enabled tools and the approval mode.
+
+**What we DON'T collect:**
+
+- **Personally Identifiable Information (PII):** We do not collect any personal information, such as your name, email address, or API keys.
+- **Prompt and Response Content:** We do not log the content of your prompts or the responses from the model.
+- **File Content:** We do not log the content of any files that are read or written by the CLI.
+
+**How to opt out:**
+
+You can opt out of usage statistics collection at any time by setting the `usageStatisticsEnabled` property to `false` under the `privacy` category in your `settings.json` file:
+
+```json
+{
   "privacy": {
     "usageStatisticsEnabled": false
   }
