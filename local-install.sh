@@ -109,7 +109,13 @@ install_nodejs() {
     unset npm_config_prefix npm_config_globalconfig 2>/dev/null || true
 
     # Load NVM into current shell
-    \. "${NVM_DIR}/nvm.sh" || { echo "✗ Failed to load NVM"; exit 1; }
+    \. "${NVM_DIR}/nvm.sh" || true
+    
+    # Verify NVM is loaded (the command function should exist)
+    if ! command_exists nvm; then
+        echo "✗ Failed to load NVM"
+        exit 1
+    fi
 
     # Now tell NVM to delete the prefix from its own tracking too
     nvm use --delete-prefix "${NODE_VERSION}" --silent 2>/dev/null || true
@@ -179,9 +185,14 @@ install_qwen_code() {
     # Using . at the end of source ensures dotfiles are included without dot-dot issues.
     cp -rp "${SCRIPT_DIR}/." "${work_dir}/" 2>/dev/null || true
     
-    # Remove any hidden files that might interfere (like .git)
+    # Remove any hidden files or directories that might interfere
     rm -rf "${work_dir}/.git" 2>/dev/null || true
     rm -f "${work_dir}/.gitignore" 2>/dev/null || true
+    rm -rf "${work_dir}/node_modules" 2>/dev/null || true
+
+    echo "Installing dependencies in temporary directory..."
+    ( cd "${work_dir}" && npm install --no-audit --no-fund ) \
+        || { echo "✗ npm install failed in ${work_dir}"; exit 1; }
 
     local pack_output tgz
     # tee /dev/stderr shows the build output; tail -1 captures the tgz filename
