@@ -22,3 +22,13 @@ export async function shutdownTelemetry(): Promise<void> {
   telemetryInitialized = false;
   return Promise.resolve();
 }
+
+/**
+ * Dummy implementation for resolveHttpOtlpUrl to satisfy potential imports
+ */
+export function resolveHttpOtlpUrl(
+  baseEndpoint: string,
+  _signal: 'traces' | 'logs' | 'metrics',
+): string {
+  return baseEndpoint;
+}
