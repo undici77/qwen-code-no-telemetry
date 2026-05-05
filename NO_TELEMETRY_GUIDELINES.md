@@ -6,11 +6,12 @@ This document defines the privacy policy, technical architecture, and maintenanc
 
 ## 1. Core Privacy Policy: Zero External Data Leakage
 
-1.  **NO TRACKING**: Absolutely NO telemetry, analytics, or usage statistics may be sent to any external server.
-2.  **NO IDENTITY**: No unique installation IDs. `getInstallationId()` must ALWAYS return `00000000-0000-0000-0000-000000000000`.
-3.  **LOCAL PERSISTENCE ONLY**: Data is strictly local.
-4.  **DISABLED AUTO-UPDATES**: Hardcode `enableAutoUpdate` to `false` in default settings.
-5.  **DISABLED GIT CO-AUTHOR**: Hardcode `gitCoAuthor` to `false` in default settings to prevent accidental identity leakage in commit history.
+1.  **NO TRACKING**: Absolutely NO telemetry, analytics, or usage statistics may be sent to any external server. All OpenTelemetry dependencies are removed.
+2.  **NO IDENTITY**: No unique installation IDs. `getInstallationId()` must ALWAYS return `00000000-0000-0000-0000-000000000000`. The `InstallationManager` is hardcoded to this static ID.
+3.  **LOCAL PERSISTENCE ONLY**: Data is strictly local. It is only saved for local session history and hierarchical memory, as required for the application's core functionality.
+4.  **NEUTRALIZED CORE**: All network-bound loggers are replaced with no-op functions.
+5.  **DISABLED AUTO-UPDATES**: Hardcode `enableAutoUpdate` to `false` in default settings.
+6.  **DISABLED GIT CO-AUTHOR**: Hardcode `gitCoAuthor` to `false` in default settings to prevent accidental identity leakage in commit history.
 
 ---
 
@@ -29,6 +30,7 @@ This branch must remain aligned with upstream `main`.
   3. Resolve conflicts, neutralize telemetry, and `git commit --amend` to finalize.
      _This ensures `main` is a parent (alignment) while keeping all changes in one commit._
 - **NEUTRALIZATION**: During resolution, ALWAYS prioritize the dummy/no-op implementations for anything telemetry-related.
+- **README MAINTENANCE**: The `README.md` in this fork is a specialized replacement. Maintain it "as is", updating ONLY the version references and installation URLs.
 
 ### Implementation Pattern (Dummy Layer)
 
@@ -74,7 +76,7 @@ When releasing a new version (e.g., bumping from `v0.14.5-no-telemetry` to `v0.1
 | File                                         | What to Update                              |
 | -------------------------------------------- | ------------------------------------------- |
 | `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`    |
-| All `.md` files                              | Any `[old-version]-no-telemetry` references |
+| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references |
 | `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references            |
 | CI/CD configuration files                    | Version tags and refs                       |
 
@@ -97,6 +99,7 @@ When merging from `main`, conflicts may arise. Use this priority order:
 | `@opentelemetry/*` in dependencies | **HIGHEST** | Remove immediately, no exceptions                         |
 | Metrics/analytics/tracking code    | **HIGHEST** | Replace with no-op stubs                                  |
 | Installation ID generation         | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000` |
+| Specialized `README.md` content    | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.         |
 | Version string in `package.json`   | **MEDIUM**  | Match upstream (without `-no-telemetry`)                  |
 | UI display version                 | **LOW**     | Keep `-no-telemetry` suffix for clarity                   |
 
@@ -108,7 +111,16 @@ When merging from `main`, conflicts may arise. Use this priority order:
 
 ---
 
-## 6. Instructions for AI Models
+## 7. Architectural Evolution
+
+The strategy for maintaining privacy has evolved to optimize for maintainability:
+
+- **Legacy Approach (Until v0.12.1-no-telemetry)**: The policy was to **delete all telemetry-related files**. While effective for privacy, this caused massive merge conflicts and made it difficult to align with upstream updates.
+- **Current Approach (From v0.12.3-no-telemetry onwards)**: Switched to a **"privacy-first" dummy implementation**. We remove all `@opentelemetry/*` packages from `package.json` but maintain the file structure with no-op/dummy layers. This keeps the application code calling these modules untouched, making merges easier while ensuring zero data leakage.
+
+---
+
+## 8. Instructions for AI Models
 
 - **NO EXCUSES**: Aligning this branch is your job. "Conflicts too complex" is not an acceptable failure.
 - **PLANNING**: Always start by evaluating the conflict scope and presenting a clear resolution plan—**before beginning any full evaluation or merge execution**.
@@ -125,7 +137,7 @@ When merging from `main`, conflicts may arise. Use this priority order:
 
 ---
 
-## 8. Enforcement Principle: _One-Time, One-Attempt Resolution_
+## 9. Enforcement Principle: _One-Time, One-Attempt Resolution_
 
 > **Every merge attempt is a _single-shots_ operation.**
 > You get one chance to evaluate, resolve, and close. No retries, no "second attempts" unless explicitly restarted by a human.
