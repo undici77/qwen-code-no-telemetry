@@ -210,6 +210,14 @@ const FS_PATH_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
   ToolNames.LSP,
 ]);
 
+function canonicalToolName(toolName: string): string {
+  return (ToolNamesMigration as Record<string, string>)[toolName] ?? toolName;
+}
+
+function isFilesystemPathTool(toolName: string): boolean {
+  return FS_PATH_TOOL_NAMES.has(canonicalToolName(toolName));
+}
+
 /**
  * Trim trailing forward / back slashes from a path-shaped string without
  * a regex. The regex form `s.replace(/[\\/]+$/, '')` is functionally
@@ -291,8 +299,7 @@ export function extractToolFilePaths(
   // The tool registry resolves these at execution time, so a tool call
   // like `replace({ file_path: 'src/App.tsx' })` actually runs EditTool;
   // gating only on the canonical name closes the alias-bypass hole.
-  const canonical =
-    (ToolNamesMigration as Record<string, string>)[toolName] ?? toolName;
+  const canonical = canonicalToolName(toolName);
   if (!FS_PATH_TOOL_NAMES.has(canonical)) {
     // Surface allowlist gaps at debug level when a non-FS tool's input
     // *looks* path-shaped: we silently skip path activation for it, but
@@ -1457,13 +1464,22 @@ export class CoreToolScheduler {
             continue;
           }
 
+          // Errors thrown from getConfirmationDetails() may carry a
+          // structured ToolErrorType via an `errorType` instance
+          // field (see StructuredToolError in
+          // tools/priorReadEnforcement.ts). When present, surface
+          // that code instead of collapsing every confirmation-time
+          // failure into UNHANDLED_EXCEPTION.
+          const explicitErrorType = (
+            error as { errorType?: ToolErrorType } | undefined
+          )?.errorType;
           this.setStatusInternal(
             reqInfo.callId,
             'error',
             createErrorResponse(
               reqInfo,
               error instanceof Error ? error : new Error(String(error)),
-              ToolErrorType.UNHANDLED_EXCEPTION,
+              explicitErrorType ?? ToolErrorType.UNHANDLED_EXCEPTION,
             ),
           );
         }
@@ -1930,8 +1946,14 @@ export class CoreToolScheduler {
         // FS_PATH_TOOL_NAMES) so MCP / non-FS tools that reuse those
         // parameter names with different semantics never enter the
         // activation pipeline.
-        const candidatePaths = extractToolFilePaths(toolName, toolInput).map(
-          (p) => unescapePath(p),
+        const inputPaths = extractToolFilePaths(toolName, toolInput);
+        const resultPaths =
+          isFilesystemPathTool(toolName) &&
+          Array.isArray(toolResult.resultFilePaths)
+            ? toolResult.resultFilePaths
+            : [];
+        const candidatePaths = Array.from(
+          new Set([...inputPaths.map((p) => unescapePath(p)), ...resultPaths]),
         );
 
         if (candidatePaths.length > 0) {
