@@ -3,10 +3,10 @@ import re
 
 def resolve_package_json(content):
     # Simple conflict resolver for package.json
-    # Resolve version to 0.15.6
+    # Resolve version to 0.15.7
     content = re.sub(r'<<<<<<< HEAD\s+"version": "[^"]+",\s+\|\|\|\|\|\|\| [^\n]+\s+"version": "[^"]+",\s+=======\s+"version": "([^"]+)",\s+>>>>>>> origin/main', r'  "version": "\1",', content)
     
-    # Resolve sandboxImageUri to 0.15.6
+    # Resolve sandboxImageUri to 0.15.7
     content = re.sub(r'<<<<<<< HEAD\s+"sandboxImageUri": "[^"]+"\s+\|\|\|\|\|\|\| [^\n]+\s+"sandboxImageUri": "[^"]+"\s+=======\s+"sandboxImageUri": "([^"]+)"\s+>>>>>>> origin/main', r'    "sandboxImageUri": "\1"', content)
     
     # For other conflicts, if they contain @opentelemetry, remove them (or rather, keep the side that DOESN'T have them)
