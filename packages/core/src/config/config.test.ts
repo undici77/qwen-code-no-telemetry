@@ -1029,11 +1029,11 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('GitCoAuthor Settings', () => {
-    it('defaults both commit and pr to true when not specified', () => {
+    it('defaults both commit and pr to false when not specified', () => {
       const config = new Config({ ...baseParams, gitCoAuthor: undefined });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
 
     it('accepts an object with independent commit and pr toggles', () => {
@@ -1105,15 +1105,15 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    // A genuinely-absent sub-field still defaults to true (schema default).
-    it('defaults absent commit/pr to true', () => {
+    // A genuinely-absent sub-field still defaults to false (no-telemetry default).
+    it('defaults absent commit/pr to false', () => {
       const config = new Config({
         ...baseParams,
         gitCoAuthor: {} as { commit?: boolean; pr?: boolean },
       });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
   });
 
@@ -1341,18 +1341,20 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('GitCoAuthor Configuration', () => {
-    it('should default gitCoAuthor.enabled to false when not provided', () => {
+    it('should default gitCoAuthor to false when not provided', () => {
       const config = new Config(baseParams);
-      expect(config.getGitCoAuthor().enabled).toBe(false);
+      expect(config.getGitCoAuthor().commit).toBe(false);
+      expect(config.getGitCoAuthor().pr).toBe(false);
     });
 
-    it('should set gitCoAuthor.enabled to true when explicitly provided as true', () => {
+    it('should set gitCoAuthor fields to true when explicitly provided as true', () => {
       const paramsWithCoAuthor: ConfigParameters = {
         ...baseParams,
         gitCoAuthor: true,
       };
       const config = new Config(paramsWithCoAuthor);
-      expect(config.getGitCoAuthor().enabled).toBe(true);
+      expect(config.getGitCoAuthor().commit).toBe(true);
+      expect(config.getGitCoAuthor().pr).toBe(true);
     });
   });
 
