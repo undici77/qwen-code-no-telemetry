@@ -528,6 +528,13 @@ export interface ConfigParameters {
    */
   jsonFile?: string;
   /**
+   * JSON Schema that the model's final output must conform to. When set, a
+   * synthetic `structured_output` tool is registered and the non-interactive
+   * CLI ends the session the first time the model calls it with valid args.
+   * Only meaningful in headless mode (`qwen -p`).
+   */
+  jsonSchema?: Record<string, unknown>;
+  /**
    * File path for receiving remote input commands (bidirectional sync mode).
    * An external process writes JSONL commands to this file, and the TUI
    * watches it to process messages as if the user typed them.
@@ -768,6 +775,7 @@ export class Config {
   private readonly channel: string | undefined;
   private readonly jsonFd: number | undefined;
   private readonly jsonFile: string | undefined;
+  private readonly jsonSchema: Record<string, unknown> | undefined;
   private readonly inputFile: string | undefined;
   private readonly defaultFileEncoding: FileEncodingType | undefined;
   private readonly enableManagedAutoMemory: boolean;
@@ -926,6 +934,7 @@ export class Config {
     this.channel = params.channel;
     this.jsonFd = params.jsonFd;
     this.jsonFile = params.jsonFile;
+    this.jsonSchema = params.jsonSchema;
     this.inputFile = params.inputFile;
     this.defaultFileEncoding = params.defaultFileEncoding;
     this.storage = new Storage(this.targetDir);
@@ -2500,6 +2509,15 @@ export class Config {
   }
 
   /**
+   * Get the JSON Schema the model's final output must conform to.
+   * When set, the non-interactive CLI registers a synthetic
+   * `structured_output` tool and ends the session on a valid call.
+   */
+  getJsonSchema(): Record<string, unknown> | undefined {
+    return this.jsonSchema;
+  }
+
+  /**
    * Get the file path for remote input commands (bidirectional sync).
    * When set, the TUI mode will watch this file for JSONL commands written
    * by an external process and submit them as user messages.
@@ -2878,6 +2896,10 @@ export class Config {
     }
 
     // --- Core tools (always registered) ---
+    await registerLazy(ToolNames.TOOL_SEARCH, async () => {
+      const { ToolSearchTool } = await import('../tools/tool-search.js');
+      return new ToolSearchTool(this);
+    });
     await registerLazy(ToolNames.AGENT, async () => {
       const { AgentTool } = await import('../tools/agent/agent.js');
       return new AgentTool(this);
@@ -2978,6 +3000,19 @@ export class Config {
       await registerLazy(ToolNames.LSP, async () => {
         const { LspTool } = await import('../tools/lsp.js');
         return new LspTool(this);
+      });
+    }
+
+    // Register synthetic structured-output tool when --json-schema is set.
+    // The tool's parameter schema IS the user-supplied JSON Schema, so the
+    // model's arguments must match it (Ajv-validated in BaseDeclarativeTool).
+    if (this.jsonSchema) {
+      const schema = this.jsonSchema;
+      await registerLazy(ToolNames.STRUCTURED_OUTPUT, async () => {
+        const { SyntheticOutputTool } = await import(
+          '../tools/syntheticOutput.js'
+        );
+        return new SyntheticOutputTool(this, schema);
       });
     }
 

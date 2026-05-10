@@ -293,6 +293,7 @@ export class ChatCompressionService {
         ],
         config: {
           systemInstruction: getCompressionPrompt(),
+          ...(signal ? { abortSignal: signal } : {}),
         },
       },
       promptId,
