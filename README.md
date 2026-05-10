@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.15.7](https://github.com/QwenLM/qwen-code/blob/v0.15.7/README.md).
+> [original README at v0.15.10](https://github.com/QwenLM/qwen-code/blob/v0.15.10/README.md).
 
 ---
 
