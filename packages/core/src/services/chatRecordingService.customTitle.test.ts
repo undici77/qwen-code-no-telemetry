@@ -194,17 +194,17 @@ describe('ChatRecordingService - custom title', () => {
       // custom_title append at EOF — keeping the title within the
       // 64KB tail window the picker scans even if no lifecycle event
       // (finalize) has fired.
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       // Each user message carries ~2KB of text — 20 of them put well
       // over 32KB on the wire (counting the ~200B per-record envelope).
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 20; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const writes = vi.mocked(jsonl.writeLine).mock.calls;
       const titleAppendsAfterClear = writes.filter(([, record]) => {
@@ -223,14 +223,14 @@ describe('ChatRecordingService - custom title', () => {
     });
 
     it('does not let threshold re-anchor records become the active parent tail', async () => {
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
-      chatRecordingService.recordUserMessage([{ text: 'before bulk' }]);
-      chatRecordingService.recordUserMessage([{ text: 'x'.repeat(40 * 1024) }]);
-      chatRecordingService.recordUserMessage([{ text: 'after re-anchor' }]);
-      await chatRecordingService.flush();
+      recordingService.recordUserMessage([{ text: 'before bulk' }]);
+      recordingService.recordUserMessage([{ text: 'x'.repeat(40 * 1024) }]);
+      recordingService.recordUserMessage([{ text: 'after re-anchor' }]);
+      await recordingService.flush();
 
       const records = vi
         .mocked(jsonl.writeLine)
@@ -255,13 +255,14 @@ describe('ChatRecordingService - custom title', () => {
     });
 
     it('does not re-anchor when no title has been set', async () => {
+      recordingService = new ChatRecordingService(config);
       // The counter only matters when there's a title to keep alive;
       // sessions that never set one shouldn't pay for spurious writes.
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 30; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)
@@ -281,21 +282,25 @@ describe('ChatRecordingService - custom title', () => {
       // `customTitle` alone, never a hardcoded `'manual'`. Otherwise
       // resuming a legacy session on a current build would silently
       // reclassify it the first time the threshold fires.
-      vi.mocked(mockConfig.getResumedSessionData).mockReturnValue({
+      vi.spyOn(config, 'getResumedSessionData').mockReturnValue({
+        conversation: {
+          sessionId: 'test-session-id',
+          projectHash: 'hash',
+          startTime: '2024-01-01',
+          lastUpdated: '2024-01-01',
+          messages: [],
+        },
+        filePath: '/path/to/chat.jsonl',
         lastCompletedUuid: null,
-      } as unknown as ReturnType<Config['getResumedSessionData']>);
+      } as any);
       const getSessionTitleInfo = vi
         .fn()
         .mockReturnValue({ title: 'legacy-title', source: undefined });
-      (
-        mockConfig as unknown as {
-          getSessionService: () => {
-            getSessionTitleInfo: typeof getSessionTitleInfo;
-          };
-        }
-      ).getSessionService = () => ({ getSessionTitleInfo });
+      vi.spyOn(sessionService, 'getSessionTitleInfo').mockImplementation(
+        getSessionTitleInfo,
+      );
 
-      const svc = new ChatRecordingService(mockConfig);
+      const svc = new ChatRecordingService(config);
       // Constructor's finalize re-appends a custom_title record on resume
       // — clear it out so we can isolate the threshold-triggered re-anchor.
       await svc.flush();
@@ -339,15 +344,15 @@ describe('ChatRecordingService - custom title', () => {
       // Twelve 1500-char CJK messages ≈ 21K UTF-16 units (under threshold)
       // but ≈ 57K UTF-8 bytes (over). Anchor fires only when the counter
       // measures bytes, not chars.
-      chatRecordingService.recordCustomTitle('cjk-session');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('cjk-session');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       const cjkText = '汉'.repeat(1500);
       for (let i = 0; i < 12; i++) {
-        chatRecordingService.recordUserMessage([{ text: cjkText }]);
+        recordingService.recordUserMessage([{ text: cjkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)
@@ -366,8 +371,8 @@ describe('ChatRecordingService - custom title', () => {
       // system. Resetting on failure trades one missed anchor for
       // bounded recovery; finalize() will re-emit on the next lifecycle
       // event.
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       // Wrap the private appendRecord so any custom_title append (i.e.
@@ -375,10 +380,10 @@ describe('ChatRecordingService - custom title', () => {
       // Bulk records pass through to the real implementation so the
       // byte counter still accumulates exactly as production would.
       let reanchorAttempts = 0;
-      const svc = chatRecordingService as unknown as {
+      const svc = recordingService as unknown as {
         appendRecord(record: ChatRecord): void;
       };
-      const originalAppendRecord = svc.appendRecord.bind(chatRecordingService);
+      const originalAppendRecord = svc.appendRecord.bind(recordingService);
       svc.appendRecord = (record: ChatRecord) => {
         if (record.type === 'system' && record.subtype === 'custom_title') {
           reanchorAttempts++;
@@ -392,9 +397,9 @@ describe('ChatRecordingService - custom title', () => {
       // subsequent message would re-trigger reanchor.
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 25; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       // One failed attempt is acceptable; multiple means the counter was
       // pinned and turned a single fault into a per-record loop.
@@ -405,14 +410,14 @@ describe('ChatRecordingService - custom title', () => {
       // A handful of small messages must not trigger a re-anchor —
       // the cost would defeat the whole point. Threshold is 32KB;
       // five 200B user messages stay safely under it.
-      chatRecordingService.recordCustomTitle('quick-session');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('quick-session');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       for (let i = 0; i < 5; i++) {
-        chatRecordingService.recordUserMessage([{ text: 'short' }]);
+        recordingService.recordUserMessage([{ text: 'short' }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)

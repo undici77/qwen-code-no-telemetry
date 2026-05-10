@@ -49,7 +49,7 @@ describe('openrouterOAuth', () => {
 
   it('builds OpenRouter authorization URL with required params', () => {
     const url = buildOpenRouterAuthorizationUrl({
-      callbackUrl: 'http://localhost:3000/openrouter/callback',
+      callbackUrl: 'http://127.0.0.1:3000/openrouter/callback',
       codeChallenge: 'challenge123',
       state: 'state-123',
       codeChallengeMethod: 'S256',
@@ -61,7 +61,7 @@ describe('openrouterOAuth', () => {
       OPENROUTER_OAUTH_AUTHORIZE_URL,
     );
     expect(parsed.searchParams.get('callback_url')).toBe(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
     );
     expect(parsed.searchParams.get('code_challenge')).toBe('challenge123');
     expect(parsed.searchParams.get('state')).toBe('state-123');
@@ -180,7 +180,7 @@ describe('openrouterOAuth', () => {
 
   it('creates a reusable OAuth session for manual fallback links', () => {
     const session = createOpenRouterOAuthSession(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       {
         codeVerifier: 'verifier-123',
         codeChallenge: 'challenge-123',
@@ -189,7 +189,7 @@ describe('openrouterOAuth', () => {
     );
 
     expect(session).toEqual({
-      callbackUrl: 'http://localhost:3000/openrouter/callback',
+      callbackUrl: 'http://127.0.0.1:3000/openrouter/callback',
       codeVerifier: 'verifier-123',
       state: 'state-123',
       authorizationUrl: expect.stringContaining('code_challenge=challenge-123'),
@@ -216,7 +216,7 @@ describe('openrouterOAuth', () => {
       userId: 'user-1',
     }));
     const resultPromise = runOpenRouterOAuthLogin(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       {
         openBrowser,
         startListener: vi.fn(async () => listener),
@@ -248,12 +248,12 @@ describe('openrouterOAuth', () => {
       userId: 'user-1',
     }));
 
-    await runOpenRouterOAuthLogin('http://localhost:3000/openrouter/callback', {
+    await runOpenRouterOAuthLogin('http://127.0.0.1:3000/openrouter/callback', {
       openBrowser,
       startListener,
       exchangeApiKey,
       session: {
-        callbackUrl: 'http://localhost:3000/openrouter/callback',
+        callbackUrl: 'http://127.0.0.1:3000/openrouter/callback',
         codeVerifier: 'verifier-123',
         state: 'state-123',
         authorizationUrl:
@@ -262,7 +262,7 @@ describe('openrouterOAuth', () => {
     });
 
     expect(startListener).toHaveBeenCalledWith(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       expect.any(Number),
       'state-123',
     );
@@ -288,7 +288,7 @@ describe('openrouterOAuth', () => {
       .mockReturnValueOnce(3450);
 
     const result = await runOpenRouterOAuthLogin(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       {
         openBrowser,
         startListener: async () => listener,
@@ -347,7 +347,7 @@ describe('openrouterOAuth', () => {
     const exchangeApiKey = vi.fn();
 
     const resultPromise = runOpenRouterOAuthLogin(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       {
         openBrowser,
         startListener: async () => listener,
@@ -391,7 +391,7 @@ describe('openrouterOAuth', () => {
     const exchangeApiKey = vi.fn();
 
     const resultPromise = runOpenRouterOAuthLogin(
-      'http://localhost:3000/openrouter/callback',
+      'http://127.0.0.1:3000/openrouter/callback',
       {
         openBrowser,
         startListener: async () => listener,
@@ -662,14 +662,14 @@ describe('openrouterOAuth', () => {
 
   it('returns 404 for non-callback paths', async () => {
     const listener = startOAuthCallbackListener(
-      'http://localhost:3102/openrouter/callback',
+      'http://127.0.0.1:3102/openrouter/callback',
       5000,
       'state-123',
     );
     await listener.ready;
 
     const status = await new Promise<number>((resolve, reject) => {
-      const req = request('http://localhost:3102/wrong-path', (res) => {
+      const req = request('http://127.0.0.1:3102/wrong-path', (res) => {
         resolve(res.statusCode!);
         res.resume();
       });
@@ -683,7 +683,7 @@ describe('openrouterOAuth', () => {
 
   it('rejects with error when OpenRouter returns an error parameter', async () => {
     const listener = startOAuthCallbackListener(
-      'http://localhost:3103/openrouter/callback',
+      'http://127.0.0.1:3103/openrouter/callback',
       5000,
       'state-123',
     );
@@ -692,7 +692,7 @@ describe('openrouterOAuth', () => {
     const codePromise = listener.waitForCode.catch((err: unknown) => err);
     await new Promise<void>((resolve, reject) => {
       const req = request(
-        'http://localhost:3103/openrouter/callback?error=access_denied&state=state-123',
+        'http://127.0.0.1:3103/openrouter/callback?error=access_denied&state=state-123',
         (res) => {
           expect(res.statusCode).toBe(400);
           res.resume();
@@ -712,7 +712,7 @@ describe('openrouterOAuth', () => {
 
   it('rejects with missing code error', async () => {
     const listener = startOAuthCallbackListener(
-      'http://localhost:3104/openrouter/callback',
+      'http://127.0.0.1:3104/openrouter/callback',
       5000,
       'state-123',
     );
@@ -721,7 +721,7 @@ describe('openrouterOAuth', () => {
     const codePromise = listener.waitForCode.catch((err: unknown) => err);
     await new Promise<void>((resolve, reject) => {
       const req = request(
-        'http://localhost:3104/openrouter/callback?state=state-123',
+        'http://127.0.0.1:3104/openrouter/callback?state=state-123',
         (res) => {
           expect(res.statusCode).toBe(400);
           res.resume();
@@ -741,7 +741,7 @@ describe('openrouterOAuth', () => {
 
   it('retries ports when address is in use', async () => {
     const blockingListener = startOAuthCallbackListener(
-      'http://localhost:3150/openrouter/callback',
+      'http://127.0.0.1:3150/openrouter/callback',
       10000,
       'block-state',
     );
@@ -749,7 +749,7 @@ describe('openrouterOAuth', () => {
 
     try {
       const retried = await startOAuthCallbackListenerWithRetry(
-        'http://localhost:3150/openrouter/callback',
+        'http://127.0.0.1:3150/openrouter/callback',
         5000,
         'retry-state',
         5,
@@ -765,7 +765,7 @@ describe('openrouterOAuth', () => {
   it('throws non-http protocol error', () => {
     expect(() =>
       startOAuthCallbackListener(
-        'https://localhost:3000/callback',
+        'https://127.0.0.1:3000/callback',
         5000,
         'state-123',
       ),

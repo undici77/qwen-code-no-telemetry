@@ -26,6 +26,12 @@ function getPlatformArch() {
       shellcheck: 'linux.x86_64',
     };
   }
+  if (platform === 'linux' && arch === 'arm64') {
+    return {
+      actionlint: 'linux_arm64',
+      shellcheck: 'linux.aarch64',
+    };
+  }
   if (platform === 'darwin' && arch === 'x64') {
     return {
       actionlint: 'darwin_amd64',
@@ -92,7 +98,7 @@ const LINTERS = {
   },
   yamllint: {
     check: 'command -v yamllint',
-    installer: `pip3 install --user "yamllint==${YAMLLINT_VERSION}"`,
+    installer: `pip3 install --user "yamllint==${YAMLLINT_VERSION}" --break-system-packages`,
     run: "git ls-files | grep -E '\\.(yaml|yml)' | xargs yamllint --format github",
   },
 };

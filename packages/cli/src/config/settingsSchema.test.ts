@@ -346,11 +346,16 @@ describe('SettingsSchema', () => {
     it('should have gitCoAuthor setting in schema with default false', () => {
       expect(getSettingsSchema().general.properties.gitCoAuthor).toBeDefined();
       expect(getSettingsSchema().general.properties.gitCoAuthor.type).toBe(
-        'boolean',
+        'object',
       );
-      expect(getSettingsSchema().general.properties.gitCoAuthor.default).toBe(
-        false,
-      );
+      expect(
+        getSettingsSchema().general.properties.gitCoAuthor.properties.commit
+          .default,
+      ).toBe(false);
+      expect(
+        getSettingsSchema().general.properties.gitCoAuthor.properties.pr
+          .default,
+      ).toBe(false);
     });
   });
 });
