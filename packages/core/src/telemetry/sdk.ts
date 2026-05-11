@@ -1,10 +1,4 @@
-/**
- * @license
- * Copyright 2025 Google LLC
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import type { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 
 let telemetryInitialized = false;
 
@@ -19,16 +13,19 @@ export function initializeTelemetry(_config: Config): void {
 
 export async function shutdownTelemetry(): Promise<void> {
   // No-op for no-telemetry version
-  telemetryInitialized = false;
-  return Promise.resolve();
 }
 
 /**
- * Dummy implementation for resolveHttpOtlpUrl to satisfy potential imports
+ * Refresh the session context with a new session ID.
  */
-export function resolveHttpOtlpUrl(
-  baseEndpoint: string,
-  _signal: 'traces' | 'logs' | 'metrics',
-): string {
-  return baseEndpoint;
+export function refreshSessionContext(_sessionId: string): void {
+  // No-op for no-telemetry version
+}
+
+/**
+ * Refresh the session root context with a new session ID.
+ * Legacy alias for refreshSessionContext.
+ */
+export function refreshSessionRootContext(sessionId: string): void {
+  refreshSessionContext(sessionId);
 }

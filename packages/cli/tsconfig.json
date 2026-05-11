@@ -8,7 +8,19 @@
     "types": ["node", "vitest/globals"],
     "paths": {
       "@qwen-code/qwen-code-core": ["../core/src/index.ts"],
-      "@qwen-code/qwen-code-core/*": ["../core/src/*"]
+      "@qwen-code/qwen-code-core/*": ["../core/src/*"],
+      "@opentelemetry/api": ["../core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/sdk-logs": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-trace-base": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/resources": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-node": ["../core/src/telemetry/sdk.ts"],
+      "@opentelemetry/instrumentation-http": ["../core/src/telemetry/sdk.ts"]
     }
   },
   "include": [

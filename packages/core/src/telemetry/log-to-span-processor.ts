@@ -1,6 +1,6 @@
-/**
- * @license
- * Copyright 2025 Google LLC
+/*
+ * Copyright (c) Alibaba Group Holding Ltd.
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,4 +14,13 @@ export class LogToSpanProcessor {
   forceFlush() {
     return Promise.resolve();
   }
+}
+
+export type LogRecordProcessor = unknown;
+export type ReadableLogRecord = unknown;
+export type SpanExporter = unknown;
+export type ReadableSpan = unknown;
+export type Resource = unknown;
+export function resourceFromAttributes() {
+  return {};
 }

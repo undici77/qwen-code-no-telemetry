@@ -6,7 +6,15 @@
     "composite": true,
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@lydell/node-pty": ["../../node_modules/@lydell/node-pty/node-pty.d.ts"]
+      "@lydell/node-pty": ["../../node_modules/@lydell/node-pty/node-pty.d.ts"],
+      "@opentelemetry/api": ["./src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/sdk-logs": ["./src/telemetry/log-to-span-processor.ts"],
+      "@opentelemetry/sdk-trace-base": [
+        "./src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/resources": ["./src/telemetry/log-to-span-processor.ts"],
+      "@opentelemetry/sdk-node": ["./src/telemetry/sdk.ts"],
+      "@opentelemetry/instrumentation-http": ["./src/telemetry/sdk.ts"]
     }
   },
   "include": ["index.ts", "src/**/*.ts", "src/**/*.json"],

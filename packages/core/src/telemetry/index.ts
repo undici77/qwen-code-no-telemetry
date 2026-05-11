@@ -17,6 +17,7 @@ export { DEFAULT_TELEMETRY_TARGET, DEFAULT_OTLP_ENDPOINT };
 export {
   initializeTelemetry,
   shutdownTelemetry,
+  refreshSessionContext,
   isTelemetrySdkInitialized,
 } from './sdk.js';
 export {
@@ -95,24 +96,30 @@ export type {
 } from './types.js';
 export type { TelemetryEvent } from './types.js';
 
-// Dummy constants for OpenTelemetry types
-export enum SpanStatusCode {
-  UNSET = 0,
-  OK = 1,
-  ERROR = 2,
-}
+export {
+  SpanStatusCode,
+  ValueType,
+  TraceFlags,
+  SpanKind,
+  ROOT_CONTEXT,
+  context,
+  createContextKey,
+  trace,
+  diag,
+  SemanticAttributes,
+  SemanticResourceAttributes,
+} from './dummy-otel.js';
+export type {
+  Attributes,
+  Context,
+  Exception,
+  Span,
+  SpanOptions,
+  Tracer,
+  HrTime,
+} from './dummy-otel.js';
 
-export enum ValueType {
-  INT = 0,
-  DOUBLE = 1,
-}
-
-export const SemanticAttributes = {
-  HTTP_METHOD: 'http.method',
-  HTTP_URL: 'http.url',
-  HTTP_STATUS_CODE: 'http.status_code',
-};
-
+// Telemetry targets
 export * from './uiTelemetry.js';
 export {
   // Core metrics functions

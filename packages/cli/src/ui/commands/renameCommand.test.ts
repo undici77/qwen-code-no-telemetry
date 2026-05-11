@@ -9,6 +9,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renameCommand } from './renameCommand.js';
 import { CommandKind } from './types.js';
+import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 
 vi.mock('@qwen-code/qwen-code-core', async () => {
   const actual = await vi.importActual<
@@ -31,6 +32,7 @@ describe('renameCommand', () => {
     getGeminiClient: vi.fn().mockReturnValue({
       getHistory: vi.fn().mockReturnValue([]),
     }),
+    getBaseLlmClient: vi.fn(),
   };
 
   const mockUi = {
@@ -38,14 +40,17 @@ describe('renameCommand', () => {
     setSessionName: vi.fn(),
   };
 
-  const mockContext = {
-    services: { config: mockConfig },
-    ui: mockUi,
-    abortSignal: new AbortController().signal,
-  };
+  let mockContext = createMockCommandContext({
+    services: { config: mockConfig as any },
+    ui: mockUi as any,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockContext = createMockCommandContext({
+      services: { config: mockConfig as any },
+      ui: mockUi as any,
+    });
   });
 
   it('has correct metadata', () => {
@@ -61,7 +66,7 @@ describe('renameCommand', () => {
     mockConfig.getChatRecordingService.mockReturnValue(mockRecordingService);
 
     const result = (await renameCommand.action!(
-      mockContext as any,
+      mockContext,
       'my-new-name',
     )) as any;
 
@@ -76,10 +81,7 @@ describe('renameCommand', () => {
 
   it('fails if name is too long', async () => {
     const longName = 'a'.repeat(300);
-    const result = (await renameCommand.action!(
-      mockContext as any,
-      longName,
-    )) as any;
+    const result = (await renameCommand.action!(mockContext, longName)) as any;
 
     expect(result.messageType).toBe('error');
     expect(result.content).toContain('too long');
@@ -100,10 +102,7 @@ describe('renameCommand', () => {
     };
     mockConfig.getChatRecordingService.mockReturnValue(mockRecordingService);
 
-    const result = (await renameCommand.action!(
-      mockContext as any,
-      '--auto',
-    )) as any;
+    const result = (await renameCommand.action!(mockContext, '--auto')) as any;
 
     expect(tryGenerateSessionTitle).toHaveBeenCalled();
     expect(mockRecordingService.recordCustomTitle).toHaveBeenCalledWith(
@@ -118,13 +117,74 @@ describe('renameCommand', () => {
   it('fails --auto if no fast model is configured', async () => {
     mockConfig.getFastModel.mockReturnValue(undefined);
 
-    const result = (await renameCommand.action!(
-      mockContext as any,
-      '--auto',
-    )) as any;
+    const result = (await renameCommand.action!(mockContext, '--auto')) as any;
 
     expect(result.messageType).toBe('error');
     expect(result.content).toContain('requires a fast model');
+  });
+
+  describe('bare /rename model selection', () => {
+    // Pins the kebab-case path's model choice: bare `/rename` (no args)
+    // prefers fastModel when one is configured, falls back to the main
+    // model otherwise. Previous tests mocked `getHistory: []` which bailed
+    // before the model selection ran, leaving this regression-prone.
+    function mockConfigForKebab(opts: { fastModel?: string; model?: string }): {
+      config: unknown;
+      generateText: ReturnType<typeof vi.fn>;
+    } {
+      const generateText = vi.fn().mockResolvedValue({
+        text: 'fix-login-bug',
+        usage: undefined,
+      });
+      const config = {
+        getChatRecordingService: vi.fn().mockReturnValue({
+          recordCustomTitle: vi.fn().mockReturnValue(true),
+        }),
+        getFastModel: vi.fn().mockReturnValue(opts.fastModel),
+        getModel: vi.fn().mockReturnValue(opts.model ?? 'main-model'),
+        getGeminiClient: vi.fn().mockReturnValue({
+          getHistory: vi.fn().mockReturnValue([
+            { role: 'user', parts: [{ text: 'fix the login bug' }] },
+            {
+              role: 'model',
+              parts: [{ text: 'Looking at the handler now.' }],
+            },
+          ]),
+        }),
+        getBaseLlmClient: vi.fn().mockReturnValue({ generateText }),
+      };
+      return { config, generateText };
+    }
+
+    it('uses fastModel when configured', async () => {
+      const { config, generateText } = mockConfigForKebab({
+        fastModel: 'qwen-turbo',
+        model: 'main-model',
+      });
+      const kebabContext = createMockCommandContext({
+        services: { config: config as any },
+      });
+
+      await renameCommand.action!(kebabContext, '');
+
+      expect(generateText).toHaveBeenCalledOnce();
+      expect(generateText.mock.calls[0][0].model).toBe('qwen-turbo');
+    });
+
+    it('falls back to main model when fastModel is unset', async () => {
+      const { config, generateText } = mockConfigForKebab({
+        fastModel: undefined,
+        model: 'main-model',
+      });
+      const kebabContext = createMockCommandContext({
+        services: { config: config as any },
+      });
+
+      await renameCommand.action!(kebabContext, '');
+
+      expect(generateText).toHaveBeenCalledOnce();
+      expect(generateText.mock.calls[0][0].model).toBe('main-model');
+    });
   });
 
   it('supports -- separator for literal names starting with dashes', async () => {
@@ -135,7 +195,7 @@ describe('renameCommand', () => {
 
     // Should NOT treat --auto as a flag here
     const result = (await renameCommand.action!(
-      mockContext as any,
+      mockContext,
       '-- --auto',
     )) as any;
 
