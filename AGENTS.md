@@ -62,12 +62,12 @@ When merging from `main`, conflicts may arise due to:
 
 ### Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.5-no-telemetry` to `v0.15.10-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.14.5-no-telemetry` to `v0.15.11-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                                                                                        |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`                                                              |
-| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.15.10`) |
+| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.15.11`) |
 | `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references                                                                      |
 | CI/CD configuration files                    | Version tags and refs                                                                                 |
 
