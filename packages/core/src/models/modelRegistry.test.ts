@@ -10,7 +10,7 @@ import {
   QWEN_OAUTH_MODELS,
   modelRegistryKey,
 } from './modelRegistry.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { ModelProvidersConfig } from './types.js';
 
 describe('ModelRegistry', () => {

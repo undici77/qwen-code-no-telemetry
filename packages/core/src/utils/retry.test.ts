@@ -22,7 +22,7 @@ import {
 } from './retry.js';
 import { getErrorStatus } from './errors.js';
 import { setSimulate429 } from './testUtils.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 
 // Helper to create a mock function that fails a certain number of times
 const createFailingFunction = (

@@ -8,7 +8,7 @@ import { DEFAULT_QWEN_MODEL, MAINLINE_CODER_MODEL } from '../config/models.js';
 
 import type { ModelConfig } from './types.js';
 
-type AuthType = import('../core/contentGenerator.js').AuthType;
+type AuthType = import('../core/authTypes.js').AuthType;
 type ContentGeneratorConfig =
   import('../core/contentGenerator.js').ContentGeneratorConfig;
 

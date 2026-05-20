@@ -5,7 +5,7 @@
  */
 
 import { isApiError, isStructuredError } from './quotaErrorDetection.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 
 const RATE_LIMIT_MESSAGE_BY_AUTH = {
   [AuthType.USE_GEMINI]:

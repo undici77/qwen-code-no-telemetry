@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseAndFormatApiError } from './errorParsing.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { StructuredError } from '../core/turn.js';
 
 describe('parseAndFormatApiError', () => {

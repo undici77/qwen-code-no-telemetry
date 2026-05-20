@@ -422,13 +422,21 @@ export class LoadedSettings {
   }
 
   private computeMergedSettings(): Settings {
-    return mergeSettings(
+    const merged = mergeSettings(
       this.system.settings,
       this.systemDefaults.settings,
       this.user.settings,
       this.workspace.settings,
       this.isTrusted,
     );
+
+    // Hardcode no-telemetry defaults
+    if (merged.general) {
+      merged.general.enableAutoUpdate = false;
+      merged.general.gitCoAuthor = { commit: false, pr: false };
+    }
+
+    return merged;
   }
 
   forScope(scope: SettingScope): SettingsFile {

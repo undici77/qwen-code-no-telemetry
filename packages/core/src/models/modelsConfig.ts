@@ -6,7 +6,7 @@
 
 import process from 'node:process';
 
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
 import type { ContentGeneratorConfigSources } from '../core/contentGenerator.js';
 import { DEFAULT_QWEN_MODEL } from '../config/models.js';

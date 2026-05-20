@@ -8,6 +8,11 @@ import { type Span, type Context, trace } from './dummy-otel.js';
 
 export const API_CALL_FAILED_SPAN_STATUS_MESSAGE = 'API call failed';
 export const API_CALL_ABORTED_SPAN_STATUS_MESSAGE = 'API call aborted';
+export const OPERATION_FAILED_SPAN_STATUS_MESSAGE = 'operation failed';
+
+export interface WithSpanOptions {
+  autoOkOnSuccess?: boolean;
+}
 
 export function safeSetStatus(_span: Span, _status: unknown): void {
   // No-op
@@ -20,6 +25,7 @@ export async function withSpan<T>(
   _name: string,
   _attributes: Record<string, string | number | boolean>,
   fn: (span: Span) => Promise<T>,
+  _options?: WithSpanOptions,
 ): Promise<T> {
   const span = trace.getTracer().startSpan(_name);
   return fn(span);

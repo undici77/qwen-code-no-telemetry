@@ -35,6 +35,7 @@ export type Attributes = Record<string, any>;
 export type Context = any;
 export type Exception = any;
 export type Span = any;
+export type SpanContext = any;
 export type SpanOptions = any;
 export type Tracer = any;
 export type HrTime = [number, number];

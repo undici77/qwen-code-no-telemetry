@@ -8,8 +8,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   createContentGenerator,
   createContentGeneratorConfig,
-  AuthType,
 } from './contentGenerator.js';
+import { AuthType } from './authTypes.js';
 import { GoogleGenAI } from '@google/genai';
 import type { Config } from '../config/config.js';
 import { LoggingContentGenerator } from './loggingContentGenerator/index.js';

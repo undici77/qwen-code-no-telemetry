@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createGeminiContentGenerator } from './index.js';
 import { GeminiContentGenerator } from './geminiContentGenerator.js';
 import type { Config } from '../../config/config.js';
-import { AuthType } from '../contentGenerator.js';
+import { AuthType } from '../authTypes.js';
 
 vi.mock('./geminiContentGenerator.js', () => ({
   GeminiContentGenerator: vi.fn().mockImplementation(() => ({})),

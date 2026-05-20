@@ -27,6 +27,7 @@ export interface LLMRequestMetadata {
 export interface ToolSpanMetadata {
   success?: boolean;
   error?: string;
+  cancelled?: boolean;
 }
 
 export function startInteractionSpan(
@@ -39,16 +40,30 @@ export function endInteractionSpan(
   _metadata?: EndInteractionOptions,
 ): void {}
 
-export function startLLMRequestSpan(): void {}
+export function startLLMRequestSpan(_model?: string, _promptId?: string): any {
+  return {};
+}
 
-export function endLLMRequestSpan(_metadata: LLMRequestMetadata): void {}
+export function endLLMRequestSpan(_span: any, _metadata?: LLMRequestMetadata): void {}
 
-export function startToolSpan(_toolName: string): void {}
+export function startToolSpan(_toolName: string, _attrs?: Record<string, string | number | boolean>): any {
+  return {};
+}
 
-export function endToolSpan(_metadata: ToolSpanMetadata): void {}
+export function endToolSpan(_span: any, _metadata?: ToolSpanMetadata): void {}
 
-export function startToolExecutionSpan(_toolName: string): void {}
+export function startToolExecutionSpan(_parentToolSpan?: any): any {
+  return {};
+}
 
-export function endToolExecutionSpan(_metadata: ToolSpanMetadata): void {}
+export function endToolExecutionSpan(_span: any, _metadata?: ToolSpanMetadata): void {}
+
+export function runInToolSpanContext<T>(_span: any, fn: () => T): T {
+  return fn();
+}
+
+export function getActiveInteractionSpan(): any {
+  return undefined;
+}
 
 export function clearSessionTracingForTesting(): void {}

@@ -27,8 +27,8 @@ import {
   createContentGenerator,
   createContentGeneratorConfig,
   resolveContentGeneratorConfigWithSources,
-  AuthType,
 } from '../../core/contentGenerator.js';
+import { AuthType } from '../../core/authTypes.js';
 import { GeminiChat } from '../../core/geminiChat.js';
 import { executeToolCall } from '../../core/nonInteractiveToolExecutor.js';
 import type { ToolRegistry } from '../../tools/tool-registry.js';
@@ -54,6 +54,7 @@ vi.mock('../../core/geminiChat.js');
 vi.mock('../../core/contentGenerator.js', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../../core/contentGenerator.js')>();
+  const { AuthType } = await import('../../core/authTypes.js');
   const { DEFAULT_QWEN_MODEL } = await import('../../config/models.js');
   return {
     ...actual,
@@ -66,12 +67,12 @@ vi.mock('../../core/contentGenerator.js', async (importOriginal) => {
     }),
     createContentGeneratorConfig: vi.fn().mockReturnValue({
       model: DEFAULT_QWEN_MODEL,
-      authType: actual.AuthType.USE_GEMINI,
+      authType: AuthType.USE_GEMINI,
     }),
     resolveContentGeneratorConfigWithSources: vi.fn().mockReturnValue({
       config: {
         model: DEFAULT_QWEN_MODEL,
-        authType: actual.AuthType.USE_GEMINI,
+        authType: AuthType.USE_GEMINI,
         apiKey: 'test-api-key',
       },
       sources: {},

@@ -13,10 +13,10 @@ import {
   type RuntimeContentGeneratorView,
 } from './agent-context.js';
 import {
-  AuthType,
   type ContentGenerator,
   type ContentGeneratorConfig,
 } from '../../core/contentGenerator.js';
+import { AuthType } from '../../core/authTypes.js';
 
 function makeView(model: string): RuntimeContentGeneratorView {
   return {
