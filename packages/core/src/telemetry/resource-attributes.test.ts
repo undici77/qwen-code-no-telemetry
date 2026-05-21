@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { diag } from '@opentelemetry/api';
+import { diag } from './dummy-otel.js';
 import type { ResourceAttributeWarnings } from './resource-attributes.js';
 import {
   RESERVED_RESOURCE_ATTRIBUTE_KEYS,

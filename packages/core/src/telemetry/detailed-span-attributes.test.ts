@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Span, Attributes, SpanContext } from '@opentelemetry/api';
+import type { Span, Attributes, SpanContext } from './dummy-otel.js';
 
 const mockState = vi.hoisted(() => ({
   sdkInitialized: true,

@@ -15,7 +15,7 @@ import {
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Storage } from '../config/storage.js';
-import { trace, type Context, type Span } from '@opentelemetry/api';
+import { trace, type Context, type Span } from '../telemetry/dummy-otel.js';
 import { setSessionContext } from '../telemetry/session-context.js';
 
 vi.mock('node:fs', async (importOriginal) => {

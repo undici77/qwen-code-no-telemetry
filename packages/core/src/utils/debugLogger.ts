@@ -8,7 +8,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import util from 'node:util';
-import { trace } from '@opentelemetry/api';
+import { trace } from '../telemetry/dummy-otel.js';
 import { Storage } from '../config/storage.js';
 import { updateSymlink } from './symlink.js';
 import { getSessionContext } from '../telemetry/session-context.js';

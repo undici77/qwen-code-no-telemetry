@@ -10,7 +10,7 @@ import type {
   GenerateContentResponseUsageMetadata,
 } from '@google/genai';
 import { GenerateContentResponse } from '@google/genai';
-import { SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode } from '../../telemetry/dummy-otel.js';
 import type { Config } from '../../config/config.js';
 import type { ContentGenerator } from '../contentGenerator.js';
 import { AuthType } from '../authTypes.js';

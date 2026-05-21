@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { Span } from '@opentelemetry/api';
+import type { Span } from './dummy-otel.js';
 import type { Config } from '../config/config.js';
 import { isTelemetrySdkInitialized } from './sdk.js';
 import { safeJsonStringify } from '../utils/safeJsonStringify.js';

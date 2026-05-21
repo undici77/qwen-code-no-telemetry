@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { ROOT_CONTEXT, createContextKey } from '@opentelemetry/api';
+import { ROOT_CONTEXT, createContextKey } from './dummy-otel.js';
 import {
   getSessionContext,
   setSessionContext,

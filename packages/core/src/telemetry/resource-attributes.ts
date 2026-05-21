@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { diag } from '@opentelemetry/api';
+import { diag } from './dummy-otel.js';
 
 /**
  * Resource attribute keys that cannot be overridden from any user-controlled

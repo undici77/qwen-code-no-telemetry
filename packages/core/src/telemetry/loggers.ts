@@ -5,6 +5,12 @@
  */
 
 import type { Config } from '../config/config.js';
+import {
+  uiTelemetryService,
+  EVENT_TOOL_CALL,
+  EVENT_API_ERROR,
+  EVENT_API_RESPONSE,
+} from './uiTelemetry.js';
 import type {
   ApiErrorEvent,
   ApiCancelEvent,
@@ -63,7 +69,14 @@ export function logStartSession(
 export function logUserPrompt(_config: Config, _event: UserPromptEvent): void {}
 export function logUserRetry(_config: Config, _event: UserRetryEvent): void {}
 
-export function logToolCall(_config: Config, _event: ToolCallEvent): void {}
+export function logToolCall(config: Config, event: ToolCallEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
+
 export function logHookCall(_config: Config, _event: HookCallEvent): void {}
 export function logToolOutputTruncated(
   _config: Config,
@@ -84,12 +97,23 @@ export function logRipgrepFallback(
   _event: RipgrepFallbackEvent,
 ): void {}
 
-export function logApiError(_config: Config, _event: ApiErrorEvent): void {}
+export function logApiError(config: Config, event: ApiErrorEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
+
 export function logApiCancel(_config: Config, _event: ApiCancelEvent): void {}
-export function logApiResponse(
-  _config: Config,
-  _event: ApiResponseEvent,
-): void {}
+
+export function logApiResponse(config: Config, event: ApiResponseEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
 
 export function logLoopDetected(
   _config: Config,

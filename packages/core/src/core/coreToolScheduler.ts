@@ -88,7 +88,7 @@ import { getPlanModeSystemReminder } from './prompts.js';
 import { ShellToolInvocation } from '../tools/shell.js';
 import { IdeClient } from '../ide/ide-client.js';
 import { safeSetStatus } from '../telemetry/tracer.js';
-import { SpanStatusCode, type Span } from '@opentelemetry/api';
+import { SpanStatusCode, type Span } from '../telemetry/dummy-otel.js';
 import {
   startToolSpan,
   endToolSpan,
