@@ -1,0 +1,128 @@
+/**
+ * @license
+ * Copyright 2025 Qwen Team
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/**
+ * Default HTTP status mapping. Centralized here so callers can throw
+ * `new FsError('path_not_found', 'message')` without re-deriving the
+ * status; the constructor still accepts an explicit status override
+ * for the rare case where a kind is reused under a different status
+ * (e.g. `parse_error` may be 400 from a request body but 422 from a
+ * service-level invariant breach).
+ */
+const DEFAULT_STATUS_BY_KIND = {
+    path_outside_workspace: 400,
+    symlink_escape: 400,
+    path_not_found: 404,
+    binary_file: 422,
+    file_too_large: 413,
+    hash_mismatch: 409,
+    file_already_exists: 409,
+    text_not_found: 422,
+    ambiguous_text_match: 422,
+    untrusted_workspace: 403,
+    permission_denied: 403,
+    io_error: 503,
+    internal_error: 500,
+    parse_error: 400,
+};
+/**
+ * Typed boundary error. PR 18 ships the class only — no route
+ * serializes it yet. PR 19/20 add a `sendFsError(res, err)` helper
+ * that maps `kind`/`status`/`hint` onto the envelope.
+ *
+ * Why a class rather than a plain object: `instanceof FsError`
+ * gives the orchestrator a single catch-clause to convert thrown
+ * boundary errors into `fs.denied` audit events without also
+ * eating unrelated runtime errors (`TypeError`, `ENOENT` from a
+ * lower-level `fs.promises` call that escaped categorization, etc.).
+ */
+export class FsError extends Error {
+    kind;
+    status;
+    hint;
+    constructor(kind, message, options) {
+        super(message, options?.cause === undefined ? undefined : { cause: options.cause });
+        this.name = 'FsError';
+        this.kind = kind;
+        this.status = options?.status ?? DEFAULT_STATUS_BY_KIND[kind];
+        this.hint = options?.hint;
+    }
+}
+/**
+ * Type guard for catch sites that need to distinguish boundary
+ * errors from generic `Error` instances.
+ */
+export function isFsError(err) {
+    return err instanceof FsError;
+}
+/**
+ * Coerce an arbitrary thrown value into an `FsError`. Used by the
+ * orchestrator's catch blocks so every body-level failure surfaces
+ * as a typed error AND emits an `fs.denied` audit event — without
+ * this, raw `fs.promises` errnos (`EACCES`, `ENOENT`, `ELOOP`, …)
+ * propagate uncategorized, the audit log loses denial visibility,
+ * and PR 19/20 routes degrade to opaque 5xx responses.
+ *
+ * Already-typed `FsError`s pass through unchanged so callers can
+ * safely chain this on every catch.
+ */
+export function wrapAsFsError(err, fallbackKind = 'internal_error') {
+    if (err instanceof FsError)
+        return err;
+    const errno = err?.code;
+    const message = err instanceof Error ? err.message : 'unknown filesystem error';
+    switch (errno) {
+        case 'ENOENT':
+            return new FsError('path_not_found', message, { cause: err });
+        case 'EACCES':
+        case 'EPERM':
+            return new FsError('permission_denied', message, { cause: err });
+        case 'ELOOP':
+            return new FsError('symlink_escape', message, {
+                cause: err,
+                hint: 'symlink chain forms a cycle or exceeds SYMLOOP_MAX',
+            });
+        case 'EISDIR':
+            return new FsError('parse_error', message, {
+                cause: err,
+                hint: 'EISDIR — path is a directory but a regular file was expected',
+            });
+        case 'ENOTDIR':
+            return new FsError('parse_error', message, {
+                cause: err,
+                hint: 'ENOTDIR — a path component is a regular file but a directory was expected',
+            });
+        case 'ENOSPC':
+            return new FsError('io_error', message, {
+                cause: err,
+                hint: 'filesystem is full (df -h reporting 100%)',
+            });
+        case 'EIO':
+            return new FsError('io_error', message, {
+                cause: err,
+                hint: 'underlying I/O error (failing disk or kernel-level fault)',
+            });
+        case 'EBUSY':
+        case 'ETXTBSY':
+            return new FsError('io_error', message, {
+                cause: err,
+                hint: 'file is busy; another process holds an exclusive handle',
+            });
+        case 'ENAMETOOLONG':
+            return new FsError('io_error', message, {
+                cause: err,
+                hint: 'path exceeds the OS PATH_MAX',
+            });
+        case 'EMFILE':
+        case 'ENFILE':
+            return new FsError('io_error', message, {
+                cause: err,
+                hint: 'too many open files; daemon is at file-descriptor limit',
+            });
+        default:
+            return new FsError(fallbackKind, message, { cause: err });
+    }
+}
+//# sourceMappingURL=errors.js.map

@@ -1,0 +1,357 @@
+/**
+ * @license
+ * Copyright 2025 Qwen Code
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import fs from 'node:fs';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { Config } from '../config/config.js';
+import { ChatRecordingService, } from './chatRecordingService.js';
+import { SessionService } from './sessionService.js';
+import * as jsonl from '../utils/jsonl-utils.js';
+vi.mock('node:fs');
+vi.mock('../utils/jsonl-utils.js');
+describe('ChatRecordingService - custom title', () => {
+    let config;
+    let recordingService;
+    let sessionService;
+    beforeEach(() => {
+        vi.clearAllMocks();
+        config = new Config({
+            targetDir: '/test/project',
+            cwd: '/test/project',
+            debugMode: false,
+        });
+        config.sessionId = 'test-session-id';
+        config.projectRoot = '/test/project';
+        sessionService = new SessionService('/test/project');
+        vi.spyOn(config, 'getSessionService').mockReturnValue(sessionService);
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.mkdirSync).mockImplementation(() => undefined);
+        // writeLine is async; mockResolvedValue lets the writeChain settle on flush.
+        vi.mocked(jsonl.writeLine).mockResolvedValue(undefined);
+    });
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+    it('should record custom title with manual source by default', async () => {
+        recordingService = new ChatRecordingService(config);
+        const ok = recordingService.recordCustomTitle('my-title');
+        await recordingService.flush();
+        expect(ok).toBe(true);
+        expect(jsonl.writeLine).toHaveBeenCalledOnce();
+        const record = vi.mocked(jsonl.writeLine).mock.calls[0][1];
+        expect(record.subtype).toBe('custom_title');
+        expect(record.systemPayload).toEqual({
+            customTitle: 'my-title',
+            titleSource: 'manual',
+        });
+    });
+    it('should allow recording custom title with auto source', async () => {
+        recordingService = new ChatRecordingService(config);
+        const ok = recordingService.recordCustomTitle('auto-title', 'auto');
+        await recordingService.flush();
+        expect(ok).toBe(true);
+        const record = vi.mocked(jsonl.writeLine).mock.calls[0][1];
+        expect(record.systemPayload).toEqual({
+            customTitle: 'auto-title',
+            titleSource: 'auto',
+        });
+    });
+    it('should maintain parent chain when recording title after other records', async () => {
+        recordingService = new ChatRecordingService(config);
+        recordingService.recordUserMessage([{ text: 'hello' }]);
+        recordingService.recordCustomTitle('my-feature');
+        await recordingService.flush();
+        expect(jsonl.writeLine).toHaveBeenCalledTimes(2);
+        const userRecord = vi.mocked(jsonl.writeLine).mock
+            .calls[0][1];
+        const titleRecord = vi.mocked(jsonl.writeLine).mock
+            .calls[1][1];
+        expect(titleRecord.parentUuid).toBe(userRecord.uuid);
+    });
+    it('should include correct metadata in the record', async () => {
+        recordingService = new ChatRecordingService(config);
+        recordingService.recordCustomTitle('test-title');
+        await recordingService.flush();
+        const writtenRecord = vi.mocked(jsonl.writeLine).mock
+            .calls[0][1];
+        expect(writtenRecord.cwd).toBe('/test/project');
+        expect(writtenRecord.version).toBeDefined();
+        expect(writtenRecord.uuid).toBeDefined();
+        expect(writtenRecord.timestamp).toBeDefined();
+    });
+    it('should load persisted title and source on resume', async () => {
+        vi.spyOn(config, 'getResumedSessionData').mockReturnValue({
+            conversation: {
+                sessionId: 'test-session-id',
+                projectHash: 'hash',
+                startTime: '2024-01-01',
+                lastUpdated: '2024-01-01',
+                messages: [],
+            },
+            filePath: '/path/to/chat.jsonl',
+            lastCompletedUuid: 'last-uuid',
+        });
+        vi.spyOn(sessionService, 'getSessionTitleInfo').mockReturnValue({
+            title: 'Resumed Title',
+            source: 'auto',
+        });
+        recordingService = new ChatRecordingService(config);
+        await recordingService.flush();
+        expect(recordingService.getCurrentCustomTitle()).toBe('Resumed Title');
+        expect(recordingService.getCurrentTitleSource()).toBe('auto');
+        // Verify it re-appends to EOF on resume (via finalize call in constructor)
+        expect(jsonl.writeLine).toHaveBeenCalledOnce();
+        const record = vi.mocked(jsonl.writeLine).mock.calls[0][1];
+        expect(record.systemPayload).toEqual({
+            customTitle: 'Resumed Title',
+            titleSource: 'auto',
+        });
+    });
+    describe('finalize', () => {
+        it('should re-append cached custom title to EOF', async () => {
+            recordingService = new ChatRecordingService(config);
+            recordingService.recordCustomTitle('my-feature');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            recordingService.finalize();
+            await recordingService.flush();
+            expect(jsonl.writeLine).toHaveBeenCalledOnce();
+            const record = vi.mocked(jsonl.writeLine).mock.calls[0][1];
+            expect(record.type).toBe('system');
+            expect(record.subtype).toBe('custom_title');
+            expect(record.systemPayload).toEqual({
+                customTitle: 'my-feature',
+                titleSource: 'manual',
+            });
+        });
+        it('should not write anything when no custom title was set', async () => {
+            recordingService = new ChatRecordingService(config);
+            recordingService.finalize();
+            await recordingService.flush();
+            expect(jsonl.writeLine).not.toHaveBeenCalled();
+        });
+        it('should re-append the latest title after multiple renames', async () => {
+            recordingService = new ChatRecordingService(config);
+            recordingService.recordCustomTitle('first-name');
+            recordingService.recordCustomTitle('second-name');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            recordingService.finalize();
+            await recordingService.flush();
+            expect(jsonl.writeLine).toHaveBeenCalledOnce();
+            const record = vi.mocked(jsonl.writeLine).mock.calls[0][1];
+            expect(record.systemPayload).toEqual({
+                customTitle: 'second-name',
+                titleSource: 'manual',
+            });
+        });
+    });
+    describe('title re-anchor invariant', () => {
+        it('re-anchors the title once enough non-title bytes accumulate', async () => {
+            // Write a title, then keep appending bulky messages until the
+            // running tally crosses the 32KB threshold. The first non-title
+            // record after the threshold should provoke a fresh
+            // custom_title append at EOF — keeping the title within the
+            // 64KB tail window the picker scans even if no lifecycle event
+            // (finalize) has fired.
+            recordingService.recordCustomTitle('long-running-task');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            // Each user message carries ~2KB of text — 20 of them put well
+            // over 32KB on the wire (counting the ~200B per-record envelope).
+            const bulkText = 'x'.repeat(2000);
+            for (let i = 0; i < 20; i++) {
+                recordingService.recordUserMessage([{ text: bulkText }]);
+            }
+            await recordingService.flush();
+            const writes = vi.mocked(jsonl.writeLine).mock.calls;
+            const titleAppendsAfterClear = writes.filter(([, record]) => {
+                const r = record;
+                return r.type === 'system' && r.subtype === 'custom_title';
+            });
+            expect(titleAppendsAfterClear.length).toBeGreaterThanOrEqual(1);
+            // The re-anchored record must carry the same title + source as
+            // the original — it's a copy, not a fresh rename.
+            const reanchored = titleAppendsAfterClear[0][1];
+            expect(reanchored.systemPayload).toEqual({
+                customTitle: 'long-running-task',
+                titleSource: 'manual',
+            });
+        });
+        it('does not let threshold re-anchor records become the active parent tail', async () => {
+            recordingService.recordCustomTitle('long-running-task');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            recordingService.recordUserMessage([{ text: 'before bulk' }]);
+            recordingService.recordUserMessage([{ text: 'x'.repeat(40 * 1024) }]);
+            recordingService.recordUserMessage([{ text: 'after re-anchor' }]);
+            await recordingService.flush();
+            const records = vi
+                .mocked(jsonl.writeLine)
+                .mock.calls.map(([, record]) => record);
+            const reanchorIndex = records.findIndex((record) => record.type === 'system' && record.subtype === 'custom_title');
+            expect(reanchorIndex).toBeGreaterThan(0);
+            const triggeringUser = records[reanchorIndex - 1];
+            const nextUser = records
+                .slice(reanchorIndex + 1)
+                .find((record) => record.type === 'user');
+            const reanchor = records[reanchorIndex];
+            expect(triggeringUser.type).toBe('user');
+            expect(nextUser).toBeDefined();
+            expect(nextUser?.parentUuid).toBe(triggeringUser.uuid);
+            expect(nextUser?.parentUuid).not.toBe(reanchor.uuid);
+        });
+        it('does not re-anchor when no title has been set', async () => {
+            recordingService = new ChatRecordingService(config);
+            // The counter only matters when there's a title to keep alive;
+            // sessions that never set one shouldn't pay for spurious writes.
+            const bulkText = 'x'.repeat(2000);
+            for (let i = 0; i < 30; i++) {
+                recordingService.recordUserMessage([{ text: bulkText }]);
+            }
+            await recordingService.flush();
+            const titleAppends = vi
+                .mocked(jsonl.writeLine)
+                .mock.calls.filter(([, record]) => {
+                const r = record;
+                return r.type === 'system' && r.subtype === 'custom_title';
+            });
+            expect(titleAppends).toHaveLength(0);
+        });
+        it('omits titleSource on re-anchor when source is unknown (legacy resumed session)', async () => {
+            // The picker dim-styling depends on the persisted `titleSource`
+            // discriminator. Legacy `custom_title` records (written before
+            // the field existed) have no source — `getSessionTitleInfo`
+            // returns `source: undefined` for those, and the writer's
+            // re-anchor invariant must mirror that exact shape: emit
+            // `customTitle` alone, never a hardcoded `'manual'`. Otherwise
+            // resuming a legacy session on a current build would silently
+            // reclassify it the first time the threshold fires.
+            vi.spyOn(config, 'getResumedSessionData').mockReturnValue({
+                conversation: {
+                    sessionId: 'test-session-id',
+                    projectHash: 'hash',
+                    startTime: '2024-01-01',
+                    lastUpdated: '2024-01-01',
+                    messages: [],
+                },
+                filePath: '/path/to/chat.jsonl',
+                lastCompletedUuid: null,
+            });
+            const getSessionTitleInfo = vi
+                .fn()
+                .mockReturnValue({ title: 'legacy-title', source: undefined });
+            vi.spyOn(sessionService, 'getSessionTitleInfo').mockImplementation(getSessionTitleInfo);
+            const svc = new ChatRecordingService(config);
+            // Constructor's finalize re-appends a custom_title record on resume
+            // — clear it out so we can isolate the threshold-triggered re-anchor.
+            await svc.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            const bulkText = 'x'.repeat(2000);
+            for (let i = 0; i < 20; i++) {
+                svc.recordUserMessage([{ text: bulkText }]);
+            }
+            await svc.flush();
+            const titleAppends = vi
+                .mocked(jsonl.writeLine)
+                .mock.calls.filter(([, record]) => {
+                const r = record;
+                return r.type === 'system' && r.subtype === 'custom_title';
+            });
+            expect(titleAppends.length).toBeGreaterThanOrEqual(1);
+            const reanchored = titleAppends[0][1];
+            // Key must be ABSENT, not present-and-undefined — JSON.stringify
+            // would still serialize an explicit `undefined` away, but the
+            // record-shape contract is "no key when no source", so pin it.
+            expect(reanchored.systemPayload).toEqual({ customTitle: 'legacy-title' });
+            expect(Object.prototype.hasOwnProperty.call(reanchored.systemPayload, 'titleSource')).toBe(false);
+        });
+        it('counts UTF-8 bytes, not UTF-16 code units, when measuring bulk writes', async () => {
+            // CJK characters are 1 UTF-16 code unit but 3 UTF-8 bytes. The wire
+            // format is UTF-8 (jsonl.writeLine emits utf8), so a per-record
+            // `String.length` undercounts a multi-byte payload by ~3×. A naive
+            // length-based counter would let ~96KB of CJK content land on disk
+            // before the 32KB threshold thinks it has — pushing the title past
+            // the 64KB tail window the picker scans.
+            //
+            // Twelve 1500-char CJK messages ≈ 21K UTF-16 units (under threshold)
+            // but ≈ 57K UTF-8 bytes (over). Anchor fires only when the counter
+            // measures bytes, not chars.
+            recordingService.recordCustomTitle('cjk-session');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            const cjkText = '汉'.repeat(1500);
+            for (let i = 0; i < 12; i++) {
+                recordingService.recordUserMessage([{ text: cjkText }]);
+            }
+            await recordingService.flush();
+            const titleAppends = vi
+                .mocked(jsonl.writeLine)
+                .mock.calls.filter(([, record]) => {
+                const r = record;
+                return r.type === 'system' && r.subtype === 'custom_title';
+            });
+            expect(titleAppends.length).toBeGreaterThanOrEqual(1);
+        });
+        it('resets the byte counter when re-anchor fails — no retry storm', async () => {
+            // If reanchorTitle throws (disk full, permission revoked) and we
+            // leave the byte counter pinned at the threshold, every subsequent
+            // appendRecord will re-fire the failing reanchor — an unbounded
+            // retry storm that amplifies I/O pressure on an already-degraded
+            // system. Resetting on failure trades one missed anchor for
+            // bounded recovery; finalize() will re-emit on the next lifecycle
+            // event.
+            recordingService.recordCustomTitle('long-running-task');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            // Wrap the private appendRecord so any custom_title append (i.e.
+            // a re-anchor — the initial title write already happened) throws.
+            // Bulk records pass through to the real implementation so the
+            // byte counter still accumulates exactly as production would.
+            let reanchorAttempts = 0;
+            const svc = recordingService;
+            const originalAppendRecord = svc.appendRecord.bind(recordingService);
+            svc.appendRecord = (record) => {
+                if (record.type === 'system' && record.subtype === 'custom_title') {
+                    reanchorAttempts++;
+                    throw new Error('simulated disk-full');
+                }
+                return originalAppendRecord(record);
+            };
+            // 25 × 2KB ≈ 50KB > 32KB → first re-anchor fires (and throws).
+            // With the counter-reset fix, it stays reset; without it, every
+            // subsequent message would re-trigger reanchor.
+            const bulkText = 'x'.repeat(2000);
+            for (let i = 0; i < 25; i++) {
+                recordingService.recordUserMessage([{ text: bulkText }]);
+            }
+            await recordingService.flush();
+            // One failed attempt is acceptable; multiple means the counter was
+            // pinned and turned a single fault into a per-record loop.
+            expect(reanchorAttempts).toBe(1);
+        });
+        it('does not re-anchor on small write bursts under threshold', async () => {
+            // A handful of small messages must not trigger a re-anchor —
+            // the cost would defeat the whole point. Threshold is 32KB;
+            // five 200B user messages stay safely under it.
+            recordingService.recordCustomTitle('quick-session');
+            await recordingService.flush();
+            vi.mocked(jsonl.writeLine).mockClear();
+            for (let i = 0; i < 5; i++) {
+                recordingService.recordUserMessage([{ text: 'short' }]);
+            }
+            await recordingService.flush();
+            const titleAppends = vi
+                .mocked(jsonl.writeLine)
+                .mock.calls.filter(([, record]) => {
+                const r = record;
+                return r.type === 'system' && r.subtype === 'custom_title';
+            });
+            expect(titleAppends).toHaveLength(0);
+        });
+    });
+});
+//# sourceMappingURL=chatRecordingService.customTitle.test.js.map

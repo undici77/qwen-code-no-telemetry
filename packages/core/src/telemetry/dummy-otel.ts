@@ -117,10 +117,10 @@ export const trace = {
 };
 
 export const diag = {
-  error: () => {},
-  warn: () => {},
-  info: () => {},
-  debug: () => {},
+  error: (..._args: any[]) => {},
+  warn: (..._args: any[]) => {},
+  info: (..._args: any[]) => {},
+  debug: (..._args: any[]) => {},
   setLogger: () => {},
 };
 

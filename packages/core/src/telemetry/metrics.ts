@@ -33,20 +33,42 @@ export const REGRESSION_PERCENTAGE_CHANGE =
   'qwen-code.performance.regression.percentage_change';
 export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
-export type FileOperation = 'create' | 'read' | 'update' | 'delete';
-export type MemoryMetricType = 'rss' | 'heapTotal' | 'heapUsed' | 'external';
-export type ToolExecutionPhase = 'setup' | 'execution' | 'teardown';
-export type ApiRequestPhase = 'request' | 'response';
-export type PerformanceMetricType =
-  | 'startup'
-  | 'memory'
-  | 'cpu'
-  | 'tool_queue'
-  | 'tool_execution'
-  | 'token_efficiency'
-  | 'api_request'
-  | 'performance_score'
-  | 'regression_detection';
+export enum FileOperation {
+  CREATE = 'create',
+  READ = 'read',
+  UPDATE = 'update',
+  DELETE = 'delete',
+}
+
+export enum MemoryMetricType {
+  RSS = 'rss',
+  HEAP_TOTAL = 'heapTotal',
+  HEAP_USED = 'heapUsed',
+  EXTERNAL = 'external',
+}
+
+export enum ToolExecutionPhase {
+  SETUP = 'setup',
+  EXECUTION = 'execution',
+  TEARDOWN = 'teardown',
+}
+
+export enum ApiRequestPhase {
+  REQUEST = 'request',
+  RESPONSE = 'response',
+}
+
+export enum PerformanceMetricType {
+  STARTUP = 'startup',
+  MEMORY = 'memory',
+  CPU = 'cpu',
+  TOOL_QUEUE = 'tool_queue',
+  TOOL_EXECUTION = 'tool_execution',
+  TOKEN_EFFICIENCY = 'token_efficiency',
+  API_REQUEST = 'api_request',
+  PERFORMANCE_SCORE = 'performance_score',
+  REGRESSION_DETECTION = 'regression_detection',
+}
 
 export function recordToolCallMetrics(
   _config: Config,
@@ -128,29 +150,12 @@ export function recordChatCompression(
 ): void {}
 
 export function recordArenaSessionStartedMetrics(_config: Config): void {}
-export function recordArenaAgentCompletedMetrics(
-  _config: Config,
-  _durationMs: number,
-  _tokens: number,
-): void {}
-export function recordArenaSessionEndedMetrics(
-  _config: Config,
-  _durationMs: number,
-  _status: string,
-): void {}
+export function recordArenaAgentCompletedMetrics(_config: Config, _durationMs: number, _tokens: number): void {}
+export function recordArenaSessionEndedMetrics(_config: Config, _durationMs: number, _status: string): void {}
 
-export function recordMemoryExtractMetrics(
-  _config: Config,
-  _durationMs: number,
-): void {}
-export function recordMemoryDreamMetrics(
-  _config: Config,
-  _durationMs: number,
-): void {}
-export function recordMemoryRecallMetrics(
-  _config: Config,
-  _durationMs: number,
-): void {}
+export function recordMemoryExtractMetrics(_config: Config, _durationMs: number): void {}
+export function recordMemoryDreamMetrics(_config: Config, _durationMs: number): void {}
+export function recordMemoryRecallMetrics(_config: Config, _durationMs: number): void {}
 
 // Performance Monitoring (no-op)
 export function recordStartupPerformance(
@@ -207,11 +212,7 @@ export function recordPerformanceRegression(
   _baselineValue: number,
 ): void {}
 
-export function recordBaselineComparison(
-  _config: Config,
-  _metric: string,
-  _value: number,
-): void {}
+export function recordBaselineComparison(_config: Config, _metric: string, _value: number): void {}
 
 export function isPerformanceMonitoringActive(): boolean {
   return false;

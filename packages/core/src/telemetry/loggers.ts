@@ -199,3 +199,5 @@ export function logMemoryRecall(
   _config: Config,
   _event: MemoryRecallEvent,
 ): void {}
+export function logPromptSuggestion(_config: Config, _event: any): void {}
+export function logSpeculation(_config: Config, _event: any): void {}

@@ -1,0 +1,239 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { describe, it, expect } from 'vitest';
+import { getSettingsSchema, } from './settingsSchema.js';
+describe('SettingsSchema', () => {
+    describe('getSettingsSchema', () => {
+        it('should contain all expected top-level settings', () => {
+            const expectedSettings = [
+                'mcpServers',
+                'general',
+                'ui',
+                'ide',
+                'privacy',
+                'telemetry',
+                'model',
+                'context',
+                'tools',
+                'mcp',
+                'security',
+                'advanced',
+                'plansDirectory',
+            ];
+            expectedSettings.forEach((setting) => {
+                expect(getSettingsSchema()[setting]).toBeDefined();
+            });
+        });
+        it('should have correct structure for each setting', () => {
+            Object.entries(getSettingsSchema()).forEach(([_key, definition]) => {
+                expect(definition).toHaveProperty('type');
+                expect(definition).toHaveProperty('label');
+                expect(definition).toHaveProperty('category');
+                expect(definition).toHaveProperty('requiresRestart');
+                expect(definition).toHaveProperty('default');
+                expect(typeof definition.type).toBe('string');
+                expect(typeof definition.label).toBe('string');
+                expect(typeof definition.category).toBe('string');
+                expect(typeof definition.requiresRestart).toBe('boolean');
+            });
+        });
+        it('should have correct nested setting structure', () => {
+            const nestedSettings = [
+                'general',
+                'ui',
+                'ide',
+                'privacy',
+                'model',
+                'context',
+                'tools',
+                'mcp',
+                'security',
+                'advanced',
+            ];
+            nestedSettings.forEach((setting) => {
+                const definition = getSettingsSchema()[setting];
+                expect(definition.type).toBe('object');
+                expect(definition.properties).toBeDefined();
+                expect(typeof definition.properties).toBe('object');
+            });
+        });
+        it('should have accessibility nested properties', () => {
+            expect(getSettingsSchema().ui?.properties?.accessibility?.properties).toBeDefined();
+            expect(getSettingsSchema().ui?.properties?.accessibility.properties
+                ?.enableLoadingPhrases.type).toBe('boolean');
+        });
+        it('should have checkpointing nested properties', () => {
+            expect(getSettingsSchema().general?.properties?.checkpointing.properties
+                ?.enabled).toBeDefined();
+            expect(getSettingsSchema().general?.properties?.checkpointing.properties
+                ?.enabled.type).toBe('boolean');
+        });
+        it('should have fileFiltering nested properties', () => {
+            expect(getSettingsSchema().context.properties.fileFiltering.properties
+                ?.respectGitIgnore).toBeDefined();
+            expect(getSettingsSchema().context.properties.fileFiltering.properties
+                ?.respectQwenIgnore).toBeDefined();
+            expect(getSettingsSchema().context.properties.fileFiltering.properties
+                ?.enableRecursiveFileSearch).toBeDefined();
+        });
+        it('should have sandboxImage setting under tools', () => {
+            expect(getSettingsSchema().tools.properties.sandboxImage).toBeDefined();
+            expect(getSettingsSchema().tools.properties.sandboxImage.type).toBe('string');
+            expect(getSettingsSchema().tools.properties.sandboxImage.default).toBe(undefined);
+        });
+        it('should have top-level proxy setting in schema', () => {
+            expect(getSettingsSchema().proxy).toBeDefined();
+            expect(getSettingsSchema().proxy.type).toBe('string');
+            expect(getSettingsSchema().proxy.category).toBe('Advanced');
+            expect(getSettingsSchema().proxy.requiresRestart).toBe(true);
+            expect(getSettingsSchema().proxy.default).toBe(undefined);
+            expect(getSettingsSchema().proxy.showInDialog).toBe(false);
+        });
+        it('should have plansDirectory setting in schema', () => {
+            expect(getSettingsSchema().plansDirectory).toBeDefined();
+            expect(getSettingsSchema().plansDirectory.type).toBe('string');
+            expect(getSettingsSchema().plansDirectory.category).toBe('Advanced');
+            expect(getSettingsSchema().plansDirectory.default).toBe(undefined);
+            expect(getSettingsSchema().plansDirectory.requiresRestart).toBe(true);
+            expect(getSettingsSchema().plansDirectory.showInDialog).toBe(false);
+        });
+        it('should have unique categories', () => {
+            const categories = new Set();
+            // Collect categories from top-level settings
+            Object.values(getSettingsSchema()).forEach((definition) => {
+                categories.add(definition.category);
+                // Also collect from nested properties
+                const defWithProps = definition;
+                if (defWithProps.properties) {
+                    Object.values(defWithProps.properties).forEach((nestedDef) => {
+                        const nestedDefTyped = nestedDef;
+                        if (nestedDefTyped.category) {
+                            categories.add(nestedDefTyped.category);
+                        }
+                    });
+                }
+            });
+            expect(categories.size).toBeGreaterThan(0);
+            expect(categories).toContain('General');
+            expect(categories).toContain('UI');
+            expect(categories).toContain('Advanced');
+        });
+        it('should have consistent default values for boolean settings', () => {
+            const checkBooleanDefaults = (schema) => {
+                Object.entries(schema).forEach(([, definition]) => {
+                    const def = definition;
+                    if (def.type === 'boolean') {
+                        // Boolean settings can have boolean or undefined defaults (for optional settings)
+                        expect(['boolean', 'undefined']).toContain(typeof def.default);
+                    }
+                    if (def.properties) {
+                        checkBooleanDefaults(def.properties);
+                    }
+                });
+            };
+            checkBooleanDefaults(getSettingsSchema());
+        });
+        it('should have showInDialog property configured', () => {
+            // Check that user-facing settings are marked for dialog display
+            expect(getSettingsSchema().general.properties.vimMode.showInDialog).toBe(true);
+            expect(getSettingsSchema().ide.properties.enabled.showInDialog).toBe(true);
+            expect(getSettingsSchema().general.properties.enableAutoUpdate.showInDialog).toBe(true);
+            expect(getSettingsSchema().ui.properties.hideWindowTitle.showInDialog).toBe(false);
+            expect(getSettingsSchema().ui.properties.hideTips.showInDialog).toBe(true);
+            expect(getSettingsSchema().privacy.properties.usageStatisticsEnabled
+                .showInDialog).toBe(true);
+            // Check that advanced settings are hidden from dialog
+            expect(getSettingsSchema().security.properties.auth.showInDialog).toBe(false);
+            expect(getSettingsSchema().permissions.showInDialog).toBe(false);
+            expect(getSettingsSchema().mcpServers.showInDialog).toBe(false);
+            expect(getSettingsSchema().telemetry.showInDialog).toBe(false);
+            // Check that some settings are appropriately hidden
+            expect(getSettingsSchema().ui.properties.theme.showInDialog).toBe(true);
+            expect(getSettingsSchema().ui.properties.customThemes.showInDialog).toBe(false); // Managed via theme editor
+            expect(getSettingsSchema().general.properties.checkpointing.showInDialog).toBe(false); // Experimental feature
+            expect(getSettingsSchema().ui.properties.accessibility.showInDialog).toBe(false);
+            expect(getSettingsSchema().context.properties.fileFiltering.showInDialog).toBe(false);
+            expect(getSettingsSchema().general.properties.preferredEditor.showInDialog).toBe(true);
+            expect(getSettingsSchema().advanced.properties.autoConfigureMemory
+                .showInDialog).toBe(false);
+        });
+        it('should define Markdown render mode as a user-facing UI enum', () => {
+            const renderMode = getSettingsSchema().ui.properties.renderMode;
+            expect(renderMode.type).toBe('enum');
+            expect(renderMode.default).toBe('render');
+            expect(renderMode.requiresRestart).toBe(false);
+            expect(renderMode.showInDialog).toBe(true);
+            expect(renderMode.options).toEqual([
+                { value: 'render', label: 'Render visual previews' },
+                { value: 'raw', label: 'Show raw source' },
+            ]);
+        });
+        it('should infer Settings type correctly', () => {
+            // This test ensures that the Settings type is properly inferred from the schema
+            const settings = {
+                ui: {
+                    theme: 'dark',
+                    renderMode: 'raw',
+                },
+                context: {
+                    includeDirectories: ['/path/to/dir'],
+                    loadFromIncludeDirectories: true,
+                },
+            };
+            // TypeScript should not complain about these properties
+            expect(settings.ui?.theme).toBe('dark');
+            expect(settings.ui?.renderMode).toBe('raw');
+            expect(settings.context?.includeDirectories).toEqual(['/path/to/dir']);
+            expect(settings.context?.loadFromIncludeDirectories).toBe(true);
+        });
+        it('should have includeDirectories setting in schema', () => {
+            expect(getSettingsSchema().context?.properties.includeDirectories).toBeDefined();
+            expect(getSettingsSchema().context?.properties.includeDirectories.type).toBe('array');
+            expect(getSettingsSchema().context?.properties.includeDirectories.category).toBe('Context');
+            expect(getSettingsSchema().context?.properties.includeDirectories.default).toEqual([]);
+        });
+        it('should have loadFromIncludeDirectories setting in schema', () => {
+            expect(getSettingsSchema().context?.properties.loadFromIncludeDirectories).toBeDefined();
+            expect(getSettingsSchema().context?.properties.loadFromIncludeDirectories.type).toBe('boolean');
+            expect(getSettingsSchema().context?.properties.loadFromIncludeDirectories
+                .category).toBe('Context');
+            expect(getSettingsSchema().context?.properties.loadFromIncludeDirectories
+                .default).toBe(false);
+        });
+        it('should have folderTrustFeature setting in schema', () => {
+            expect(getSettingsSchema().security.properties.folderTrust.properties.enabled).toBeDefined();
+            expect(getSettingsSchema().security.properties.folderTrust.properties.enabled
+                .type).toBe('boolean');
+            expect(getSettingsSchema().security.properties.folderTrust.properties.enabled
+                .category).toBe('Security');
+            expect(getSettingsSchema().security.properties.folderTrust.properties.enabled
+                .default).toBe(false);
+            expect(getSettingsSchema().security.properties.folderTrust.properties.enabled
+                .showInDialog).toBe(false);
+        });
+        it('should have debugKeystrokeLogging setting in schema', () => {
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging).toBeDefined();
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging.type).toBe('boolean');
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging.category).toBe('General');
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging.default).toBe(false);
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging
+                .requiresRestart).toBe(false);
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging
+                .showInDialog).toBe(false);
+            expect(getSettingsSchema().general.properties.debugKeystrokeLogging
+                .description).toBe('Enable debug logging of keystrokes to the console.');
+        });
+        it('should have gitCoAuthor setting in schema with default false', () => {
+            expect(getSettingsSchema().general.properties.gitCoAuthor).toBeDefined();
+            expect(getSettingsSchema().general.properties.gitCoAuthor.type).toBe('object');
+            expect(getSettingsSchema().general.properties.gitCoAuthor.properties.commit
+                .default).toBe(false);
+            expect(getSettingsSchema().general.properties.gitCoAuthor.properties.pr
+                .default).toBe(false);
+        });
+    });
+});
+//# sourceMappingURL=settingsSchema.test.js.map

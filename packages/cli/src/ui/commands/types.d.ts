@@ -1,0 +1,277 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import type { MutableRefObject, ReactNode } from 'react';
+import type { Content, PartListUnion } from '@google/genai';
+import type { Config, GitService, Logger, SessionListItem } from '@qwen-code/qwen-code-core';
+import type { HistoryItemWithoutId, HistoryItem, HistoryItemBtw, ConfirmationRequest } from '../types.js';
+import type { LoadedSettings } from '../../config/settings.js';
+import type { UseHistoryManagerReturn } from '../hooks/useHistoryManager.js';
+import type { SessionStatsState } from '../contexts/SessionContext.js';
+import type { ExtensionUpdateAction, ExtensionUpdateStatus } from '../state/extensions.js';
+export interface CommandContext {
+    /**
+     * Execution mode for the current invocation.
+     *
+     * - interactive: React/Ink UI mode
+     * - non_interactive: non-interactive CLI mode (text/json)
+     * - acp: ACP/Zed integration mode
+     */
+    executionMode?: 'interactive' | 'non_interactive' | 'acp';
+    invocation?: {
+        /** The raw, untrimmed input string from the user. */
+        raw: string;
+        /** The primary name of the command that was matched. */
+        name: string;
+        /** The arguments string that follows the command name. */
+        args: string;
+    };
+    services: {
+        config: Config | null;
+        settings: LoadedSettings;
+        git: GitService | undefined;
+        logger: Logger | null;
+    };
+    ui: {
+        /** Adds a new item to the history display. */
+        addItem: UseHistoryManagerReturn['addItem'];
+        /** Clears all history items and the console screen. */
+        clear: () => void;
+        /**
+         * Sets the transient debug message displayed in the application footer in debug mode.
+         */
+        setDebugMessage: (message: string) => void;
+        /** The currently pending history item, if any. */
+        pendingItem: HistoryItemWithoutId | null;
+        /**
+         * Sets a pending item in the history, which is useful for indicating
+         * that a long-running operation is in progress.
+         *
+         * @param item The history item to display as pending, or `null` to clear.
+         */
+        setPendingItem: (item: HistoryItemWithoutId | null) => void;
+        /** The current btw side-question item rendered in the fixed bottom area. */
+        btwItem: HistoryItemBtw | null;
+        /** Sets the btw item independently of the main pendingItem. */
+        setBtwItem: (item: HistoryItemBtw | null) => void;
+        /** Cancels a pending btw (aborts the in-flight API call and clears the btw area). */
+        cancelBtw: () => void;
+        /** Ref to the btw AbortController, set by btwCommand so cancelBtw can abort it. */
+        btwAbortControllerRef: MutableRefObject<AbortController | null>;
+        /** Ref to whether the agent stream is currently idle (no model turn in flight). */
+        isIdleRef: MutableRefObject<boolean>;
+        /**
+         * Loads a new set of history items, replacing the current history.
+         *
+         * @param history The array of history items to load.
+         */
+        loadHistory: UseHistoryManagerReturn['loadHistory'];
+        toggleVimEnabled: () => Promise<boolean>;
+        setGeminiMdFileCount: (count: number) => void;
+        reloadCommands: () => void | Promise<void>;
+        setSessionName: (name: string | null) => void;
+        extensionsUpdateState: Map<string, ExtensionUpdateStatus>;
+        dispatchExtensionStateUpdate: (action: ExtensionUpdateAction) => void;
+        addConfirmUpdateExtensionRequest: (value: ConfirmationRequest) => void;
+    };
+    session: {
+        stats: SessionStatsState;
+        /** A transient list of shell commands the user has approved for this session. */
+        sessionShellAllowlist: Set<string>;
+        /** Reset session metrics and prompt counters for a fresh session. */
+        startNewSession?: (sessionId: string) => void;
+    };
+    overwriteConfirmed?: boolean;
+    /** Abort signal for cancelling long-running slash command operations via ESC. */
+    abortSignal?: AbortSignal;
+}
+/**
+ * The return type for a command action that results in scheduling a tool call.
+ */
+export interface ToolActionReturn {
+    type: 'tool';
+    toolName: string;
+    toolArgs: Record<string, unknown>;
+}
+/** The return type for a command action that results in the app quitting. */
+export interface QuitActionReturn {
+    type: 'quit';
+    messages: HistoryItem[];
+}
+/**
+ * The return type for a command action that results in a simple message
+ * being displayed to the user.
+ */
+export interface MessageActionReturn {
+    type: 'message';
+    messageType: 'info' | 'warning' | 'error';
+    content: string;
+}
+/**
+ * The return type for a command action that streams multiple messages.
+ * Used for long-running operations that need to send progress updates.
+ */
+export interface StreamMessagesActionReturn {
+    type: 'stream_messages';
+    messages: AsyncGenerator<{
+        messageType: 'info' | 'warning' | 'error';
+        content: string;
+    }, void, unknown>;
+}
+/**
+ * The return type for a command action that needs to open a dialog.
+ */
+export interface OpenDialogActionReturn {
+    type: 'dialog';
+    /** Optional session ID to pass directly to the dialog handler (e.g., for /resume <id>). */
+    sessionId?: string;
+    /** Pre-filtered sessions for the picker (e.g., multiple title matches from /resume <title>). */
+    matchedSessions?: SessionListItem[];
+    /** Optional session name for /branch — passed through to handleBranch. */
+    name?: string;
+    dialog: 'help' | 'arena_start' | 'arena_select' | 'arena_stop' | 'arena_status' | 'auth' | 'theme' | 'editor' | 'settings' | 'statusline' | 'memory' | 'model' | 'fast-model' | 'subagent_create' | 'subagent_list' | 'trust' | 'permissions' | 'approval-mode' | 'resume' | 'delete' | 'branch' | 'extensions_manage' | 'hooks' | 'mcp' | 'rewind' | 'diff';
+}
+/**
+ * The return type for a command action that results in replacing
+ * the entire conversation history.
+ */
+export interface LoadHistoryActionReturn {
+    type: 'load_history';
+    history: HistoryItemWithoutId[];
+    clientHistory: Content[];
+}
+/**
+ * The return type for a command action that should immediately submit
+ * content as a prompt to the Gemini model.
+ */
+export interface SubmitPromptActionReturn {
+    type: 'submit_prompt';
+    content: PartListUnion;
+    /** Optional callback invoked after the agent turn completes successfully. */
+    onComplete?: () => Promise<void>;
+}
+/**
+ * The return type for a command action that needs to pause and request
+ * confirmation for a set of shell commands before proceeding.
+ */
+export interface ConfirmShellCommandsActionReturn {
+    type: 'confirm_shell_commands';
+    /** The list of shell commands that require user confirmation. */
+    commandsToConfirm: string[];
+    /** The original invocation context to be re-run after confirmation. */
+    originalInvocation: {
+        raw: string;
+    };
+}
+export interface ConfirmActionReturn {
+    type: 'confirm_action';
+    /** The React node to display as the confirmation prompt. */
+    prompt: ReactNode;
+    /** The original invocation context to be re-run after confirmation. */
+    originalInvocation: {
+        raw: string;
+    };
+}
+export type SlashCommandActionReturn = ToolActionReturn | MessageActionReturn | StreamMessagesActionReturn | QuitActionReturn | OpenDialogActionReturn | LoadHistoryActionReturn | SubmitPromptActionReturn | ConfirmShellCommandsActionReturn | ConfirmActionReturn;
+export declare enum CommandKind {
+    BUILT_IN = "built-in",
+    FILE = "file",
+    MCP_PROMPT = "mcp-prompt",
+    SKILL = "skill"
+}
+/**
+ * Execution mode for a slash command invocation.
+ * - interactive: React/Ink UI mode (terminal)
+ * - non_interactive: headless CLI mode (text/JSON output)
+ * - acp: ACP/Zed editor integration mode
+ */
+export type ExecutionMode = 'interactive' | 'non_interactive' | 'acp';
+/**
+ * The source of a slash command, used for Help grouping, completion badges,
+ * and ACP available-command metadata.
+ *
+ * Distinct from CommandKind: CommandKind drives loader logic (4 values);
+ * CommandSource drives display and user mental model (5+ values).
+ */
+export type CommandSource = 'builtin-command' | 'bundled-skill' | 'skill-dir-command' | 'plugin-command' | 'mcp-prompt';
+export type CommandSourceDetail = 'user' | 'project' | 'custom' | 'extension' | 'plugin';
+export interface CommandCompletionItem {
+    value: string;
+    label?: string;
+    description?: string;
+}
+export interface SlashCommand {
+    name: string;
+    altNames?: string[];
+    description: string;
+    hidden?: boolean;
+    /** Higher values win when slash completion candidates have comparable match quality. */
+    completionPriority?: number;
+    kind: CommandKind;
+    extensionName?: string;
+    /**
+     * The source of this command. Set by the Loader, not by the command itself.
+     * Will replace CommandKind as the canonical source identifier in a future phase.
+     */
+    source?: CommandSource;
+    /**
+     * Human-readable source label for display in Help, completion badges, etc.
+     * - builtin-command → "Built-in"
+     * - bundled-skill   → "Skill"
+     * - skill-dir-command → "Custom"
+     * - plugin-command  → "Plugin: <extensionName>"
+     * - mcp-prompt      → "MCP: <serverName>"
+     * Set by the Loader; may be overridden by the command itself.
+     */
+    sourceLabel?: string;
+    /**
+     * Stable, non-localized source detail for semantic routing and badges.
+     * `sourceLabel` is user-visible display text and may be localized.
+     */
+    sourceDetail?: CommandSourceDetail;
+    /**
+     * Which execution modes this command is available in.
+     * Explicit declaration is always authoritative. If omitted, the system falls
+     * back to a conservative default based on CommandKind.
+     * See getEffectiveSupportedModes() in commandUtils.ts for the full logic.
+     */
+    supportedModes?: ExecutionMode[];
+    /**
+     * Whether users can invoke this command via a slash command.
+     * Defaults to true for all commands.
+     */
+    userInvocable?: boolean;
+    /**
+     * Whether the model can invoke this command via a tool call.
+     * Defaults to false. prompt-type commands (skills, file commands, MCP prompts)
+     * should be true. Built-in commands must always be false.
+     */
+    modelInvocable?: boolean;
+    /**
+     * Argument hint shown after the command name in the completion menu.
+     * Example: "<model-id>" / "show|list|set <id>"
+     */
+    argumentHint?: string;
+    /**
+     * Whether command-picker clients should wait for additional user input before
+     * submitting this command. Defaults are inferred from command metadata.
+     */
+    acceptsInput?: boolean;
+    /**
+     * Describes when to use this command — injected into the model-visible
+     * description for modelInvocable commands.
+     */
+    whenToUse?: string;
+    /**
+     * Non-localized description reserved for model-visible metadata. Stays stable
+     * across UI locale changes; `description` is what the UI surface renders.
+     */
+    modelDescription?: string;
+    /** Usage examples shown in Help and completion. */
+    examples?: string[];
+    action?: (context: CommandContext, args: string) => void | SlashCommandActionReturn | Promise<void | SlashCommandActionReturn>;
+    completion?: (context: CommandContext, partialArg: string) => Promise<Array<string | CommandCompletionItem> | null>;
+    subCommands?: SlashCommand[];
+}

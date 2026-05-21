@@ -1,0 +1,45 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import type React from 'react';
+import type { SelectionListItem } from '../../hooks/useSelectionList.js';
+/**
+ * Represents a single option for the RadioButtonSelect.
+ * Requires a label for display and a value to be returned on selection.
+ */
+export interface RadioSelectItem<T> extends SelectionListItem<T> {
+    label: string;
+    themeNameDisplay?: string;
+    themeTypeDisplay?: string;
+}
+/**
+ * Props for the RadioButtonSelect component.
+ * @template T The type of the value associated with each radio item.
+ */
+export interface RadioButtonSelectProps<T> {
+    /** An array of items to display as radio options. */
+    items: Array<RadioSelectItem<T>>;
+    /** The initial index selected */
+    initialIndex?: number;
+    /** Function called when an item is selected. Receives the `value` of the selected item. */
+    onSelect: (value: T) => void;
+    /** Function called when an item is highlighted. Receives the `value` of the selected item. */
+    onHighlight?: (value: T) => void;
+    /** Whether this select input is currently focused and should respond to input. */
+    isFocused?: boolean;
+    /** Whether to show the scroll arrows. */
+    showScrollArrows?: boolean;
+    /** The maximum number of items to show at once. */
+    maxItemsToShow?: number;
+    /** Whether to show numbers next to items. */
+    showNumbers?: boolean;
+}
+/**
+ * A custom component that displays a list of items with radio buttons,
+ * supporting scrolling and keyboard navigation.
+ *
+ * @template T The type of the value associated with each radio item.
+ */
+export declare function RadioButtonSelect<T>({ items, initialIndex, onSelect, onHighlight, isFocused, showScrollArrows, maxItemsToShow, showNumbers, }: RadioButtonSelectProps<T>): React.JSX.Element;

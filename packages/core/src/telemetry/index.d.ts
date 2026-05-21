@@ -1,0 +1,30 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+export declare enum TelemetryTarget {
+    GCP = "gcp",
+    LOCAL = "local"
+}
+declare const DEFAULT_TELEMETRY_TARGET = TelemetryTarget.LOCAL;
+declare const DEFAULT_OTLP_ENDPOINT = "http://localhost:4317";
+export { DEFAULT_TELEMETRY_TARGET, DEFAULT_OTLP_ENDPOINT };
+export { initializeTelemetry, shutdownTelemetry, refreshSessionContext, isTelemetrySdkInitialized, } from './sdk.js';
+export { resolveTelemetrySettings, parseBooleanEnvFlag, parseTelemetryTargetValue, } from './config.js';
+export { logStartSession, logUserPrompt, logUserRetry, logToolCall, logApiRequest, logApiError, logApiCancel, logApiResponse, logFlashFallback, logSlashCommand, logConversationFinishedEvent, logKittySequenceOverflow, logChatCompression, logToolOutputTruncated, logExtensionEnable, logExtensionInstallEvent, logExtensionUninstall, logExtensionDisable, logExtensionUpdateEvent, logRipgrepFallback, logNextSpeakerCheck, logAuth, logSkillLaunch, logUserFeedback, logArenaSessionStarted, logArenaAgentCompleted, logArenaSessionEnded, logMemoryExtract, logMemoryDream, logMemoryRecall, } from './loggers.js';
+export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
+export { SlashCommandStatus, EndSessionEvent, UserPromptEvent, UserRetryEvent, ApiRequestEvent, ApiErrorEvent, ApiResponseEvent, ApiCancelEvent, FlashFallbackEvent, StartSessionEvent, ToolCallEvent, ConversationFinishedEvent, KittySequenceOverflowEvent, ToolOutputTruncatedEvent, RipgrepFallbackEvent, NextSpeakerCheckEvent, AuthEvent, SkillLaunchEvent, UserFeedbackEvent, UserFeedbackRating, makeArenaSessionStartedEvent, makeArenaAgentCompletedEvent, makeArenaSessionEndedEvent, MemoryExtractEvent, MemoryDreamEvent, MemoryRecallEvent, } from './types.js';
+export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
+export type { ArenaSessionStartedEvent, ArenaAgentCompletedEvent, ArenaSessionEndedEvent, ArenaSessionEndedStatus, ArenaAgentCompletedStatus, } from './types.js';
+export type { TelemetryEvent } from './types.js';
+export { SpanStatusCode, ValueType, TraceFlags, SpanKind, ROOT_CONTEXT, context, createContextKey, trace, diag, SemanticAttributes, SemanticResourceAttributes, } from './dummy-otel.js';
+export type { Attributes, Context, Exception, Span, SpanOptions, Tracer, HrTime, } from './dummy-otel.js';
+export * from './uiTelemetry.js';
+export { recordToolCallMetrics, recordTokenUsageMetrics, recordApiResponseMetrics, recordApiErrorMetrics, recordFileOperationMetric, recordInvalidChunk, recordContentRetry, recordContentRetryFailure, recordStartupPerformance, recordMemoryUsage, recordCpuUsage, recordToolQueueDepth, recordToolExecutionBreakdown, recordTokenEfficiency, recordApiRequestBreakdown, recordPerformanceScore, recordPerformanceRegression, recordBaselineComparison, isPerformanceMonitoringActive, recordArenaSessionStartedMetrics, recordArenaAgentCompletedMetrics, recordArenaSessionEndedMetrics, recordMemoryExtractMetrics, recordMemoryDreamMetrics, recordMemoryRecallMetrics, } from './metrics.js';
+export type { PerformanceMetricType, MemoryMetricType, ToolExecutionPhase, ApiRequestPhase, FileOperation, } from './metrics.js';
+export { QwenLogger } from './qwen-logger/qwen-logger.js';
+export { sanitizeHookName } from './sanitize.js';
+export { startInteractionSpan, endInteractionSpan, startLLMRequestSpan, endLLMRequestSpan, startToolSpan, endToolSpan, runInToolSpanContext, startToolExecutionSpan, endToolExecutionSpan, startToolBlockedOnUserSpan, endToolBlockedOnUserSpan, startHookSpan, endHookSpan, getActiveInteractionSpan, truncateSpanError, } from './session-tracing.js';
+export type { StartInteractionOptions, EndInteractionOptions, LLMRequestMetadata, ToolSpanMetadata, ToolBlockedDecision, ToolBlockedSource, HookEvent, StartHookSpanOptions, HookSpanMetadata, } from './session-tracing.js';
+export { addUserPromptAttributes, addSystemPromptAttributes, addToolSchemaAttributes, addModelOutputAttributes, addToolInputAttributes, addToolResultAttributes, truncateContent, } from './detailed-span-attributes.js';

@@ -1,0 +1,30 @@
+declare const _default: {
+    commands: string;
+    'code-review': string;
+    'followup-suggestions': string;
+    'tool-use-summaries': string;
+    'markdown-rendering': string;
+    'sub-agents': string;
+    arena: string;
+    skills: string;
+    memory: string;
+    headless: string;
+    'structured-output': string;
+    'dual-output': string;
+    checkpointing: {
+        display: string;
+    };
+    'approval-mode': string;
+    'auto-mode': string;
+    mcp: string;
+    lsp: string;
+    'token-caching': string;
+    sandbox: string;
+    language: string;
+    channels: string;
+    hooks: string;
+    'status-line': string;
+    'scheduled-tasks': string;
+    tips: string;
+};
+export default _default;

@@ -1,0 +1,1 @@
+{"version":3,"file":"DualOutputContext.js","sourceRoot":"","sources":["DualOutputContext.tsx"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,OAAO,EAAE,aAAa,EAAE,UAAU,EAAE,MAAM,OAAO,CAAC;AAGlD;;;;GAIG;AACH,MAAM,CAAC,MAAM,iBAAiB,GAAG,aAAa,CAA0B,IAAI,CAAC,CAAC;AAE9E;;;;;GAKG;AACH,MAAM,UAAU,aAAa;IAC3B,OAAO,UAAU,CAAC,iBAAiB,CAAC,CAAC;AACvC,CAAC"}

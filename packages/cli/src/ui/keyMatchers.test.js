@@ -1,0 +1,384 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { describe, it, expect } from 'vitest';
+import { keyMatchers, Command, createKeyMatchers } from './keyMatchers.js';
+import { defaultKeyBindings } from '../config/keyBindings.js';
+describe('keyMatchers', () => {
+    const isWindows = process.platform === 'win32';
+    const createKey = (name, mods = {}) => ({
+        name,
+        ctrl: false,
+        meta: false,
+        shift: false,
+        paste: false,
+        sequence: name,
+        ...mods,
+    });
+    // Original hard-coded logic (for comparison)
+    const originalMatchers = {
+        [Command.RETURN]: (key) => key.name === 'return',
+        [Command.HOME]: (key) => key.ctrl && key.name === 'a',
+        [Command.END]: (key) => key.ctrl && key.name === 'e',
+        [Command.KILL_LINE_RIGHT]: (key) => key.ctrl && key.name === 'k',
+        [Command.KILL_LINE_LEFT]: (key) => key.ctrl && key.name === 'u',
+        [Command.CLEAR_INPUT]: (key) => key.ctrl && key.name === 'c',
+        [Command.DELETE_WORD_BACKWARD]: (key) => ((key.ctrl || key.meta) && key.name === 'backspace') ||
+            key.sequence === '\x1f',
+        [Command.CLEAR_SCREEN]: (key) => key.ctrl && key.name === 'l',
+        [Command.HISTORY_UP]: (key) => key.ctrl && key.name === 'p',
+        [Command.HISTORY_DOWN]: (key) => key.ctrl && key.name === 'n',
+        [Command.NAVIGATION_UP]: (key) => key.name === 'up',
+        [Command.NAVIGATION_DOWN]: (key) => key.name === 'down',
+        [Command.ACCEPT_SUGGESTION]: (key) => key.name === 'tab' || (key.name === 'return' && !key.ctrl),
+        // Completion navigation only uses arrow keys (not Ctrl+P/N)
+        // to allow Ctrl+P/N to always navigate history
+        [Command.COMPLETION_UP]: (key) => key.name === 'up',
+        [Command.COMPLETION_DOWN]: (key) => key.name === 'down',
+        [Command.ESCAPE]: (key) => key.name === 'escape',
+        [Command.SUBMIT]: (key) => key.name === 'return' && !key.ctrl && !key.meta && !key.paste,
+        [Command.NEWLINE]: (key) => key.name === 'return' && (key.ctrl || key.meta || key.paste),
+        [Command.OPEN_EXTERNAL_EDITOR]: (key) => key.ctrl && (key.name === 'x' || key.sequence === '\x18'),
+        [Command.PASTE_CLIPBOARD_IMAGE]: (key) => (isWindows ? key.meta : key.ctrl || key.meta) && key.name === 'v',
+        [Command.TOGGLE_TOOL_DESCRIPTIONS]: (key) => key.ctrl && key.name === 't',
+        [Command.TOGGLE_IDE_CONTEXT_DETAIL]: (key) => key.ctrl && key.name === 'g',
+        [Command.QUIT]: (key) => key.ctrl && key.name === 'c',
+        [Command.EXIT]: (key) => key.ctrl && key.name === 'd',
+        [Command.SHOW_MORE_LINES]: (key) => key.ctrl && key.name === 's',
+        [Command.RETRY_LAST]: (key) => key.ctrl && key.name === 'y',
+        [Command.TOGGLE_COMPACT_MODE]: (key) => key.ctrl && key.name === 'o',
+        [Command.TOGGLE_RENDER_MODE]: (key) => key.meta && key.name === 'm',
+        [Command.PROMOTE_SHELL_TO_BACKGROUND]: (key) => key.ctrl && key.name === 'b',
+        [Command.REVERSE_SEARCH]: (key) => key.ctrl && key.name === 'r',
+        [Command.SUBMIT_REVERSE_SEARCH]: (key) => key.name === 'return' && !key.ctrl,
+        [Command.ACCEPT_SUGGESTION_REVERSE_SEARCH]: (key) => key.name === 'tab',
+        [Command.TOGGLE_SHELL_INPUT_FOCUS]: (key) => key.ctrl && key.name === 'f',
+        [Command.EXPAND_SUGGESTION]: (key) => key.name === 'right',
+        [Command.COLLAPSE_SUGGESTION]: (key) => key.name === 'left',
+        // Selection list navigation: up/k (ctrl=false)/Ctrl+P move up; down/j (ctrl=false)/Ctrl+N move down
+        [Command.SELECTION_UP]: (key) => key.name === 'up' ||
+            (key.name === 'k' && !key.ctrl) ||
+            (key.ctrl && key.name === 'p'),
+        [Command.SELECTION_DOWN]: (key) => key.name === 'down' ||
+            (key.name === 'j' && !key.ctrl) ||
+            (key.ctrl && key.name === 'n'),
+    };
+    // Test data for each command with positive and negative test cases
+    const testCases = [
+        // Basic bindings
+        {
+            command: Command.RETURN,
+            positive: [createKey('return')],
+            negative: [createKey('r')],
+        },
+        {
+            command: Command.ESCAPE,
+            positive: [createKey('escape'), createKey('escape', { ctrl: true })],
+            negative: [createKey('e'), createKey('esc')],
+        },
+        // Cursor movement
+        {
+            command: Command.HOME,
+            positive: [createKey('a', { ctrl: true })],
+            negative: [
+                createKey('a'),
+                createKey('a', { shift: true }),
+                createKey('b', { ctrl: true }),
+            ],
+        },
+        {
+            command: Command.END,
+            positive: [createKey('e', { ctrl: true })],
+            negative: [
+                createKey('e'),
+                createKey('e', { shift: true }),
+                createKey('a', { ctrl: true }),
+            ],
+        },
+        // Text deletion
+        {
+            command: Command.KILL_LINE_RIGHT,
+            positive: [createKey('k', { ctrl: true })],
+            negative: [createKey('k'), createKey('l', { ctrl: true })],
+        },
+        {
+            command: Command.KILL_LINE_LEFT,
+            positive: [createKey('u', { ctrl: true })],
+            negative: [createKey('u'), createKey('k', { ctrl: true })],
+        },
+        {
+            command: Command.CLEAR_INPUT,
+            positive: [createKey('c', { ctrl: true })],
+            negative: [createKey('c'), createKey('k', { ctrl: true })],
+        },
+        {
+            command: Command.DELETE_WORD_BACKWARD,
+            positive: [
+                createKey('backspace', { ctrl: true }),
+                createKey('backspace', { meta: true }),
+                // MinTTY (Git Bash on Windows) emits a bare \x1f byte for
+                // Ctrl+Backspace — see the matching comment in keyBindings.ts
+                // on the DELETE_WORD_BACKWARD default-binding array.
+                createKey('', { sequence: '\x1f' }),
+            ],
+            negative: [createKey('backspace'), createKey('delete', { ctrl: true })],
+        },
+        // Screen control
+        {
+            command: Command.CLEAR_SCREEN,
+            positive: [createKey('l', { ctrl: true })],
+            negative: [createKey('l'), createKey('k', { ctrl: true })],
+        },
+        // History navigation
+        {
+            command: Command.HISTORY_UP,
+            positive: [createKey('p', { ctrl: true })],
+            negative: [createKey('p'), createKey('up')],
+        },
+        {
+            command: Command.HISTORY_DOWN,
+            positive: [createKey('n', { ctrl: true })],
+            negative: [createKey('n'), createKey('down')],
+        },
+        {
+            command: Command.NAVIGATION_UP,
+            positive: [createKey('up'), createKey('up', { ctrl: true })],
+            negative: [createKey('p'), createKey('u')],
+        },
+        {
+            command: Command.NAVIGATION_DOWN,
+            positive: [createKey('down'), createKey('down', { ctrl: true })],
+            negative: [createKey('n'), createKey('d')],
+        },
+        // Auto-completion
+        {
+            command: Command.ACCEPT_SUGGESTION,
+            positive: [createKey('tab'), createKey('return')],
+            negative: [createKey('return', { ctrl: true }), createKey('space')],
+        },
+        {
+            // Completion navigation only uses arrow keys (not Ctrl+P/N)
+            // to allow Ctrl+P/N to always navigate history
+            command: Command.COMPLETION_UP,
+            positive: [createKey('up')],
+            negative: [
+                createKey('p'),
+                createKey('down'),
+                createKey('p', { ctrl: true }),
+            ],
+        },
+        {
+            // Completion navigation only uses arrow keys (not Ctrl+P/N)
+            // to allow Ctrl+P/N to always navigate history
+            command: Command.COMPLETION_DOWN,
+            positive: [createKey('down')],
+            negative: [
+                createKey('n'),
+                createKey('up'),
+                createKey('n', { ctrl: true }),
+            ],
+        },
+        // Text input
+        {
+            command: Command.SUBMIT,
+            positive: [createKey('return')],
+            negative: [
+                createKey('return', { ctrl: true }),
+                createKey('return', { meta: true }),
+                createKey('return', { paste: true }),
+            ],
+        },
+        {
+            command: Command.NEWLINE,
+            positive: [
+                createKey('return', { ctrl: true }),
+                createKey('return', { meta: true }),
+                createKey('return', { paste: true }),
+            ],
+            negative: [createKey('return'), createKey('n')],
+        },
+        // External tools
+        {
+            command: Command.OPEN_EXTERNAL_EDITOR,
+            positive: [
+                createKey('x', { ctrl: true }),
+                { ...createKey('\x18'), sequence: '\x18', ctrl: true },
+            ],
+            negative: [createKey('x'), createKey('c', { ctrl: true })],
+        },
+        {
+            command: Command.PASTE_CLIPBOARD_IMAGE,
+            positive: isWindows
+                ? [createKey('v', { meta: true })]
+                : [createKey('v', { ctrl: true }), createKey('v', { meta: true })],
+            negative: isWindows
+                ? [createKey('v', { ctrl: true }), createKey('v')]
+                : [createKey('v'), createKey('c', { ctrl: true })],
+        },
+        // App level bindings
+        {
+            command: Command.TOGGLE_TOOL_DESCRIPTIONS,
+            positive: [createKey('t', { ctrl: true })],
+            negative: [createKey('t'), createKey('s', { ctrl: true })],
+        },
+        {
+            command: Command.TOGGLE_IDE_CONTEXT_DETAIL,
+            positive: [createKey('g', { ctrl: true })],
+            negative: [createKey('g'), createKey('t', { ctrl: true })],
+        },
+        {
+            command: Command.QUIT,
+            positive: [createKey('c', { ctrl: true })],
+            negative: [createKey('c'), createKey('d', { ctrl: true })],
+        },
+        {
+            command: Command.EXIT,
+            positive: [createKey('d', { ctrl: true })],
+            negative: [createKey('d'), createKey('c', { ctrl: true })],
+        },
+        {
+            command: Command.SHOW_MORE_LINES,
+            positive: [createKey('s', { ctrl: true })],
+            negative: [createKey('s'), createKey('l', { ctrl: true })],
+        },
+        {
+            command: Command.RETRY_LAST,
+            positive: [createKey('y', { ctrl: true })],
+            negative: [createKey('y'), createKey('r', { ctrl: true })],
+        },
+        {
+            command: Command.TOGGLE_COMPACT_MODE,
+            positive: [createKey('o', { ctrl: true })],
+            negative: [createKey('o'), createKey('p', { ctrl: true })],
+        },
+        // Selection list navigation
+        {
+            command: Command.SELECTION_UP,
+            positive: [
+                createKey('up'),
+                createKey('k'),
+                createKey('p', { ctrl: true }),
+            ],
+            negative: [
+                createKey('p'),
+                createKey('n', { ctrl: true }),
+                createKey('u'),
+                // ctrl: false on k — Ctrl+K must NOT match (would conflict with KILL_LINE_RIGHT)
+                createKey('k', { ctrl: true }),
+            ],
+        },
+        {
+            command: Command.SELECTION_DOWN,
+            positive: [
+                createKey('down'),
+                createKey('j'),
+                createKey('n', { ctrl: true }),
+            ],
+            negative: [
+                createKey('n'),
+                createKey('p', { ctrl: true }),
+                createKey('d'),
+                // ctrl: false on j — Ctrl+J must NOT match (preserves Ctrl+J = newline in some terminals)
+                createKey('j', { ctrl: true }),
+            ],
+        },
+        // Shell commands
+        {
+            command: Command.REVERSE_SEARCH,
+            positive: [createKey('r', { ctrl: true })],
+            negative: [createKey('r'), createKey('s', { ctrl: true })],
+        },
+        {
+            command: Command.SUBMIT_REVERSE_SEARCH,
+            positive: [createKey('return')],
+            negative: [createKey('return', { ctrl: true }), createKey('tab')],
+        },
+        {
+            command: Command.ACCEPT_SUGGESTION_REVERSE_SEARCH,
+            positive: [createKey('tab'), createKey('tab', { ctrl: true })],
+            negative: [createKey('return'), createKey('space')],
+        },
+        {
+            command: Command.TOGGLE_SHELL_INPUT_FOCUS,
+            positive: [createKey('f', { ctrl: true })],
+            negative: [createKey('f')],
+        },
+        {
+            command: Command.TOGGLE_RENDER_MODE,
+            positive: [createKey('m', { meta: true })],
+            negative: [
+                createKey('m'),
+                createKey('m', { ctrl: true }),
+                createKey('', { sequence: 'µ' }),
+                createKey('', { sequence: 'µ', paste: true }),
+            ],
+        },
+        {
+            command: Command.PROMOTE_SHELL_TO_BACKGROUND,
+            positive: [createKey('b', { ctrl: true })],
+            // No bare `b`, no Ctrl+other, no meta+b — Ctrl is required so
+            // typing `b` mid-prompt isn't accidentally swallowed.
+            negative: [
+                createKey('b'),
+                createKey('b', { meta: true }),
+                createKey('a', { ctrl: true }),
+            ],
+        },
+    ];
+    describe('Data-driven key binding matches original logic', () => {
+        testCases.forEach(({ command, positive, negative }) => {
+            it(`should match ${command} correctly`, () => {
+                positive.forEach((key) => {
+                    expect(keyMatchers[command](key), `Expected ${command} to match ${JSON.stringify(key)}`).toBe(true);
+                    expect(originalMatchers[command](key), `Original matcher should also match ${JSON.stringify(key)}`).toBe(true);
+                });
+                negative.forEach((key) => {
+                    expect(keyMatchers[command](key), `Expected ${command} to NOT match ${JSON.stringify(key)}`).toBe(false);
+                    expect(originalMatchers[command](key), `Original matcher should also NOT match ${JSON.stringify(key)}`).toBe(false);
+                });
+            });
+        });
+        it('should properly handle ACCEPT_SUGGESTION_REVERSE_SEARCH cases', () => {
+            expect(keyMatchers[Command.ACCEPT_SUGGESTION_REVERSE_SEARCH](createKey('return', { ctrl: true }))).toBe(false); // ctrl must be false
+            expect(keyMatchers[Command.ACCEPT_SUGGESTION_REVERSE_SEARCH](createKey('tab'))).toBe(true);
+            expect(keyMatchers[Command.ACCEPT_SUGGESTION_REVERSE_SEARCH](createKey('tab', { ctrl: true }))).toBe(true); // modifiers ignored
+        });
+    });
+    describe('Custom key bindings', () => {
+        it('should work with custom configuration', () => {
+            const customConfig = {
+                ...defaultKeyBindings,
+                [Command.HOME]: [{ key: 'h', ctrl: true }, { key: '0' }],
+            };
+            const customMatchers = createKeyMatchers(customConfig);
+            expect(customMatchers[Command.HOME](createKey('h', { ctrl: true }))).toBe(true);
+            expect(customMatchers[Command.HOME](createKey('0'))).toBe(true);
+            expect(customMatchers[Command.HOME](createKey('a', { ctrl: true }))).toBe(false);
+        });
+        it('should support multiple key bindings for same command', () => {
+            const config = {
+                ...defaultKeyBindings,
+                [Command.QUIT]: [
+                    { key: 'q', ctrl: true },
+                    { key: 'q', command: true },
+                ],
+            };
+            const matchers = createKeyMatchers(config);
+            expect(matchers[Command.QUIT](createKey('q', { ctrl: true }))).toBe(true);
+            expect(matchers[Command.QUIT](createKey('q', { meta: true }))).toBe(true);
+        });
+    });
+    describe('Edge Cases', () => {
+        it('should handle empty binding arrays', () => {
+            const config = {
+                ...defaultKeyBindings,
+                [Command.HOME]: [],
+            };
+            const matchers = createKeyMatchers(config);
+            expect(matchers[Command.HOME](createKey('a', { ctrl: true }))).toBe(false);
+        });
+    });
+});
+//# sourceMappingURL=keyMatchers.test.js.map

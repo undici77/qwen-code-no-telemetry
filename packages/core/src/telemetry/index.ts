@@ -150,6 +150,9 @@ export {
   recordMemoryExtractMetrics,
   recordMemoryDreamMetrics,
   recordMemoryRecallMetrics,
+} from './metrics.js';
+
+export type {
   // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
@@ -157,6 +160,7 @@ export {
   ApiRequestPhase,
   FileOperation,
 } from './metrics.js';
+
 export { QwenLogger } from './qwen-logger/qwen-logger.js';
 export { sanitizeHookName } from './sanitize.js';
 export {

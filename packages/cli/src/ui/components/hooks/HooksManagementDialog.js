@@ -1,0 +1,389 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+/**
+ * @license
+ * Copyright 2026 Qwen Team
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { Box, Text } from 'ink';
+import { theme } from '../../semantic-colors.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { useKeypress } from '../../hooks/useKeypress.js';
+import { keyMatchers, Command } from '../../keyMatchers.js';
+import { useConfig } from '../../contexts/ConfigContext.js';
+import { loadSettings, SettingScope } from '../../../config/settings.js';
+import { HooksConfigSource, createDebugLogger, HOOKS_CONFIG_FIELDS, } from '@qwen-code/qwen-code-core';
+import { HOOKS_MANAGEMENT_STEPS } from './types.js';
+import { HooksListStep } from './HooksListStep.js';
+import { HookDetailStep } from './HookDetailStep.js';
+import { HookConfigDetailStep } from './HookConfigDetailStep.js';
+import { HooksDisabledStep } from './HooksDisabledStep.js';
+import { DISPLAY_HOOK_EVENTS, getTranslatedSourceDisplayMap, createEmptyHookEventInfo, } from './constants.js';
+import { t } from '../../../i18n/index.js';
+const debugLogger = createDebugLogger('HOOKS_DIALOG');
+/**
+ * Type guard to check if a value is a valid HookConfig
+ */
+function isValidHookConfig(config) {
+    if (typeof config !== 'object' || config === null || !('type' in config)) {
+        return false;
+    }
+    const obj = config;
+    // Check based on type
+    if (obj['type'] === 'command') {
+        return 'command' in obj && typeof obj['command'] === 'string';
+    }
+    if (obj['type'] === 'http') {
+        return 'url' in obj && typeof obj['url'] === 'string';
+    }
+    if (obj['type'] === 'function') {
+        return 'callback' in obj && typeof obj['callback'] === 'function';
+    }
+    if (obj['type'] === 'prompt') {
+        return 'prompt' in obj && typeof obj['prompt'] === 'string';
+    }
+    return false;
+}
+/**
+ * Type guard to check if a value is a valid HookDefinition
+ */
+function isValidHookDefinition(def) {
+    if (typeof def !== 'object' || def === null) {
+        return false;
+    }
+    const obj = def;
+    // hooks array is required
+    if (!('hooks' in obj) || !Array.isArray(obj['hooks'])) {
+        return false;
+    }
+    // Validate each hook config in the array
+    for (const hook of obj['hooks']) {
+        if (!isValidHookConfig(hook)) {
+            return false;
+        }
+    }
+    // matcher is optional but must be a string if present
+    if ('matcher' in obj && typeof obj['matcher'] !== 'string') {
+        return false;
+    }
+    // sequential is optional but must be a boolean if present
+    if ('sequential' in obj && typeof obj['sequential'] !== 'boolean') {
+        return false;
+    }
+    return true;
+}
+/**
+ * Type guard to check if a value is a valid hooks record
+ * Note: This validates the structure but allows individual events to have
+ * invalid configs - those will be filtered out during processing.
+ */
+function isValidHooksRecord(hooks) {
+    if (typeof hooks !== 'object' || hooks === null) {
+        return false;
+    }
+    // Basic structure check - must be a record with array values for event keys
+    const record = hooks;
+    for (const [key, value] of Object.entries(record)) {
+        // Skip non-event configuration fields
+        if (HOOKS_CONFIG_FIELDS.includes(key)) {
+            continue;
+        }
+        // Event values should be arrays (even if contents are invalid)
+        if (!Array.isArray(value)) {
+            return false;
+        }
+    }
+    return true;
+}
+/**
+ * Safely extract hook definitions for a specific event
+ * Returns empty array if the definitions are invalid
+ */
+function getValidHookDefinitions(hooksRecord, eventName) {
+    const value = hooksRecord[eventName];
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    const result = [];
+    for (const def of value) {
+        if (isValidHookDefinition(def)) {
+            result.push(def);
+        }
+        else {
+            debugLogger.warn(`Skipping invalid hook definition for ${eventName}:`, def);
+        }
+    }
+    return result;
+}
+export function HooksManagementDialog({ onClose, }) {
+    const config = useConfig();
+    const { columns: width } = useTerminalSize();
+    const boxWidth = width - 4;
+    // Check if hooks are disabled
+    // Note: This value is captured at dialog open time. If disableAllHooks
+    // changes while the dialog is open (e.g., via settings.json edit),
+    // the dialog will not react to the change until it's closed and reopened.
+    // This is intentional - the dialog represents a snapshot of the current state.
+    const disableAllHooks = config?.getDisableAllHooks() ?? false;
+    const [navigationStack, setNavigationStack] = useState([
+        disableAllHooks
+            ? HOOKS_MANAGEMENT_STEPS.HOOKS_DISABLED
+            : HOOKS_MANAGEMENT_STEPS.HOOKS_LIST,
+    ]);
+    const [selectedHookIndex, setSelectedHookIndex] = useState(-1);
+    const [selectedConfigIndex, setSelectedConfigIndex] = useState(-1);
+    // Track selected index within each step for keyboard navigation
+    const [listSelectedIndex, setListSelectedIndex] = useState(0);
+    const [detailSelectedIndex, setDetailSelectedIndex] = useState(0);
+    const [hooks, setHooks] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
+    // Current step
+    const currentStep = navigationStack[navigationStack.length - 1] ||
+        HOOKS_MANAGEMENT_STEPS.HOOKS_LIST;
+    // Selected hook event
+    const selectedHook = useMemo(() => {
+        if (selectedHookIndex >= 0 && selectedHookIndex < hooks.length) {
+            return hooks[selectedHookIndex];
+        }
+        return null;
+    }, [hooks, selectedHookIndex]);
+    // Centralized keyboard handler
+    useKeypress((key) => {
+        if (isLoading || loadError) {
+            // Allow Escape to close even during loading/error states
+            if (key.name === 'escape') {
+                onClose();
+            }
+            return;
+        }
+        switch (currentStep) {
+            case HOOKS_MANAGEMENT_STEPS.HOOKS_DISABLED:
+                if (key.name === 'escape') {
+                    onClose();
+                }
+                break;
+            case HOOKS_MANAGEMENT_STEPS.HOOKS_LIST:
+                if (keyMatchers[Command.SELECTION_UP](key)) {
+                    setListSelectedIndex((prev) => Math.max(0, prev - 1));
+                }
+                else if (keyMatchers[Command.SELECTION_DOWN](key)) {
+                    setListSelectedIndex((prev) => Math.min(hooks.length - 1, prev + 1));
+                }
+                else if (key.name === 'return') {
+                    if (hooks.length > 0 && listSelectedIndex >= 0) {
+                        setSelectedHookIndex(listSelectedIndex);
+                        setSelectedConfigIndex(-1);
+                        setDetailSelectedIndex(0);
+                        setNavigationStack((prev) => [
+                            ...prev,
+                            HOOKS_MANAGEMENT_STEPS.HOOK_DETAIL,
+                        ]);
+                    }
+                }
+                else if (key.name === 'escape') {
+                    onClose();
+                }
+                break;
+            case HOOKS_MANAGEMENT_STEPS.HOOK_DETAIL:
+                if (key.name === 'escape') {
+                    handleNavigateBack();
+                }
+                else if (selectedHook && selectedHook.configs.length > 0) {
+                    if (keyMatchers[Command.SELECTION_UP](key)) {
+                        setDetailSelectedIndex((prev) => Math.max(0, prev - 1));
+                    }
+                    else if (keyMatchers[Command.SELECTION_DOWN](key)) {
+                        setDetailSelectedIndex((prev) => Math.min(selectedHook.configs.length - 1, prev + 1));
+                    }
+                    else if (key.name === 'return') {
+                        setSelectedConfigIndex(detailSelectedIndex);
+                        setNavigationStack((prev) => [
+                            ...prev,
+                            HOOKS_MANAGEMENT_STEPS.HOOK_CONFIG_DETAIL,
+                        ]);
+                    }
+                }
+                break;
+            case HOOKS_MANAGEMENT_STEPS.HOOK_CONFIG_DETAIL:
+                if (key.name === 'escape') {
+                    handleNavigateBack();
+                }
+                break;
+            default:
+                // No action for unknown steps
+                break;
+        }
+    }, { isActive: true });
+    // Load hooks data
+    const fetchHooksData = useCallback(() => {
+        if (!config)
+            return [];
+        const settings = loadSettings();
+        const userSettings = settings.forScope(SettingScope.User).settings;
+        const workspaceSettings = settings.forScope(SettingScope.Workspace).settings;
+        // Get translated source display map
+        const sourceDisplayMap = getTranslatedSourceDisplayMap();
+        const result = [];
+        for (const eventName of DISPLAY_HOOK_EVENTS) {
+            const hookInfo = createEmptyHookEventInfo(eventName);
+            // Get hooks from user settings (with per-event validation)
+            const userSettingsRecord = userSettings;
+            const userHooksRaw = userSettingsRecord?.['hooks'];
+            if (isValidHooksRecord(userHooksRaw)) {
+                const userDefs = getValidHookDefinitions(userHooksRaw, eventName);
+                for (const def of userDefs) {
+                    for (const hookConfig of def.hooks) {
+                        hookInfo.configs.push({
+                            config: hookConfig,
+                            source: HooksConfigSource.User,
+                            sourceDisplay: sourceDisplayMap[HooksConfigSource.User],
+                            enabled: true,
+                        });
+                    }
+                }
+            }
+            // Get hooks from workspace settings (with per-event validation)
+            const workspaceSettingsRecord = workspaceSettings;
+            const workspaceHooksRaw = workspaceSettingsRecord?.['hooks'];
+            if (isValidHooksRecord(workspaceHooksRaw)) {
+                const workspaceDefs = getValidHookDefinitions(workspaceHooksRaw, eventName);
+                for (const def of workspaceDefs) {
+                    for (const hookConfig of def.hooks) {
+                        hookInfo.configs.push({
+                            config: hookConfig,
+                            source: HooksConfigSource.Project,
+                            sourceDisplay: sourceDisplayMap[HooksConfigSource.Project],
+                            enabled: true,
+                        });
+                    }
+                }
+            }
+            // Get hooks from extensions (with type validation)
+            const extensions = config.getExtensions() || [];
+            for (const extension of extensions) {
+                if (extension.isActive && extension.hooks?.[eventName]) {
+                    const extensionHooks = extension.hooks[eventName];
+                    if (Array.isArray(extensionHooks)) {
+                        for (const def of extensionHooks) {
+                            if (isValidHookDefinition(def)) {
+                                for (const hookConfig of def.hooks) {
+                                    hookInfo.configs.push({
+                                        config: hookConfig,
+                                        source: HooksConfigSource.Extensions,
+                                        sourceDisplay: extension.name,
+                                        sourcePath: extension.path,
+                                        enabled: true,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Get session hooks from SessionHooksManager
+            const hookSystem = config.getHookSystem();
+            if (hookSystem) {
+                const sessionId = config.getSessionId();
+                if (sessionId) {
+                    const sessionHooksManager = hookSystem.getSessionHooksManager();
+                    const allSessionHooks = sessionHooksManager.getAllSessionHooks(sessionId);
+                    // Filter hooks for this event
+                    const eventSessionHooks = allSessionHooks.filter((hook) => hook.eventName === eventName);
+                    for (const sessionHook of eventSessionHooks) {
+                        // Session hooks have matcher stored separately from config
+                        hookInfo.configs.push({
+                            config: sessionHook.config,
+                            source: HooksConfigSource.Session,
+                            sourceDisplay: t('Session (temporary)'),
+                            matcher: sessionHook.matcher,
+                            enabled: true,
+                        });
+                    }
+                }
+            }
+            result.push(hookInfo);
+        }
+        return result;
+    }, [config]);
+    // Load hooks data on initial render
+    useEffect(() => {
+        let cancelled = false;
+        setIsLoading(true);
+        setLoadError(null);
+        try {
+            debugLogger.debug('Fetching hooks data for dialog');
+            const hooksData = fetchHooksData();
+            debugLogger.debug('Hooks data fetched:', hooksData.length, 'events');
+            if (!cancelled) {
+                setHooks(hooksData);
+            }
+        }
+        catch (error) {
+            if (!cancelled) {
+                debugLogger.error('Error loading hooks:', error);
+                setLoadError(error instanceof Error ? error.message : 'Failed to load hooks');
+            }
+        }
+        finally {
+            if (!cancelled) {
+                setIsLoading(false);
+            }
+        }
+        return () => {
+            cancelled = true;
+        };
+    }, [fetchHooksData]);
+    // Navigation handler for going back
+    const handleNavigateBack = useCallback(() => {
+        setNavigationStack((prev) => {
+            if (prev.length <= 1) {
+                onClose();
+                return prev;
+            }
+            return prev.slice(0, -1);
+        });
+    }, [onClose]);
+    // Selected hook config
+    const selectedConfig = useMemo(() => {
+        if (selectedHook &&
+            selectedConfigIndex >= 0 &&
+            selectedConfigIndex < selectedHook.configs.length) {
+            return selectedHook.configs[selectedConfigIndex];
+        }
+        return null;
+    }, [selectedHook, selectedConfigIndex]);
+    // Calculate total configured hooks count
+    const configuredHooksCount = useMemo(() => hooks.reduce((sum, hook) => sum + hook.configs.length, 0), [hooks]);
+    // Render based on current step
+    const renderContent = () => {
+        // Show disabled state first (before loading check)
+        if (currentStep === HOOKS_MANAGEMENT_STEPS.HOOKS_DISABLED) {
+            return _jsx(HooksDisabledStep, { configuredHooksCount: configuredHooksCount });
+        }
+        if (isLoading) {
+            return (_jsx(Box, { flexDirection: "column", paddingX: 1, children: _jsx(Text, { color: theme.text.secondary, children: t('Loading hooks...') }) }));
+        }
+        if (loadError) {
+            return (_jsxs(Box, { flexDirection: "column", paddingX: 1, children: [_jsx(Text, { color: theme.status.error, children: t('Error loading hooks:') }), _jsx(Text, { color: theme.text.secondary, children: loadError }), _jsx(Box, { marginTop: 1, children: _jsx(Text, { color: theme.text.secondary, children: t('Press Escape to close') }) })] }));
+        }
+        switch (currentStep) {
+            case HOOKS_MANAGEMENT_STEPS.HOOKS_LIST:
+                return (_jsx(HooksListStep, { hooks: hooks, selectedIndex: listSelectedIndex }));
+            case HOOKS_MANAGEMENT_STEPS.HOOK_DETAIL:
+                if (selectedHook) {
+                    return (_jsx(HookDetailStep, { hook: selectedHook, selectedIndex: detailSelectedIndex }));
+                }
+                return (_jsx(Box, { flexDirection: "column", paddingX: 1, children: _jsx(Text, { color: theme.text.secondary, children: t('No hook selected') }) }));
+            case HOOKS_MANAGEMENT_STEPS.HOOK_CONFIG_DETAIL:
+                if (selectedHook && selectedConfig) {
+                    return (_jsx(HookConfigDetailStep, { hookEvent: selectedHook, hookConfig: selectedConfig }));
+                }
+                return (_jsx(Box, { flexDirection: "column", paddingX: 1, children: _jsx(Text, { color: theme.text.secondary, children: t('No hook config selected') }) }));
+            default:
+                return null;
+        }
+    };
+    return (_jsx(Box, { flexDirection: "column", borderStyle: "round", borderColor: theme.border.default, width: boxWidth, paddingX: 1, paddingY: 1, children: renderContent() }));
+}
+//# sourceMappingURL=HooksManagementDialog.js.map
