@@ -191,15 +191,24 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 `packages/core/src/telemetry/uiTelemetry.ts` exports a `uiTelemetryService` singleton that is a **pure in-process Node.js `EventEmitter`**. It has zero network code. It aggregates token counts and tool stats that are displayed in the "Agent powering down. Goodbye!" quit panel. It never persists to disk and never touches the network.
 
+> 🔒 **Privacy proof for `uiTelemetryService`** — verified by code audit:
+> - Defined in `packages/core/src/telemetry/uiTelemetry.ts` as `class UiTelemetryService extends EventEmitter`
+> - Contains NO `fetch`, NO `http.request`, NO `https.request`, NO `XMLHttpRequest`, NO WebSocket, NO `child_process`, NO `fs.write*` calls
+> - Data lives entirely in memory (`SessionMetrics` object) and is consumed only by `StatsDisplay.tsx` (the local TUI panel)
+> - Listeners are registered via `uiTelemetryService.on(...)` only within the same process
+> - **Forwarding events to it is 100% privacy-safe and does NOT violate the no-telemetry policy**
+
 ### The `loggers.ts` PARTIAL no-op rule
 
 `packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Three functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
 
-| Function | Must forward to | Why |
+| Function | Must forward to | Privacy impact |
 |---|---|---|
-| `logApiResponse` | `uiTelemetryService.addEvent()` | Populates per-model token counts in quit stats |
-| `logApiError` | `uiTelemetryService.addEvent()` | Counts error requests in quit stats |
-| `logToolCall` | `uiTelemetryService.addEvent()` | Populates tool call counts in quit stats |
+| `logApiResponse` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+| `logApiError` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+| `logToolCall` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+
+**These three functions are NOT a telemetry leak.** They do not send data anywhere. They update an in-memory counter that is displayed to the user on their own screen when the session ends. No-op-ing them is a correctness bug, not a privacy improvement.
 
 The correct implementation (copy exactly, do NOT make no-ops):
 
@@ -208,30 +217,30 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logToolCall(config: Config, event: ToolCallEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 ```
 
-`getChatRecordingService()` writes session history **locally only** (for `--resume`). It has no network calls.
+> 🔒 **Privacy proof for `getChatRecordingService()`** — writes to a local file (`~/.qwen/tmp/<session-id>.json`) for the `--resume` feature only. Verified: no network calls anywhere in `ChatRecordingService`. This is purely local session persistence.
 
-All other ~30 `log*` functions in `loggers.ts` MUST remain `_config, _event): void {}` (complete no-ops).
+All other ~30 `log*` functions in `loggers.ts` MUST remain `(_config, _event): void {}` (complete no-ops) because they would otherwise route data to external OTel exporters, GCP, or analytics endpoints.
 
 ### Verification checklist after every merge
 
