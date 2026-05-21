@@ -33,6 +33,10 @@ Instead of deleting telemetry files (which made merging difficult), this fork us
 
 This keeps the application codebase aligned with upstream while ensuring zero external data leakage.
 
+> ⚠️ **`loggers.ts` PARTIAL no-op rule**: `logApiResponse`, `logApiError`, and `logToolCall` in `packages/core/src/telemetry/loggers.ts` MUST forward events to `uiTelemetryService` (a local-only `EventEmitter`, zero network). Making them full no-ops causes the "Agent powering down. Goodbye!" quit statistics (Model Usage, token counts, tool call counts) to be permanently blank. All other ~30 log functions remain no-ops. See `NO_TELEMETRY_GUIDELINES.md §11` for the exact implementation.
+
+> ⚠️ **`@opentelemetry/api` runtime import rule**: TypeScript `tsconfig.json` `paths` entries only apply to type-checking and esbuild bundling — NOT to Node.js runtime resolution of compiled `.js` files. Every source `.ts` file that imports from `@opentelemetry/api` (or any removed `@opentelemetry/*` package) must use a **relative import to `dummy-otel.js`** instead (e.g., `from '../telemetry/dummy-otel.js'`). Failing to do this causes `ERR_MODULE_NOT_FOUND` crashes in `npm start` mode. See `NO_TELEMETRY_GUIDELINES.md §12` for details and verification commands.
+
 ---
 
 ### Versioning Strategy

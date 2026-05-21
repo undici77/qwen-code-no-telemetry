@@ -38,6 +38,8 @@ This branch must remain aligned with upstream `main`.
 - **package.json**: Remove ALL `@opentelemetry/*` dependencies.
 - **Neutralize New Features**: If upstream adds new tracking logic, immediately neutralize it in the merge result.
 
+> ⚠️ **CRITICAL: `loggers.ts` partial-no-op rule** — See Section 11 below.
+
 ---
 
 ## 3. Mandatory Post-Merge Actions
@@ -53,6 +55,12 @@ Every successful merge REQUIRES:
     ```
 5.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
 6.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
+7.  **STATS DISPLAY CHECK** ⚠️ See Section 11: Verify `logApiResponse`, `logApiError`, `logToolCall` in `packages/core/src/telemetry/loggers.ts` forward to `uiTelemetryService` — they must NOT be no-ops.
+8.  **RUNTIME IMPORT CHECK** ⚠️ See Section 12: Verify no `.ts` source files import directly from `@opentelemetry/api` (or other removed packages) using the bare package name:
+    ```bash
+    grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\." | grep -v "node_modules"
+    # Must return zero lines
+    ```
 
 ---
 
@@ -172,3 +180,100 @@ In newer TypeScript versions or strict modes, `req.params['id']` might be inferr
 ### Installer Git Errors
 `local-install.sh` builds in a temporary directory without `.git`. 
 **Optimization**: Ensure build scripts (like `generate-git-commit-info.js`) handle the absence of a git repository gracefully (e.g., by checking environment variables first or silencing stderr).
+
+---
+
+## 11. Privacy-Safe Local Stats vs. External Telemetry: The `loggers.ts` Rule
+
+This is the most subtle and dangerous post-merge failure mode. **Read carefully.**
+
+### The `uiTelemetryService` is NOT telemetry — it is local stats
+
+`packages/core/src/telemetry/uiTelemetry.ts` exports a `uiTelemetryService` singleton that is a **pure in-process Node.js `EventEmitter`**. It has zero network code. It aggregates token counts and tool stats that are displayed in the "Agent powering down. Goodbye!" quit panel. It never persists to disk and never touches the network.
+
+### The `loggers.ts` PARTIAL no-op rule
+
+`packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Three functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
+
+| Function | Must forward to | Why |
+|---|---|---|
+| `logApiResponse` | `uiTelemetryService.addEvent()` | Populates per-model token counts in quit stats |
+| `logApiError` | `uiTelemetryService.addEvent()` | Counts error requests in quit stats |
+| `logToolCall` | `uiTelemetryService.addEvent()` | Populates tool call counts in quit stats |
+
+The correct implementation (copy exactly, do NOT make no-ops):
+
+```typescript
+export function logApiResponse(config: Config, event: ApiResponseEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
+
+export function logApiError(config: Config, event: ApiErrorEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
+
+export function logToolCall(config: Config, event: ToolCallEvent): void {
+  const uiEvent = Object.assign(event, {
+    'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
+  });
+  uiTelemetryService.addEvent(uiEvent);
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+}
+```
+
+`getChatRecordingService()` writes session history **locally only** (for `--resume`). It has no network calls.
+
+All other ~30 `log*` functions in `loggers.ts` MUST remain `_config, _event): void {}` (complete no-ops).
+
+### Verification checklist after every merge
+
+Run this grep to confirm no external data paths snuck in:
+
+```bash
+# Must print ZERO results (no real OTel packages)
+find node_modules -name "index.js" -path "*opentelemetry/api*" 2>/dev/null
+
+# Must show uiTelemetryService only for the 3 allowed functions
+grep -n "uiTelemetryService\|fetch\|http\.request\|https\.request" \
+  packages/core/src/telemetry/loggers.ts
+
+# Must return false (no usage stats sent as request headers)
+grep -A3 "getUsageStatisticsEnabled" packages/core/src/config/config.ts
+
+# Must be === true guard (update check disabled by default)  
+grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
+```
+
+---
+
+## 12. The `@opentelemetry/api` Runtime Resolution Rule
+
+**Problem**: TypeScript `tsconfig.json` `paths` entries (e.g., `"@opentelemetry/api": ["./src/telemetry/dummy-otel.ts"]`) only affect type-checking. They do **NOT** rewrite import specifiers in the compiled `.js` output. So after `tsc --build`, every `import { context } from '@opentelemetry/api'` in `.js` files stays as-is and will throw `ERR_MODULE_NOT_FOUND` at runtime if the real package is absent.
+
+**Rule**: All source `.ts` files that import from `@opentelemetry/api` (or any other removed `@opentelemetry/*` package) MUST use **relative imports** pointing to the local dummy instead:
+
+| Source file location | Correct import |
+|---|---|
+| `packages/core/src/telemetry/*.ts` | `import ... from './dummy-otel.js'` |
+| `packages/core/src/core/*.ts` | `import ... from '../telemetry/dummy-otel.js'` |
+| `packages/core/src/core/subdir/*.ts` | `import ... from '../../telemetry/dummy-otel.js'` |
+| `packages/core/src/utils/*.ts` | `import ... from '../telemetry/dummy-otel.js'` |
+
+**After every merge**, verify no stray `@opentelemetry` imports remain in non-test source:
+
+```bash
+grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" \
+  | grep -v "\.test\." | grep -v "node_modules"
+# Must return zero lines
+```
+
+esbuild (`npm run bundle`) correctly resolves `@opentelemetry/api` via root `tsconfig.json` paths during bundling, so the *bundle* works even without this fix. But `npm start` (non-bundled mode) and any direct `node packages/core/dist/...` invocation will crash without it.
+
