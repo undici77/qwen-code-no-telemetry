@@ -151,7 +151,7 @@ function stripTrailingCommas(text: string): string {
     if (ch === ',') {
       // Drop comma only if the next non-whitespace char is } or ].
       let j = i + 1;
-      while (j < text.length && /\s/.test(text[j]!)) j++;
+      while (j < text.length && /\s/.test(text[j]!)) {j++;}
       if (j < text.length && (text[j] === ']' || text[j] === '}')) {
         i++;
         continue;
@@ -428,7 +428,7 @@ function createFileSettingsAdapter(): ProviderSettingsAdapter {
       const parts = key.split('.');
       let current: unknown = data;
       for (const part of parts) {
-        if (current == null || typeof current !== 'object') return undefined;
+        if (current == null || typeof current !== 'object') {return undefined;}
         current = (current as Record<string, unknown>)[part];
       }
       return current;
@@ -492,7 +492,7 @@ function createFileSettingsAdapter(): ProviderSettingsAdapter {
     },
 
     restore(): void {
-      if (!backupData) return;
+      if (!backupData) {return;}
       // Write to disk FIRST. If writeSettings throws (EACCES / disk full /
       // EPERM on Windows), the in-memory update is skipped on purpose:
       // callers never observe a clean snapshot while the file on disk lies.
@@ -566,7 +566,7 @@ export function snapshotSettingsForRollback(): Record<string, unknown> | null {
 export function restoreSettingsSnapshot(
   snapshot: Record<string, unknown> | null,
 ): void {
-  if (snapshot === null) return;
+  if (snapshot === null) {return;}
   writeSettings(snapshot);
 }
 
@@ -697,7 +697,7 @@ export function clearPersistedAuth(): void {
       for (const p of ALL_PROVIDERS) {
         try {
           const key = resolveMetadataKey(p);
-          if (key) delete pm[key];
+          if (key) {delete pm[key];}
         } catch {
           /* skip metadata cleanup for a misconfigured provider id */
         }

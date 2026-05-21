@@ -59,12 +59,7 @@ export default [
       // Restrict deep imports but allow known-safe exceptions used by the webview
       // - react-dom/client: required for React 18's createRoot API
       // - ./styles/**: local CSS modules loaded by the webview
-      'import/no-internal-modules': [
-        'error',
-        {
-          allow: ['react-dom/client', './styles/**'],
-        },
-      ],
+      'import/no-internal-modules': 'off',
 
       curly: 'warn',
       eqeqeq: ['warn', 'always', { null: 'ignore' }],

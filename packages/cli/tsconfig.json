@@ -45,9 +45,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.json",
-    "./package.json",
-    "../core/src/utils/toml-to-markdown-converter.test.ts",
-    "../core/src/utils/toml-to-markdown-converter.ts"
+    "./package.json"
   ],
   "exclude": [
     "node_modules",

@@ -1318,11 +1318,11 @@ export const App: React.FC = () => {
             if (c.oldText) {
               const oldLines = c.oldText
                 .split('\n')
-                .map((l) => `-${l}`)
+                .map((l: string) => `-${l}`)
                 .join('\n');
               const newLines = (c.newText || '')
                 .split('\n')
-                .map((l) => `+${l}`)
+                .map((l: string) => `+${l}`)
                 .join('\n');
               const diffContent = `--- ${filePath}\n+++ ${filePath}\n${oldLines}\n${newLines}`;
               if (wrapCodeBlock) {

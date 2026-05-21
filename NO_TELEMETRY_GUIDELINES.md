@@ -71,12 +71,12 @@ The version system has two distinct layers that serve different purposes:
 
 ## 5. Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.14.5-no-telemetry` to `v0.15.11-no-telemetry`), update **ALL** references across the codebase:
+When releasing a new version (e.g., bumping from `v0.15.11-no-telemetry` to `v0.16.0-no-telemetry`), update **ALL** references across the codebase:
 
 | File                                         | What to Update                                                                                        |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`                                                              |
-| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.15.11`) |
+| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.16.0`) |
 | `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references                                                                      |
 | CI/CD configuration files                    | Version tags and refs                                                                                 |
 

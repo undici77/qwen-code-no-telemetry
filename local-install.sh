@@ -23,7 +23,7 @@ set -o pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 NVM_VERSION="v0.40.3"
-NODE_VERSION="20"
+NODE_VERSION="22"
 NPM_PREFIX="${HOME}/.npm-global"   # npm global prefix — stays in $HOME
 NVM_DIR="${HOME}/.nvm"             # NVM install dir   — stays in $HOME
 
@@ -125,7 +125,7 @@ install_nodejs() {
     if command_exists node; then
         local maj
         maj=$(node --version | sed 's/v//' | cut -d. -f1)
-        if [[ "${maj}" =~ ^[0-9]+$ ]] && [[ "${maj}" -ge 20 ]]; then
+        if [[ "${maj}" =~ ^[0-9]+$ ]] && [[ "${maj}" -ge "${NODE_VERSION}" ]]; then
             echo "✓ Node.js $(node --version) already installed"
         else
             echo "⚠ Node.js $(node --version) too old — installing v${NODE_VERSION}"
@@ -220,7 +220,7 @@ install_qwen_code() {
     echo "Installing globally into ${NPM_PREFIX}..."
     # Uninstall first to ensure version switches (downgrades) work correctly
     npm uninstall -g @qwen-code/qwen-code 2>/dev/null || true
-    ( cd "${work_dir}" && npm install -g "./${tgz}" ) \
+    ( cd "${work_dir}" && npm install -g "./${tgz}" --no-audit --no-fund ) \
         || { echo "✗ Global install failed"; exit 1; }
     echo "✓ Installed successfully"
 

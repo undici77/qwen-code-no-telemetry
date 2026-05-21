@@ -46,6 +46,7 @@ import type {
   MemoryExtractEvent,
   MemoryDreamEvent,
   MemoryRecallEvent,
+  HookCallEvent,
 } from './types.js';
 
 // No-op implementations for no-telemetry policy
@@ -63,6 +64,7 @@ export function logUserPrompt(_config: Config, _event: UserPromptEvent): void {}
 export function logUserRetry(_config: Config, _event: UserRetryEvent): void {}
 
 export function logToolCall(_config: Config, _event: ToolCallEvent): void {}
+export function logHookCall(_config: Config, _event: HookCallEvent): void {}
 export function logToolOutputTruncated(
   _config: Config,
   _event: ToolOutputTruncatedEvent,
@@ -199,5 +201,5 @@ export function logMemoryRecall(
   _config: Config,
   _event: MemoryRecallEvent,
 ): void {}
-export function logPromptSuggestion(_config: Config, _event: any): void {}
-export function logSpeculation(_config: Config, _event: any): void {}
+export function logPromptSuggestion(_config: Config, _event: unknown): void {}
+export function logSpeculation(_config: Config, _event: unknown): void {}

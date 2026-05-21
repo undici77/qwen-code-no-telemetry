@@ -13,10 +13,14 @@ import type { Span } from './dummy-otel.js';
 export interface StartInteractionOptions {
   intent?: string;
   source?: string;
+  promptId?: string;
+  model?: string;
+  messageType?: string;
 }
 
 export interface EndInteractionOptions {
   metadata?: Record<string, string | number | boolean>;
+  errorMessage?: string;
 }
 
 export interface LLMRequestMetadata {

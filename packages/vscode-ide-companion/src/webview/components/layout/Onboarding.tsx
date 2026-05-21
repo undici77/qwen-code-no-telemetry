@@ -8,7 +8,7 @@
  */
 
 import type { FC } from 'react';
-// eslint-disable-next-line import/no-internal-modules -- bundle the webview logo as a data URL
+ 
 import iconUrl from '../../../../assets/icon.png';
 import { ProviderSetupForm } from './ProviderSetupForm.js';
 

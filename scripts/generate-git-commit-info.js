@@ -44,7 +44,7 @@ if (!existsSync(generatedCoreDir)) {
 // Try to get git hash if not provided
 if (gitCommitInfo === 'N/A') {
   try {
-    const gitHash = execSync('git rev-parse --short HEAD', {
+    const gitHash = execSync('git rev-parse --short HEAD 2>/dev/null', {
       encoding: 'utf-8',
       cwd: root,
     }).trim();

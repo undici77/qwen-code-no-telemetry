@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.14.5-no-telemetry to v0.15.11-no-telemetry), ALWAYS update these files with the new version number:
+- When releasing a new version (e.g., bumping from v0.15.11-no-telemetry to v0.16.0-no-telemetry), ALWAYS update these files with the new version number:
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs

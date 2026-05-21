@@ -107,6 +107,8 @@ esbuild
         __dirname,
         'packages/web-templates/src/index.ts',
       ),
+      // Force fzf to use ESM version to avoid UMD import issues
+      fzf: path.resolve(__dirname, 'node_modules/fzf/dist/fzf.es.js'),
       // Resolve to userland punycode instead of deprecated node:punycode built-in
       punycode: require.resolve('punycode/'),
     },
