@@ -33,65 +33,81 @@ export const REGRESSION_PERCENTAGE_CHANGE =
   'qwen-code.performance.regression.percentage_change';
 export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
-export enum FileOperation {
-  CREATE = 'create',
-  READ = 'read',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  RENAME = 'rename',
-}
+export type FileOperation = 'create' | 'read' | 'update' | 'delete';
+export type MemoryMetricType = 'rss' | 'heapTotal' | 'heapUsed' | 'external';
+export type ToolExecutionPhase = 'setup' | 'execution' | 'teardown';
+export type ApiRequestPhase = 'request' | 'response';
+export type PerformanceMetricType =
+  | 'startup'
+  | 'memory'
+  | 'cpu'
+  | 'tool_queue'
+  | 'tool_execution'
+  | 'token_efficiency'
+  | 'api_request'
+  | 'performance_score'
+  | 'regression_detection';
 
-export enum PerformanceMetricType {
-  LATENCY = 'latency',
-  THROUGHPUT = 'throughput',
-  ERROR_RATE = 'error_rate',
-}
-
-export enum MemoryMetricType {
-  HEAP_USED = 'heap_used',
-  HEAP_TOTAL = 'heap_total',
-  RSS = 'rss',
-}
-
-export enum ToolExecutionPhase {
-  PREPARATION = 'preparation',
-  EXECUTION = 'execution',
-  POST_PROCESSING = 'post_processing',
-}
-
-export enum ApiRequestPhase {
-  REQUEST_START = 'request_start',
-  RESPONSE_RECEIVED = 'response_received',
-}
-
-export function getMeter(): unknown {
-  return undefined;
-}
-
-export function initializeMetrics(_config: Config): void {}
-
-export function recordChatCompressionMetrics(
+export function recordToolCallMetrics(
   _config: Config,
-  _event: unknown,
+  _toolName: string,
+  _success: boolean,
+  _latencyMs: number,
+  _metadata?: {
+    decision?: 'accept' | 'reject' | 'modify' | 'auto_accept';
+    tool_type?: 'native' | 'mcp';
+  },
 ): void {}
 
-export function recordToolCallMetrics(_config: Config, _event: unknown): void {}
-
-export function recordTokenUsageMetrics(
+export function recordApiRequest(
   _config: Config,
-  _event: unknown,
+  _model: string,
+  _success: boolean,
+  _latencyMs: number,
+  _metadata?: {
+    status_code?: number | string;
+    error_type?: string;
+  },
 ): void {}
 
 export function recordApiResponseMetrics(
   _config: Config,
-  _event: unknown,
+  _model: string,
+  _latencyMs: number,
+  _metadata?: {
+    status_code?: number | string;
+  },
 ): void {}
 
-export function recordApiErrorMetrics(_config: Config, _event: unknown): void {}
+export function recordApiErrorMetrics(
+  _config: Config,
+  _model: string,
+  _errorType: string,
+  _metadata?: {
+    status_code?: number | string;
+  },
+): void {}
+
+export function recordTokenUsageMetrics(
+  _config: Config,
+  _model: string,
+  _inputTokens: number,
+  _outputTokens: number,
+  _thoughtTokens?: number,
+  _cacheTokens?: number,
+): void {}
+
+export function recordSessionStart(_config: Config): void {}
 
 export function recordFileOperationMetric(
   _config: Config,
-  _event: unknown,
+  _operation: FileOperation,
+  _metadata?: {
+    lines?: number;
+    mimetype?: string;
+    extension?: string;
+    programming_language?: string;
+  },
 ): void {}
 
 export function recordInvalidChunk(_config: Config): void {}
@@ -100,105 +116,105 @@ export function recordContentRetry(_config: Config): void {}
 
 export function recordContentRetryFailure(_config: Config): void {}
 
-export function recordModelSlashCommand(
+export function recordModelSlashCommandCall(
   _config: Config,
-  _event: unknown,
+  _modelName: string,
 ): void {}
 
-export function initializePerformanceMonitoring(_config: Config): void {}
+export function recordChatCompression(
+  _config: Config,
+  _tokensBefore: number,
+  _tokensAfter: number,
+): void {}
 
+export function recordArenaSessionStartedMetrics(_config: Config): void {}
+export function recordArenaAgentCompletedMetrics(
+  _config: Config,
+  _durationMs: number,
+  _tokens: number,
+): void {}
+export function recordArenaSessionEndedMetrics(
+  _config: Config,
+  _durationMs: number,
+  _status: string,
+): void {}
+
+export function recordMemoryExtractMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
+export function recordMemoryDreamMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
+export function recordMemoryRecallMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
+
+// Performance Monitoring (no-op)
 export function recordStartupPerformance(
   _config: Config,
-  _duration: number,
+  _phase: string,
+  _durationMs: number,
+  _details?: Record<string, string | number | boolean>,
 ): void {}
 
-export function recordMemoryUsage(_config: Config, _usage: unknown): void {}
-
-export function recordCpuUsage(_config: Config, _usage: unknown): void {}
-
-export function recordToolQueueDepth(
+export function recordMemoryUsage(
   _config: Config,
-  _queueDepth: number,
+  _memoryType: MemoryMetricType,
+  _bytes: number,
+  _component?: string,
 ): void {}
+
+export function recordCpuUsage(
+  _config: Config,
+  _percentage: number,
+  _component?: string,
+): void {}
+
+export function recordToolQueueDepth(_config: Config, _depth: number): void {}
 
 export function recordToolExecutionBreakdown(
   _config: Config,
-  _event: unknown,
+  _toolName: string,
+  _phase: ToolExecutionPhase,
+  _durationMs: number,
 ): void {}
 
 export function recordTokenEfficiency(
   _config: Config,
-  _efficiency: number,
+  _model: string,
+  _metric: string,
+  _value: number,
+  _context?: string,
 ): void {}
 
 export function recordApiRequestBreakdown(
   _config: Config,
-  _event: unknown,
+  _model: string,
+  _phase: string,
+  _durationMs: number,
 ): void {}
 
 export function recordPerformanceScore(_config: Config, _score: number): void {}
 
 export function recordPerformanceRegression(
   _config: Config,
-  _event: unknown,
+  _metric: string,
+  _severity: 'low' | 'medium' | 'high',
+  _currentValue: number,
+  _baselineValue: number,
 ): void {}
 
 export function recordBaselineComparison(
   _config: Config,
-  _event: unknown,
+  _metric: string,
+  _value: number,
 ): void {}
 
 export function isPerformanceMonitoringActive(): boolean {
   return false;
 }
 
-export function recordSubagentExecutionMetrics(
-  _config: Config,
-  _event: unknown,
-): void {}
-
-// Arena Metric Recording Functions (no-op for no-telemetry policy)
-export function recordArenaSessionStartedMetrics(_config: Config): void {}
-export function recordArenaAgentCompletedMetrics(
-  _config: Config,
-  _modelId: string,
-  _status: string,
-  _durationMs: number,
-  _inputTokens: number,
-  _outputTokens: number,
-): void {}
-export function recordArenaSessionEndedMetrics(
-  _config: Config,
-  _status: string,
-  _displayBackend?: string,
-  _durationMs?: number,
-  _winnerModelId?: string,
-): void {}
-
-// ─── Auto-Memory Metric Recording Functions ─────────────────────────────────
-
-export function recordMemoryExtractMetrics(
-  _config: Config,
-  _durationMs: number,
-  _attrs: {
-    trigger: 'auto' | 'manual';
-    status: 'completed' | 'skipped' | 'failed';
-    patches_count: number;
-  },
-): void {}
-
-export function recordMemoryDreamMetrics(
-  _config: Config,
-  _durationMs: number,
-  _attrs: {
-    trigger: 'auto' | 'manual';
-    status: 'updated' | 'noop' | 'failed' | 'cancelled';
-    deduped_entries: number;
-  },
-): void {}
-
-export function recordMemoryRecallMetrics(
-  _config: Config,
-  _durationMs: number,
-  _attrs: { strategy: 'none' | 'heuristic' | 'model'; docs_selected: number },
-): void {}
+export async function flushMetrics(): Promise<void> {}

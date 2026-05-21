@@ -1192,10 +1192,38 @@ function stripThoughtsFromContent(content: Content): Content | null {
   };
 }
 
+function copyContentForApiHistory(content: Content): Content {
+  return {
+    ...content,
+    parts: content.parts?.map((part) => {
+      if ('functionCall' in part && part.functionCall) {
+        return {
+          ...part,
+          functionCall: {
+            ...part.functionCall,
+            args: part.functionCall.args
+              ? { ...part.functionCall.args }
+              : part.functionCall.args,
+          },
+        };
+      }
+      if ('functionResponse' in part && part.functionResponse) {
+        return {
+          ...part,
+          functionResponse: {
+            ...part.functionResponse,
+          },
+        };
+      }
+      return { ...part };
+    }),
+  };
+}
+
 function appendApiHistoryRecord(history: Content[], record: ChatRecord): void {
   if (!record.message) return;
 
-  const message = structuredClone(record.message as Content);
+  const message = copyContentForApiHistory(record.message as Content);
   if (record.subtype === 'mid_turn_user_message') {
     const previous = history.at(-1);
     if (previous?.role === 'user') {
@@ -1241,7 +1269,9 @@ export function buildApiHistoryFromConversation(
   });
 
   if (compressedHistory && lastCompressionIndex >= 0) {
-    const baseHistory: Content[] = structuredClone(compressedHistory);
+    const baseHistory: Content[] = compressedHistory.map(
+      copyContentForApiHistory,
+    );
 
     // Append everything after the compression record (newer turns)
     for (let i = lastCompressionIndex + 1; i < messages.length; i++) {

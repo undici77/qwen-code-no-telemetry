@@ -58,7 +58,6 @@ export interface UIState {
   isMemoryDialogOpen: boolean;
   isModelDialogOpen: boolean;
   isFastModelMode: boolean;
-  isManageModelsDialogOpen: boolean;
   isTrustDialogOpen: boolean;
   activeArenaDialog: ArenaDialogType;
   isPermissionsDialogOpen: boolean;
@@ -183,6 +182,8 @@ export interface UIState {
   // Rewind selector
   isRewindSelectorOpen: boolean;
   rewindEscPending: boolean;
+  // Diff dialog
+  isDiffDialogOpen: boolean;
 }
 
 export const UIStateContext = createContext<UIState | null>(null);

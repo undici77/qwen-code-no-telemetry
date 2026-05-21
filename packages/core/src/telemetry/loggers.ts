@@ -38,14 +38,11 @@ import type {
   ArenaSessionStartedEvent,
   ArenaAgentCompletedEvent,
   ArenaSessionEndedEvent,
-  PromptSuggestionEvent,
-  SpeculationEvent,
   StartSessionEvent,
   LoopDetectedEvent,
   LoopDetectionDisabledEvent,
   IdeConnectionEvent,
   KittySequenceOverflowEvent,
-  HookCallEvent,
   MemoryExtractEvent,
   MemoryDreamEvent,
   MemoryRecallEvent,
@@ -128,9 +125,7 @@ export function logKittySequenceOverflow(
 export function logMalformedJsonResponse(
   _config: Config,
   _event: MalformedJsonResponseEvent,
-): void {
-  // Use any to avoid type issues with complex events in no-op
-}
+): void {}
 export function logInvalidChunk(
   _config: Config,
   _event: InvalidChunkEvent,
@@ -155,6 +150,10 @@ export function logExtensionInstallEvent(
   _config: Config,
   _event: ExtensionInstallEvent,
 ): void {}
+export function logExtensionUpdateEvent(
+  _config: Config,
+  _event: ExtensionUpdateEvent,
+): void {}
 export function logExtensionUninstall(
   _config: Config,
   _event: ExtensionUninstallEvent,
@@ -167,10 +166,6 @@ export function logExtensionDisable(
   _config: Config,
   _event: ExtensionDisableEvent,
 ): void {}
-export function logExtensionUpdateEvent(
-  _config: Config,
-  _event: ExtensionUpdateEvent,
-): void {}
 export function logAuth(_config: Config, _event: AuthEvent): void {}
 export function logSkillLaunch(
   _config: Config,
@@ -180,8 +175,6 @@ export function logUserFeedback(
   _config: Config,
   _event: UserFeedbackEvent,
 ): void {}
-
-// Arena events - no-op for no-telemetry policy
 export function logArenaSessionStarted(
   _config: Config,
   _event: ArenaSessionStartedEvent,
@@ -194,30 +187,14 @@ export function logArenaSessionEnded(
   _config: Config,
   _event: ArenaSessionEndedEvent,
 ): void {}
-
-export function logHookCall(_config: Config, _event: HookCallEvent): void {}
-
-export function logPromptSuggestion(
-  _config: Config,
-  _event: PromptSuggestionEvent,
-): void {}
-export function logSpeculation(
-  _config: Config,
-  _event: SpeculationEvent,
-): void {}
-
-// ─── Auto-Memory Log Functions ───────────────────────────────────────────────
-
 export function logMemoryExtract(
   _config: Config,
   _event: MemoryExtractEvent,
 ): void {}
-
 export function logMemoryDream(
   _config: Config,
   _event: MemoryDreamEvent,
 ): void {}
-
 export function logMemoryRecall(
   _config: Config,
   _event: MemoryRecallEvent,

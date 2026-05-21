@@ -1030,7 +1030,7 @@ describe('EditTool', () => {
       }
     });
 
-    it('should return FILE_WRITE_FAILURE on write error', async () => {
+    it('should return FILE_WRITE_FAILURE when fsService.writeTextFile fails', async () => {
       fs.writeFileSync(filePath, 'content', 'utf8');
       seedPriorRead(filePath);
 
@@ -1237,6 +1237,7 @@ describe('EditTool', () => {
       expect(result.error?.message).toMatch(
         /binary \/ image \/ audio \/ video \/ PDF \/ notebook payload/,
       );
+      expect(result.error?.message).toContain('notebook_edit');
       expect(result.error?.message).not.toMatch(/Use the read_file tool first/);
       // EditTool's verb is "edit", not "overwrite" — using the
       // wrong one here would be confusing for in-place edits.

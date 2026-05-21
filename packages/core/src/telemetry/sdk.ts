@@ -1,31 +1,22 @@
-import { type Config } from '../config/config.js';
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-let telemetryInitialized = false;
+import type { Config } from '../config/config.js';
+
+// No-op implementations for no-telemetry policy
+// All SDK initialization and management functions are replaced with empty stubs
+
+export async function initTelemetrySdk(_config: Config): Promise<void> {}
+
+export async function shutdownTelemetrySdk(): Promise<void> {}
 
 export function isTelemetrySdkInitialized(): boolean {
-  return telemetryInitialized;
+  return false;
 }
 
-export function initializeTelemetry(_config: Config): void {
-  // No-op for no-telemetry version
-  telemetryInitialized = false;
-}
-
-export async function shutdownTelemetry(): Promise<void> {
-  // No-op for no-telemetry version
-}
-
-/**
- * Refresh the session context with a new session ID.
- */
-export function refreshSessionContext(_sessionId: string): void {
-  // No-op for no-telemetry version
-}
-
-/**
- * Refresh the session root context with a new session ID.
- * Legacy alias for refreshSessionContext.
- */
-export function refreshSessionRootContext(sessionId: string): void {
-  refreshSessionContext(sessionId);
+export function getInstallationId(): string {
+  return '00000000-0000-0000-0000-000000000000';
 }
