@@ -44,10 +44,15 @@ This branch must remain aligned with upstream `main`.
 
 Every successful merge REQUIRES:
 
-1.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.14.3`). **DO NOT** append `-no-telemetry` to the version string.
-2.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
-3.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
-4.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
+1.  **NODE VERSION**: Ensure you are using **Node.js >= 22.0.0** to avoid `EBADENGINE` warnings.
+2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.16.0`). **DO NOT** append `-no-telemetry` to the version string.
+3.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
+4.  **CLEAN BUILD ARTIFACTS**: If seeing "No matching export" errors in `esbuild`, run a selective cleanup:
+    ```bash
+    find packages/*/src -name "*.ts" -o -name "*.tsx" | sed 's/\.ts$//; s/\.tsx$//' | while read -r base; do rm -f "${base}.js" "${base}.js.map"; done
+    ```
+5.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
+6.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
 
 ---
 
@@ -122,6 +127,10 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 
 ## 8. Instructions for AI Models
 
+- **TOKEN EFFICIENCY**:
+  - Combine multiple `grep` or `ls` commands into a single `run_shell_command` call.
+  - Use `npm run build --workspace=<pkg>` instead of root build if only one package changed.
+  - When fixing mass type errors (like `req.params` casts), use `replace` with `allow_multiple: true` or a `sed` loop to fix all at once.
 - **NO EXCUSES**: Aligning this branch is your job. "Conflicts too complex" is not an acceptable failure.
 - **PLANNING**: Always start by evaluating the conflict scope and presenting a clear resolution plan—**before beginning any full evaluation or merge execution**.
 - **PRECISION**: If you are unsure about a specific conflict resolution, ASK THE USER, but provide your best recommendation first.
@@ -143,3 +152,23 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 > You get one chance to evaluate, resolve, and close. No retries, no "second attempts" unless explicitly restarted by a human.
 > — If resolution fails after best-effort, _abort silently_, record failure in commit message, and raise no complaint.
 > — Human review follows—_you do not escalate_. You closed the job, and it failed. That is acceptable. Delaying or hallucinating is not.
+
+---
+
+## 10. Troubleshooting & Build Optimizations
+
+### Stale Build Artifacts
+If you update a `.ts` file but `esbuild` (e.g., in `vscode-ide-companion`) complains about missing exports in the corresponding `.js` file in the same `src` folder, you have **stale artifacts**. 
+**Fix**: Use the cleanup script in Section 3.4.
+
+### WebUI Type Generation
+`vite-plugin-dts` may fail to generate types if CSS/SVG imports are present. 
+**Pattern**: Use a dedicated `tsconfig.dts.json` and a manual `tsc` step in the `webui` build script to ensure valid `.d.ts` files are produced.
+
+### Express Request Params
+In newer TypeScript versions or strict modes, `req.params['id']` might be inferred as `string | string[]`. 
+**Fix**: Always cast to string: `const id = req.params['id'] as string;`.
+
+### Installer Git Errors
+`local-install.sh` builds in a temporary directory without `.git`. 
+**Optimization**: Ensure build scripts (like `generate-git-commit-info.js`) handle the absence of a git repository gracefully (e.g., by checking environment variables first or silencing stderr).

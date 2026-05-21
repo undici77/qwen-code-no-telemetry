@@ -77,6 +77,18 @@ When releasing a new version (e.g., bumping from `v0.15.11-no-telemetry` to `v0.
 grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
 ```
 
+---
+
+### Efficiency & Troubleshooting
+
+1.  **Stale JS Cleanup**: If `esbuild` fails with "No matching export" after updating `.ts`, run:
+    ```bash
+    find packages/*/src -name "*.ts" -o -name "*.tsx" | sed 's/\.ts$//; s/\.tsx$//' | while read -r base; do rm -f "${base}.js" "${base}.js.map"; done
+    ```
+2.  **Node Version**: Ensure Node.js >= 22.0.0.
+3.  **Express Params**: Cast `req.params['id'] as string` to avoid union type errors.
+
+
 **Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
 
 ---

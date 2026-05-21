@@ -17,6 +17,13 @@ The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`
   3. Resolve/neutralize and `git commit --amend`
      _Avoid `reset --soft` after merge as it breaks the history link to `main`._
 
+- **Troubleshooting Stale Artifacts**: If `esbuild` (used in `bundle` or `vscode-ide-companion`) fails with "No matching export" for an internal import that *is* exported in `.ts`, you have stale `.js` files in your `src` directory.
+  **Fix**: `find packages/*/src -name "*.ts" -o -name "*.tsx" | sed 's/\.ts$//; s/\.tsx$//' | while read -r base; do rm -f "${base}.js" "${base}.js.map"; done`
+
+- **Node.js Requirement**: ALWAYS use **Node.js >= 22.0.0**. The project will fail to build on older versions due to `EBADENGINE` and modern dependencies.
+
+- **WebUI Build Pattern**: We use a custom `tsconfig.dts.json` and a manual `tsc` step in `packages/webui/package.json` because `vite-plugin-dts` is unreliable with CSS/SVG imports.
+
 - When running tests in this no-telemetry fork, be aware of these pre-existing test failures that are NOT related to our changes:
 
 **Environment-specific failures (running as root):**
@@ -32,6 +39,7 @@ These tests were already failing before our changes and are expected when runnin
 2. `config.test.ts` - Usage statistics tests and gitCoAuthor tests now expect disabled by default
 3. `settingsSchema.test.ts` - Added test to verify gitCoAuthor default is false
 4. `gemini.test.tsx` - Fixed mock for `getCliVersionDisplay` (was incorrectly checking for non-existent `getCliVersion`)
+5. `mustTranslateKeys.test.ts` - Fixed by restoring accidentally deleted locale files and ensuring `git-commit.js` exists.
 
 **Telemetry Implementation:**
 
@@ -43,7 +51,7 @@ These tests were already failing before our changes and are expected when runnin
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs/examples (e.g., `v0.15.11-no-telemetry`) AND the "original README" link version (e.g., `v0.15.11`)
+3. **README.md**: Install script URLs/examples (e.g., `v0.16.0-no-telemetry`) AND the "original README" link version (e.g., `v0.16.0`)
 4. **AGENTS.md**: Merge protocol examples
 5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
 6. **QWEN.md**: Memory documentation (if updating version examples)
