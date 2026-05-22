@@ -7,18 +7,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
 import { executeToolCall } from './nonInteractiveToolExecutor.js';
-import type {
-  ToolRegistry,
-  ToolCallRequestInfo,
-  ToolResult,
-  Config,
-} from '../index.js';
 import {
   DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD,
-  ToolErrorType,
   ApprovalMode,
-} from '../index.js';
+} from '../config/config.js';
+import {
+  ToolErrorType,
+} from '../tools/tool-error.js';
+import type { Config } from '../config/config.js';
+import type { ToolRegistry } from '../tools/tool-registry.js';
+import type { ToolCallRequestInfo } from './turn.js';
+import type { ToolResult } from '../tools/tools.js';
 import type { Part } from '@google/genai';
 import { MockTool } from '../test-utils/mock-tool.js';
 

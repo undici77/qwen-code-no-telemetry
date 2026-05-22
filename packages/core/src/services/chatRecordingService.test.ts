@@ -21,14 +21,20 @@ import type { FileDiff } from '../tools/tools.js';
 
 vi.mock('node:path');
 vi.mock('node:child_process');
-vi.mock('node:crypto', () => ({
-  randomUUID: vi.fn(),
-  createHash: vi.fn(() => ({
-    update: vi.fn(() => ({
-      digest: vi.fn(() => 'mocked-hash'),
+vi.mock('node:crypto', () => {
+  const mocked = {
+    randomUUID: vi.fn(),
+    createHash: vi.fn(() => ({
+      update: vi.fn(() => ({
+        digest: vi.fn(() => 'mocked-hash'),
+      })),
     })),
-  })),
-}));
+  };
+  return {
+    ...mocked,
+    default: mocked,
+  };
+});
 vi.mock('../utils/jsonl-utils.js');
 
 describe('ChatRecordingService', () => {

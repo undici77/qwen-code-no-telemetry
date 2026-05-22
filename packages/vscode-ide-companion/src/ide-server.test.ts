@@ -13,9 +13,15 @@ import * as http from 'node:http';
 import { IDEServer } from './ide-server.js';
 import type { DiffManager } from './diff-manager.js';
 
-vi.mock('node:crypto', () => ({
-  randomUUID: vi.fn(() => 'test-auth-token'),
-}));
+vi.mock('node:crypto', () => {
+  const mocked = {
+    randomUUID: vi.fn(() => 'test-auth-token'),
+  };
+  return {
+    ...mocked,
+    default: mocked,
+  };
+});
 
 const mocks = vi.hoisted(() => ({
   diffManager: {

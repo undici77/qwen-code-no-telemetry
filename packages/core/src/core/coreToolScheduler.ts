@@ -33,14 +33,24 @@ import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 const debugLogger = createDebugLogger('TOOL_SCHEDULER');
 import {
-  ToolConfirmationOutcome,
   ApprovalMode,
-  logToolCall,
-  ToolErrorType,
-  ToolCallEvent,
+} from '../config/config.js';
+import {
   InputFormat,
+} from '../output/types.js';
+import {
+  logToolCall,
+} from '../telemetry/loggers.js';
+import {
+  ToolCallEvent,
+} from '../telemetry/types.js';
+import {
+  ToolErrorType,
+} from '../tools/tool-error.js';
+import {
+  ToolConfirmationOutcome,
   Kind,
-} from '../index.js';
+} from '../tools/tools.js';
 import type {
   FunctionResponse,
   FunctionResponsePart,

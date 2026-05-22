@@ -448,13 +448,13 @@ describe('Server Config (config.ts)', () => {
       expect(cache.size()).toBe(0);
     });
 
-    it('refreshes the telemetry session context with the new session ID', () => {
+    it('refreshes the telemetry session context', () => {
       const config = new Config(baseParams);
       vi.mocked(refreshSessionContext).mockClear();
 
-      const newSessionId = config.startNewSession();
+      config.startNewSession();
 
-      expect(refreshSessionContext).toHaveBeenCalledWith(newSessionId);
+      expect(refreshSessionContext).toHaveBeenCalledWith(config);
     });
   });
 

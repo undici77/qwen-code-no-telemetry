@@ -173,6 +173,20 @@ async function createMockConfig(
   // Mock getSessionId method
   vi.spyOn(config, 'getSessionId').mockReturnValue('test-session');
 
+  // Mock getContentGenerator to return a mock content generator directly,
+  // bypassing the LoggingContentGenerator wrapper which might trigger
+  // unexpected side effects or require complex mocking in tests.
+  const mockContentGenerator = {
+    generateContent: vi.fn(),
+    generateContentStream: vi.fn(),
+    countTokens: vi.fn().mockResolvedValue({ totalTokens: 10 }),
+    embedContent: vi.fn(),
+    useSummarizedThinking: vi.fn().mockReturnValue(false),
+  };
+  vi.spyOn(config, 'getContentGenerator').mockReturnValue(
+    mockContentGenerator as unknown as ContentGenerator,
+  );
+
   return { config, toolRegistry: mockToolRegistry };
 }
 
