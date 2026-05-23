@@ -17,7 +17,7 @@ The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`
   3. Resolve/neutralize and `git commit --amend`
      _Avoid `reset --soft` after merge as it breaks the history link to `main`._
 
-- **Troubleshooting Stale Artifacts**: If `esbuild` (used in `bundle` or `vscode-ide-companion`) fails with "No matching export" for an internal import that *is* exported in `.ts`, you have stale `.js` files in your `src` directory.
+- **Troubleshooting Stale Artifacts**: If `esbuild` (used in `bundle` or `vscode-ide-companion`) fails with "No matching export" for an internal import that _is_ exported in `.ts`, you have stale `.js` files in your `src` directory.
   **Fix**: `find packages/*/src -name "*.ts" -o -name "*.tsx" | sed 's/\.ts$//; s/\.tsx$//' | while read -r base; do rm -f "${base}.js" "${base}.js.map"; done`
 
 - **Node.js Requirement**: ALWAYS use **Node.js >= 22.0.0**. The project will fail to build on older versions due to `EBADENGINE` and modern dependencies.
@@ -51,11 +51,9 @@ These tests were already failing before our changes and are expected when runnin
 
 - **⚠️ CRITICAL: `@opentelemetry/api` runtime import rule** — TypeScript `tsconfig.json` `paths` entries (mapping `@opentelemetry/api` → `dummy-otel.ts`) only affect type-checking and esbuild bundling; they do NOT rewrite `.js` output. After a merge that introduces new files importing from `@opentelemetry/api`, change those imports to relative paths (e.g., `from '../telemetry/dummy-otel.js'`). Otherwise `npm start` crashes with `ERR_MODULE_NOT_FOUND`. Verify with: `grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."` — must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §12`.
 
-
-
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs/examples (e.g., `v0.16.1-no-telemetry`) AND the "original README" link version (e.g., `v0.16.0`)
+3. **README.md**: Install script URLs/examples (e.g., `v0.16.1-no-telemetry`) AND the "original README" link version (e.g., `v0.16.1`)
 4. **AGENTS.md**: Merge protocol examples
 5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
 6. **QWEN.md**: Memory documentation (if updating version examples)

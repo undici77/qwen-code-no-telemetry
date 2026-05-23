@@ -86,12 +86,12 @@ The version system has two distinct layers that serve different purposes:
 
 When releasing a new version (e.g., bumping from `v0.15.11-no-telemetry` to `v0.16.1-no-telemetry`), update **ALL** references across the codebase:
 
-| File                                         | What to Update                                                                                        |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`                                                              |
-| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.16.0`) |
-| `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references                                                                      |
-| CI/CD configuration files                    | Version tags and refs                                                                                 |
+| File                                         | What to Update                                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`                                                             |
+| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.16.1`) |
+| `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references                                                                     |
+| CI/CD configuration files                    | Version tags and refs                                                                                |
 
 **Search command to find all occurrences:**
 
@@ -166,19 +166,23 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 ## 10. Troubleshooting & Build Optimizations
 
 ### Stale Build Artifacts
-If you update a `.ts` file but `esbuild` (e.g., in `vscode-ide-companion`) complains about missing exports in the corresponding `.js` file in the same `src` folder, you have **stale artifacts**. 
+
+If you update a `.ts` file but `esbuild` (e.g., in `vscode-ide-companion`) complains about missing exports in the corresponding `.js` file in the same `src` folder, you have **stale artifacts**.
 **Fix**: Use the cleanup script in Section 3.4.
 
 ### WebUI Type Generation
-`vite-plugin-dts` may fail to generate types if CSS/SVG imports are present. 
+
+`vite-plugin-dts` may fail to generate types if CSS/SVG imports are present.
 **Pattern**: Use a dedicated `tsconfig.dts.json` and a manual `tsc` step in the `webui` build script to ensure valid `.d.ts` files are produced.
 
 ### Express Request Params
-In newer TypeScript versions or strict modes, `req.params['id']` might be inferred as `string | string[]`. 
+
+In newer TypeScript versions or strict modes, `req.params['id']` might be inferred as `string | string[]`.
 **Fix**: Always cast to string: `const id = req.params['id'] as string;`.
 
 ### Installer Git Errors
-`local-install.sh` builds in a temporary directory without `.git`. 
+
+`local-install.sh` builds in a temporary directory without `.git`.
 **Optimization**: Ensure build scripts (like `generate-git-commit-info.js`) handle the absence of a git repository gracefully (e.g., by checking environment variables first or silencing stderr).
 
 ---
@@ -192,6 +196,7 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 `packages/core/src/telemetry/uiTelemetry.ts` exports a `uiTelemetryService` singleton that is a **pure in-process Node.js `EventEmitter`**. It has zero network code. It aggregates token counts and tool stats that are displayed in the "Agent powering down. Goodbye!" quit panel. It never persists to disk and never touches the network.
 
 > 🔒 **Privacy proof for `uiTelemetryService`** — verified by code audit:
+>
 > - Defined in `packages/core/src/telemetry/uiTelemetry.ts` as `class UiTelemetryService extends EventEmitter`
 > - Contains NO `fetch`, NO `http.request`, NO `https.request`, NO `XMLHttpRequest`, NO WebSocket, NO `child_process`, NO `fs.write*` calls
 > - Data lives entirely in memory (`SessionMetrics` object) and is consumed only by `StatsDisplay.tsx` (the local TUI panel)
@@ -202,11 +207,11 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 `packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Three functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
 
-| Function | Must forward to | Privacy impact |
-|---|---|---|
+| Function         | Must forward to                 | Privacy impact              |
+| ---------------- | ------------------------------- | --------------------------- |
 | `logApiResponse` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
-| `logApiError` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
-| `logToolCall` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+| `logApiError`    | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+| `logToolCall`    | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
 
 **These three functions are NOT a telemetry leak.** They do not send data anywhere. They update an in-memory counter that is displayed to the user on their own screen when the session ends. No-op-ing them is a correctness bug, not a privacy improvement.
 
@@ -217,7 +222,7 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
   });
-  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
@@ -225,7 +230,7 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
   });
-  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
@@ -233,7 +238,7 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
   });
-  uiTelemetryService.addEvent(uiEvent);           // ✅ local EventEmitter only
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 ```
@@ -257,7 +262,7 @@ grep -n "uiTelemetryService\|fetch\|http\.request\|https\.request" \
 # Must return false (no usage stats sent as request headers)
 grep -A3 "getUsageStatisticsEnabled" packages/core/src/config/config.ts
 
-# Must be === true guard (update check disabled by default)  
+# Must be === true guard (update check disabled by default)
 grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
 ```
 
@@ -269,12 +274,12 @@ grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
 
 **Rule**: All source `.ts` files that import from `@opentelemetry/api` (or any other removed `@opentelemetry/*` package) MUST use **relative imports** pointing to the local dummy instead:
 
-| Source file location | Correct import |
-|---|---|
-| `packages/core/src/telemetry/*.ts` | `import ... from './dummy-otel.js'` |
-| `packages/core/src/core/*.ts` | `import ... from '../telemetry/dummy-otel.js'` |
+| Source file location                 | Correct import                                    |
+| ------------------------------------ | ------------------------------------------------- |
+| `packages/core/src/telemetry/*.ts`   | `import ... from './dummy-otel.js'`               |
+| `packages/core/src/core/*.ts`        | `import ... from '../telemetry/dummy-otel.js'`    |
 | `packages/core/src/core/subdir/*.ts` | `import ... from '../../telemetry/dummy-otel.js'` |
-| `packages/core/src/utils/*.ts` | `import ... from '../telemetry/dummy-otel.js'` |
+| `packages/core/src/utils/*.ts`       | `import ... from '../telemetry/dummy-otel.js'`    |
 
 **After every merge**, verify no stray `@opentelemetry` imports remain in non-test source:
 
@@ -284,5 +289,4 @@ grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" \
 # Must return zero lines
 ```
 
-esbuild (`npm run bundle`) correctly resolves `@opentelemetry/api` via root `tsconfig.json` paths during bundling, so the *bundle* works even without this fix. But `npm start` (non-bundled mode) and any direct `node packages/core/dist/...` invocation will crash without it.
-
+esbuild (`npm run bundle`) correctly resolves `@opentelemetry/api` via root `tsconfig.json` paths during bundling, so the _bundle_ works even without this fix. But `npm start` (non-bundled mode) and any direct `node packages/core/dist/...` invocation will crash without it.
