@@ -1,7 +1,7 @@
 import type { ChannelConfig, Envelope } from './types.js';
-import { GroupGate } from './GroupGate.js';
-import { SenderGate } from './SenderGate.js';
-import { SessionRouter } from './SessionRouter.js';
+import type { GroupGate } from './GroupGate.js';
+import type { SenderGate } from './SenderGate.js';
+import type { SessionRouter } from './SessionRouter.js';
 import type { AcpBridge, ToolCallEvent } from './AcpBridge.js';
 export interface ChannelBaseOptions {
     router?: SessionRouter;

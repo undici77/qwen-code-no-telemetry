@@ -166,7 +166,7 @@ describe('ChannelBase', () => {
         it('subclass can register custom commands', async () => {
             const ch = createChannel();
             // Access protected method via the test subclass
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             ch.registerCommand('ping', async () => {
                 await ch.sendMessage('chat1', 'pong');
                 return true;
@@ -178,7 +178,7 @@ describe('ChannelBase', () => {
         });
         it('/help shows platform-specific commands', async () => {
             const ch = createChannel();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             ch.registerCommand('start', async () => true);
             await ch.handleInbound(envelope({ text: '/help' }));
             expect(ch.sent[0].text).toContain('/start');
@@ -188,7 +188,7 @@ describe('ChannelBase', () => {
         it('prepends referenced text', async () => {
             const ch = createChannel();
             await ch.handleInbound(envelope({ text: 'my reply', referencedText: 'original message' }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const promptText = bridge.prompt.mock.calls[0][1];
             expect(promptText).toContain('[Replying to: "original message"]');
             expect(promptText).toContain('my reply');
@@ -206,7 +206,7 @@ describe('ChannelBase', () => {
                     },
                 ],
             }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const promptText = bridge.prompt.mock.calls[0][1];
             expect(promptText).toContain('/tmp/test.pdf');
             expect(promptText).toContain('"test.pdf"');
@@ -223,7 +223,7 @@ describe('ChannelBase', () => {
                     },
                 ],
             }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const options = bridge.prompt.mock.calls[0][2];
             expect(options.imageBase64).toBe('base64data');
             expect(options.imageMimeType).toBe('image/png');
@@ -235,18 +235,18 @@ describe('ChannelBase', () => {
                 imageBase64: 'legacydata',
                 imageMimeType: 'image/jpeg',
             }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const options = bridge.prompt.mock.calls[0][2];
             expect(options.imageBase64).toBe('legacydata');
         });
         it('prepends instructions on first message only', async () => {
             const ch = createChannel({ instructions: 'Be concise.' });
             await ch.handleInbound(envelope({ text: 'first' }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const firstPrompt = bridge.prompt.mock.calls[0][1];
             expect(firstPrompt).toContain('Be concise.');
             await ch.handleInbound(envelope({ text: 'second' }));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const secondPrompt = bridge.prompt.mock.calls[1][1];
             expect(secondPrompt).not.toContain('Be concise.');
         });
@@ -278,7 +278,7 @@ describe('ChannelBase', () => {
             expect(ch.sent[0].text).toBe('agent response');
         });
         it('does not send when agent returns empty response', async () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             bridge.prompt.mockResolvedValue('');
             const ch = createChannel();
             await ch.handleInbound(envelope());
@@ -288,12 +288,12 @@ describe('ChannelBase', () => {
     describe('block streaming', () => {
         it('uses block streamer when blockStreaming=on', async () => {
             // The streamer sends blocks; onResponseComplete is NOT called
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             bridge.prompt.mockImplementation((sid, _text) => {
                 // Simulate streaming chunks
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 bridge.emit('textChunk', sid, 'Hello world! ');
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 bridge.emit('textChunk', sid, 'This is a test.');
                 return Promise.resolve('Hello world! This is a test.');
             });
@@ -590,16 +590,16 @@ describe('ChannelBase', () => {
     describe('isLocalCommand', () => {
         it('returns true for registered commands', () => {
             const ch = createChannel();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             expect(ch.isLocalCommand('/help')).toBe(true);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             expect(ch.isLocalCommand('/clear')).toBe(true);
         });
         it('returns false for non-commands', () => {
             const ch = createChannel();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             expect(ch.isLocalCommand('hello')).toBe(false);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             expect(ch.isLocalCommand('/unknown')).toBe(false);
         });
     });

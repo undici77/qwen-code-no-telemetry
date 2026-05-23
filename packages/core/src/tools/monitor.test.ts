@@ -602,15 +602,10 @@ describe('MonitorTool', () => {
       const signal = new AbortController().signal;
       const result = await invocation.execute(signal);
 
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      expect(mockSpawn).toHaveBeenCalledWith(
-        '/bin/bash',
-        ['-c', 'tail -f /var/log/app.log'],
-        expect.objectContaining({
+      expect(mockSpawn).toHaveBeenCalledExactlyOnceWith('/bin/bash', ['-c', 'tail -f /var/log/app.log'], expect.objectContaining({
           cwd: '/test/dir',
           detached: true,
-        }),
-      );
+        }));
       expect(result.llmContent).toContain('Monitor started');
       expect(result.llmContent).toContain('mon_');
       expect(result.returnDisplay).toContain('watch app logs');

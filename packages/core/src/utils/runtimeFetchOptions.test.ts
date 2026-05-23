@@ -156,15 +156,9 @@ describe('buildRuntimeFetchOptions (node runtime)', () => {
     // Should fallback to undefined (no dispatcher) on error
     expect(result).toBeUndefined();
     // Should log the failure for visibility
-    expect(mockWarn).toHaveBeenCalledOnce();
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to create proxy dispatcher'),
-    );
+    expect(mockWarn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Failed to create proxy dispatcher'));
     // Should also log to console.error for production visibility
-    expect(mockConsoleError).toHaveBeenCalledOnce();
-    expect(mockConsoleError).toHaveBeenCalledWith(
-      expect.stringContaining('[RUNTIME_FETCH]'),
-    );
+    expect(mockConsoleError).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('[RUNTIME_FETCH]'));
   });
 
   it('returns empty object for Anthropic when dispatcher creation fails', () => {
@@ -175,15 +169,9 @@ describe('buildRuntimeFetchOptions (node runtime)', () => {
     // Should fallback to empty object on error
     expect(result).toEqual({});
     // Should log the failure for visibility
-    expect(mockWarn).toHaveBeenCalledOnce();
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to create proxy dispatcher'),
-    );
+    expect(mockWarn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Failed to create proxy dispatcher'));
     // Should also log to console.error for production visibility
-    expect(mockConsoleError).toHaveBeenCalledOnce();
-    expect(mockConsoleError).toHaveBeenCalledWith(
-      expect.stringContaining('[RUNTIME_FETCH]'),
-    );
+    expect(mockConsoleError).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('[RUNTIME_FETCH]'));
   });
 
   it('redacts credentials from proxy URL in error message', () => {

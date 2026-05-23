@@ -238,7 +238,10 @@ describe('runForkedAgent (cache path)', () => {
     expect(ctorArgs[4]).toBeUndefined(); // telemetryService
 
     // Verify sendMessageStream was called
-    expect(mockSendMessageStream).toHaveBeenCalledOnce();
+    expect(mockSendMessageStream).toHaveBeenCalledExactlyOnceWith('test-model', expect.objectContaining({
+        message: [{ text: 'suggest something' }],
+        config: expect.objectContaining({ tools: [] }),
+      }), 'forked_query');
     expect(capturedParams).not.toBeNull();
 
     // KEY ASSERTION: per-request config must have tools: [] to prevent
@@ -248,14 +251,6 @@ describe('runForkedAgent (cache path)', () => {
     expect(sendParams.config!.tools).toEqual([]);
 
     // Verify prompt_id is 'forked_query' and message is passed correctly
-    expect(mockSendMessageStream).toHaveBeenCalledWith(
-      'test-model',
-      expect.objectContaining({
-        message: [{ text: 'suggest something' }],
-        config: expect.objectContaining({ tools: [] }),
-      }),
-      'forked_query',
-    );
 
     // Verify result is correct
     expect(result.text).toBe('commit this');

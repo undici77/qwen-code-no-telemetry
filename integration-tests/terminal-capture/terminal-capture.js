@@ -220,7 +220,7 @@ export class TerminalCapture {
         // 4. Create xterm Terminal instance inside the page
         await this.page.evaluate(({ cols, rows, theme, fontSize, fontFamily }) => {
             const W = window;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const Terminal = W['Terminal'];
             const term = new Terminal({
                 cols,

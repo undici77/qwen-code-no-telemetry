@@ -42,7 +42,7 @@ describe('createSdkMcpServer', () => {
             expect(() => createSdkMcpServer({
                 name: 'test',
                 version: '1.0.0',
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                 
                 tools: {},
             })).toThrow('Tools must be an array');
         });
@@ -98,7 +98,7 @@ describe('createSdkMcpServer', () => {
             expect(() => createSdkMcpServer({
                 name: 'test-server',
                 version: '1.0.0',
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                 
                 tools: [invalidTool],
             })).toThrow('Tool name');
         });

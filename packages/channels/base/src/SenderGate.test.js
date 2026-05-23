@@ -82,7 +82,7 @@ describe('SenderGate', () => {
     });
     describe('unknown policy', () => {
         it('throws on unknown policy', () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const gate = new SenderGate('unknown');
             expect(() => gate.check('user')).toThrow('Unknown sender policy');
         });

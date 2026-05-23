@@ -34,7 +34,7 @@ import type { ErrorHandler, PipelineConfig } from './types.js';
 import { ContentGenerationPipeline } from './pipeline.js';
 import type { Config } from '../../config/config.js';
 import type { ContentGeneratorConfig } from '../contentGenerator.js';
-import { AuthType } from '../authTypes.js';
+import type { AuthType } from '../authTypes.js';
 import type { OpenAICompatibleProvider } from './provider/index.js';
 
 type ChunkFactory = () => OpenAI.Chat.ChatCompletionChunk;

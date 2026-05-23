@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 /**
  * Start the mock WebSocket server for testing the plugin-example channel.
  *
