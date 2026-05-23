@@ -47,7 +47,7 @@ This branch must remain aligned with upstream `main`.
 Every successful merge REQUIRES:
 
 1.  **NODE VERSION**: Ensure you are using **Node.js >= 22.0.0** to avoid `EBADENGINE` warnings.
-2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.16.0`). **DO NOT** append `-no-telemetry` to the version string.
+2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.16.1`). **DO NOT** append `-no-telemetry` to the version string.
 3.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
 4.  **CLEAN BUILD ARTIFACTS**: If seeing "No matching export" errors in `esbuild`, run a selective cleanup:
     ```bash

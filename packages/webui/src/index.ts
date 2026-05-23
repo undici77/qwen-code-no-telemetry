@@ -11,7 +11,7 @@ import './styles/timeline.css';
 // eslint-disable-next-line import/no-internal-modules
 import './styles/components.css';
 
-export const WEBUI_VERSION = '0.16.0';
+export const WEBUI_VERSION = '0.16.1';
 
 // Shared UI Components Export
 // Export all shared components from this package
