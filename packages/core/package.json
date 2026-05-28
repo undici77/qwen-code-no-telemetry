@@ -27,6 +27,7 @@
     "@google/genai": "1.30.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.1",
+
     "@types/html-to-text": "^9.0.4",
     "@xterm/headless": "5.5.0",
     "ajv": "^8.17.1",
