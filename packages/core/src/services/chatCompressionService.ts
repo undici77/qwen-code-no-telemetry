@@ -186,7 +186,11 @@ export class ChatCompressionService {
   async compress(
     chat: GeminiChat,
     opts: CompressOptions,
-  ): Promise<{ newHistory: Content[] | null; info: ChatCompressionInfo }> {
+  ): Promise<{
+    newHistory: Content[] | null;
+    info: ChatCompressionInfo;
+    summary?: string;
+  }> {
     const {
       promptId,
       force,
@@ -613,6 +617,7 @@ export class ChatCompressionService {
           compressionStatus: CompressionStatus.COMPRESSED,
           triggerReason,
         },
+        summary,
       };
     }
   }
