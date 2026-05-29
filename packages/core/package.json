@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/qwen-code-core",
-  "version": "0.16.1",
+  "version": "0.17.0",
   "description": "Qwen Code Core",
   "repository": {
     "type": "git",
@@ -27,7 +27,6 @@
     "@google/genai": "1.30.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.1",
-
     "@types/html-to-text": "^9.0.4",
     "@xterm/headless": "5.5.0",
     "ajv": "^8.17.1",

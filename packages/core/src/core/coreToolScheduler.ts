@@ -32,25 +32,12 @@ import { NotificationType } from '../hooks/types.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
 const debugLogger = createDebugLogger('TOOL_SCHEDULER');
-import {
-  ApprovalMode,
-} from '../config/config.js';
-import {
-  InputFormat,
-} from '../output/types.js';
-import {
-  logToolCall,
-} from '../telemetry/loggers.js';
-import {
-  ToolCallEvent,
-} from '../telemetry/types.js';
-import {
-  ToolErrorType,
-} from '../tools/tool-error.js';
-import {
-  ToolConfirmationOutcome,
-  Kind,
-} from '../tools/tools.js';
+import { ApprovalMode } from '../config/config.js';
+import { InputFormat } from '../output/types.js';
+import { logToolCall } from '../telemetry/loggers.js';
+import { ToolCallEvent } from '../telemetry/types.js';
+import { ToolErrorType } from '../tools/tool-error.js';
+import { ToolConfirmationOutcome, Kind } from '../tools/tools.js';
 import type {
   FunctionResponse,
   FunctionResponsePart,
@@ -77,6 +64,8 @@ import {
 import {
   applyAutoModeDecision,
   evaluateAutoMode,
+  getAutoModePermissionDeniedReason,
+  shouldFirePermissionDeniedForAutoMode,
   shouldRunAutoModeForCall,
 } from '../permissions/autoMode.js';
 import { MAX_TRANSCRIPT_MESSAGES } from '../permissions/classifier-transcript.js';
@@ -1737,6 +1726,20 @@ export class CoreToolScheduler {
               this.config,
               denialState,
             );
+            if (
+              !this.config.getDisableAllHooks() &&
+              shouldFirePermissionDeniedForAutoMode(decision, outcome)
+            ) {
+              await this.config
+                .getHookSystem?.()
+                ?.firePermissionDeniedEvent(
+                  canonicalName,
+                  toolParams,
+                  reqInfo.callId,
+                  getAutoModePermissionDeniedReason(decision),
+                  signal,
+                );
+            }
             switch (outcome.kind) {
               case 'approved':
                 this.setToolCallOutcome(

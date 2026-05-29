@@ -109,6 +109,7 @@ import {
 import {
   PermissionMode,
   NotificationType,
+  type PermissionDeniedReason,
   type PermissionSuggestion,
   type HookEventName,
   type HookDefinition,
@@ -270,12 +271,39 @@ export interface BugCommandSettings {
 export interface ChatCompressionSettings {
   /**
    * Estimated tokens for a single inline image / document part when
-   * apportioning chars across history in `findCompressSplitPoint`.
+   * apportioning chars across history during compression size estimation.
    * Also used as the placeholder budget when stripping inline media
    * out of the side-query compaction prompt. Default 1600.
    * Env override: `QWEN_IMAGE_TOKEN_ESTIMATE`.
    */
   imageTokenEstimate?: number;
+  /**
+   * Number of most-recently-touched files whose current content is
+   * restored (embedded or referenced) after auto-compaction. Default 5.
+   * Env override: `QWEN_COMPACT_MAX_RECENT_FILES`.
+   */
+  maxRecentFilesToRetain?: number;
+  /**
+   * Number of most-recent images (tool screenshots / user pastes)
+   * restored after auto-compaction. Default 3.
+   * Env override: `QWEN_COMPACT_MAX_RECENT_IMAGES`.
+   */
+  maxRecentImagesToRetain?: number;
+  /**
+   * When true, auto-compaction also fires once the number of
+   * tool-returned images accumulated in history reaches
+   * `screenshotTriggerThreshold`, independent of token usage. Aimed at
+   * computer-use sessions where frequent screenshots dilute model
+   * attention without necessarily exceeding the token budget. Default true.
+   * Env override: `QWEN_COMPACT_SCREENSHOT_TRIGGER` (`1`/`true`/`0`/`false`).
+   */
+  enableScreenshotTrigger?: boolean;
+  /**
+   * Tool-returned image count at or above which the screenshot trigger
+   * fires (only when `enableScreenshotTrigger`). Default 50.
+   * Env override: `QWEN_COMPACT_SCREENSHOT_THRESHOLD`.
+   */
+  screenshotTriggerThreshold?: number;
 }
 
 /**
@@ -670,6 +698,7 @@ export interface ConfigParameters {
   sessionTokenLimit?: number;
   experimentalZedIntegration?: boolean;
   cronEnabled?: boolean;
+  computerUseEnabled?: boolean;
   emitToolUseSummaries?: boolean;
   listExtensions?: boolean;
   overrideExtensions?: string[];
@@ -984,6 +1013,7 @@ export class Config {
   private runtimeStatusEnabled = false;
   private readonly experimentalZedIntegration: boolean = false;
   private readonly cronEnabled: boolean = false;
+  private readonly computerUseEnabled: boolean = true;
   private readonly emitToolUseSummaries: boolean = true;
   private readonly chatRecordingEnabled: boolean;
   private readonly loadMemoryFromIncludeDirectories: boolean = false;
@@ -1154,6 +1184,7 @@ export class Config {
     this.experimentalZedIntegration =
       params.experimentalZedIntegration ?? false;
     this.cronEnabled = params.cronEnabled ?? false;
+    this.computerUseEnabled = params.computerUseEnabled ?? true;
     this.emitToolUseSummaries = params.emitToolUseSummaries ?? true;
     this.listExtensions = params.listExtensions ?? false;
     this.overrideExtensions = params.overrideExtensions;
@@ -1169,24 +1200,6 @@ export class Config {
     this.loadMemoryFromIncludeDirectories =
       params.loadMemoryFromIncludeDirectories ?? false;
     this.importFormat = params.importFormat ?? 'tree';
-    // Auto-compaction threshold moved to built-in constants (computeThresholds
-    // in chatCompressionService.ts). The old `contextPercentageThreshold`
-    // field is deprecated; if present in user settings, emit a one-time
-    // warning and ignore the value.
-    if (
-      params.chatCompression &&
-      typeof (params.chatCompression as Record<string, unknown>)[
-        'contextPercentageThreshold'
-      ] !== 'undefined'
-    ) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[qwen-code] chatCompression.contextPercentageThreshold has been removed ' +
-          'and is now controlled by built-in thresholds. Setting will be ignored. ' +
-          'Remove this key from your settings.json to silence this warning; ' +
-          'see docs/users/configuration/settings.md for current compaction behavior.',
-      );
-    }
     this.chatCompression = params.chatCompression;
     this.interactive = params.interactive ?? false;
     this.trustedFolder = params.trustedFolder;
@@ -1419,6 +1432,16 @@ export class Config {
                   (input['permission_suggestions'] as
                     | PermissionSuggestion[]
                     | undefined) || undefined,
+                  signal,
+                );
+                break;
+              case 'PermissionDenied':
+                result = await hookSystem.firePermissionDeniedEvent(
+                  (input['tool_name'] as string) || '',
+                  (input['tool_input'] as Record<string, unknown>) || {},
+                  (input['tool_use_id'] as string) || '',
+                  (input['reason'] as PermissionDeniedReason) ||
+                    'classifier_blocked',
                   signal,
                 );
                 break;
@@ -3046,6 +3069,10 @@ export class Config {
     return this.cronEnabled;
   }
 
+  isComputerUseEnabled(): boolean {
+    return this.computerUseEnabled;
+  }
+
   /**
    * Whether the turn loop should fire a fast-model call after each tool batch
    * to emit a `tool_use_summary` message. Mirrors Claude Code's
@@ -3964,6 +3991,21 @@ export class Config {
         const { CronDeleteTool } = await import('../tools/cron-delete.js');
         return new CronDeleteTool(this);
       });
+    }
+
+    // Register computer-use tools unless disabled. All 9 are deferred —
+    // they surface only via ToolSearch keyword match
+    // (see packages/core/src/tools/computer-use/).
+    //
+    // Pass `registerLazy` (not the bare `registry`) so the same
+    // PermissionManager.isToolEnabled() check that gates every other
+    // built-in also gates these. Direct registry.registerFactory() would
+    // bypass coreTools allowlist + whole-tool deny rules.
+    if (this.isComputerUseEnabled()) {
+      const { registerComputerUseTools } = await import(
+        '../tools/computer-use/index.js'
+      );
+      await registerComputerUseTools(registerLazy);
     }
 
     // Register monitor tool
