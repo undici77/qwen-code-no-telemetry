@@ -48,6 +48,12 @@ import { GitService } from '../services/gitService.js';
 import { GitWorktreeService } from '../services/gitWorktreeService.js';
 import { cleanupStaleAgentWorktrees } from '../services/worktreeCleanup.js';
 import { CronScheduler } from '../services/cronScheduler.js';
+import {
+  MemoryPressureMonitor,
+  DEFAULT_PRESSURE_CONFIG,
+  validateMemoryPressureConfig,
+  type MemoryPressureConfig,
+} from '../services/memoryPressureMonitor.js';
 
 // Tools — only lightweight imports; tool classes are lazy-loaded via dynamic import
 import {
@@ -113,6 +119,7 @@ import {
   type PermissionSuggestion,
   type HookEventName,
   type HookDefinition,
+  type PostToolBatchToolCall,
 } from '../hooks/types.js';
 import { fireNotificationHook } from '../core/toolHookTriggers.js';
 
@@ -156,6 +163,7 @@ import { MemoryManager } from '../memory/manager.js';
 import { CommitAttributionService } from '../services/commitAttribution.js';
 
 const gitCoAuthorLogger = createDebugLogger('GIT_CO_AUTHOR');
+const memoryPressureConfigLogger = createDebugLogger('MEMORY_PRESSURE');
 
 import {
   ModelsConfig,
@@ -698,6 +706,7 @@ export interface ConfigParameters {
   sessionTokenLimit?: number;
   experimentalZedIntegration?: boolean;
   cronEnabled?: boolean;
+  forkSubagentEnabled?: boolean;
   computerUseEnabled?: boolean;
   emitToolUseSummaries?: boolean;
   listExtensions?: boolean;
@@ -852,6 +861,53 @@ function normalizeConfigOutputFormat(
   }
 }
 
+function loadMemoryPressureConfig(): MemoryPressureConfig {
+  const config: MemoryPressureConfig = { ...DEFAULT_PRESSURE_CONFIG };
+
+  try {
+    config.softPressureRatio = readMemoryPressureRatioEnv(
+      'QWEN_MEMORY_PRESSURE_SOFT',
+      config.softPressureRatio,
+    );
+    config.hardPressureRatio = readMemoryPressureRatioEnv(
+      'QWEN_MEMORY_PRESSURE_HARD',
+      config.hardPressureRatio,
+    );
+    config.criticalRatio = readMemoryPressureRatioEnv(
+      'QWEN_MEMORY_PRESSURE_CRITICAL',
+      config.criticalRatio,
+    );
+
+    if (process.env['QWEN_MEMORY_ENABLE_GC'] === '1') {
+      config.enableExplicitGC = true;
+    }
+
+    validateMemoryPressureConfig(config);
+  } catch (err) {
+    const fallbackMsg =
+      '[QWEN] WARNING: Invalid memory pressure config; using defaults. ' +
+      `Error: ${getErrorMessage(err)}`;
+    process.stderr.write(`${fallbackMsg}\n`);
+    memoryPressureConfigLogger.warn(fallbackMsg);
+    return { ...DEFAULT_PRESSURE_CONFIG };
+  }
+
+  return config;
+}
+
+function readMemoryPressureRatioEnv(envName: string, fallback: number): number {
+  const raw = process.env[envName];
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${envName} must be a finite number`);
+  }
+  return parsed;
+}
+
 /**
  * Options for Config.initialize()
  */
@@ -874,6 +930,12 @@ const DEFAULT_BARE_CORE_TOOLS = [
   ToolNames.NOTEBOOK_EDIT,
   ToolNames.SHELL,
 ];
+
+// Tracks whether the first Config in this process has claimed the global
+// QWEN_CODE_SESSION_ID env var. Prevents throwaway Config instances from
+// overwriting the real session's ID while still allowing nested qwen-code
+// processes to claim their own (they start with a fresh module scope).
+let sessionEnvClaimed = false;
 
 export class Config {
   private sessionId: string;
@@ -907,6 +969,8 @@ export class Config {
   private pendingMcpBudgetCallback?: (event: McpBudgetEvent) => void;
   private promptRegistry!: PromptRegistry;
   private subagentManager!: SubagentManager;
+  private memoryPressureConfig?: MemoryPressureConfig;
+  private memoryPressureMonitor?: MemoryPressureMonitor;
   private readonly backgroundTaskRegistry = new BackgroundTaskRegistry();
   private readonly monitorRegistry = new MonitorRegistry();
   private backgroundAgentResumeService?: BackgroundAgentResumeService;
@@ -1013,6 +1077,7 @@ export class Config {
   private runtimeStatusEnabled = false;
   private readonly experimentalZedIntegration: boolean = false;
   private readonly cronEnabled: boolean = false;
+  private readonly forkSubagentEnabled: boolean = false;
   private readonly computerUseEnabled: boolean = true;
   private readonly emitToolUseSummaries: boolean = true;
   private readonly chatRecordingEnabled: boolean;
@@ -1076,6 +1141,16 @@ export class Config {
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId ?? randomUUID();
+    // Only set the global env marker once per process lifetime, so
+    // throwaway Config instances (e.g. telemetry-only) don't clobber
+    // the real interactive session's ID. Uses a module-level flag
+    // rather than checking env existence — otherwise a nested qwen-code
+    // launched from within a session would inherit the parent's ID and
+    // never claim its own.
+    if (!sessionEnvClaimed && process.env) {
+      process.env['QWEN_CODE_SESSION_ID'] = this.sessionId;
+      sessionEnvClaimed = true;
+    }
     this.sessionData = params.sessionData;
     setDebugLogSession(this);
     this.debugLogger = createDebugLogger();
@@ -1184,6 +1259,7 @@ export class Config {
     this.experimentalZedIntegration =
       params.experimentalZedIntegration ?? false;
     this.cronEnabled = params.cronEnabled ?? false;
+    this.forkSubagentEnabled = params.forkSubagentEnabled ?? false;
     this.computerUseEnabled = params.computerUseEnabled ?? true;
     this.emitToolUseSummaries = params.emitToolUseSummaries ?? true;
     this.listExtensions = params.listExtensions ?? false;
@@ -1414,6 +1490,13 @@ export class Config {
                   signal,
                 );
                 break;
+              case 'PostToolBatch':
+                result = await hookSystem.firePostToolBatchEvent(
+                  (input['tool_calls'] as PostToolBatchToolCall[]) || [],
+                  (input['permission_mode'] as PermissionMode) || 'default',
+                  signal,
+                );
+                break;
               case 'Notification':
                 result = await hookSystem.fireNotificationEvent(
                   (input['message'] as string) || '',
@@ -1507,6 +1590,12 @@ export class Config {
       await this.skillManager.startWatching();
     }
     this.debugLogger.debug('Skill manager initialized');
+
+    this.memoryPressureConfig = loadMemoryPressureConfig();
+    this.memoryPressureMonitor = new MemoryPressureMonitor(
+      this,
+      this.memoryPressureConfig,
+    );
 
     this.permissionManager = new PermissionManager(this);
     this.permissionManager.initialize();
@@ -1987,6 +2076,12 @@ export class Config {
 
     const previousSessionId = this.sessionId;
     this.sessionId = sessionId ?? randomUUID();
+    // Unconditional: startNewSession is only called on the canonical Config
+    // instance (the one that already claimed via sessionEnvClaimed), so this
+    // correctly updates the env var to reflect the new active session.
+    if (process.env) {
+      process.env['QWEN_CODE_SESSION_ID'] = this.sessionId;
+    }
     this.sessionData = sessionData;
     setDebugLogSession(this);
     this.debugLogger = createDebugLogger();
@@ -2003,6 +2098,7 @@ export class Config {
     // constructed via Object.create — those should clear their own
     // cache, not the parent's.
     this.getFileReadCache().clear();
+    this.getMemoryPressureMonitor()?.resetForNewSession();
     this.fileHistoryService = undefined;
     refreshSessionContext(this);
     // The commit-attribution singleton accumulates per-file AI edits
@@ -2676,6 +2772,10 @@ export class Config {
     return this.userMemory;
   }
 
+  getOutputLanguageFilePath(): string | undefined {
+    return this.outputLanguageFilePath;
+  }
+
   setUserMemory(newUserMemory: string): void {
     this.userMemory = newUserMemory;
   }
@@ -3056,6 +3156,33 @@ export class Config {
     return this.geminiClient;
   }
 
+  /**
+   * Session-scoped memory pressure monitor. Child Configs created with
+   * `Object.create(parent)` inherit the parent's monitor through the prototype
+   * chain until this getter installs an own monitor backed by the inherited
+   * pressure config snapshot. This mirrors getFileReadCache()'s isolation
+   * contract while keeping type-safe direct field assignment inside the class.
+   */
+  getMemoryPressureMonitor(): MemoryPressureMonitor | undefined {
+    if (!Object.prototype.hasOwnProperty.call(this, 'memoryPressureMonitor')) {
+      const inheritedMonitor = this.memoryPressureMonitor;
+      if (inheritedMonitor) {
+        const inheritedConfig = this.memoryPressureConfig;
+        if (!inheritedConfig) {
+          throw new Error(
+            'Inherited memory pressure monitor is missing config',
+          );
+        }
+        this.memoryPressureConfig = { ...inheritedConfig };
+        this.memoryPressureMonitor = new MemoryPressureMonitor(
+          this,
+          this.memoryPressureConfig,
+        );
+      }
+    }
+    return this.memoryPressureMonitor;
+  }
+
   getCronScheduler(): CronScheduler {
     if (!this.cronScheduler) {
       this.cronScheduler = new CronScheduler();
@@ -3069,6 +3196,10 @@ export class Config {
     return this.cronEnabled;
   }
 
+  isForkSubagentEnabled(): boolean {
+    if (process.env['QWEN_CODE_ENABLE_FORK_SUBAGENT'] === '1') return true;
+    return this.forkSubagentEnabled;
+  }
   isComputerUseEnabled(): boolean {
     return this.computerUseEnabled;
   }

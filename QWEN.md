@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.15.11-no-telemetry to v0.16.1-no-telemetry), ALWAYS update these files with the new version number:
+- When releasing a new version (e.g., bumping from v0.15.11-no-telemetry to v0.17.1-no-telemetry), ALWAYS update these files with the new version number:
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
@@ -53,7 +53,7 @@ These tests were already failing before our changes and are expected when runnin
 
 1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
 2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs/examples (e.g., `v0.16.1-no-telemetry`) AND the "original README" link version (e.g., `v0.16.1`)
+3. **README.md**: Install script URLs/examples (e.g., `v0.17.1-no-telemetry`) AND the "original README" link version (e.g., `v0.17.1`)
 4. **AGENTS.md**: Merge protocol examples
 5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
 6. **QWEN.md**: Memory documentation (if updating version examples)
