@@ -1,15 +1,6 @@
 ## Qwen Added Memories
 
-- When releasing a new version (e.g., bumping from v0.15.11-no-telemetry to v0.17.1-no-telemetry), ALWAYS update these files with the new version number:
-
-1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
-2. **install.sh**: All example version references and usage docs
-3. **AGENTS.md**: Merge protocol examples (v0.X.Y → v0.X+1.Y)
-4. **NO_TELEMETRY_GUIDELINES.md**: Release process examples
-
-Search command before releasing: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
-
-The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+- **Version Rule**: `package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update: **Dockerfile** (`ARG QWEN_REF="v[version]-no-telemetry"`), **install.sh** (all example version references), **README.md** (install script URLs and original README link). The `-no-telemetry` suffix is always the same — never change it.
 
 - **Single-Merge Strategy**: To produce a single release commit while keeping `main` aligned:
   1. `git reset --hard [LAST_TAG]`
@@ -50,14 +41,3 @@ These tests were already failing before our changes and are expected when runnin
 - **⚠️ CRITICAL: `loggers.ts` partial no-op rule** — After every no-telemetry merge, confirm that `logApiResponse`, `logApiError`, and `logToolCall` in `packages/core/src/telemetry/loggers.ts` are NOT no-ops. They MUST call `uiTelemetryService.addEvent()` and `config.getChatRecordingService()?.recordUiTelemetryEvent()`. Making them full no-ops causes the "Agent powering down. Goodbye!" quit panel to show blank Model Usage / token stats. **This does NOT violate the no-telemetry policy**: `uiTelemetryService` is a local-only `EventEmitter` — zero network, zero disk writes, in-memory only — and `getChatRecordingService()` writes to a local file only (for `--resume`). Both have been code-audited: no `fetch`, no `http.request`, no external endpoints. No-op-ing these functions is a correctness bug, not a privacy fix. All other ~30 log functions remain empty no-ops. See `NO_TELEMETRY_GUIDELINES.md §11`.
 
 - **⚠️ CRITICAL: `@opentelemetry/api` runtime import rule** — TypeScript `tsconfig.json` `paths` entries (mapping `@opentelemetry/api` → `dummy-otel.ts`) only affect type-checking and esbuild bundling; they do NOT rewrite `.js` output. After a merge that introduces new files importing from `@opentelemetry/api`, change those imports to relative paths (e.g., `from '../telemetry/dummy-otel.js'`). Otherwise `npm start` crashes with `ERR_MODULE_NOT_FOUND`. Verify with: `grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."` — must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §12`.
-
-1. **Dockerfile**: `ARG QWEN_REF="v[version]-no-telemetry"`
-2. **install.sh**: All example version references and usage docs
-3. **README.md**: Install script URLs/examples (e.g., `v0.17.1-no-telemetry`) AND the "original README" link version (e.g., `v0.17.1`)
-4. **AGENTS.md**: Merge protocol examples
-5. **NO_TELEMETRY_GUIDELINES.md**: Release process examples (if documenting current version)
-6. **QWEN.md**: Memory documentation (if updating version examples)
-
-Search command: `grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .`
-
-The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.

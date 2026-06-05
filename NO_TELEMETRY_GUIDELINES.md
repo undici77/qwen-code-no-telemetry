@@ -25,7 +25,7 @@ This branch must remain aligned with upstream `main`.
 - **BE ASSERTIVE**: Conflicts are expected. **RESOLVE THEM!** Do not use conflicts as an excuse to avoid alignment.
 - **STRATEGY**: Merge the latest `main` HEAD (or a stable commit near HEAD) into the current `no-telemetry` branch.
 - **SINGLE-MERGE SQUASH**: To produce a single commit for a release while keeping `main` aligned, use the "Single-Merge" approach:
-  1. `git reset --hard [LAST_RELEASE_TAG]` (e.g., `v0.14.5-no-telemetry`)
+  1. `git reset --hard [LAST_RELEASE_TAG]`
   2. `git merge --no-ff main -m "feat: release [NEW_VERSION]"`
   3. Resolve conflicts, neutralize telemetry, and `git commit --amend` to finalize.
      _This ensures `main` is a parent (alignment) while keeping all changes in one commit._
@@ -47,7 +47,7 @@ This branch must remain aligned with upstream `main`.
 Every successful merge REQUIRES:
 
 1.  **NODE VERSION**: Ensure you are using **Node.js >= 22.0.0** to avoid `EBADENGINE` warnings.
-2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream (e.g., `0.16.1`). **DO NOT** append `-no-telemetry` to the version string.
+2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream. **DO NOT** append `-no-telemetry` to the version string.
 3.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
 4.  **CLEAN BUILD ARTIFACTS**: If seeing "No matching export" errors in `esbuild`, run a selective cleanup:
     ```bash
@@ -68,14 +68,14 @@ Every successful merge REQUIRES:
 
 The version system has two distinct layers that serve different purposes:
 
-| Layer                | Format          | Purpose                                      | Conflict Resolution                   |
-| -------------------- | --------------- | -------------------------------------------- | ------------------------------------- |
-| **Upstream version** | `0.14.3`        | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
-| **No-telemetry标识** | `-no-telemetry` | UI identification, user awareness            | Always present in display strings     |
+| Layer                | Purpose                                      | Conflict Resolution                   |
+| -------------------- | -------------------------------------------- | ------------------------------------- |
+| **Upstream version** | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
+| **No-telemetry标识** | UI identification, user awareness            | Always present in display strings     |
 
 ### Critical Rules:
 
-1.  **`package.json` version field**: Must match upstream exactly (e.g., `"0.14.3"`). Never include `-no-telemetry` here.
+1.  **`package.json` version field**: Must match upstream exactly. Never include `-no-telemetry` here.
 2.  **UI display version**: Should show `[VERSION]-no-telemetry · ❌📡 · [HASH]` for user clarity.
 3.  **Dependency conflicts**: If upstream adds `@opentelemetry/*` or similar telemetry packages, **REMOVE THEM** even if it creates a version mismatch. Privacy > compatibility.
 4.  **Code conflicts**: If telemetry code is added upstream, replace with no-op implementations during merge resolution.
@@ -84,22 +84,15 @@ The version system has two distinct layers that serve different purposes:
 
 ## 5. Release Process: Updating Version References
 
-When releasing a new version (e.g., bumping from `v0.15.11-no-telemetry` to `v0.17.1-no-telemetry`), update **ALL** references across the codebase:
+`package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update:
 
-| File                                         | What to Update                                                                                       |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `Dockerfile`                                 | `ARG QWEN_REF="v[version]-no-telemetry"`                                                             |
-| All `.md` files (especially `README.md`)     | Any `[old-version]-no-telemetry` references AND the "original README" link version (e.g., `v0.17.1`) |
-| `install.sh`, `build.sh`, `local-install.sh` | Any hardcoded version references                                                                     |
-| CI/CD configuration files                    | Version tags and refs                                                                                |
+| File         | What to Update                                                      |
+| ------------ | ------------------------------------------------------------------- |
+| `Dockerfile` | `ARG QWEN_REF="v[version]-no-telemetry"`                            |
+| `install.sh` | All example version references and usage docs                       |
+| `README.md`  | Install script URLs/examples AND the "original README" link version |
 
-**Search command to find all occurrences:**
-
-```bash
-grep -r "v[old-version]-no-telemetry" --exclude-dir=node_modules .
-```
-
-**Important:** The `package.json` version field should match upstream exactly (e.g., `"0.14.3"`), without `-no-telemetry`. The suffix is only for UI display and branch naming.
+The `-no-telemetry` suffix is always the same — never change it.
 
 ---
 
