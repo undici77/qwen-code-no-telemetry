@@ -27,6 +27,7 @@ import type {
   ChatCompressionEvent,
   ContentRetryEvent,
   ContentRetryFailureEvent,
+  ApiRetryEvent,
   RipgrepFallbackEvent,
   ToolOutputTruncatedEvent,
   ExtensionDisableEvent,
@@ -96,6 +97,7 @@ export function logRipgrepFallback(
   _config: Config,
   _event: RipgrepFallbackEvent,
 ): void {}
+export function logApiRetry(_config: Config, _event: ApiRetryEvent): void {}
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {
   const uiEvent = Object.assign(event, {
@@ -164,6 +166,7 @@ export function logContentRetryFailure(
   _config: Config,
   _event: ContentRetryFailureEvent,
 ): void {}
+
 export function logSubagentExecution(
   _config: Config,
   _event: SubagentExecutionEvent,

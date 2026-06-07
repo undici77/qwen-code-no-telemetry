@@ -134,3 +134,11 @@ export const SemanticResourceAttributes = {
   SERVICE_NAME: 'service.name',
   SERVICE_VERSION: 'service.version',
 };
+
+// Type-only exports for SDK interfaces (no-op implementations)
+export type LogRecordProcessor = any;
+export type ReadableLogRecord = any;
+export type SpanExporter = any;
+export type ReadableSpan = any;
+export type Resource = any;
+export const resourceFromAttributes = (_attrs: Record<string, any>): Resource => ({} as Resource);

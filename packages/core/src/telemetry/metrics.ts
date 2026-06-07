@@ -138,6 +138,8 @@ export function recordContentRetry(_config: Config): void {}
 
 export function recordContentRetryFailure(_config: Config): void {}
 
+export function recordApiRetry(_config: Config): void {}
+
 export function recordModelSlashCommandCall(
   _config: Config,
   _modelName: string,

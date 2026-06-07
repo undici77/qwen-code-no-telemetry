@@ -130,6 +130,7 @@ export {
   recordInvalidChunk,
   recordContentRetry,
   recordContentRetryFailure,
+  recordApiRetry,
   // Performance monitoring functions
   recordStartupPerformance,
   recordMemoryUsage,
@@ -177,6 +178,9 @@ export {
   endToolBlockedOnUserSpan,
   startHookSpan,
   endHookSpan,
+  startSubagentSpan,
+  endSubagentSpan,
+  runInSubagentSpanContext,
   getActiveInteractionSpan,
   truncateSpanError,
 } from './session-tracing.js';
@@ -190,6 +194,10 @@ export type {
   HookEvent,
   StartHookSpanOptions,
   HookSpanMetadata,
+  SubagentInvocationKind,
+  SubagentStatus,
+  StartSubagentSpanOptions,
+  SubagentSpanMetadata,
 } from './session-tracing.js';
 export {
   addUserPromptAttributes,
