@@ -145,6 +145,11 @@ cd packages/core && npx vitest run src/path/to/file.test.ts
 cd packages/cli && npx vitest run src/path/to/file.test.ts
 ```
 
+**OTel Test Exclusions & Root Skip:**
+
+- In `packages/core/vitest.config.ts`, unit tests for OpenTelemetry (located under `src/telemetry/` except `uiTelemetry.test.ts` which tests local-only statistics) are explicitly excluded as they depend on the removed `@opentelemetry` dependencies.
+- In `packages/cli`, the permission error-counting test case in `cleanup.test.ts` is automatically skipped when running as the `root` user (`process.getuid?.() === 0`) because `root` bypasses standard directory write restrictions and allows deletion.
+
 **Update snapshots:**
 
 ```bash

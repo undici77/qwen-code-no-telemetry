@@ -21,6 +21,7 @@
 
 1. `src/tools/edit.test.ts` - "should return FILE_WRITE_FAILURE on write error" - Fails because root bypasses file permission checks
 2. `src/utils/pathReader.test.ts` - "should return an error string if reading a file with no permissions" - Fails because root bypasses permission checks
+3. `packages/cli/src/utils/housekeeping/cleanup.test.ts` - "counts errors and continues sweep when one dir cannot be removed" - Fails because root bypasses directory write restrictions (fixed by skipping when `process.getuid?.() === 0`).
 
 These tests were already failing before our changes and are expected when running as root.
 
@@ -31,6 +32,7 @@ These tests were already failing before our changes and are expected when runnin
 3. `settingsSchema.test.ts` - Added test to verify gitCoAuthor default is false
 4. `gemini.test.tsx` - Fixed mock for `getCliVersionDisplay` (was incorrectly checking for non-existent `getCliVersion`)
 5. `mustTranslateKeys.test.ts` - Fixed by restoring accidentally deleted locale files and ensuring `git-commit.js` exists.
+6. `packages/core/src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`) - Excluded in `packages/core/vitest.config.ts` since all `@opentelemetry` packages are removed in this fork.
 
 **Telemetry Implementation:**
 
