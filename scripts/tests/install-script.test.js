@@ -3337,6 +3337,8 @@ describe('Linux/macOS installer end-to-end', { timeout: 15000 }, () => {
       mkdirSync(fakeBin, { recursive: true });
       writeFileSync(path.join(fakeBin, 'curl'), '#!/usr/bin/env sh\nexit 22\n');
       chmodSync(path.join(fakeBin, 'curl'), 0o755);
+      writeFileSync(path.join(fakeBin, 'node'), '#!/usr/bin/env sh\nexit 1\n');
+      chmodSync(path.join(fakeBin, 'node'), 0o755);
 
       let failureMessage = '';
       try {
