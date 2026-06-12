@@ -14,8 +14,8 @@ import {
   trace,
   type Context,
   type Span,
-} from '@opentelemetry/api';
-import { logs, type LogAttributes } from '@opentelemetry/api-logs';
+} from './dummy-otel.js';
+import { logs, type LogAttributes } from './dummy-otel.js';
 import { SERVICE_NAME } from './constants.js';
 import { isTelemetrySdkInitialized } from './sdk.js';
 import { truncateSpanError } from './session-tracing.js';
@@ -95,7 +95,7 @@ export async function withDaemonSpan<T>(
   return await tracer.startActiveSpan(
     name,
     { kind: SpanKind.INTERNAL, attributes },
-    async (span) => {
+    async (span: any) => {
       try {
         const result = await fn(span);
         if (autoOkOnSuccess) {

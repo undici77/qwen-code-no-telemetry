@@ -18,7 +18,7 @@ export function isTelemetrySdkInitialized(): boolean {
   return false;
 }
 
-export function refreshSessionContext(_sessionId: string): void {}
+export function refreshSessionContext(_config: Config): void {}
 
 export function getInstallationId(): string {
   return '00000000-0000-0000-0000-000000000000';

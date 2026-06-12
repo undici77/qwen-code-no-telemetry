@@ -57,6 +57,9 @@ export default defineConfig({
       'src/telemetry/telemetry-utils.test.ts',
       'src/telemetry/trace-id-utils.test.ts',
       'src/telemetry/tracer.test.ts',
+      'src/telemetry/daemon-metrics.test.ts',
+      'src/telemetry/daemon-tracing.test.ts',
+      'src/telemetry/trace-context.test.ts',
     ],
     outputFile: {
       junit: 'junit.xml',

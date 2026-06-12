@@ -6,7 +6,11 @@
     "declaration": true,
     "declarationDir": "dist/types",
     "rootDir": "src",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@qwen-code/sdk": ["../sdk-typescript/dist/index.d.ts"],
+      "@qwen-code/sdk/daemon": ["../sdk-typescript/dist/daemon/index.d.ts"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "**/*.stories.tsx", "**/*.test.tsx", "**/*.test.ts"]

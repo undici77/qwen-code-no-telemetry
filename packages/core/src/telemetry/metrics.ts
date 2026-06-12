@@ -87,6 +87,10 @@ export function initializeMetrics(_config: Config): void {}
 
 export function initializePerformanceMonitoring(_config: Config): void {}
 
+export function getMeter(): any {
+  return undefined;
+}
+
 export function recordChatCompressionMetrics(
   _config: Config,
   _attributes: any,
@@ -192,15 +196,14 @@ export function recordStartupPerformance(
 
 export function recordMemoryUsage(
   _config: Config,
-  _memoryType: MemoryMetricType,
   _bytes: number,
-  _component?: string,
+  _attributes: { memory_type: MemoryMetricType; component?: string },
 ): void {}
 
 export function recordCpuUsage(
   _config: Config,
   _percentage: number,
-  _component?: string,
+  _attributes: { component?: string },
 ): void {}
 
 export function recordToolQueueDepth(_config: Config, _depth: number): void {}

@@ -163,3 +163,14 @@ export function truncateSpanError(s: string): string {
 export function clearSessionTracingForTesting(): void {}
 
 export function runTTLSweepForTesting(_now: number): void {}
+
+export type InteractionSpanResultStatus = any;
+
+export async function withInteractionSpan<T>(
+  _config: any,
+  _options: any,
+  fn: () => Promise<T>,
+  _getResultStatus?: (result: T) => any,
+): Promise<T> {
+  return fn();
+}

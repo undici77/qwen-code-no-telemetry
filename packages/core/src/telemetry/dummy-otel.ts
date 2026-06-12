@@ -68,6 +68,7 @@ export const trace = {
   getActiveSpan: (): any => undefined,
   setSpan: (ctx: any, _span: any) => ctx,
   deleteSpan: (ctx: any) => ctx,
+  getSpanContext: (_ctx?: any): any => undefined,
   wrapSpanContext: (spanContext: any) => ({
     spanContext: () => spanContext,
   }),
@@ -142,3 +143,23 @@ export type SpanExporter = any;
 export type ReadableSpan = any;
 export type Resource = any;
 export const resourceFromAttributes = (_attrs: Record<string, any>): Resource => ({} as Resource);
+
+export type Counter = any;
+export type Histogram = any;
+
+export const propagation = {
+  inject: (_ctx: any, _carrier: any) => {},
+  extract: (_ctx: any, _carrier: any): any => ROOT_CONTEXT,
+};
+
+export const INVALID_TRACEID = '00000000000000000000000000000000';
+export function isSpanContextValid(_ctx?: any): boolean {
+  return false;
+}
+
+export type LogAttributes = Attributes;
+export const logs = {
+  getLogger: (_name?: string, _version?: string): any => ({
+    emit: (_logRecord: any) => {},
+  }),
+};

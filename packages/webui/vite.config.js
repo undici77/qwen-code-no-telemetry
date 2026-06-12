@@ -13,45 +13,45 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/**
- * Vite configuration for @qwen-code/webui library
- *
- * Build outputs:
- * - ESM: dist/index.js (primary format)
- * - CJS: dist/index.cjs (compatibility)
- * - UMD: dist/index.umd.js (for CDN usage)
- * - TypeScript declarations: dist/index.d.ts
- * - CSS: dist/styles.css (optional styles)
- */
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+    resolve: command === 'serve'
+        ? {
+            alias: {
+                '@qwen-code/sdk/daemon': resolve(__dirname, '../sdk-typescript/src/daemon/index.ts'),
+                '@qwen-code/sdk': resolve(__dirname, '../sdk-typescript/src/index.ts'),
+            },
+        }
+        : undefined,
     plugins: [
         react(),
         dts({
             include: ['src'],
             outDir: 'dist',
-            rollupTypes: false,
+            rollupTypes: true,
             insertTypesEntry: true,
+            aliasesExclude: [/^@qwen-code\//],
         }),
     ],
     build: {
         lib: {
-            entry: resolve(__dirname, 'src/index.ts'),
-            name: 'QwenCodeWebUI',
-            formats: ['es', 'cjs', 'umd'],
-            fileName: (format) => {
-                if (format === 'es')
-                    return 'index.js';
-                if (format === 'cjs')
-                    return 'index.cjs';
-                if (format === 'umd')
-                    return 'index.umd.js';
-                return 'index.js';
+            entry: {
+                index: resolve(__dirname, 'src/index.ts'),
+                'daemon-react-sdk': resolve(__dirname, 'src/daemon-react-sdk.ts'),
             },
+            formats: ['es', 'cjs'],
         },
         rollupOptions: {
-            external: ['react', 'react-dom', 'react/jsx-runtime'],
+            external: [
+                '@qwen-code/sdk',
+                '@qwen-code/sdk/daemon',
+                'react',
+                'react-dom',
+                'react/jsx-runtime',
+            ],
             output: {
                 globals: {
+                    '@qwen-code/sdk': 'QwenCodeSdk',
+                    '@qwen-code/sdk/daemon': 'QwenCodeSdkDaemon',
                     react: 'React',
                     'react-dom': 'ReactDOM',
                     'react/jsx-runtime': 'ReactJSXRuntime',
@@ -63,5 +63,5 @@ export default defineConfig({
         minify: false,
         cssCodeSplit: false,
     },
-});
+}));
 //# sourceMappingURL=vite.config.js.map

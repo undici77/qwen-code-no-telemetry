@@ -29,6 +29,8 @@
     "jsx": "react-jsx",
     "paths": {
       "@opentelemetry/api": ["./packages/core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/api-logs": ["./packages/core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/semantic-conventions": ["./packages/core/src/telemetry/dummy-otel.ts"],
       "@opentelemetry/sdk-logs": [
         "./packages/core/src/telemetry/log-to-span-processor.ts"
       ],

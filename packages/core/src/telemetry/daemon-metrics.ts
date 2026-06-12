@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Counter, Histogram } from '@opentelemetry/api';
-import { ValueType } from '@opentelemetry/api';
+import type { Counter, Histogram } from './dummy-otel.js';
+import { ValueType } from './dummy-otel.js';
 import { SERVICE_NAME } from './constants.js';
 import { getMeter } from './metrics.js';
 
@@ -148,7 +148,7 @@ export function registerDaemonGaugeCallbacks(
       description: 'Current number of active daemon sessions.',
       valueType: ValueType.INT,
     })
-    .addCallback((result) => {
+    .addCallback((result: any) => {
       try {
         result.observe(callbacks.sessionCount());
       } catch {
@@ -161,7 +161,7 @@ export function registerDaemonGaugeCallbacks(
       description: 'Current number of active SSE connections.',
       valueType: ValueType.INT,
     })
-    .addCallback((result) => {
+    .addCallback((result: any) => {
       try {
         result.observe(callbacks.sseCount());
       } catch {
@@ -175,7 +175,7 @@ export function registerDaemonGaugeCallbacks(
       unit: 'bytes',
       valueType: ValueType.INT,
     })
-    .addCallback((result) => {
+    .addCallback((result: any) => {
       try {
         result.observe(callbacks.heapUsed());
       } catch {
