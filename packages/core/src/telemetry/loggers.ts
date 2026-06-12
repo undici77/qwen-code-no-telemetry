@@ -74,8 +74,8 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logHookCall(_config: Config, _event: HookCallEvent): void {}
@@ -103,8 +103,8 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logApiCancel(_config: Config, _event: ApiCancelEvent): void {}
@@ -113,8 +113,8 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
   const uiEvent = Object.assign(event, {
     'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
   });
-  uiTelemetryService.addEvent(uiEvent);
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logLoopDetected(

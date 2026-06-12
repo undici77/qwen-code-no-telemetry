@@ -14,7 +14,6 @@ import './styles/components.css';
 export const WEBUI_VERSION = '0.16.1';
 
 // Shared UI Components Export
-// Export all shared components from this package
 
 // Context
 export {

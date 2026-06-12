@@ -33,6 +33,12 @@ export const REGRESSION_PERCENTAGE_CHANGE =
   'qwen-code.performance.regression.percentage_change';
 export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
+export type MetricDefinitions = {
+  [key: string]: {
+    attributes: Record<string, any>;
+  };
+};
+
 export enum FileOperation {
   CREATE = 'create',
   READ = 'read',
@@ -51,11 +57,18 @@ export enum ToolExecutionPhase {
   SETUP = 'setup',
   EXECUTION = 'execution',
   TEARDOWN = 'teardown',
+  VALIDATION = 'validation',
+  PREPARATION = 'preparation',
+  RESULT_PROCESSING = 'result_processing',
 }
 
 export enum ApiRequestPhase {
   REQUEST = 'request',
   RESPONSE = 'response',
+  REQUEST_PREPARATION = 'request_preparation',
+  NETWORK_LATENCY = 'network_latency',
+  RESPONSE_PROCESSING = 'response_processing',
+  TOKEN_PROCESSING = 'token_processing',
 }
 
 export enum PerformanceMetricType {
@@ -70,15 +83,21 @@ export enum PerformanceMetricType {
   REGRESSION_DETECTION = 'regression_detection',
 }
 
+export function initializeMetrics(_config: Config): void {}
+
+export function initializePerformanceMonitoring(_config: Config): void {}
+
+export function recordChatCompressionMetrics(
+  _config: Config,
+  _attributes: any,
+): void {}
+
 export function recordToolCallMetrics(
   _config: Config,
   _toolName: string,
   _success: boolean,
   _latencyMs: number,
-  _metadata?: {
-    decision?: 'accept' | 'reject' | 'modify' | 'auto_accept';
-    tool_type?: 'native' | 'mcp';
-  },
+  _metadata?: any,
 ): void {}
 
 export function recordApiRequest(
@@ -86,28 +105,21 @@ export function recordApiRequest(
   _model: string,
   _success: boolean,
   _latencyMs: number,
-  _metadata?: {
-    status_code?: number | string;
-    error_type?: string;
-  },
+  _metadata?: any,
 ): void {}
 
 export function recordApiResponseMetrics(
   _config: Config,
   _model: string,
   _latencyMs: number,
-  _metadata?: {
-    status_code?: number | string;
-  },
+  _metadata?: any,
 ): void {}
 
 export function recordApiErrorMetrics(
   _config: Config,
   _model: string,
   _errorType: string,
-  _metadata?: {
-    status_code?: number | string;
-  },
+  _metadata?: any,
 ): void {}
 
 export function recordTokenUsageMetrics(
@@ -124,12 +136,7 @@ export function recordSessionStart(_config: Config): void {}
 export function recordFileOperationMetric(
   _config: Config,
   _operation: FileOperation,
-  _metadata?: {
-    lines?: number;
-    mimetype?: string;
-    extension?: string;
-    programming_language?: string;
-  },
+  _metadata?: any,
 ): void {}
 
 export function recordInvalidChunk(_config: Config): void {}
@@ -152,14 +159,30 @@ export function recordChatCompression(
 ): void {}
 
 export function recordArenaSessionStartedMetrics(_config: Config): void {}
-export function recordArenaAgentCompletedMetrics(_config: Config, _durationMs: number, _tokens: number): void {}
-export function recordArenaSessionEndedMetrics(_config: Config, _durationMs: number, _status: string): void {}
+export function recordArenaAgentCompletedMetrics(
+  _config: Config,
+  _durationMs: number,
+  _tokens: number,
+): void {}
+export function recordArenaSessionEndedMetrics(
+  _config: Config,
+  _durationMs: number,
+  _status: string,
+): void {}
 
-export function recordMemoryExtractMetrics(_config: Config, _durationMs: number): void {}
-export function recordMemoryDreamMetrics(_config: Config, _durationMs: number): void {}
-export function recordMemoryRecallMetrics(_config: Config, _durationMs: number): void {}
+export function recordMemoryExtractMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
+export function recordMemoryDreamMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
+export function recordMemoryRecallMetrics(
+  _config: Config,
+  _durationMs: number,
+): void {}
 
-// Performance Monitoring (no-op)
 export function recordStartupPerformance(
   _config: Config,
   _phase: string,
@@ -214,7 +237,11 @@ export function recordPerformanceRegression(
   _baselineValue: number,
 ): void {}
 
-export function recordBaselineComparison(_config: Config, _metric: string, _value: number): void {}
+export function recordBaselineComparison(
+  _config: Config,
+  _metric: string,
+  _value: number,
+): void {}
 
 export function isPerformanceMonitoringActive(): boolean {
   return false;

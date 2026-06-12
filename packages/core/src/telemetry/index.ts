@@ -16,6 +16,7 @@ export { DEFAULT_TELEMETRY_TARGET, DEFAULT_OTLP_ENDPOINT };
 export {
   initializeTelemetry,
   shutdownTelemetry,
+  forceFlushMetrics,
   refreshSessionContext,
   isTelemetrySdkInitialized,
 } from './sdk.js';
@@ -167,6 +168,7 @@ export { sanitizeHookName } from './sanitize.js';
 export {
   startInteractionSpan,
   endInteractionSpan,
+  withInteractionSpan,
   startLLMRequestSpan,
   endLLMRequestSpan,
   startToolSpan,
@@ -187,6 +189,7 @@ export {
 export type {
   StartInteractionOptions,
   EndInteractionOptions,
+  InteractionSpanResultStatus,
   LLMRequestMetadata,
   ToolSpanMetadata,
   ToolBlockedDecision,
@@ -199,6 +202,37 @@ export type {
   StartSubagentSpanOptions,
   SubagentSpanMetadata,
 } from './session-tracing.js';
+export type { TelemetryRuntimeConfig } from './runtime-config.js';
+export {
+  DAEMON_TRACEPARENT_META_KEY,
+  DAEMON_TRACESTATE_META_KEY,
+  addDaemonRequestAttribute,
+  captureDaemonTelemetryContext,
+  createDaemonBridgeTelemetry,
+  emitDaemonLog,
+  extractDaemonTraceContext,
+  hashDaemonWorkspace,
+  injectDaemonTraceContext,
+  recordDaemonError,
+  recordDaemonHttpResponse,
+  runWithDaemonTelemetryContext,
+  withDaemonBridgeSpan,
+  withDaemonRequestSpan,
+  withDaemonSpan,
+  type DaemonBridgeTelemetryMetrics,
+} from './daemon-tracing.js';
+export {
+  initializeDaemonMetrics,
+  registerDaemonGaugeCallbacks,
+  recordDaemonHttpRequest,
+  recordDaemonSessionLifecycle,
+  recordDaemonChannelLifecycle,
+  recordDaemonPromptQueueWait,
+  recordDaemonPromptDuration,
+  recordDaemonBridgeError,
+  recordDaemonCancel,
+} from './daemon-metrics.js';
+export type { DaemonGaugeCallbacks } from './daemon-metrics.js';
 export {
   addUserPromptAttributes,
   addSystemPromptAttributes,
@@ -207,5 +241,6 @@ export {
   addToolInputAttributes,
   addToolResultAttributes,
   truncateContent,
-  clearDetailedSpanState,
 } from './detailed-span-attributes.js';
+export { getTraceContext, formatTraceparent } from './trace-context.js';
+export type { TraceContext } from './trace-context.js';

@@ -14,13 +14,8 @@ export interface WithSpanOptions {
   autoOkOnSuccess?: boolean;
 }
 
-export function safeSetStatus(_span: Span, _status: unknown): void {
-  // No-op
-}
+export function safeSetStatus(_span: Span, _status: unknown): void {}
 
-/**
- * Run an async function within a dummy span.
- */
 export async function withSpan<T>(
   _name: string,
   _attributes: Record<string, string | number | boolean>,
@@ -31,9 +26,6 @@ export async function withSpan<T>(
   return fn(span);
 }
 
-/**
- * Start a dummy span with context.
- */
 export function startSpanWithContext(
   _name: string,
   _attributes: Record<string, string | number | boolean>,
@@ -48,9 +40,6 @@ export function startSpanWithContext(
   };
 }
 
-/**
- * Create a dummy session root context.
- */
 export function createSessionRootContext(_sessionId: string): Context {
   return {};
 }
