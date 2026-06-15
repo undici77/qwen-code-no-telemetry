@@ -21,7 +21,10 @@ import {
   type DaemonStreamingState,
 } from '@qwen-code/webui/daemon-react-sdk';
 import { isDaemonTurnError } from '@qwen-code/sdk/daemon';
-import type { DaemonTranscriptBlock } from '@qwen-code/sdk/daemon';
+import type {
+  DaemonTranscriptBlock,
+  DaemonSessionTaskStatus,
+} from '@qwen-code/sdk/daemon';
 import { extractPendingPermission } from './adapters/transcriptAdapter';
 import { MessageList, type MessageListHandle } from './components/MessageList';
 import { Editor, type EditorHandle } from './components/Editor';
@@ -72,6 +75,7 @@ import { ReleaseSessionDialog } from './components/dialogs/ReleaseSessionDialog'
 import { getLocalCommands } from './constants/localCommands';
 import { mergeCommands } from './hooks/daemonSessionMappers';
 import { useAnimationFrameValue } from './hooks/useAnimationFrameValue';
+import { useBackgroundTasks } from './hooks/useBackgroundTasks';
 import { useMessages } from './hooks/useMessages';
 import { usePanelActive } from './hooks/usePanelActive';
 import { useShallowMemo, useStableArray } from './hooks/useShallowMemo';
@@ -140,9 +144,13 @@ import {
 } from './themeContext';
 import {
   WebShellCustomizationProvider,
+  type WebShellComposerApi,
+  type WebShellComposerInput,
   type WebShellMarkdownCustomization,
   type ToolHeaderExtraRenderer,
   type WelcomeHeaderRenderer,
+  type FooterRenderer,
+  type WebShellTaskInfo,
 } from './customization';
 import type { CommandDisplayCategoryOrder } from './utils/commandDisplay';
 import styles from './App.module.css';
@@ -317,6 +325,8 @@ export interface WebShellProps {
   renderToolHeaderExtra?: ToolHeaderExtraRenderer;
   /** Custom renderer for the welcome header. Receives version, cwd, model, and mode. */
   renderWelcomeHeader?: WelcomeHeaderRenderer;
+  /** Custom component for the footer area below the Editor. Replaces the built-in StatusBar. */
+  renderFooter?: FooterRenderer;
   /** Collapse thinking blocks to 5 lines with a click-to-expand toggle. */
   compactThinking?: boolean;
   /** Auto-collapse completed turns to just the prompt and final answer, with a per-turn toggle. Defaults to true. */
@@ -327,6 +337,33 @@ export interface WebShellProps {
   markdown?: WebShellMarkdownCustomization;
   /** When provided, all toast notifications are forwarded to this callback and the built-in ToastHost is hidden. */
   onToast?: (tone: ToastTone, message: string) => void;
+  /** Imperative handle for externally controlling the composer input. */
+  composerRef?: React.Ref<WebShellComposerApi>;
+  /** Declarative composer input value. Increment composerInputVersion to replay the same value. */
+  composerInput?: WebShellComposerInput;
+  /** Replay key for composerInput. */
+  composerInputVersion?: number;
+}
+
+const emptyComposerApi: WebShellComposerApi = {
+  insertText: () => {},
+  setText: () => {},
+  addTags: () => {},
+  removeTag: () => {},
+  clear: () => {},
+  submit: () => {},
+};
+
+function assignComposerRef(
+  ref: React.Ref<WebShellComposerApi> | undefined,
+  value: WebShellComposerApi,
+): void {
+  if (!ref) return;
+  if (typeof ref === 'function') {
+    ref(value);
+    return;
+  }
+  (ref as React.MutableRefObject<WebShellComposerApi | null>).current = value;
 }
 
 function replaceSessionUrl(sessionId: string): void {
@@ -532,6 +569,53 @@ function getBackgroundTaskActivityKey(messages: readonly Message[]): string {
   return parts.join('|');
 }
 
+function mapToWebShellTaskInfo(
+  task: DaemonSessionTaskStatus,
+): WebShellTaskInfo {
+  const base = {
+    id: task.id,
+    label: task.label,
+    description: task.description,
+    runtimeMs: task.runtimeMs,
+    startTime: task.startTime,
+    endTime: task.endTime,
+    error: task.error,
+  };
+
+  switch (task.kind) {
+    case 'agent':
+      return {
+        ...base,
+        kind: 'agent',
+        status: task.status,
+        subagentType: task.subagentType,
+        isBackgrounded: task.isBackgrounded,
+        prompt: task.prompt,
+      };
+    case 'shell':
+      return {
+        ...base,
+        kind: 'shell',
+        status: task.status,
+        command: task.command,
+        cwd: task.cwd,
+        pid: task.pid,
+        exitCode: task.exitCode,
+      };
+    case 'monitor':
+      return {
+        ...base,
+        kind: 'monitor',
+        status: task.status,
+        command: task.command,
+        pid: task.pid,
+        exitCode: task.exitCode,
+      };
+    default:
+      return task satisfies never;
+  }
+}
+
 function translateCopyMessage(
   message: string,
   t: ReturnType<typeof getTranslator>,
@@ -612,11 +696,15 @@ export function App({
   slashCommandCategoryOrder,
   renderToolHeaderExtra,
   renderWelcomeHeader,
+  renderFooter,
   compactThinking = false,
   collapseCompletedTurns = true,
   virtualScrollThreshold,
   markdown,
   onToast,
+  composerRef,
+  composerInput,
+  composerInputVersion,
 }: WebShellProps = {}) {
   const [selectedLanguage, setSelectedLanguage] = useState<WebShellLanguage>(
     () =>
@@ -629,6 +717,7 @@ export function App({
     () => ({
       renderToolHeaderExtra,
       renderWelcomeHeader,
+      renderFooter,
       compactThinking,
       collapseCompletedTurns,
       markdown,
@@ -636,11 +725,13 @@ export function App({
     [
       renderToolHeaderExtra,
       renderWelcomeHeader,
+      renderFooter,
       compactThinking,
       collapseCompletedTurns,
       markdown,
     ],
   );
+  const CustomFooter = renderFooter;
   const store = useTranscriptStore();
   const blocks = useTranscriptBlocks();
   const connection = useConnection();
@@ -797,8 +888,26 @@ export function App({
     () => getBackgroundTaskActivityKey(messages),
     [messages],
   );
+  const backgroundTasks = useBackgroundTasks(
+    backgroundTaskActivityKey,
+    connection.status === 'connected',
+  );
+  const footerTasks = useMemo(
+    () => (renderFooter ? backgroundTasks.map(mapToWebShellTaskInfo) : []),
+    [backgroundTasks, renderFooter],
+  );
   const statusBarRef = useRef<StatusBarHandle>(null);
-  const editorRef = useRef<EditorHandle>(null);
+  const editorRef = useRef<EditorHandle | null>(null);
+  const setEditorHandle = useCallback(
+    (handle: EditorHandle | null) => {
+      editorRef.current = handle;
+      assignComposerRef(composerRef, handle ?? emptyComposerApi);
+    },
+    [composerRef],
+  );
+  useEffect(() => {
+    assignComposerRef(composerRef, editorRef.current ?? emptyComposerApi);
+  }, [composerRef]);
   const messageListRef = useRef<MessageListHandle>(null);
   const handleLocateFloatingTodos = useCallback(() => {
     if (!floatingTodosState.sourceMessageId) return;
@@ -1113,8 +1222,7 @@ export function App({
       if (message.isPending) {
         if (!isPlainEscape && !isCtrlCancel) return;
       } else {
-        const editorHasText =
-          (editorRef.current?.getText().trim().length ?? 0) > 0;
+        const editorHasText = editorRef.current?.hasInput() ?? false;
         const isPlainDismiss =
           !e.ctrlKey &&
           !e.metaKey &&
@@ -2432,8 +2540,7 @@ export function App({
         return;
       }
 
-      const text = editorRef.current?.getText() ?? '';
-      if (text.length > 0) {
+      if (editorRef.current?.hasInput()) {
         e.preventDefault();
         if (escPressCountRef.current === 0) {
           escPressCountRef.current = 1;
@@ -2445,7 +2552,7 @@ export function App({
             resetEscapeState();
           }, 500);
         } else {
-          editorRef.current?.clearText();
+          editorRef.current?.clear();
           resetEscapeState();
         }
         return;
@@ -2812,7 +2919,7 @@ export function App({
               <div className={styles.composer}>
                 <QueuedPromptDisplay prompts={queuedPrompts} t={t} />
                 <Editor
-                  ref={editorRef}
+                  ref={setEditorHandle}
                   onSubmit={handleSubmit}
                   onCycleMode={handleCycleMode}
                   onToggleShortcuts={handleToggleShortcuts}
@@ -2830,6 +2937,8 @@ export function App({
                   followupState={followupState}
                   onAcceptFollowup={onAcceptFollowup}
                   onDismissFollowup={onDismissFollowup}
+                  composerInput={composerInput}
+                  composerInputVersion={composerInputVersion}
                   placeholderText={
                     !connected
                       ? t('common.loading')
@@ -2856,6 +2965,34 @@ export function App({
               !tasksPanelMessage &&
               (showShortcuts ? (
                 <ShortcutsPanel onClose={handleCloseShortcuts} />
+              ) : CustomFooter ? (
+                <CustomFooter
+                  connected={connected}
+                  mode={currentMode}
+                  model={currentModel}
+                  streamingState={streamingState}
+                  contextUsageRatio={
+                    (connection.contextWindow ?? 0) > 0
+                      ? (connection.tokenCount ?? 0) /
+                        (connection.contextWindow ?? 0)
+                      : 0
+                  }
+                  activeGoal={activeGoal}
+                  tasks={footerTasks}
+                  availableModes={MODES_CYCLE}
+                  availableModels={(connection.models ?? []).map((m) => ({
+                    id: m.id,
+                    label: m.label,
+                    contextWindow: m.contextWindow,
+                  }))}
+                  skills={loadedSkills}
+                  onSelectMode={(mode) => handleSetMode(mode)}
+                  onSelectModel={(model) => {
+                    sessionActions.setModel(model).then(() => {
+                      setCurrentModel(model);
+                    });
+                  }}
+                />
               ) : (
                 <StatusBar
                   escapeHint={escapeHintVisible}
@@ -2868,7 +3005,7 @@ export function App({
                   ref={statusBarRef}
                   onOpenTasks={() => openTasksPanel()}
                   onReturnToInput={handleReturnToEditor}
-                  taskActivityKey={backgroundTaskActivityKey}
+                  tasks={backgroundTasks}
                   activeGoal={activeGoal}
                   hideSettings={hideSettings}
                   onToggleShortcuts={handleToggleShortcuts}

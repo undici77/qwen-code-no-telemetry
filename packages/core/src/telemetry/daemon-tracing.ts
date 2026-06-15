@@ -92,7 +92,7 @@ export async function withDaemonSpan<T>(
   return await tracer.startActiveSpan(
     name,
     { kind: SpanKind.INTERNAL, attributes },
-    async (span) => {
+    async (span: Span) => {
       try {
         const result = await fn(span);
         if (autoOkOnSuccess) {
