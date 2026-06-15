@@ -19,6 +19,10 @@ import { logs, type LogAttributes } from './dummy-otel.js';
 import { SERVICE_NAME } from './constants.js';
 import { isTelemetrySdkInitialized } from './sdk.js';
 import { truncateSpanError } from './session-tracing.js';
+import {
+  formatTraceparent,
+  getActiveSpanTraceContext,
+} from './trace-context.js';
 
 export const DAEMON_TRACEPARENT_META_KEY = 'qwen.telemetry.traceparent';
 export const DAEMON_TRACESTATE_META_KEY = 'qwen.telemetry.tracestate';
@@ -55,13 +59,6 @@ function errorType(error: unknown): string {
 const INVALID_TRACE_ID = '0'.repeat(32);
 const INVALID_SPAN_ID = '0'.repeat(16);
 
-function activeSpanContextIsValid(): boolean {
-  const span = trace.getSpan(otelContext.active());
-  if (!span) return false;
-  const ctx = span.spanContext();
-  return ctx.traceId !== INVALID_TRACE_ID && ctx.spanId !== INVALID_SPAN_ID;
-}
-
 function stripReservedTraceMeta(meta: unknown): Record<string, unknown> {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return {};
   const record = meta as Record<string, unknown>;
@@ -95,7 +92,7 @@ export async function withDaemonSpan<T>(
   return await tracer.startActiveSpan(
     name,
     { kind: SpanKind.INTERNAL, attributes },
-    async (span: any) => {
+    async (span) => {
       try {
         const result = await fn(span);
         if (autoOkOnSuccess) {
@@ -241,22 +238,12 @@ export async function runWithDaemonTelemetryContext<T>(
 
 export function injectDaemonTraceContext<T extends object>(request: T): T {
   const currentMeta = (request as { _meta?: unknown })._meta;
-
-  if (!activeSpanContextIsValid()) {
-    return currentMeta
-      ? { ...request, _meta: stripReservedTraceMeta(currentMeta) }
-      : request;
-  }
-
   const nextMeta = stripReservedTraceMeta(currentMeta);
+
   try {
-    const carrier: Record<string, string> = {};
-    propagation.inject(otelContext.active(), carrier);
-    if (carrier['traceparent']) {
-      nextMeta[DAEMON_TRACEPARENT_META_KEY] = carrier['traceparent'];
-    }
-    if (carrier['tracestate']) {
-      nextMeta[DAEMON_TRACESTATE_META_KEY] = carrier['tracestate'];
+    const ctx = getActiveSpanTraceContext();
+    if (ctx) {
+      nextMeta[DAEMON_TRACEPARENT_META_KEY] = formatTraceparent(ctx);
     }
   } catch {
     // Telemetry must not affect prompt forwarding.

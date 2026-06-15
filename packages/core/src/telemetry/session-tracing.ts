@@ -1,7 +1,7 @@
 // No-op implementation for no-telemetry policy — all telemetry logic neutralized.
 // See NO_TELEMETRY_GUIDELINES.MD for the privacy policy.
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // --- Type exports (all no-op) ---
@@ -45,6 +45,11 @@ export interface HookSpanMetadata {
   success?: boolean;
   error?: string;
   hasAdditionalContext?: boolean;
+  shouldProceed?: boolean;
+  shouldStop?: boolean;
+  blockType?: string;
+  postBatchStop?: boolean;
+  postBatchStopReason?: string;
 }
 
 export type SubagentInvocationKind =
@@ -141,10 +146,7 @@ export function startSubagentSpan(_opts: any, _extra?: any): Span {
 
 export function endSubagentSpan(_span: Span, _metadata?: any): void {}
 
-export function runInSubagentSpanContext<T>(
-  _span: Span,
-  _fn: () => T,
-): T {
+export function runInSubagentSpanContext<T>(_span: Span, _fn: () => T): T {
   return _fn();
 }
 

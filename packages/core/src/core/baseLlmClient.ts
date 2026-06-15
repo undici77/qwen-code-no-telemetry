@@ -50,6 +50,7 @@ const debugLogger = createDebugLogger('BASE_LLM_CLIENT');
 export interface ResolvedGeneratorForModel {
   contentGenerator: ContentGenerator;
   retryAuthType: string | undefined;
+  retryErrorCodes?: readonly number[];
   model: string;
 }
 
@@ -219,6 +220,7 @@ export class BaseLlmClient {
     const {
       contentGenerator,
       retryAuthType,
+      retryErrorCodes,
       model: requestModel,
     } = await this.resolveForModel(model);
 
@@ -239,6 +241,7 @@ export class BaseLlmClient {
       const result = await retryWithBackoff(apiCall, {
         maxAttempts: maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
         authType: retryAuthType,
+        extraRetryErrorCodes: retryErrorCodes,
         persistentMode: isUnattendedMode(),
         signal: abortSignal,
         heartbeatFn: (info) => {
@@ -334,6 +337,7 @@ export class BaseLlmClient {
     const {
       contentGenerator,
       retryAuthType,
+      retryErrorCodes,
       model: requestModel,
     } = await this.resolveForModel(model);
 
@@ -351,6 +355,7 @@ export class BaseLlmClient {
       const result = await retryWithBackoff(apiCall, {
         maxAttempts: maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
         authType: retryAuthType,
+        extraRetryErrorCodes: retryErrorCodes,
         persistentMode: isUnattendedMode(),
         signal: abortSignal,
         heartbeatFn: (info) => {
@@ -449,7 +454,9 @@ export class BaseLlmClient {
     const selector = this.resolveModelSelector(model);
     const requestModel = selector?.modelId ?? this.config.getModel() ?? model;
     const mainModel = this.config.getModel() ?? model;
-    const mainAuthType = this.config.getContentGeneratorConfig()?.authType;
+    const mainGeneratorConfig = this.config.getContentGeneratorConfig();
+    const mainAuthType = mainGeneratorConfig?.authType;
+    const mainRetryErrorCodes = mainGeneratorConfig?.retryErrorCodes;
 
     if (
       requestModel === mainModel &&
@@ -458,6 +465,7 @@ export class BaseLlmClient {
       return {
         contentGenerator: this.getCurrentContentGenerator(),
         retryAuthType: mainAuthType,
+        retryErrorCodes: mainRetryErrorCodes,
         model: requestModel,
       };
     }
@@ -469,10 +477,13 @@ export class BaseLlmClient {
     const resolvedModel = this.resolveModelAcrossAuthTypes(model, selector);
     const retryAuthType =
       resolvedModel?.authType ?? mainAuthType ?? AuthType.USE_OPENAI;
+    const retryErrorCodes =
+      resolvedModel?.generationConfig?.retryErrorCodes ?? mainRetryErrorCodes;
 
     return {
       contentGenerator,
       retryAuthType,
+      retryErrorCodes,
       model: resolvedModel?.id ?? requestModel,
     };
   }
