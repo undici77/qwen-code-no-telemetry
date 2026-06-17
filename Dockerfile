@@ -29,7 +29,7 @@ RUN npm ci \
 # Runtime stage
 FROM docker.io/library/node:22-slim
 
-ARG QWEN_REF="v0.18.0-no-telemetry"
+ARG QWEN_REF="v0.18.3-no-telemetry"
 ARG REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 
 ENV QWEN_REF=${QWEN_REF}
