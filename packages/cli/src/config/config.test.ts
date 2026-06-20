@@ -9,7 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   ToolNames,
-  DEFAULT_QWEN_MODEL,
+  MAINLINE_CODER_MODEL,
   OutputFormat,
   NativeLspService,
   Storage,
@@ -2333,7 +2333,7 @@ describe('loadCliConfig model selection', () => {
       [],
     );
 
-    expect(config.getModel()).toBe(DEFAULT_QWEN_MODEL);
+    expect(config.getModel()).toBe(MAINLINE_CODER_MODEL);
   });
 
   it('always prefers model from argvs', async () => {
