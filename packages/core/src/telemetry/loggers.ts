@@ -56,7 +56,6 @@ import type {
   MemoryRecallEvent,
   HookCallEvent,
 } from './types.js';
-import type { UiEvent } from './uiTelemetry.js';
 import { isInternalPromptId } from '../utils/internalPromptIds.js';
 import { recordTokenUsageFromApiResponseBestEffort } from '../services/tokenUsageService.js';
 
