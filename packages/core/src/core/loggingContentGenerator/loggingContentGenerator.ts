@@ -20,7 +20,12 @@ import {
   type FinishReason,
 } from '@google/genai';
 import type OpenAI from 'openai';
-import { context, trace, type Context, type Span } from '../../telemetry/dummy-otel.js';
+import {
+  context,
+  trace,
+  type Context,
+  type Span,
+} from '../../telemetry/dummy-otel.js';
 import {
   ApiRequestEvent,
   ApiResponseEvent,
@@ -106,6 +111,7 @@ export class LoggingContentGenerator implements ContentGenerator {
   private schemaCompliance?: 'auto' | 'openapi_30';
   private modalities?: InputModalities;
   private splitToolMedia?: boolean;
+  private toolResultContentFormat?: ContentGeneratorConfig['toolResultContentFormat'];
   private readonly generatorAuthType: ContentGeneratorConfig['authType'];
 
   constructor(
@@ -115,6 +121,7 @@ export class LoggingContentGenerator implements ContentGenerator {
   ) {
     this.modalities = generatorConfig.modalities;
     this.splitToolMedia = generatorConfig.splitToolMedia;
+    this.toolResultContentFormat = generatorConfig.toolResultContentFormat;
     this.generatorAuthType = generatorConfig.authType;
 
     // Extract fields needed for initialization from passed config
@@ -769,6 +776,7 @@ export class LoggingContentGenerator implements ContentGenerator {
       // --openai-logging fallback reconstruction reflects the same split as the
       // request actually sent. Opt out via generationConfig.splitToolMedia = false.
       splitToolMedia: this.splitToolMedia ?? true,
+      toolResultContentFormat: this.toolResultContentFormat ?? 'parts',
       startTime: 0,
     };
   }

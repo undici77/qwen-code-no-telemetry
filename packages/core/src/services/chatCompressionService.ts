@@ -481,6 +481,7 @@ export class ChatCompressionService {
 
     const summaryResult = await runSideQuery(config, {
       purpose: 'chat-compression',
+      skipOutputLanguagePreference: true,
       model,
       // Best-effort: failures fall back to NOOP and the next turn re-triggers
       // compression anyway, so don't burn 7 retries blocking the user mid-turn.

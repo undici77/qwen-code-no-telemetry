@@ -55,6 +55,9 @@ import type {
   MemoryRecallEvent,
   HookCallEvent,
 } from './types.js';
+import type { UiEvent } from './uiTelemetry.js';
+import { isInternalPromptId } from '../utils/internalPromptIds.js';
+import { recordTokenUsageFromApiResponseBestEffort } from '../services/tokenUsageService.js';
 
 // No-op implementations for no-telemetry policy
 // All telemetry functions are replaced with empty stubs
@@ -110,11 +113,18 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
 export function logApiCancel(_config: Config, _event: ApiCancelEvent): void {}
 
 export function logApiResponse(config: Config, event: ApiResponseEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
-  });
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_API_RESPONSE,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  if (!isInternalPromptId(event.prompt_id)) {
+    if (config.getUsageStatisticsEnabled()) {
+      recordTokenUsageFromApiResponseBestEffort(config, event);
+    }
+    config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+  }
 }
 
 export function logLoopDetected(
@@ -216,6 +226,9 @@ export function logArenaSessionEnded(
   _config: Config,
   _event: ArenaSessionEndedEvent,
 ): void {}
+
+// ─── Auto-Memory Log Functions ───────────────────────────────────────────────
+
 export function logMemoryExtract(
   _config: Config,
   _event: MemoryExtractEvent,
