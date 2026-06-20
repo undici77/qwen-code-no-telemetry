@@ -11,6 +11,7 @@ import {
   EVENT_API_ERROR,
   EVENT_API_RESPONSE,
 } from './uiTelemetry.js';
+import type { UiEvent } from './uiTelemetry.js';
 import type {
   ApiErrorEvent,
   ApiCancelEvent,
@@ -228,7 +229,6 @@ export function logArenaSessionEnded(
 ): void {}
 
 // ─── Auto-Memory Log Functions ───────────────────────────────────────────────
-
 export function logMemoryExtract(
   _config: Config,
   _event: MemoryExtractEvent,

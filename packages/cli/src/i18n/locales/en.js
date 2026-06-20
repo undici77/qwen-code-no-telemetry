@@ -211,6 +211,7 @@ export default {
   'toolDisplayName.EnterWorktree': 'toolDisplayName.EnterWorktree',
   'toolDisplayName.ExitWorktree': 'toolDisplayName.ExitWorktree',
   'toolDisplayName.Workflow': 'toolDisplayName.Workflow',
+
   // ============================================================================
   // Help / UI Components
   // ============================================================================

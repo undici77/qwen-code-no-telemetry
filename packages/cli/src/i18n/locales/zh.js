@@ -203,6 +203,7 @@ export default {
   'toolDisplayName.EnterWorktree': '进入 Worktree',
   'toolDisplayName.ExitWorktree': '退出 Worktree',
   'toolDisplayName.Workflow': '工作流',
+
   // ============================================================================
   // Help / UI Components
   // ============================================================================

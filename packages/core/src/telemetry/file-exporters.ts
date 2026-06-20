@@ -11,6 +11,7 @@ import { safeJsonStringify } from '../utils/safeJsonStringify.js';
 
 class FileExporter {
   constructor(_filePath: string) {}
+
   protected serialize(data: unknown): string {
     return safeJsonStringify(data, 2) + '\n';
   }
