@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/qwen-code",
-  "version": "0.18.4",
+  "version": "0.18.5",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -18,10 +18,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/undici77/qwen-code-no-telemetry.git"
+    "url": "git+https://github.com/QwenLM/qwen-code.git"
   },
   "config": {
-    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.18.4"
+    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.18.5"
   },
   "scripts": {
     "start": "node scripts/start.js",
@@ -35,7 +35,7 @@
     "build:vscode": "node scripts/build_vscode_companion.js",
     "build:all": "npm run build && npm run build:sandbox && npm run build:vscode",
     "build:packages": "npm run build --workspaces",
-    "build:sandbox": "node scripts/build_sandbox.js -s",
+    "build:sandbox": "node scripts/build_sandbox.js",
     "bundle": "npm run generate && node esbuild.config.js && node scripts/copy_bundle_assets.js",
     "test": "cross-env NODE_OPTIONS=\"--max-old-space-size=3072\" npm run test --workspaces --if-present --parallel",
     "test:ci": "cross-env NODE_OPTIONS=\"--max-old-space-size=3072\" npm run test:ci --workspaces --if-present --parallel && npm run test:scripts",
@@ -68,7 +68,7 @@
     "check-i18n": "npm run check-i18n --workspace=packages/cli",
     "preflight": "npm run clean && npm ci && npm run format && npm run lint:ci && npm run build && npm run typecheck && npm run test:ci",
     "postinstall": "patch-package",
-    "prepare": "[ -d .git ] && [ -x \"$(command -v husky)\" ] && husky || true && npm run build && npm run bundle",
+    "prepare": "husky && npm run build && npm run bundle",
     "prepare:package": "node scripts/prepare-package.js",
     "package:hosted-installation": "node scripts/build-hosted-installation-assets.js",
     "package:standalone": "node scripts/create-standalone-package.js",
@@ -76,6 +76,7 @@
     "verify:installation-release": "node scripts/verify-installation-release.js",
     "release:version": "node scripts/version.js",
     "changelog": "node scripts/generate-changelog.js",
+    "telemetry": "node scripts/telemetry.js",
     "check:lockfile": "node scripts/check-lockfile.js",
     "check:desktop-isolation": "node scripts/check-desktop-isolation.js",
     "desktop-openwork-sync": "bun run scripts/desktop-openwork-sync.ts",
@@ -141,14 +142,12 @@
     "strip-ansi": "^7.1.2",
     "tsx": "^4.20.3",
     "typescript-eslint": "^8.30.1",
-    "undici": "^6.22.0",
     "vitest": "^3.2.4",
     "yargs": "^17.7.2"
   },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "ink": "^7.0.3",
-    "patch-package": "^8.0.1",
     "simple-git": "^3.28.0"
   },
   "optionalDependencies": {

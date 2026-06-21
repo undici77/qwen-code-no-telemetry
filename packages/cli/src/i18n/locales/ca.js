@@ -1407,6 +1407,7 @@ export default {
   'Tools:': 'Eines:',
   'Parameters:': 'Paràmetres:',
   'Prompts:': 'Missatges:',
+  'Resources:': 'Recursos:',
   Blocked: 'Bloquejat',
   '💡 Tips:': '💡 Consells:',
   Use: 'Useu',

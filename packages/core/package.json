@@ -1,10 +1,10 @@
 {
   "name": "@qwen-code/qwen-code-core",
-  "version": "0.18.4",
+  "version": "0.18.5",
   "description": "Qwen Code Core",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/undici77/qwen-code-no-telemetry.git"
+    "url": "git+https://github.com/QwenLM/qwen-code.git"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -26,7 +26,7 @@
     "@anthropic-ai/sdk": "^0.36.1",
     "@google/genai": "2.6.0",
     "@iarna/toml": "^2.2.5",
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@types/html-to-text": "^9.0.4",
     "@xterm/headless": "5.5.0",
     "ajv": "^8.17.1",

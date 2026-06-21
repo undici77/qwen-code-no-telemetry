@@ -1,6 +1,6 @@
 {
   "name": "@qwen-code/webui",
-  "version": "0.18.4",
+  "version": "0.18.5",
   "description": "Shared UI components for Qwen Code packages",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -37,7 +37,7 @@
   },
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && tsc -p tsconfig.dts.json && cp -r dist/types/* dist/ && rm -rf dist/types",
+    "build": "vite build",
     "test": "vitest run",
     "test:ci": "vitest run",
     "typecheck": "tsc --noEmit",

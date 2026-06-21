@@ -1,10 +1,10 @@
 {
   "name": "@qwen-code/qwen-code",
-  "version": "0.18.4",
+  "version": "0.18.5",
   "description": "Qwen Code",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/undici77/qwen-code-no-telemetry.git"
+    "url": "git+https://github.com/QwenLM/qwen-code.git"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -28,7 +28,7 @@
     "debug": "node --inspect-brk dist/index.js",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
-    "test": "cross-env FORCE_COLOR=0 vitest run",
+    "test": "vitest run",
     "test:ci": "vitest run",
     "typecheck": "tsc --noEmit",
     "check-i18n": "tsx ../../scripts/check-i18n.ts"
@@ -37,7 +37,7 @@
     "dist"
   ],
   "config": {
-    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.18.4"
+    "sandboxImageUri": "ghcr.io/qwenlm/qwen-code:0.18.5"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
