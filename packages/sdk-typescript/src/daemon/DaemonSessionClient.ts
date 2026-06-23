@@ -16,6 +16,7 @@ import {
   type SubscribeOptions,
 } from './DaemonClient.js';
 import type {
+  DaemonForkSessionResult,
   DaemonEvent,
   DaemonRewindResult,
   DaemonRewindSnapshotInfo,
@@ -27,6 +28,7 @@ import type {
   DaemonShellCommandResult,
   DaemonSessionState,
   DaemonSession,
+  DaemonSessionLspStatus,
   DaemonSessionStatsStatus,
   DaemonSessionSupportedCommandsStatus,
   DaemonSessionTaskStatus,
@@ -341,6 +343,14 @@ export class DaemonSessionClient {
     });
   }
 
+  async fork(directive: string): Promise<DaemonForkSessionResult> {
+    return await this.client.forkSession(
+      this.sessionId,
+      { directive },
+      this.clientId,
+    );
+  }
+
   /**
    * One-sentence "where did I leave off" recap of this session. See
    * `DaemonClient.recapSession` for the full contract: best-effort
@@ -423,6 +433,10 @@ export class DaemonSessionClient {
 
   async tasks(): Promise<DaemonSessionTasksStatus> {
     return await this.client.sessionTasks(this.sessionId, this.clientId);
+  }
+
+  async lspStatus(): Promise<DaemonSessionLspStatus> {
+    return await this.client.sessionLspStatus(this.sessionId, this.clientId);
   }
 
   async cancelTask(

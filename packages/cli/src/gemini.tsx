@@ -364,6 +364,7 @@ export async function startInteractiveUI(
     );
   };
 
+  const useVP = settings.merged.ui?.useTerminalBuffer ?? false;
   const instance = render(
     process.env['DEBUG'] ? (
       <React.StrictMode>
@@ -375,6 +376,7 @@ export async function startInteractiveUI(
     {
       exitOnCtrlC: false,
       isScreenReaderEnabled: config.getScreenReader(),
+      alternateScreen: useVP,
     },
   );
   // Records the moment Ink's `render()` call has returned, which is

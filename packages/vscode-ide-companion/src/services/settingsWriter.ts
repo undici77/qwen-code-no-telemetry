@@ -152,7 +152,9 @@ function stripTrailingCommas(text: string): string {
     if (ch === ',') {
       // Drop comma only if the next non-whitespace char is } or ].
       let j = i + 1;
-      while (j < text.length && /\s/.test(text[j]!)) {j++;}
+      while (j < text.length && /\s/.test(text[j]!)) {
+        j++;
+      }
       if (j < text.length && (text[j] === ']' || text[j] === '}')) {
         i++;
         continue;
@@ -278,9 +280,21 @@ function findOpenaiModels(
     return [];
   }
   for (const key of [AuthType.USE_OPENAI, 'use_openai']) {
-    const arr = modelProviders[key];
-    if (Array.isArray(arr) && arr.length > 0) {
-      return arr as Array<Record<string, unknown>>;
+    const entry = modelProviders[key];
+    // V4 shape: the provider value is a ModelConfig[] array.
+    if (Array.isArray(entry) && entry.length > 0) {
+      return entry as Array<Record<string, unknown>>;
+    }
+    // Read-side tolerance for a settings file still in the reverted #5089 V5
+    // shape ({ protocol, models }) that the CLI v5->v4 migration has not yet
+    // rewritten — the extension reads/writes settings.json without running
+    // that migration. The extension still writes V4 arrays; this only needs to
+    // avoid dropping existing entries when reading a not-yet-downgraded file.
+    if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+      const models = (entry as Record<string, unknown>)['models'];
+      if (Array.isArray(models) && models.length > 0) {
+        return models as Array<Record<string, unknown>>;
+      }
     }
   }
   return [];
@@ -429,7 +443,9 @@ function createFileSettingsAdapter(): ProviderSettingsAdapter {
       const parts = key.split('.');
       let current: unknown = data;
       for (const part of parts) {
-        if (current == null || typeof current !== 'object') {return undefined;}
+        if (current == null || typeof current !== 'object') {
+          return undefined;
+        }
         current = (current as Record<string, unknown>)[part];
       }
       return current;
@@ -497,7 +513,9 @@ function createFileSettingsAdapter(): ProviderSettingsAdapter {
     },
 
     restore(): void {
-      if (!backupData) {return;}
+      if (!backupData) {
+        return;
+      }
       // Write to disk FIRST. If writeSettings throws (EACCES / disk full /
       // EPERM on Windows), the in-memory update is skipped on purpose:
       // callers never observe a clean snapshot while the file on disk lies.
@@ -571,7 +589,9 @@ export function snapshotSettingsForRollback(): Record<string, unknown> | null {
 export function restoreSettingsSnapshot(
   snapshot: Record<string, unknown> | null,
 ): void {
-  if (snapshot === null) {return;}
+  if (snapshot === null) {
+    return;
+  }
   writeSettings(snapshot);
 }
 
@@ -702,7 +722,9 @@ export function clearPersistedAuth(): void {
       for (const p of ALL_PROVIDERS) {
         try {
           const key = resolveMetadataKey(p);
-          if (key) {delete pm[key];}
+          if (key) {
+            delete pm[key];
+          }
         } catch {
           /* skip metadata cleanup for a misconfigured provider id */
         }

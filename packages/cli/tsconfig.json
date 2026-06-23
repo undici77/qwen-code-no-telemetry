@@ -10,34 +10,9 @@
       "@qwen-code/qwen-code-core": ["../core/src/index.ts"],
       "@qwen-code/qwen-code-core/*": ["../core/src/*"],
       "@qwen-code/acp-bridge": ["../acp-bridge/src/index.ts"],
-      "@qwen-code/acp-bridge/status": ["../acp-bridge/src/status.ts"],
-      "@qwen-code/acp-bridge/eventBus": ["../acp-bridge/src/eventBus.ts"],
-      "@qwen-code/acp-bridge/inMemoryChannel": [
-        "../acp-bridge/src/inMemoryChannel.ts"
-      ],
-      "@qwen-code/acp-bridge/bridgeTypes": ["../acp-bridge/src/bridgeTypes.ts"],
-      "@qwen-code/acp-bridge/bridgeErrors": [
-        "../acp-bridge/src/bridgeErrors.ts"
-      ],
-      "@qwen-code/acp-bridge/bridgeOptions": [
-        "../acp-bridge/src/bridgeOptions.ts"
-      ],
-      "@qwen-code/acp-bridge/workspacePaths": [
-        "../acp-bridge/src/workspacePaths.ts"
-      ],
       "@qwen-code/acp-bridge/*": ["../acp-bridge/src/*"],
-      "@opentelemetry/api": ["../core/src/telemetry/dummy-otel.ts"],
-      "@opentelemetry/sdk-logs": [
-        "../core/src/telemetry/log-to-span-processor.ts"
-      ],
-      "@opentelemetry/sdk-trace-base": [
-        "../core/src/telemetry/log-to-span-processor.ts"
-      ],
-      "@opentelemetry/resources": [
-        "../core/src/telemetry/log-to-span-processor.ts"
-      ],
-      "@opentelemetry/sdk-node": ["../core/src/telemetry/sdk.ts"],
-      "@opentelemetry/instrumentation-http": ["../core/src/telemetry/sdk.ts"]
+      "@qwen-code/audio-capture": ["../audio-capture/src/index.ts"],
+      "@qwen-code/audio-capture/*": ["../audio-capture/src/*"]
     }
   },
   "include": [
@@ -121,6 +96,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../acp-bridge" },
+    { "path": "../audio-capture" },
     { "path": "../channels/base" },
     { "path": "../channels/telegram" },
     { "path": "../channels/weixin" },

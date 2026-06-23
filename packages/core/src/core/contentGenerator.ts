@@ -30,7 +30,7 @@ import {
   StrictMissingCredentialsError,
   StrictMissingModelIdError,
 } from '../models/modelConfigErrors.js';
-import { PROVIDER_SOURCED_FIELDS } from '../models/modelsConfig.js';
+import { PROVIDER_SOURCED_FIELDS } from '../models/constants.js';
 
 /**
  * Interface abstracting the core functionalities for generating content and counting tokens.

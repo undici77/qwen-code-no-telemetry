@@ -55,10 +55,21 @@ describe('modelConfigUtils', () => {
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });
 
-    it('should return USE_OPENAI when OpenAI env vars are incomplete', () => {
+    it('should return USE_OPENAI when the model is given via QWEN_MODEL', () => {
+      // QWEN_MODEL is a valid USE_OPENAI model var (see AUTH_ENV_MODEL_VARS),
+      // so a config that sets it instead of OPENAI_MODEL must still resolve.
+      process.env['OPENAI_API_KEY'] = 'test-key';
+      process.env['QWEN_MODEL'] = 'qwen3-coder-plus';
+      process.env['OPENAI_BASE_URL'] =
+        'https://dashscope.aliyuncs.com/compatible-mode/v1';
+
+      expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
+    });
+
+    it('should return USE_OPENAI when OpenAI env vars are incomplete but no other auth is set', () => {
       process.env['OPENAI_API_KEY'] = 'test-key';
       process.env['OPENAI_MODEL'] = 'gpt-4';
-      // Missing OPENAI_BASE_URL
+      // Missing OPENAI_BASE_URL — falls through to default USE_OPENAI
 
       expect(getAuthTypeFromEnv()).toBe(AuthType.USE_OPENAI);
     });

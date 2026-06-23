@@ -51,6 +51,8 @@ import type {
   LoopDetectionDisabledEvent,
   IdeConnectionEvent,
   KittySequenceOverflowEvent,
+  WorkflowKeywordEvent,
+  WorkflowRunEvent,
   MemoryExtractEvent,
   MemoryDreamEvent,
   MemoryRecallEvent,
@@ -225,6 +227,18 @@ export function logArenaAgentCompleted(
 export function logArenaSessionEnded(
   _config: Config,
   _event: ArenaSessionEndedEvent,
+): void {}
+
+// ─── Workflow Log Functions (#4721) — no-op in no-telemetry fork ────────────
+
+export function logWorkflowKeyword(
+  _config: Config,
+  _event: WorkflowKeywordEvent,
+): void {}
+
+export function logWorkflowRun(
+  _config: Config,
+  _event: WorkflowRunEvent,
 ): void {}
 
 // ─── Auto-Memory Log Functions ───────────────────────────────────────────────
