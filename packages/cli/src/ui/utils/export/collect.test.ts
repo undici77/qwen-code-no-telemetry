@@ -60,6 +60,7 @@ describe('collectSessionData', () => {
         },
         toolCallResult: {
           callId: 'call-1',
+          status: 'success',
           resultDisplay: {
             fileName: 'file.ts',
             fileDiff:

@@ -13,6 +13,36 @@ import { SESSION_TITLE_MAX_LENGTH } from './sessionService.js';
 
 const debugLogger = createDebugLogger('SESSION_TITLE');
 
+/**
+ * Maximum number of auto-title generation attempts per session. See
+ * {@link ChatRecordingService.autoTitleAttempts} for the rationale behind
+ * retrying across turns.
+ */
+export const AUTO_TITLE_ATTEMPT_CAP = 3;
+
+/**
+ * Users who don't want the fast model silently generating titles can opt
+ * out at runtime: `QWEN_DISABLE_AUTO_TITLE=1` (or any truthy-ish value)
+ * makes {@link ChatRecordingService.maybeTriggerAutoTitle} a no-op without
+ * touching the rest of the feature (so `/rename --auto` still works on
+ * explicit user request). Read per-call rather than cached so tests can
+ * flip the var between cases without reloading the module; the cost of
+ * one env lookup per assistant turn is irrelevant next to an LLM call.
+ */
+export function autoTitleDisabledByEnv(): boolean {
+  const v = process.env['QWEN_DISABLE_AUTO_TITLE'];
+  if (!v) return false;
+  // Accept "0", "false", "no", "off" (case-insensitive) as "not disabled".
+  const lowered = v.trim().toLowerCase();
+  return (
+    lowered !== '' &&
+    lowered !== '0' &&
+    lowered !== 'false' &&
+    lowered !== 'no' &&
+    lowered !== 'off'
+  );
+}
+
 const MAX_CONVERSATION_CHARS = 1000;
 const RECENT_MESSAGE_WINDOW = 20;
 

@@ -12,12 +12,10 @@ import {
   type Config,
 } from '@qwen-code/qwen-code-core';
 import { type LoadedSettings } from '../config/settings.js';
+export type { LoadedSettings } from '../config/settings.js';
 import { performInitialAuth } from './auth.js';
 import { validateTheme } from './theme.js';
-import {
-  initializeI18n,
-  resolveLanguageSetting,
-} from '../i18n/index.js';
+import { initializeI18n, resolveLanguageSetting } from '../i18n/index.js';
 
 export interface InitializationResult {
   authError: string | null;

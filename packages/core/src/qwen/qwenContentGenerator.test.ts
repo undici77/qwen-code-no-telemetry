@@ -19,7 +19,7 @@ import { FinishReason } from '@google/genai';
 import { QwenContentGenerator } from './qwenContentGenerator.js';
 import { SharedTokenManager } from './sharedTokenManager.js';
 import type { Config } from '../config/config.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 
 // Mock OpenAI client to avoid real network calls
 vi.mock('openai', () => ({

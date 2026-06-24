@@ -12,7 +12,8 @@ import type {
   Part,
 } from '@google/genai';
 import { ApiError } from '@google/genai';
-import { AuthType, type ContentGenerator } from '../core/contentGenerator.js';
+import { type ContentGenerator } from './contentGenerator.js';
+import { AuthType } from './authTypes.js';
 import {
   GeminiChat,
   InvalidStreamError,
@@ -83,14 +84,15 @@ const { mockLogContentRetry, mockLogContentRetryFailure } = vi.hoisted(() => ({
   mockLogContentRetryFailure: vi.fn(),
 }));
 
-vi.mock('../telemetry/loggers.js', () => ({
-  logContentRetry: mockLogContentRetry,
-  logContentRetryFailure: mockLogContentRetryFailure,
-  // Real ChatCompressionService.compress() calls logChatCompression on
-  // every attempt; the R3.4 integration test exercises that path, so the
-  // mock has to expose it (no-op).
-  logChatCompression: vi.fn(),
-}));
+vi.mock('../telemetry/loggers.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../telemetry/loggers.js')>();
+  return {
+    ...actual,
+    logContentRetry: mockLogContentRetry,
+    logContentRetryFailure: mockLogContentRetryFailure,
+  };
+});
 
 vi.mock('../telemetry/uiTelemetry.js', () => ({
   uiTelemetryService: {

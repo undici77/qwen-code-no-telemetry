@@ -1404,7 +1404,9 @@ export class WebViewProvider {
     // so a subsequent chat message doesn't hit a stale-credential error that
     // looks unrelated to this auth failure; the next /auth reconnects clean.
     const disconnectStaleAgent = () => {
-      if (!this.agentInitialized) return;
+      if (!this.agentInitialized) {
+        return;
+      }
       try {
         this.agentManager.disconnect();
       } catch (e) {

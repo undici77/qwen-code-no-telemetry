@@ -1038,6 +1038,9 @@ async function crawlWithGitLsFiles(
 
   // Avoid `-z` with `-t`: record shape for `ls-files -t` + `-z` is not stable across Git
   // versions; newline-delimited output is fine here (index paths cannot contain newlines).
+  // `--recurse-submodules` expands submodule entries into their contained files so that `@`
+  // file references can reach files inside submodules. Git explicitly supports `-t` alongside
+  // `--recurse-submodules` (only `--others`/`--deleted`/etc. modes are unsupported with it).
   const trackedArgs = [
     '--literal-pathspecs',
     'ls-files',

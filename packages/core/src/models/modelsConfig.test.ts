@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { ModelsConfig } from './modelsConfig.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
 import type { ModelProvidersConfig } from './types.js';
 

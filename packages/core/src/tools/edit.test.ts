@@ -1008,8 +1008,29 @@ describe('EditTool', () => {
       };
       expect(() => tool.build(params)).toThrow();
     });
-
     it('should return FILE_WRITE_FAILURE on write error', async () => {
+      fs.writeFileSync(filePath, 'content', 'utf8');
+      // Force a write error by spying on writeTextFile
+      const spy = vi
+        .spyOn(fsService, 'writeTextFile')
+        .mockRejectedValue(new Error('permission denied'));
+
+      try {
+        seedPriorRead(filePath);
+        const params: EditToolParams = {
+          file_path: filePath,
+          old_string: 'content',
+          new_string: 'new content',
+        };
+        const invocation = tool.build(params);
+        const result = await invocation.execute(new AbortController().signal);
+        expect(result.error?.type).toBe(ToolErrorType.FILE_WRITE_FAILURE);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('should return FILE_WRITE_FAILURE when fsService.writeTextFile fails', async () => {
       fs.writeFileSync(filePath, 'content', 'utf8');
       seedPriorRead(filePath);
 
@@ -1454,7 +1475,7 @@ describe('EditTool', () => {
 
     it('attaches a structured ToolErrorType when getConfirmationDetails rejects', async () => {
       // Without an `errorType` field on the thrown Error, the tool
-      // scheduler reports every confirmation-time rejection as
+      // scheduler report every confirmation-time rejection as
       // UNHANDLED_EXCEPTION — losing the EDIT_REQUIRES_PRIOR_READ /
       // FILE_CHANGED_SINCE_READ contract this PR introduces.
       fs.writeFileSync(filePath, 'unread content', 'utf8');

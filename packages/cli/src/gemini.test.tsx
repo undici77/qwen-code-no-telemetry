@@ -1213,6 +1213,9 @@ describe('startInteractiveUI', () => {
   } as Config;
   const mockSettings = {
     merged: {
+      general: {
+        enableAutoUpdate: true,
+      },
       ui: {
         hideWindowTitle: false,
       },
@@ -1225,6 +1228,7 @@ describe('startInteractiveUI', () => {
 
   vi.mock('./utils/version.js', () => ({
     getCliVersion: vi.fn(() => Promise.resolve('1.0.0')),
+    getCliVersionDisplay: vi.fn(() => Promise.resolve('1.0.0-no-telemetry')),
   }));
 
   vi.mock('./ui/utils/kittyProtocolDetector.js', () => ({
@@ -1285,7 +1289,7 @@ describe('startInteractiveUI', () => {
   });
 
   it('should perform all startup tasks in correct order', async () => {
-    const { getCliVersion } = await import('./utils/version.js');
+    const { getCliVersionDisplay } = await import('./utils/version.js');
     const { checkForUpdates } = await import('./ui/utils/updateCheck.js');
     const { registerCleanup } = await import('./utils/cleanup.js');
 
@@ -1305,7 +1309,7 @@ describe('startInteractiveUI', () => {
     );
 
     // Verify all startup tasks were called
-    expect(getCliVersion).toHaveBeenCalledTimes(1);
+    expect(getCliVersionDisplay).toHaveBeenCalledTimes(1);
     expect(registerCleanup).toHaveBeenCalledTimes(1);
 
     // Verify cleanup handler is registered with unmount function

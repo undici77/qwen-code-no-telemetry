@@ -33,7 +33,8 @@ import type { Part } from '@google/genai';
 import type { ErrorHandler, PipelineConfig } from './types.js';
 import { ContentGenerationPipeline } from './pipeline.js';
 import type { Config } from '../../config/config.js';
-import type { ContentGeneratorConfig, AuthType } from '../contentGenerator.js';
+import type { ContentGeneratorConfig } from '../contentGenerator.js';
+import type { AuthType } from '../authTypes.js';
 import type { OpenAICompatibleProvider } from './provider/index.js';
 
 type ChunkFactory = () => OpenAI.Chat.ChatCompletionChunk;

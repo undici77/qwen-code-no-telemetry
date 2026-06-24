@@ -1280,6 +1280,7 @@ describe('SessionService', () => {
           compressionStatus: CompressionStatus.COMPRESSED,
         },
         compressedHistory: [],
+        summary: 'test-summary',
       },
     };
 
@@ -1533,6 +1534,7 @@ describe('SessionService', () => {
             newTokenCount: 50,
             compressionStatus: CompressionStatus.COMPRESSED,
           },
+          summary: 'test-summary',
           compressedHistory: [
             { role: 'user', parts: [{ text: 'summary' }] },
             {
@@ -1594,6 +1596,7 @@ describe('SessionService', () => {
         version: '1.0.0',
         gitBranch: 'main',
         systemPayload: {
+          summary: 'summary',
           info: {
             originalTokenCount: 100,
             newTokenCount: 50,
@@ -1758,6 +1761,7 @@ describe('SessionService', () => {
         version: '1.0.0',
         gitBranch: 'main',
         systemPayload: {
+          summary: 'test-summary',
           info: {
             originalTokenCount: 100,
             newTokenCount: 50,

@@ -12,4 +12,4 @@
 // @see ../../../acp-bridge/src/eventBus.ts for the implementation plus
 //      threat-model notes on bounded ring replay, slow-client backpressure,
 //      and `client_evicted` semantics.
-export * from '@qwen-code/acp-bridge/eventBus';
+export * from '../../../acp-bridge/src/eventBus.js';

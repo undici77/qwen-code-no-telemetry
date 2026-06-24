@@ -26,6 +26,24 @@
     "moduleResolution": "nodenext",
     "target": "es2022",
     "types": ["node", "vitest/globals"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@opentelemetry/api": ["./packages/core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/api-logs": ["./packages/core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/semantic-conventions": ["./packages/core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/sdk-logs": [
+        "./packages/core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-trace-base": [
+        "./packages/core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/resources": [
+        "./packages/core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-node": ["./packages/core/src/telemetry/sdk.ts"],
+      "@opentelemetry/instrumentation-http": [
+        "./packages/core/src/telemetry/sdk.ts"
+      ]
+    }
   }
 }

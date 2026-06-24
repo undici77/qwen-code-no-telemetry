@@ -10,7 +10,7 @@ import type { ApprovalMode } from '../config/config.js';
 import type { CompletedToolCall } from '../core/coreToolScheduler.js';
 import { DiscoveredMCPTool } from '../tools/mcp-tool.js';
 import type { FileDiff } from '../tools/tools.js';
-import type { AuthType } from '../core/contentGenerator.js';
+import type { AuthType } from '../core/authTypes.js';
 import {
   getDecisionFromOutcome,
   ToolCallDecision,

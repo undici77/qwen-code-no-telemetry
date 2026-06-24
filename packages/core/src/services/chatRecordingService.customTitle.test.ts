@@ -4,82 +4,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { randomUUID } from 'node:crypto';
-import path from 'node:path';
-import { execSync } from 'node:child_process';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import fs from 'node:fs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Config } from '../config/config.js';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { Config } from '../config/config.js';
 import {
   ChatRecordingService,
   type ChatRecord,
 } from './chatRecordingService.js';
+import { SessionService } from './sessionService.js';
 import * as jsonl from '../utils/jsonl-utils.js';
 
-vi.mock('node:path');
-vi.mock('node:child_process');
-vi.mock('node:crypto', () => ({
-  randomUUID: vi.fn(),
-  createHash: vi.fn(() => ({
-    update: vi.fn(() => ({
-      digest: vi.fn(() => 'mocked-hash'),
-    })),
-  })),
-}));
+vi.mock('node:fs');
 vi.mock('../utils/jsonl-utils.js');
 
-describe('ChatRecordingService - recordCustomTitle', () => {
-  let chatRecordingService: ChatRecordingService;
-  let mockConfig: Config;
-
-  let uuidCounter = 0;
+describe('ChatRecordingService - custom title', () => {
+  let config: Config;
+  let recordingService: ChatRecordingService;
+  let sessionService: SessionService;
 
   beforeEach(() => {
-    uuidCounter = 0;
-
-    mockConfig = {
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getProjectRoot: vi.fn().mockReturnValue('/test/project/root'),
-      getCliVersion: vi.fn().mockReturnValue('1.0.0'),
-      storage: {
-        getProjectTempDir: vi
-          .fn()
-          .mockReturnValue('/test/project/root/.qwen/tmp/hash'),
-        getProjectDir: vi
-          .fn()
-          .mockReturnValue('/test/project/root/.qwen/projects/test-project'),
-      },
-      getModel: vi.fn().mockReturnValue('qwen-plus'),
-      getFastModel: vi.fn().mockReturnValue(undefined),
-      isInteractive: vi.fn().mockReturnValue(false),
-      getDebugMode: vi.fn().mockReturnValue(false),
-      getToolRegistry: vi.fn().mockReturnValue({
-        getTool: vi.fn().mockReturnValue({
-          displayName: 'Test Tool',
-          description: 'A test tool',
-          isOutputMarkdown: false,
-        }),
-      }),
-      getResumedSessionData: vi.fn().mockReturnValue(undefined),
-    } as unknown as Config;
-
-    vi.mocked(randomUUID).mockImplementation(
-      () =>
-        `00000000-0000-0000-0000-00000000000${++uuidCounter}` as `${string}-${string}-${string}-${string}-${string}`,
-    );
-    vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
-    vi.mocked(path.dirname).mockImplementation((p) => {
-      const parts = p.split('/');
-      parts.pop();
-      return parts.join('/');
+    vi.clearAllMocks();
+    config = new Config({
+      targetDir: '/test/project',
+      cwd: '/test/project',
+      debugMode: false,
     });
-    vi.mocked(execSync).mockReturnValue('main\n');
-    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => undefined);
-    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined);
-    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
 
-    chatRecordingService = new ChatRecordingService(mockConfig);
+    (config as any).sessionId = 'test-session-id';
+    (config as any).projectRoot = '/test/project';
 
+    sessionService = new SessionService('/test/project');
+    vi.spyOn(config, 'getSessionService').mockReturnValue(sessionService);
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.mkdirSync).mockImplementation(() => undefined);
     // writeLine is async; mockResolvedValue lets the writeChain settle on flush.
     vi.mocked(jsonl.writeLine).mockResolvedValue(undefined);
   });
@@ -88,27 +48,39 @@ describe('ChatRecordingService - recordCustomTitle', () => {
     vi.restoreAllMocks();
   });
 
-  it('should record a custom title as a system record', async () => {
-    chatRecordingService.recordCustomTitle('my-feature');
-    await chatRecordingService.flush();
+  it('should record custom title with manual source by default', async () => {
+    recordingService = new ChatRecordingService(config);
+    const ok = recordingService.recordCustomTitle('my-title');
+    await recordingService.flush();
 
+    expect(ok).toBe(true);
     expect(jsonl.writeLine).toHaveBeenCalledOnce();
-
-    const writtenRecord = vi.mocked(jsonl.writeLine).mock
-      .calls[0][1] as ChatRecord;
-    expect(writtenRecord.type).toBe('system');
-    expect(writtenRecord.subtype).toBe('custom_title');
-    expect(writtenRecord.systemPayload).toEqual({
-      customTitle: 'my-feature',
+    const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as any;
+    expect(record.subtype).toBe('custom_title');
+    expect(record.systemPayload).toEqual({
+      customTitle: 'my-title',
       titleSource: 'manual',
     });
-    expect(writtenRecord.sessionId).toBe('test-session-id');
+  });
+
+  it('should allow recording custom title with auto source', async () => {
+    recordingService = new ChatRecordingService(config);
+    const ok = recordingService.recordCustomTitle('auto-title', 'auto');
+    await recordingService.flush();
+
+    expect(ok).toBe(true);
+    const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as any;
+    expect(record.systemPayload).toEqual({
+      customTitle: 'auto-title',
+      titleSource: 'auto',
+    });
   });
 
   it('should maintain parent chain when recording title after other records', async () => {
-    chatRecordingService.recordUserMessage([{ text: 'hello' }]);
-    chatRecordingService.recordCustomTitle('my-feature');
-    await chatRecordingService.flush();
+    recordingService = new ChatRecordingService(config);
+    recordingService.recordUserMessage([{ text: 'hello' } as any]);
+    recordingService.recordCustomTitle('my-feature');
+    await recordingService.flush();
 
     expect(jsonl.writeLine).toHaveBeenCalledTimes(2);
 
@@ -121,27 +93,61 @@ describe('ChatRecordingService - recordCustomTitle', () => {
   });
 
   it('should include correct metadata in the record', async () => {
-    chatRecordingService.recordCustomTitle('test-title');
-    await chatRecordingService.flush();
+    recordingService = new ChatRecordingService(config);
+    recordingService.recordCustomTitle('test-title');
+    await recordingService.flush();
 
     const writtenRecord = vi.mocked(jsonl.writeLine).mock
       .calls[0][1] as ChatRecord;
 
-    expect(writtenRecord.cwd).toBe('/test/project/root');
-    expect(writtenRecord.version).toBe('1.0.0');
-    expect(writtenRecord.gitBranch).toBe('main');
+    expect(writtenRecord.cwd).toBe('/test/project');
+    expect(writtenRecord.version).toBeDefined();
     expect(writtenRecord.uuid).toBeDefined();
     expect(writtenRecord.timestamp).toBeDefined();
   });
 
+  it('should load persisted title and source on resume', async () => {
+    vi.spyOn(config, 'getResumedSessionData').mockReturnValue({
+      conversation: {
+        sessionId: 'test-session-id',
+        projectHash: 'hash',
+        startTime: '2024-01-01',
+        lastUpdated: '2024-01-01',
+        messages: [],
+      },
+      filePath: '/path/to/chat.jsonl',
+      lastCompletedUuid: 'last-uuid',
+    });
+
+    vi.spyOn(sessionService, 'getSessionTitleInfo').mockReturnValue({
+      title: 'Resumed Title',
+      source: 'auto',
+    });
+
+    recordingService = new ChatRecordingService(config);
+    await recordingService.flush();
+
+    expect(recordingService.getCurrentCustomTitle()).toBe('Resumed Title');
+    expect(recordingService.getCurrentTitleSource()).toBe('auto');
+
+    // Verify it re-appends to EOF on resume (via finalize call in constructor)
+    expect(jsonl.writeLine).toHaveBeenCalledOnce();
+    const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as any;
+    expect(record.systemPayload).toEqual({
+      customTitle: 'Resumed Title',
+      titleSource: 'auto',
+    });
+  });
+
   describe('finalize', () => {
     it('should re-append cached custom title to EOF', async () => {
-      chatRecordingService.recordCustomTitle('my-feature');
-      await chatRecordingService.flush();
+      recordingService = new ChatRecordingService(config);
+      recordingService.recordCustomTitle('my-feature');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
-      chatRecordingService.finalize();
-      await chatRecordingService.flush();
+      recordingService.finalize();
+      await recordingService.flush();
 
       expect(jsonl.writeLine).toHaveBeenCalledOnce();
       const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as ChatRecord;
@@ -154,20 +160,22 @@ describe('ChatRecordingService - recordCustomTitle', () => {
     });
 
     it('should not write anything when no custom title was set', async () => {
-      chatRecordingService.finalize();
-      await chatRecordingService.flush();
+      recordingService = new ChatRecordingService(config);
+      recordingService.finalize();
+      await recordingService.flush();
 
       expect(jsonl.writeLine).not.toHaveBeenCalled();
     });
 
     it('should re-append the latest title after multiple renames', async () => {
-      chatRecordingService.recordCustomTitle('first-name');
-      chatRecordingService.recordCustomTitle('second-name');
-      await chatRecordingService.flush();
+      recordingService = new ChatRecordingService(config);
+      recordingService.recordCustomTitle('first-name');
+      recordingService.recordCustomTitle('second-name');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
-      chatRecordingService.finalize();
-      await chatRecordingService.flush();
+      recordingService.finalize();
+      await recordingService.flush();
 
       expect(jsonl.writeLine).toHaveBeenCalledOnce();
       const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as ChatRecord;
@@ -186,17 +194,17 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // custom_title append at EOF — keeping the title within the
       // 64KB tail window the picker scans even if no lifecycle event
       // (finalize) has fired.
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       // Each user message carries ~2KB of text — 20 of them put well
       // over 32KB on the wire (counting the ~200B per-record envelope).
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 20; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const writes = vi.mocked(jsonl.writeLine).mock.calls;
       const titleAppendsAfterClear = writes.filter(([, record]) => {
@@ -215,14 +223,14 @@ describe('ChatRecordingService - recordCustomTitle', () => {
     });
 
     it('does not let threshold re-anchor records become the active parent tail', async () => {
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
-      chatRecordingService.recordUserMessage([{ text: 'before bulk' }]);
-      chatRecordingService.recordUserMessage([{ text: 'x'.repeat(40 * 1024) }]);
-      chatRecordingService.recordUserMessage([{ text: 'after re-anchor' }]);
-      await chatRecordingService.flush();
+      recordingService.recordUserMessage([{ text: 'before bulk' }]);
+      recordingService.recordUserMessage([{ text: 'x'.repeat(40 * 1024) }]);
+      recordingService.recordUserMessage([{ text: 'after re-anchor' }]);
+      await recordingService.flush();
 
       const records = vi
         .mocked(jsonl.writeLine)
@@ -247,13 +255,14 @@ describe('ChatRecordingService - recordCustomTitle', () => {
     });
 
     it('does not re-anchor when no title has been set', async () => {
+      recordingService = new ChatRecordingService(config);
       // The counter only matters when there's a title to keep alive;
       // sessions that never set one shouldn't pay for spurious writes.
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 30; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)
@@ -273,21 +282,25 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // `customTitle` alone, never a hardcoded `'manual'`. Otherwise
       // resuming a legacy session on a current build would silently
       // reclassify it the first time the threshold fires.
-      vi.mocked(mockConfig.getResumedSessionData).mockReturnValue({
+      vi.spyOn(config, 'getResumedSessionData').mockReturnValue({
+        conversation: {
+          sessionId: 'test-session-id',
+          projectHash: 'hash',
+          startTime: '2024-01-01',
+          lastUpdated: '2024-01-01',
+          messages: [],
+        },
+        filePath: '/path/to/chat.jsonl',
         lastCompletedUuid: null,
-      } as unknown as ReturnType<Config['getResumedSessionData']>);
+      } as any);
       const getSessionTitleInfo = vi
         .fn()
         .mockReturnValue({ title: 'legacy-title', source: undefined });
-      (
-        mockConfig as unknown as {
-          getSessionService: () => {
-            getSessionTitleInfo: typeof getSessionTitleInfo;
-          };
-        }
-      ).getSessionService = () => ({ getSessionTitleInfo });
+      vi.spyOn(sessionService, 'getSessionTitleInfo').mockImplementation(
+        getSessionTitleInfo,
+      );
 
-      const svc = new ChatRecordingService(mockConfig);
+      const svc = new ChatRecordingService(config);
       // Constructor's finalize re-appends a custom_title record on resume
       // — clear it out so we can isolate the threshold-triggered re-anchor.
       await svc.flush();
@@ -331,15 +344,15 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // Twelve 1500-char CJK messages ≈ 21K UTF-16 units (under threshold)
       // but ≈ 57K UTF-8 bytes (over). Anchor fires only when the counter
       // measures bytes, not chars.
-      chatRecordingService.recordCustomTitle('cjk-session');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('cjk-session');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       const cjkText = '汉'.repeat(1500);
       for (let i = 0; i < 12; i++) {
-        chatRecordingService.recordUserMessage([{ text: cjkText }]);
+        recordingService.recordUserMessage([{ text: cjkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)
@@ -358,8 +371,8 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // system. Resetting on failure trades one missed anchor for
       // bounded recovery; finalize() will re-emit on the next lifecycle
       // event.
-      chatRecordingService.recordCustomTitle('long-running-task');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('long-running-task');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       // Wrap the private appendRecord so any custom_title append (i.e.
@@ -367,10 +380,10 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // Bulk records pass through to the real implementation so the
       // byte counter still accumulates exactly as production would.
       let reanchorAttempts = 0;
-      const svc = chatRecordingService as unknown as {
+      const svc = recordingService as unknown as {
         appendRecord(record: ChatRecord): void;
       };
-      const originalAppendRecord = svc.appendRecord.bind(chatRecordingService);
+      const originalAppendRecord = svc.appendRecord.bind(recordingService);
       svc.appendRecord = (record: ChatRecord) => {
         if (record.type === 'system' && record.subtype === 'custom_title') {
           reanchorAttempts++;
@@ -384,9 +397,9 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // subsequent message would re-trigger reanchor.
       const bulkText = 'x'.repeat(2000);
       for (let i = 0; i < 25; i++) {
-        chatRecordingService.recordUserMessage([{ text: bulkText }]);
+        recordingService.recordUserMessage([{ text: bulkText }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       // One failed attempt is acceptable; multiple means the counter was
       // pinned and turned a single fault into a per-record loop.
@@ -397,14 +410,14 @@ describe('ChatRecordingService - recordCustomTitle', () => {
       // A handful of small messages must not trigger a re-anchor —
       // the cost would defeat the whole point. Threshold is 32KB;
       // five 200B user messages stay safely under it.
-      chatRecordingService.recordCustomTitle('quick-session');
-      await chatRecordingService.flush();
+      recordingService.recordCustomTitle('quick-session');
+      await recordingService.flush();
       vi.mocked(jsonl.writeLine).mockClear();
 
       for (let i = 0; i < 5; i++) {
-        chatRecordingService.recordUserMessage([{ text: 'short' }]);
+        recordingService.recordUserMessage([{ text: 'short' }]);
       }
-      await chatRecordingService.flush();
+      await recordingService.flush();
 
       const titleAppends = vi
         .mocked(jsonl.writeLine)

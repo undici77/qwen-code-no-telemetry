@@ -25,11 +25,11 @@ import type { Content, GenerateContentResponse, Part } from '@google/genai';
 import { GeminiClient, SendMessageType } from './client.js';
 import { getRecentGitStatus } from '../utils/gitUtils.js';
 import {
-  AuthType,
   createContentGenerator,
   type ContentGenerator,
   type ContentGeneratorConfig,
 } from './contentGenerator.js';
+import { AuthType } from './authTypes.js';
 import { BaseLlmClient } from './baseLlmClient.js';
 import { buildAgentContentGeneratorConfig } from '../models/content-generator-config.js';
 import { GeminiChat } from './geminiChat.js';
@@ -173,6 +173,7 @@ vi.mock('../utils/environmentContext', async (importOriginal) => {
     await importOriginal<typeof import('../utils/environmentContext.js')>();
   return {
     ...actual,
+    SYSTEM_REMINDER_OPEN: '<system-reminder>',
     getEnvironmentContext: vi
       .fn()
       .mockResolvedValue([{ text: 'Mocked env context' }]),
@@ -268,13 +269,18 @@ vi.mock('../ide/ideContext.js');
 vi.mock('../telemetry/uiTelemetry.js', () => ({
   uiTelemetryService: mockUiTelemetryService,
 }));
-vi.mock('../telemetry/loggers.js', () => ({
-  logChatCompression: vi.fn(),
-  logNextSpeakerCheck: vi.fn(),
-  logApiRequest: vi.fn(),
-  logLoopDetected: vi.fn(),
-  logLoopDetectionDisabled: vi.fn(),
-}));
+vi.mock('../telemetry/loggers.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../telemetry/loggers.js')>();
+  return {
+    ...actual,
+    logChatCompression: vi.fn(),
+    logNextSpeakerCheck: vi.fn(),
+    logApiRequest: vi.fn(),
+    logLoopDetected: vi.fn(),
+    logLoopDetectionDisabled: vi.fn(),
+  };
+});
 
 const { mockClientDebugLogger } = vi.hoisted(() => ({
   mockClientDebugLogger: {

@@ -65,8 +65,8 @@ const buildOrder = [
   ...(cliOnly
     ? []
     : [
-        'packages/webui',
         'packages/sdk-typescript',
+        'packages/webui',
         'packages/web-shell',
         'packages/vscode-ide-companion',
       ]),

@@ -1,0 +1,64 @@
+# Development files not needed for installation
+husky
+.pre-commit-config.yaml
+lint-staged.config.js
+
+# Test files
+*.test.ts
+*.test.tsx
+__tests__
+__test__
+test
+tests
+.integration-tests
+
+# Documentation (not needed in package)
+*.md
+!README.md
+LICENSE*
+CONTRIBUTING.md
+CHANGELOG.md
+AGENTS.md
+QWEN.md
+
+# Build artifacts (will be regenerated on install)
+dist
+bundle
+
+# IDE and editor files
+.idea
+*.iml
+.cursor
+.vscode
+
+# Git
+.git
+.gitignore
+
+# Config files for development
+.npmrc
+.nvmrc
+.eslintrc.json
+eslint.config.js
+vitest.config.ts
+
+# Generated files
+packages/cli/src/generated/
+packages/core/src/generated/
+packages/web-templates/src/generated/
+
+# CI/CD
+.github
+.gitlab-ci.yml
+Jenkinsfile
+
+# Docker and sandbox
+Dockerfile
+.dockerignore
+
+# Scripts directory (contains dev tools)
+scripts/tests/
+
+# Storybook
+*storybook.log
+storybook-static

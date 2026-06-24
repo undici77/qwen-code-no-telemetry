@@ -8,6 +8,30 @@ export default defineConfig({
         __dirname,
         '../cli/src/export/index.ts',
       ),
+      '@opentelemetry/api': path.resolve(
+        __dirname,
+        '../core/src/telemetry/dummy-otel.ts',
+      ),
+      '@opentelemetry/sdk-logs': path.resolve(
+        __dirname,
+        '../core/src/telemetry/log-to-span-processor.ts',
+      ),
+      '@opentelemetry/sdk-trace-base': path.resolve(
+        __dirname,
+        '../core/src/telemetry/log-to-span-processor.ts',
+      ),
+      '@opentelemetry/resources': path.resolve(
+        __dirname,
+        '../core/src/telemetry/log-to-span-processor.ts',
+      ),
+      '@opentelemetry/sdk-node': path.resolve(
+        __dirname,
+        '../core/src/telemetry/sdk.ts',
+      ),
+      '@opentelemetry/instrumentation-http': path.resolve(
+        __dirname,
+        '../core/src/telemetry/sdk.ts',
+      ),
     },
   },
   test: {

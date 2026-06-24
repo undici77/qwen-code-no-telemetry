@@ -39,7 +39,7 @@ import {
   computeWindowTitle,
   writeTerminalTitle,
 } from '../utils/windowTitle.js';
-import { getCliVersion } from '../utils/version.js';
+import { getCliVersionDisplay } from '../utils/version.js';
 
 const debugLogger = createDebugLogger('STARTUP');
 
@@ -50,7 +50,7 @@ export async function startInteractiveUI(
   workspaceRoot: string = process.cwd(),
   initializationResult: InitializationResult,
 ) {
-  const version = await getCliVersion();
+  const version = await getCliVersionDisplay();
   setWindowTitle(settings, basename(workspaceRoot));
 
   // Write a small runtime.json sidecar next to the chat log so external

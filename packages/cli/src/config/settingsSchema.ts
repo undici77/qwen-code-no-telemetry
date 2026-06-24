@@ -425,7 +425,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Auto Update',
         category: 'General',
         requiresRestart: false,
-        default: true,
+        default: false,
         description:
           'Enable automatic update checks and installations on startup.',
         showInDialog: true,
@@ -476,7 +476,7 @@ const SETTINGS_SCHEMA = {
         // schema publishes the same "enabled by default" hint users see
         // at runtime. The empty-object form here would silently lose
         // editor-surfaced defaults.
-        default: { commit: true, pr: true },
+        default: { commit: false, pr: false },
         description:
           'Attribution added to git commits and pull requests created through Qwen Code.',
         showInDialog: false,
@@ -493,7 +493,7 @@ const SETTINGS_SCHEMA = {
             label: 'Attribution: commit',
             category: 'General',
             requiresRestart: false,
-            default: true,
+            default: false,
             description:
               'Add a Co-authored-by trailer to git commit messages AND attach a per-file AI-attribution git note (`refs/notes/ai-attribution`) for commits made through Qwen Code. Disabling skips both.',
             showInDialog: true,
@@ -503,7 +503,7 @@ const SETTINGS_SCHEMA = {
             label: 'Attribution: PR',
             category: 'General',
             requiresRestart: false,
-            default: true,
+            default: false,
             description:
               'Append a Qwen Code attribution line to PR descriptions when running `gh pr create`.',
             showInDialog: true,
@@ -1126,7 +1126,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Usage Statistics',
         category: 'Privacy',
         requiresRestart: true,
-        default: true,
+        default: false,
         description: 'Enable collection of usage statistics',
         showInDialog: true,
       },

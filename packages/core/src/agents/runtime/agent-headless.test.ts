@@ -27,8 +27,8 @@ import {
   createContentGenerator,
   createContentGeneratorConfig,
   resolveContentGeneratorConfigWithSources,
-  AuthType,
 } from '../../core/contentGenerator.js';
+import { AuthType } from '../../core/authTypes.js';
 import { GeminiChat } from '../../core/geminiChat.js';
 import { normalizeModelToolCallIds } from '../../core/toolCallIdUtils.js';
 import { executeToolCall } from '../../core/nonInteractiveToolExecutor.js';
@@ -56,6 +56,7 @@ vi.mock('../../core/geminiChat.js');
 vi.mock('../../core/contentGenerator.js', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('../../core/contentGenerator.js')>();
+  const { AuthType } = await import('../../core/authTypes.js');
   const { DEFAULT_QWEN_MODEL } = await import('../../config/models.js');
   return {
     ...actual,
@@ -68,12 +69,12 @@ vi.mock('../../core/contentGenerator.js', async (importOriginal) => {
     }),
     createContentGeneratorConfig: vi.fn().mockReturnValue({
       model: DEFAULT_QWEN_MODEL,
-      authType: actual.AuthType.USE_GEMINI,
+      authType: AuthType.USE_GEMINI,
     }),
     resolveContentGeneratorConfigWithSources: vi.fn().mockReturnValue({
       config: {
         model: DEFAULT_QWEN_MODEL,
-        authType: actual.AuthType.USE_GEMINI,
+        authType: AuthType.USE_GEMINI,
         apiKey: 'test-api-key',
       },
       sources: {},
@@ -173,6 +174,20 @@ async function createMockConfig(
 
   // Mock getSessionId method
   vi.spyOn(config, 'getSessionId').mockReturnValue('test-session');
+
+  // Mock getContentGenerator to return a mock content generator directly,
+  // bypassing the LoggingContentGenerator wrapper which might trigger
+  // unexpected side effects or require complex mocking in tests.
+  const mockContentGenerator = {
+    generateContent: vi.fn(),
+    generateContentStream: vi.fn(),
+    countTokens: vi.fn().mockResolvedValue({ totalTokens: 10 }),
+    embedContent: vi.fn(),
+    useSummarizedThinking: vi.fn().mockReturnValue(false),
+  };
+  vi.spyOn(config, 'getContentGenerator').mockReturnValue(
+    mockContentGenerator as unknown as ContentGenerator,
+  );
 
   return { config, toolRegistry: mockToolRegistry };
 }

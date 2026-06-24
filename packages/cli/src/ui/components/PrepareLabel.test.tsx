@@ -6,11 +6,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { render } from 'ink-testing-library';
+import stripAnsi from 'strip-ansi';
 import { PrepareLabel, MAX_WIDTH } from './PrepareLabel.js';
 
 describe('PrepareLabel', () => {
   const color = 'white';
-  const flat = (s: string | undefined) => (s ?? '').replace(/\n/g, '');
+  const flat = (s: string | undefined) => stripAnsi(s ?? '').replace(/\n/g, '');
 
   it('renders plain label when no match (short label)', () => {
     const { lastFrame } = render(

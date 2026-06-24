@@ -13,6 +13,7 @@ import type {
   GenerateContentResponse,
 } from '@google/genai';
 import type { Config } from '../config/config.js';
+import { AuthType } from './authTypes.js';
 import { LoggingContentGenerator } from './loggingContentGenerator/index.js';
 import type {
   ConfigSource,
@@ -52,13 +53,7 @@ export interface ContentGenerator {
   useSummarizedThinking(): boolean;
 }
 
-export enum AuthType {
-  USE_OPENAI = 'openai',
-  QWEN_OAUTH = 'qwen-oauth',
-  USE_GEMINI = 'gemini',
-  USE_VERTEX_AI = 'vertex-ai',
-  USE_ANTHROPIC = 'anthropic',
-}
+export { AuthType } from './authTypes.js';
 
 /**
  * Supported input modalities for a model.

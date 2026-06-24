@@ -702,7 +702,7 @@ function safeLogValue(raw: unknown): string {
  * sending its own 400 — caller must short-circuit on `null`.
  */
 function validateAgentType(req: Request, res: Response): string | null {
-  const raw = req.params['agentType'];
+  const raw = req.params['agentType'] as string;
   if (!raw || raw.length === 0) {
     res.status(400).json({
       error: '`agentType` path parameter is required',

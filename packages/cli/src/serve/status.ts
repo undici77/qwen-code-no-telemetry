@@ -10,4 +10,4 @@
 // keep resolving without churn.
 //
 // @see ../../../acp-bridge/src/status.ts for the implementation.
-export * from '@qwen-code/acp-bridge/status';
+export * from '../../../acp-bridge/src/status.js';

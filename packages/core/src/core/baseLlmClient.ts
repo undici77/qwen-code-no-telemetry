@@ -16,7 +16,8 @@ import type {
 } from '@google/genai';
 import type { Config } from '../config/config.js';
 import type { ContentGenerator } from './contentGenerator.js';
-import { AuthType, createContentGenerator } from './contentGenerator.js';
+import { createContentGenerator } from './contentGenerator.js';
+import { AuthType } from './authTypes.js';
 import type { ResolvedModelConfig } from '../models/types.js';
 import { buildAgentContentGeneratorConfig } from '../models/content-generator-config.js';
 import {

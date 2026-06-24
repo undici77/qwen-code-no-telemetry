@@ -463,9 +463,7 @@ function createBase(
  * Forward-compat: SDK reads whichever location the daemon eventually emits
  * without requiring a coordinated SDK release.
  */
-export function extractServerTimestamp(
-  event: DaemonEvent,
-): number | undefined {
+export function extractServerTimestamp(event: DaemonEvent): number | undefined {
   const direct = (event as { serverTimestamp?: unknown }).serverTimestamp;
   if (typeof direct === 'number' && Number.isFinite(direct)) return direct;
   const envelopeMeta = (event as { _meta?: unknown })._meta;

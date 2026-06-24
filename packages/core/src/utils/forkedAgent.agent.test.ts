@@ -17,7 +17,7 @@ import {
   hasRebuiltToolRegistry,
   TOOL_REGISTRY_REBUILT,
 } from '../tools/agent/agent.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { RuntimeContentGeneratorView } from '../agents/runtime/agent-context.js';
 import { createRuntimeContentGeneratorView } from '../models/content-generator-config.js';
 

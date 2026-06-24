@@ -20,7 +20,12 @@ import {
   type FinishReason,
 } from '@google/genai';
 import type OpenAI from 'openai';
-import { context, trace, type Context, type Span } from '@opentelemetry/api';
+import {
+  context,
+  trace,
+  type Context,
+  type Span,
+} from '../../telemetry/dummy-otel.js';
 import {
   ApiRequestEvent,
   ApiResponseEvent,

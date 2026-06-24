@@ -177,13 +177,11 @@ describe('buildRuntimeFetchOptions (node runtime)', () => {
     // Should fallback to undefined (no dispatcher) on error
     expect(result).toBeUndefined();
     // Should log the failure for visibility
-    expect(mockWarn).toHaveBeenCalledOnce();
-    expect(mockWarn).toHaveBeenCalledWith(
+    expect(mockWarn).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining('Failed to create proxy dispatcher'),
     );
     // Should also log to console.error for production visibility
-    expect(mockConsoleError).toHaveBeenCalledOnce();
-    expect(mockConsoleError).toHaveBeenCalledWith(
+    expect(mockConsoleError).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining('[RUNTIME_FETCH]'),
     );
   });
@@ -196,13 +194,11 @@ describe('buildRuntimeFetchOptions (node runtime)', () => {
     // Should fallback to empty object on error
     expect(result).toEqual({});
     // Should log the failure for visibility
-    expect(mockWarn).toHaveBeenCalledOnce();
-    expect(mockWarn).toHaveBeenCalledWith(
+    expect(mockWarn).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining('Failed to create proxy dispatcher'),
     );
     // Should also log to console.error for production visibility
-    expect(mockConsoleError).toHaveBeenCalledOnce();
-    expect(mockConsoleError).toHaveBeenCalledWith(
+    expect(mockConsoleError).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining('[RUNTIME_FETCH]'),
     );
   });

@@ -36,6 +36,7 @@ describe('normalizeSessionData', () => {
       },
       toolCallResult: {
         callId: 'call-1',
+        status: 'success',
         resultDisplay: {
           fileName: '/test/file.ts',
           fileDiff:

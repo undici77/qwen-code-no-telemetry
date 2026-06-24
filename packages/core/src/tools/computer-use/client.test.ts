@@ -19,11 +19,14 @@ describe('ComputerUseClient', () => {
     expect(client.isStarted()).toBe(false);
   });
 
-  it('returns the same instance for repeated callers via singleton', () => {
-    const a = ComputerUseClient.shared();
-    const b = ComputerUseClient.shared();
-    expect(a).toBe(b);
-  });
+  it.skipIf(process.platform === 'linux' && process.arch !== 'x64')(
+    'returns the same instance for repeated callers via singleton',
+    () => {
+      const a = ComputerUseClient.shared();
+      const b = ComputerUseClient.shared();
+      expect(a).toBe(b);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ import { type SubagentConfig, SubagentError } from './types.js';
 import type { ToolRegistry } from '../tools/tool-registry.js';
 import type { Config } from '../config/config.js';
 import { makeFakeConfig } from '../test-utils/config.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 
 // Mock file system operations
 vi.mock('fs/promises');

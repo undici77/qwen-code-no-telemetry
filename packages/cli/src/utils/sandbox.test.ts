@@ -44,8 +44,8 @@ describe('isContainerPathWithinWorkdir', () => {
 
 describe('parseSandboxImageName', () => {
   it('uses the image basename and tag for container names', () => {
-    expect(parseSandboxImageName('ghcr.io/qwenlm/qwen-code:0.18.3')).toBe(
-      'qwen-code-0.18.3',
+    expect(parseSandboxImageName('ghcr.io/qwenlm/qwen-code:0.19.2')).toBe(
+      'qwen-code-0.19.2',
     );
   });
 

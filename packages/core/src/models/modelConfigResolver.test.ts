@@ -9,7 +9,7 @@ import {
   resolveModelConfig,
   validateModelConfig,
 } from './modelConfigResolver.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import { DEFAULT_QWEN_MODEL, MAINLINE_CODER_MODEL } from '../config/models.js';
 
 describe('modelConfigResolver', () => {

@@ -517,6 +517,8 @@ describe('Settings Loading and Merging', () => {
         },
         general: {
           vimMode: true,
+          enableAutoUpdate: false,
+          gitCoAuthor: { commit: false, pr: false },
         },
         context: {
           fileName: 'LEGACY_CONTEXT.md',
@@ -944,8 +946,8 @@ describe('Settings Loading and Merging', () => {
 
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
 
-      // Both are false, so enableAutoUpdate should be true
-      expect(settings.merged.general?.enableAutoUpdate).toBe(true);
+      // In no-telemetry version, it should be false regardless of legacy settings
+      expect(settings.merged.general?.enableAutoUpdate).toBe(false);
     });
 
     it('should consolidate disableAutoUpdate and disableUpdateNag - any true means enableAutoUpdate is false', () => {

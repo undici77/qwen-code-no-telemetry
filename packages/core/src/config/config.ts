@@ -35,10 +35,10 @@ import type { TeamContext } from '../agents/team/types.js';
 import { BaseLlmClient } from '../core/baseLlmClient.js';
 import { GeminiClient } from '../core/client.js';
 import {
-  AuthType,
   createContentGenerator,
   resolveContentGeneratorConfigWithSources,
 } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import { tokenLimit } from '../core/tokenLimits.js';
 import { getRuntimeContentGenerator } from '../agents/runtime/agent-context.js';
 
@@ -498,10 +498,13 @@ function normalizeGitCoAuthor(value: GitCoAuthorParam | undefined): {
   commit: boolean;
   pr: boolean;
 } {
+  if (value === undefined) {
+    return { commit: false, pr: false };
+  }
   if (typeof value === 'boolean') {
     return { commit: value, pr: value };
   }
-  // Default to `true` (the schema default) ONLY when the sub-field
+  // Default to `false` (the schema default) ONLY when the sub-field
   // is genuinely absent. For PRESENT-but-non-boolean values, honor
   // common string forms (`"true"`/`"yes"`/`"on"`/`"1"` → true,
   // `"false"`/`"no"`/`"off"`/`"0"`/`""` → false) and treat anything
@@ -511,7 +514,7 @@ function normalizeGitCoAuthor(value: GitCoAuthorParam | undefined): {
   // the user's clear intent. Safer-by-default: ambiguous values
   // disable rather than enable.
   const pickBool = (v: unknown, fieldName: string): boolean => {
-    if (v === undefined) return true;
+    if (v === undefined) return false;
     if (typeof v === 'boolean') return v;
     if (typeof v === 'string') {
       const lowered = v.trim().toLowerCase();
@@ -1243,7 +1246,6 @@ export class Config {
   private readonly telemetrySettings: TelemetrySettings;
   private readonly outboundCorrelationSettings: OutboundCorrelationSettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
-  private readonly usageStatisticsEnabled: boolean;
   private readonly fileReadCacheDisabled: boolean;
   private geminiClient!: GeminiClient;
   private baseLlmClient!: BaseLlmClient;
@@ -1457,7 +1459,6 @@ export class Config {
       name: 'Qwen-Coder',
       email: 'qwen-coder@alibabacloud.com',
     };
-    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? true;
     this.fileReadCacheDisabled = params.fileReadCacheDisabled ?? false;
     this.outputLanguageFilePath = params.outputLanguageFilePath;
 
@@ -2441,7 +2442,7 @@ export class Config {
     this.toolResultBudget.bytesWritten = 0;
     this.getMemoryPressureMonitor()?.resetForNewSession();
     this.fileHistoryService = undefined;
-    refreshSessionContext(this.sessionId);
+    refreshSessionContext(this);
     // The commit-attribution singleton accumulates per-file AI edits
     // and a session-scoped prompt counter — both stop being meaningful
     // when the session resets. Without this, pending attributions
@@ -4199,7 +4200,7 @@ export class Config {
   }
 
   getUsageStatisticsEnabled(): boolean {
-    return this.usageStatisticsEnabled;
+    return false;
   }
 
   getExtensionContextFilePaths(): string[] {

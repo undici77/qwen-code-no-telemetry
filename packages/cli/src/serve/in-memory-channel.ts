@@ -11,4 +11,4 @@
 //
 // @see ../../../acp-bridge/src/inMemoryChannel.ts for the implementation
 //      plus design notes on `abort()` semantics and settlement shape.
-export * from '@qwen-code/acp-bridge/inMemoryChannel';
+export * from '../../../acp-bridge/src/inMemoryChannel.js';

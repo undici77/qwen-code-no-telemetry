@@ -58,7 +58,7 @@ import {
   getCurrentAgentId,
   runWithAgentContext,
 } from '../../agents/runtime/agent-context.js';
-import { trace, context as otelContext } from '@opentelemetry/api';
+import { trace, context as otelContext } from '../../telemetry/dummy-otel.js';
 import {
   endSubagentSpan,
   runInSubagentSpanContext,

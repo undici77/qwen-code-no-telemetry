@@ -168,7 +168,7 @@ describe('cleanupOldFileHistoryBackups', () => {
   // child unlink" semantics, so we can't reliably make a single dir's rm
   // fail without unmount/permission shenanigans. The error-counting path is
   // platform-independent; one OS verifying it is sufficient.
-  it.skipIf(process.platform === 'win32')(
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     'counts errors and continues sweep when one dir cannot be removed',
     async () => {
       const old = new Date(Date.now() - 60 * MS_PER_DAY);

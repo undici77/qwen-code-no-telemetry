@@ -18,10 +18,17 @@ import * as jsonl from '../utils/jsonl-utils.js';
 
 const tryGenerateSessionTitleMock = vi.fn();
 
-vi.mock('./sessionTitle.js', () => ({
-  tryGenerateSessionTitle: (...args: unknown[]) =>
-    tryGenerateSessionTitleMock(...args),
-}));
+vi.mock('./sessionTitle.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('./sessionTitle.js')>(
+      './sessionTitle.js',
+    );
+  return {
+    ...actual,
+    tryGenerateSessionTitle: (...args: unknown[]) =>
+      tryGenerateSessionTitleMock(...args),
+  };
+});
 
 /**
  * Most tests assert on the success-outcome path: this helper wraps
@@ -39,14 +46,20 @@ function mockOk(title: string, modelUsed = 'qwen-turbo'): void {
 
 vi.mock('node:path');
 vi.mock('node:child_process');
-vi.mock('node:crypto', () => ({
-  randomUUID: vi.fn(),
-  createHash: vi.fn(() => ({
-    update: vi.fn(() => ({
-      digest: vi.fn(() => 'mocked-hash'),
+vi.mock('node:crypto', () => {
+  const mocked = {
+    randomUUID: vi.fn(),
+    createHash: vi.fn(() => ({
+      update: vi.fn(() => ({
+        digest: vi.fn(() => 'mocked-hash'),
+      })),
     })),
-  })),
-}));
+  };
+  return {
+    ...mocked,
+    default: mocked,
+  };
+});
 vi.mock('../utils/jsonl-utils.js');
 
 /**

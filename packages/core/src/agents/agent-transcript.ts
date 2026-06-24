@@ -371,6 +371,7 @@ export function attachJsonlTranscriptWriter(
       message: { role: 'user', parts },
       toolCallResult: {
         callId: event.callId,
+        status: event.success ? 'success' : 'error',
         ...(event.durationMs !== undefined
           ? { durationMs: event.durationMs }
           : {}),

@@ -16,7 +16,7 @@ import OpenAI from 'openai';
 import { DashScopeOpenAICompatibleProvider } from './dashscope.js';
 import type { Config } from '../../../config/config.js';
 import type { ContentGeneratorConfig } from '../../contentGenerator.js';
-import { AuthType } from '../../contentGenerator.js';
+import { AuthType } from '../../authTypes.js';
 import type { ChatCompletionToolWithCache } from './types.js';
 import { DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES } from '../constants.js';
 import { buildRuntimeFetchOptions } from '../../../utils/runtimeFetchOptions.js';

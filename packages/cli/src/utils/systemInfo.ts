@@ -8,7 +8,7 @@ import process from 'node:process';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import type { CommandContext } from '../ui/commands/types.js';
-import { getCliVersion } from './version.js';
+import { getCliVersion, getCliVersionDisplay } from './version.js';
 import {
   IdeClient,
   AuthType,
@@ -47,6 +47,7 @@ export interface ExtendedSystemInfo extends SystemInfo {
   baseUrl?: string;
   apiKeyEnvKey?: string;
   gitCommit?: string;
+  cliVersionDisplay?: string;
   proxy?: string;
   fastModel?: string;
   lspStatus?: string;
@@ -216,6 +217,9 @@ export async function getExtendedSystemInfo(
       ? GIT_COMMIT_INFO
       : undefined;
 
+  // Get display version (includes -no-telemetry suffix and hash)
+  const cliVersionDisplay = await getCliVersionDisplay();
+
   // Get fast model from settings
   const fastModel = context.services.settings?.merged?.fastModel || undefined;
   const lspStatus = getLspStatus(context);
@@ -227,6 +231,7 @@ export async function getExtendedSystemInfo(
     baseUrl,
     apiKeyEnvKey,
     gitCommit,
+    cliVersionDisplay,
     fastModel,
     lspStatus,
   };

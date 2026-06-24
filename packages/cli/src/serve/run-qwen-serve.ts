@@ -2104,9 +2104,10 @@ export async function runQwenServe(
                 });
             };
 
-            void (coreRuntimePromise
-              ? coreRuntimePromise.then((core) => core.forceFlushMetrics())
-              : Promise.resolve()
+            void (
+              coreRuntimePromise
+                ? coreRuntimePromise.then((core) => core.forceFlushMetrics())
+                : Promise.resolve()
             ).catch((flushErr) => {
               daemonLog.warn(
                 `pre-shutdown metrics flush failed: ${

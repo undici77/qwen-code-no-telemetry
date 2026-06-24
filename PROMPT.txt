@@ -1,0 +1,6 @@
+Please, considering @NO_TELEMETRY_GUIDELINES.MD
+  - Fix conflicts if necessary
+  - Project Compile
+  - Project Pass all test
+  - NO-Telemetry Policy is full and complete respected (double check)
+  - When finished, commit in current branch and create v0.18.0-no-telemetry branch

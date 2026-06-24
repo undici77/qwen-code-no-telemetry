@@ -281,7 +281,7 @@ export interface ChatRecord {
    * Tool call metadata for UI recovery.
    * Contains enriched info (displayName, status, result, etc.) not in API format.
    */
-  toolCallResult?: Partial<ToolCallResponseInfo>;
+  toolCallResult?: Partial<ToolCallResponseInfo> & { status: Status };
 
   /**
    * Payload for records that need non-API metadata. For chat compression, this
@@ -330,7 +330,11 @@ export interface ChatRecord {
   };
 }
 
+/**
+ * Stored payload for background notifications (cron or agent alerts).
+ */
 export interface NotificationRecordPayload {
+  /** Summary text for display in the Session Picker or notification UI. */
   displayText: string;
 }
 
@@ -356,11 +360,21 @@ export interface AgentBootstrapRecordPayload {
 }
 
 /**
+ * Stored payload for conversation rewind events.
+ */
+export interface RewindRecordPayload {
+  /** Number of UI history items truncated. */
+  truncatedCount: number;
+}
+
+/**
  * Stored payload for chat compression checkpoints. This allows us to rebuild the
  * effective chat history on resume while keeping the original UI-visible history.
  */
 export interface ChatCompressionRecordPayload {
-  /** Compression metrics/status returned by the compression service */
+  /** Summary of the history that was removed during compaction. */
+  summary: string;
+  /** Stats about the compression event (tokens removed vs retained). */
   info: ChatCompressionInfo;
   /**
    * Snapshot of the new history contents that the model should see after

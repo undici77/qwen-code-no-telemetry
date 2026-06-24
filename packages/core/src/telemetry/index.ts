@@ -95,8 +95,31 @@ export type {
   ArenaAgentCompletedStatus,
 } from './types.js';
 export type { TelemetryEvent } from './types.js';
-export { SpanStatusCode, ValueType } from '@opentelemetry/api';
-export { SemanticAttributes } from '@opentelemetry/semantic-conventions';
+
+export {
+  SpanStatusCode,
+  ValueType,
+  TraceFlags,
+  SpanKind,
+  ROOT_CONTEXT,
+  context,
+  createContextKey,
+  trace,
+  diag,
+  SemanticAttributes,
+  SemanticResourceAttributes,
+} from './dummy-otel.js';
+export type {
+  Attributes,
+  Context,
+  Exception,
+  Span,
+  SpanOptions,
+  Tracer,
+  HrTime,
+} from './dummy-otel.js';
+
+// Telemetry targets
 export * from './uiTelemetry.js';
 export {
   // Core metrics functions
@@ -129,6 +152,9 @@ export {
   recordMemoryExtractMetrics,
   recordMemoryDreamMetrics,
   recordMemoryRecallMetrics,
+} from './metrics.js';
+
+export type {
   // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
@@ -136,6 +162,7 @@ export {
   ApiRequestPhase,
   FileOperation,
 } from './metrics.js';
+
 export { QwenLogger } from './qwen-logger/qwen-logger.js';
 export { sanitizeHookName } from './sanitize.js';
 export {

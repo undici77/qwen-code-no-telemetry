@@ -2802,7 +2802,7 @@ export function createServeApp(
     '/workspace/auth/device-flow/:id',
     mutate({ strict: true }),
     async (req, res) => {
-      const id = req.params['id'];
+      const id = req.params['id'] as string;
       if (!id) {
         res.status(404).json({
           error: 'Device-flow id required',
@@ -2835,7 +2835,7 @@ export function createServeApp(
     '/workspace/auth/device-flow/:id',
     mutate({ strict: true }),
     (req, res) => {
-      const id = req.params['id'];
+      const id = req.params['id'] as string;
       if (!id) {
         res.status(404).json({
           error: 'Device-flow id required',
@@ -3374,7 +3374,7 @@ export function createServeApp(
   );
 
   app.post('/session/:id/prompt', mutate(), async (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const body = safeBody(req);
     const prompt = body['prompt'];
     if (!Array.isArray(prompt) || prompt.length === 0) {
@@ -3554,7 +3554,7 @@ export function createServeApp(
   });
 
   app.post('/session/:id/cancel', mutate(), async (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const body = safeBody(req);
     const clientId = parseClientIdHeader(req, res);
     if (clientId === null) return;
@@ -3580,7 +3580,7 @@ export function createServeApp(
   });
 
   app.delete('/session/:id', async (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const clientId = parseClientIdHeader(req, res);
     if (clientId === null) return;
     try {
@@ -3679,7 +3679,7 @@ export function createServeApp(
   });
 
   app.patch('/session/:id/metadata', async (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const body = safeBody(req);
     const clientId = parseClientIdHeader(req, res);
     if (clientId === null) return;
@@ -3769,7 +3769,7 @@ export function createServeApp(
   });
 
   app.post('/session/:id/model', mutate(), async (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const body = safeBody(req);
     const modelId = body['modelId'];
     if (typeof modelId !== 'string' || !modelId) {
@@ -4056,7 +4056,7 @@ export function createServeApp(
     async (req, res) => {
       // Validates `mode` against `APPROVAL_MODES` and an optional
       // `persist: boolean` flag.
-      const sessionId = req.params['id'];
+      const sessionId = req.params['id'] as string;
       const body = safeBody(req);
       const mode = body['mode'];
       const persist = body['persist'];
@@ -4446,8 +4446,8 @@ export function createServeApp(
   );
 
   app.post('/session/:id/permission/:requestId', mutate(), (req, res) => {
-    const sessionId = req.params['id'];
-    const requestId = req.params['requestId'];
+    const sessionId = req.params['id'] as string;
+    const requestId = req.params['requestId'] as string;
     const response = parsePermissionVoteBody(req, res);
     if (response === undefined) return;
     const clientId = parseClientIdHeader(req, res);
@@ -4486,7 +4486,7 @@ export function createServeApp(
   });
 
   app.post('/permission/:requestId', mutate(), (req, res) => {
-    const requestId = req.params['requestId'];
+    const requestId = req.params['requestId'] as string;
     const response = parsePermissionVoteBody(req, res);
     if (response === undefined) return;
     const clientId = parseClientIdHeader(req, res);
@@ -4518,7 +4518,7 @@ export function createServeApp(
   });
 
   app.get('/session/:id/events', (req, res) => {
-    const sessionId = req.params['id'];
+    const sessionId = req.params['id'] as string;
     const lastEventId = parseLastEventId(req.headers['last-event-id']);
     const maxQueued = parseMaxQueuedQuery(req.query['maxQueued'], res);
     // `parseMaxQueuedQuery` sends its own 400 + JSON body on rejection

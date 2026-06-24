@@ -18,7 +18,7 @@ import type { GenerateContentResponse } from '@google/genai';
 import { BaseLlmClient, type GenerateJsonOptions } from './baseLlmClient.js';
 import type { ContentGenerator } from './contentGenerator.js';
 import type { Config } from '../config/config.js';
-import { AuthType } from './contentGenerator.js';
+import { AuthType } from './authTypes.js';
 import { reportError } from '../utils/errorReporting.js';
 import { retryWithBackoff } from '../utils/retry.js';
 import { getErrorMessage } from '../utils/errors.js';

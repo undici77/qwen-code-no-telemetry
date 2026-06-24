@@ -23,7 +23,7 @@ import {
 import { retryContext } from './retryContext.js';
 import { getErrorStatus } from './errors.js';
 import { setSimulate429 } from './testUtils.js';
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 
 const { debugLoggerMock } = vi.hoisted(() => ({
   debugLoggerMock: {

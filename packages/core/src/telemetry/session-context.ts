@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Context } from '@opentelemetry/api';
+import type { Context } from './dummy-otel.js';
 
 let sessionRootContext: Context | undefined;
 let currentSessionId: string | undefined;

@@ -122,6 +122,7 @@ describe('HistoryReplayer', () => {
       resultDisplay,
       error: hasError ? new Error('Tool failed') : undefined,
       errorType: undefined,
+      status: hasError ? 'error' : 'success',
     },
   });
 
@@ -734,6 +735,7 @@ describe('HistoryReplayer', () => {
           resultDisplay: 'Result',
           error: undefined,
           errorType: undefined,
+          status: 'success',
         },
       };
 
@@ -768,6 +770,7 @@ describe('HistoryReplayer', () => {
           resultDisplay: 'Result',
           error: undefined,
           errorType: undefined,
+          status: 'success',
         },
       };
 

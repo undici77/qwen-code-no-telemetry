@@ -28,7 +28,7 @@ vi.mock('../../../utils/request-tokenizer/index.js', () => ({
 // Now import the modules that depend on the mocked modules
 import { OpenAIContentGenerator } from './openaiContentGenerator.js';
 import type { Config } from '../../config/config.js';
-import { AuthType } from '../contentGenerator.js';
+import { AuthType } from '../authTypes.js';
 import type {
   GenerateContentParameters,
   CountTokensParameters,

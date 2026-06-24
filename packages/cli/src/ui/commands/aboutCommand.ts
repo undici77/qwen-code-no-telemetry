@@ -27,7 +27,7 @@ export const aboutCommand: SlashCommand = {
 
     if (context.executionMode !== 'interactive') {
       const lines = [
-        `Qwen Code v${systemInfo.cliVersion}`,
+        `Qwen Code v${systemInfo.cliVersionDisplay ?? systemInfo.cliVersion}`,
         `Model: ${systemInfo.modelVersion}`,
         `Fast Model: ${systemInfo.fastModel ?? 'not set'}`,
         `Auth: ${systemInfo.selectedAuthType}`,

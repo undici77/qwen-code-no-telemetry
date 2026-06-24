@@ -75,6 +75,7 @@ vi.mock('node:os', async (importOriginal) => {
 
 vi.mock('./version.js', () => ({
   getCliVersion: vi.fn(),
+  getCliVersionDisplay: vi.fn(),
 }));
 
 vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
@@ -121,6 +122,9 @@ describe('systemInfo', () => {
     } as unknown as CommandContext);
 
     vi.mocked(versionUtils.getCliVersion).mockResolvedValue('test-version');
+    vi.mocked(versionUtils.getCliVersionDisplay).mockResolvedValue(
+      'test-version-no-telemetry · ❌📡 · abc1234',
+    );
     setExecFileStdout('10.0.0');
     vi.mocked(os.release).mockReturnValue('22.0.0');
     process.env['GOOGLE_CLOUD_PROJECT'] = 'test-gcp-project';

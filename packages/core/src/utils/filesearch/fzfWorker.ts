@@ -25,7 +25,11 @@
  */
 
 import { parentPort } from 'node:worker_threads';
-import { AsyncFzf, type FzfResultItem } from 'fzf';
+import { createRequire } from 'node:module';
+import type { AsyncFzf, FzfResultItem } from 'fzf';
+
+const require = createRequire(import.meta.url);
+const { AsyncFzf: AsyncFzfCtor } = require('fzf');
 
 interface InitMessage {
   type: 'init';
@@ -59,7 +63,7 @@ port.on('message', (msg: IncomingMessage) => {
 
   if (msg.type === 'init') {
     try {
-      fzf = new AsyncFzf<string[]>(msg.files, msg.options);
+      fzf = new AsyncFzfCtor(msg.files, msg.options);
       port.postMessage({ type: 'ready' });
     } catch (err) {
       port.postMessage({

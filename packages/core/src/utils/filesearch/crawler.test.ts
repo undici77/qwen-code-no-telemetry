@@ -1115,6 +1115,67 @@ describe('crawler', () => {
       expect(results).not.toContain('skip.txt');
     });
 
+    it('should include tracked files inside git submodules', async () => {
+      // Create the submodule repo first.
+      const submodDir = await createTmpDir({ 'sub.txt': '', lib: ['util.ts'] });
+      await initGitRepo(submodDir);
+
+      // Create the parent repo and add the submodule.
+      tmpDir = await createTmpDir({ 'main.txt': '' });
+      await initGitRepo(tmpDir);
+      await runExecFile(
+        'git',
+        [
+          '-c',
+          'protocol.file.allow=always',
+          '-c',
+          'user.name=Qwen Test',
+          '-c',
+          'user.email=qwen-test@example.com',
+          'submodule',
+          'add',
+          submodDir,
+          'mysubmod',
+        ],
+        tmpDir,
+      );
+      await runExecFile(
+        'git',
+        [
+          '-c',
+          'user.name=Qwen Test',
+          '-c',
+          'user.email=qwen-test@example.com',
+          'commit',
+          '--no-gpg-sign',
+          '-m',
+          'add submodule',
+        ],
+        tmpDir,
+      );
+
+      const ignore = loadIgnoreRules({
+        projectRoot: tmpDir,
+        useGitignore: false,
+        useQwenignore: false,
+        ignoreDirs: [],
+      });
+
+      const results = await crawl({
+        crawlDirectory: tmpDir,
+        cwd: tmpDir,
+        ignore,
+        cache: false,
+        cacheTtl: 0,
+      });
+
+      // Files from the parent repo must appear.
+      expect(results).toContain('main.txt');
+      // Files inside the submodule must appear too.
+      expect(results).toContain('mysubmod/sub.txt');
+      expect(results).toContain('mysubmod/lib/util.ts');
+    });
+
     it('should preserve leading and trailing spaces in tracked filenames', async () => {
       tmpDir = await createTmpDir({
         ' leading.txt': '',

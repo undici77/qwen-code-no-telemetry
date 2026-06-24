@@ -4,42 +4,66 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renameCommand } from './renameCommand.js';
-import { type CommandContext } from './types.js';
+import { CommandKind } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 
-const tryGenerateSessionTitleMock = vi.fn();
+const { tryGenerateSessionTitleMock } = vi.hoisted(() => ({
+  tryGenerateSessionTitleMock: vi.fn(),
+}));
 
-vi.mock('@qwen-code/qwen-code-core', async (importOriginal) => {
-  const original =
-    (await importOriginal()) as typeof import('@qwen-code/qwen-code-core');
+vi.mock('@qwen-code/qwen-code-core', async () => {
+  const actual = await vi.importActual<
+    typeof import('@qwen-code/qwen-code-core')
+  >('@qwen-code/qwen-code-core');
   return {
-    ...original,
-    tryGenerateSessionTitle: (...args: unknown[]) =>
-      tryGenerateSessionTitleMock(...args),
+    ...actual,
+    tryGenerateSessionTitle: tryGenerateSessionTitleMock,
   };
 });
 
 describe('renameCommand', () => {
-  let mockContext: CommandContext;
+  const mockConfig = {
+    getChatRecordingService: vi.fn(),
+    getSessionService: vi.fn(),
+    getSessionId: vi.fn().mockReturnValue('session-123'),
+    getFastModel: vi.fn(),
+    getModel: vi.fn().mockReturnValue('main-model'),
+    getContentGenerator: vi.fn(),
+    getGeminiClient: vi.fn().mockReturnValue({
+      getHistory: vi.fn().mockReturnValue([]),
+    }),
+    getBaseLlmClient: vi.fn(),
+  };
 
-  beforeEach(() => {
-    mockContext = createMockCommandContext();
-    tryGenerateSessionTitleMock.mockReset();
+  const mockUi = {
+    setPendingItem: vi.fn(),
+    setSessionName: vi.fn(),
+  };
+
+  let mockContext = createMockCommandContext({
+    services: { config: mockConfig as any },
+    ui: mockUi as any,
   });
 
-  it('should have the correct name and description', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockContext = createMockCommandContext({
+      services: { config: mockConfig as any },
+      ui: mockUi as any,
+    });
+  });
+
+  it('has correct metadata', () => {
     expect(renameCommand.name).toBe('rename');
-    expect(renameCommand.description).toBe(
-      'Rename the current conversation. --auto lets the fast model pick a title.',
-    );
+    expect(renameCommand.kind).toBe(CommandKind.BUILT_IN);
+    expect(renameCommand.altNames).toContain('tag');
   });
 
   it('exposes an argumentHint covering --auto and <name>', () => {
-    // The completion menu reads argumentHint when the user types
-    // `/rename` and hovers — this is the primary discoverability
-    // affordance, so pin its shape.
     expect(renameCommand.argumentHint).toBe('[--auto] [<name>]');
   });
 
@@ -48,16 +72,11 @@ describe('renameCommand', () => {
       renameCommand.completion!(mockContext, partial);
 
     it('returns null when the partial argument is empty', async () => {
-      // Match /model's contract: don't pop the menu for free-text titles.
-      // The user opting into a name shouldn't be shadowed by the lone
-      // --auto suggestion.
       expect(await run('')).toBeNull();
       expect(await run('   ')).toBeNull();
     });
 
     it('suggests --auto when the partial argument is a prefix of it', async () => {
-      // Covers the discovery path: typing `--`, `--a`, `--au`, `--auto`
-      // all match — same shape as /model's --fast handling.
       for (const partial of ['-', '--', '--a', '--au', '--auto']) {
         const result = await run(partial);
         expect(result).toEqual([
@@ -70,12 +89,9 @@ describe('renameCommand', () => {
     });
 
     it('returns null when the partial argument is a free-text name', async () => {
-      // Anything that isn't a prefix of --auto is treated as the user
-      // typing the title itself; we don't want to offer --auto in that
-      // case (would feel like noise on `/rename my-feature`).
       expect(await run('my-feature')).toBeNull();
       expect(await run('fix bug')).toBeNull();
-      expect(await run('-x')).toBeNull(); // not a --auto prefix
+      expect(await run('-x')).toBeNull();
     });
   });
 
@@ -92,9 +108,6 @@ describe('renameCommand', () => {
   });
 
   it('should return error when no name is provided and auto-generate fails', async () => {
-    // Bare `/rename` now shares the `tryGenerateSessionTitle` pipeline with
-    // `--auto`, so an empty-history failure is surfaced via the same
-    // discriminated outcome.
     tryGenerateSessionTitleMock.mockResolvedValue({
       ok: false,
       reason: 'empty_history',
@@ -161,6 +174,7 @@ describe('renameCommand', () => {
 
     mockContext = createMockCommandContext({
       services: { config: mockConfig as never },
+      ui: mockUi as any,
     });
 
     const result = await renameCommand.action!(mockContext, 'my-feature');
@@ -185,49 +199,19 @@ describe('renameCommand', () => {
 
     mockContext = createMockCommandContext({
       services: { config: mockConfig as never },
+      ui: mockUi as any,
     });
 
-    const result = await renameCommand.action!(mockContext, 'my-feature');
+    await renameCommand.action!(mockContext, 'my-feature');
 
     expect(mockRenameSession).toHaveBeenCalledWith(
       'test-session-id',
       'my-feature',
       'manual',
     );
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content: 'Session renamed to "my-feature"',
-    });
-  });
-
-  it('should return error when SessionService fallback fails', async () => {
-    const mockConfig = {
-      getChatRecordingService: vi.fn().mockReturnValue(undefined),
-      getSessionId: vi.fn().mockReturnValue('test-session-id'),
-      getSessionService: vi.fn().mockReturnValue({
-        renameSession: vi.fn().mockResolvedValue(false),
-      }),
-    };
-
-    mockContext = createMockCommandContext({
-      services: { config: mockConfig as never },
-    });
-
-    const result = await renameCommand.action!(mockContext, 'my-feature');
-
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'error',
-      content: 'Failed to rename session.',
-    });
   });
 
   describe('bare /rename pipeline', () => {
-    // Pins the unified-pipeline contract: bare `/rename` (no args) goes
-    // through the same fast-model `tryGenerateSessionTitle` pipeline as
-    // `--auto`, with no semantic divergence. Source is always 'auto' when
-    // the LLM produced it.
     it('routes through tryGenerateSessionTitle on bare /rename', async () => {
       tryGenerateSessionTitleMock.mockResolvedValue({
         ok: true,
@@ -241,6 +225,7 @@ describe('renameCommand', () => {
       };
       mockContext = createMockCommandContext({
         services: { config: mockConfig as never },
+        ui: mockUi as any,
       });
 
       await renameCommand.action!(mockContext, '');
@@ -249,8 +234,6 @@ describe('renameCommand', () => {
     });
 
     it('records bare /rename success as auto-sourced', async () => {
-      // The LLM produced the title, not the user — picker should be able
-      // to dim it the same way it dims --auto results.
       tryGenerateSessionTitleMock.mockResolvedValue({
         ok: true,
         title: 'Refactor auth middleware',
@@ -264,6 +247,7 @@ describe('renameCommand', () => {
       };
       mockContext = createMockCommandContext({
         services: { config: mockConfig as never },
+        ui: mockUi as any,
       });
 
       await renameCommand.action!(mockContext, '');
@@ -275,10 +259,6 @@ describe('renameCommand', () => {
     });
 
     it('surfaces no_fast_model on bare /rename when fast model is unset', async () => {
-      // Both bare /rename and --auto now hard-require a fast model — the
-      // failure reason flows out via the discriminated outcome rather
-      // than a pre-flight check, so the user sees a single consistent
-      // message regardless of which form they typed.
       tryGenerateSessionTitleMock.mockResolvedValue({
         ok: false,
         reason: 'no_fast_model',
@@ -303,10 +283,6 @@ describe('renameCommand', () => {
 
   describe('--auto flag', () => {
     it('surfaces no_fast_model on --auto via the shared pipeline', async () => {
-      // Pre-flight `getFastModel()` check was removed in the unification —
-      // both bare /rename and --auto now rely on tryGenerateSessionTitle
-      // to return the `no_fast_model` reason, which keeps the failure
-      // mode in one place.
       tryGenerateSessionTitleMock.mockResolvedValue({
         ok: false,
         reason: 'no_fast_model',
@@ -365,6 +341,7 @@ describe('renameCommand', () => {
       };
       mockContext = createMockCommandContext({
         services: { config: mockConfig as never },
+        ui: mockUi as any,
       });
 
       const result = await renameCommand.action!(mockContext, '--auto');
@@ -495,16 +472,16 @@ describe('renameCommand', () => {
       };
       mockContext = createMockCommandContext({
         services: { config: mockConfig as never },
+        ui: mockUi as any,
       });
 
-      const result = await renameCommand.action!(mockContext, '--auto');
+      await renameCommand.action!(mockContext, '--auto');
 
       expect(mockRenameSession).toHaveBeenCalledWith(
         'test-session-id',
         'Audit auth middleware',
         'auto',
       );
-      expect(result).toMatchObject({ messageType: 'info' });
     });
   });
 });

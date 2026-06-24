@@ -35,11 +35,11 @@ import type {
 } from '../core/contentGenerator.js';
 import { DEFAULT_DASHSCOPE_BASE_URL } from '../core/openaiContentGenerator/constants.js';
 import {
-  AuthType,
   createContentGenerator,
   createContentGeneratorConfig,
   resolveContentGeneratorConfigWithSources,
 } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import { GeminiClient } from '../core/client.js';
 import { ShellTool } from '../tools/shell.js';
 import { canUseRipgrep } from '../utils/ripgrepUtils.js';
@@ -743,13 +743,13 @@ describe('Server Config (config.ts)', () => {
       expect(cache.size()).toBe(0);
     });
 
-    it('refreshes the telemetry session context with the new session ID', () => {
+    it('refreshes the telemetry session context', () => {
       const config = new Config(baseParams);
       vi.mocked(refreshSessionContext).mockClear();
 
-      const newSessionId = config.startNewSession();
+      config.startNewSession();
 
-      expect(refreshSessionContext).toHaveBeenCalledWith(newSessionId);
+      expect(refreshSessionContext).toHaveBeenCalledWith(config);
     });
 
     it('flushes the outgoing chat recording service when switching sessions', () => {
@@ -2530,43 +2530,41 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
+    it('defaults usage statistics to disabled for no-telemetry policy', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
       });
 
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
-      'sets usage statistics based on the provided value (enabled: $enabled)',
+      'always returns false for usage statistics (input: $enabled)',
       ({ enabled }) => {
         const config = new Config({
           ...baseParams,
           usageStatisticsEnabled: enabled,
         });
-        expect(config.getUsageStatisticsEnabled()).toBe(enabled);
+        expect(config.getUsageStatisticsEnabled()).toBe(false);
       },
     );
 
-    it('logs the session start event', async () => {
+    it('usage statistics disabled returns value correctly', () => {
       const config = new Config({
         ...baseParams,
-        usageStatisticsEnabled: true,
+        usageStatisticsEnabled: false,
       });
-      await config.initialize();
-
-      expect(QwenLogger.prototype.logStartSessionEvent).toHaveBeenCalledOnce();
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
   });
 
   describe('GitCoAuthor Settings', () => {
-    it('defaults both commit and pr to true when not specified', () => {
+    it('defaults both commit and pr to false when not specified', () => {
       const config = new Config({ ...baseParams, gitCoAuthor: undefined });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
 
     it('accepts an object with independent commit and pr toggles', () => {
@@ -2638,15 +2636,15 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    // A genuinely-absent sub-field still defaults to true (schema default).
-    it('defaults absent commit/pr to true', () => {
+    // A genuinely-absent sub-field still defaults to false (no-telemetry default).
+    it('defaults absent commit/pr to false', () => {
       const config = new Config({
         ...baseParams,
         gitCoAuthor: {} as { commit?: boolean; pr?: boolean },
       });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
   });
 
@@ -2901,6 +2899,24 @@ describe('Server Config (config.ts)', () => {
       };
       const config = new Config(paramsWithUndefinedBuiltinRipgrep);
       expect(config.getUseBuiltinRipgrep()).toBe(true);
+    });
+  });
+
+  describe('GitCoAuthor Configuration', () => {
+    it('should default gitCoAuthor to false when not provided', () => {
+      const config = new Config(baseParams);
+      expect(config.getGitCoAuthor().commit).toBe(false);
+      expect(config.getGitCoAuthor().pr).toBe(false);
+    });
+
+    it('should set gitCoAuthor fields to true when explicitly provided as true', () => {
+      const paramsWithCoAuthor: ConfigParameters = {
+        ...baseParams,
+        gitCoAuthor: true,
+      };
+      const config = new Config(paramsWithCoAuthor);
+      expect(config.getGitCoAuthor().commit).toBe(true);
+      expect(config.getGitCoAuthor().pr).toBe(true);
     });
   });
 

@@ -1,15 +1,14 @@
 /**
  * @license
- * Copyright 2025 Qwen Code
+ * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Storage } from '../config/storage.js';
-import { getProjectHash } from '../utils/paths.js';
-import path from 'node:path';
 import fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import readline from 'node:readline';
+import { randomUUID } from 'node:crypto';
+import { getProjectHash } from '../utils/paths.js';
 import type { Content, Part } from '@google/genai';
 import * as jsonl from '../utils/jsonl-utils.js';
 import type {
@@ -34,6 +33,7 @@ import {
   readLastJsonStringFieldSync,
   readLastJsonStringFieldsSync,
 } from '../utils/sessionStorageUtils.js';
+import { Storage } from '../config/storage.js';
 import { getUsageOutputTokenCountForPromptEstimate } from './tokenEstimation.js';
 
 const debugLogger = createDebugLogger('SESSION');
@@ -1381,7 +1381,8 @@ export interface BuildApiHistoryOptions {
 function stripThoughtsFromContent(content: Content): Content | null {
   if (!content.parts) return content;
 
-  const filteredParts = content.parts.filter((part) => !(part as Part).thought);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filteredParts = content.parts.filter((part: any) => !part.thought);
 
   // If all parts were thoughts, remove the entire content
   if (filteredParts.length === 0) {

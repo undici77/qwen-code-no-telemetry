@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Mock } from 'vitest';
-import { SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode } from '../telemetry/dummy-otel.js';
 import type {
   AnyDeclarativeTool,
   Config,

@@ -1529,7 +1529,7 @@ export class GeminiChat {
     options?: TryCompressOptions,
   ): Promise<ChatCompressionInfo> {
     const service = new ChatCompressionService();
-    const { newHistory, info } = await service.compress(this, {
+    const { newHistory, info, summary } = await service.compress(this, {
       promptId,
       force,
       model,
@@ -1547,6 +1547,7 @@ export class GeminiChat {
     if (info.compressionStatus === CompressionStatus.COMPRESSED && newHistory) {
       if (!options?.deferChatCompressionRecord) {
         this.chatRecordingService?.recordChatCompression({
+          summary: summary ?? '',
           info,
           compressedHistory: newHistory,
         });
@@ -1634,6 +1635,7 @@ export class GeminiChat {
     };
 
     this.chatRecordingService?.recordChatCompression({
+      summary: '',
       info,
       compressedHistory: newHistory,
     });
@@ -1894,6 +1896,7 @@ export class GeminiChat {
         compressionInfo.compressionStatus === CompressionStatus.COMPRESSED
       ) {
         this.chatRecordingService?.recordChatCompression({
+          summary: '',
           info: compressionInfo,
           compressedHistory: this.getHistoryShallow(),
         });

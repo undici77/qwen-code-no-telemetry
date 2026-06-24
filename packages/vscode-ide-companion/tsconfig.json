@@ -11,7 +11,19 @@
     "skipLibCheck": true,
     "paths": {
       "@lydell/node-pty": ["../../node_modules/@lydell/node-pty/node-pty.d.ts"],
-      "@qwen-code/qwen-code/export": ["../cli/src/export/index.ts"]
+      "@qwen-code/qwen-code/export": ["../cli/src/export/index.ts"],
+      "@opentelemetry/api": ["../core/src/telemetry/dummy-otel.ts"],
+      "@opentelemetry/sdk-logs": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-trace-base": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/resources": [
+        "../core/src/telemetry/log-to-span-processor.ts"
+      ],
+      "@opentelemetry/sdk-node": ["../core/src/telemetry/sdk.ts"],
+      "@opentelemetry/instrumentation-http": ["../core/src/telemetry/sdk.ts"]
     }
     /* Additional Checks */
     // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */

@@ -209,7 +209,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Text bold color={theme.text.accent}>
             {customBannerTitle ? customBannerTitle : '>_ Qwen Code'}
           </Text>
-          <Text color={theme.text.secondary}> (v{version})</Text>
+          <Text color={theme.text.secondary}> v{version}</Text>
         </Text>
         {/* Subtitle (when set) replaces the blank spacer row. We always
             emit a row here so the auth/model line stays at the same

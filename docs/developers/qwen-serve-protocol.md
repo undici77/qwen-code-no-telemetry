@@ -249,7 +249,7 @@ Response shape:
     "uptimeMs": 3600000,
     "mode": "http-bridge",
     "workspaceCwd": "/repo",
-    "qwenCodeVersion": "0.18.1",
+    "qwenCodeVersion": "0.19.2",
     "daemonId": "serve-..."
   },
   "security": {

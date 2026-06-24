@@ -18,7 +18,7 @@
  * 5. Defaults - Built-in default values
  */
 
-import { AuthType } from '../core/contentGenerator.js';
+import { AuthType } from '../core/authTypes.js';
 import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
 import { DEFAULT_QWEN_MODEL } from '../config/models.js';
 import { defaultModalities } from '../core/modalityDefaults.js';

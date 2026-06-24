@@ -7,7 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { randomBytes, randomInt } from 'node:crypto';
-import { execFile, execSync } from 'node:child_process';
+import { execSync, execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -1576,7 +1576,15 @@ export class GitWorktreeService {
     // — in both cases overwriting silently replaces the user's choice.
     // (PR #4174 review #3259975242.)
     if (existing === '') {
-      await worktreeGit.raw(['config', 'core.hooksPath', hooksPath]);
+      try {
+        execFileSync('git', ['config', '--local', 'core.hooksPath', hooksPath], {
+          cwd: worktreePath,
+        });
+      } catch (err) {
+        debugLogger.error(
+          `configureHooksPath: failed to write config to ${worktreePath}: ${err}`,
+        );
+      }
     } else if (existing !== hooksPath) {
       debugLogger.debug(
         `configureHooksPath: preserving existing core.hooksPath=${existing} ` +

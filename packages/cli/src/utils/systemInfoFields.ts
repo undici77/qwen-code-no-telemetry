@@ -57,6 +57,9 @@ function addField(
 }
 
 function formatCliVersion(info: ExtendedSystemInfo): string {
+  if (info.cliVersionDisplay) {
+    return info.cliVersionDisplay;
+  }
   if (!info.cliVersion) {
     return '';
   }
