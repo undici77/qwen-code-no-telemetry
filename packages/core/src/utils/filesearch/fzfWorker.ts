@@ -25,11 +25,8 @@
  */
 
 import { parentPort } from 'node:worker_threads';
-import { createRequire } from 'node:module';
-import type { AsyncFzf, FzfResultItem } from 'fzf';
-
-const require = createRequire(import.meta.url);
-const { AsyncFzf: AsyncFzfCtor } = require('fzf');
+import { AsyncFzf as AsyncFzfCtor } from 'fzf';
+import type { FzfResultItem, AsyncFzf } from 'fzf';
 
 interface InitMessage {
   type: 'init';

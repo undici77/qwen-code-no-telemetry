@@ -168,6 +168,11 @@ const workerBuild = esbuild.build({
   // fzf is CJS — needs the same require()-shim the main bundle uses for
   // CJS interop in ESM output.
   inject: [path.resolve(__dirname, 'scripts/esbuild-shims.js')],
+  // Force fzf to use ESM version (same alias as the main bundle), so
+  // the standalone worker resolves AsyncFzf correctly at runtime.
+  alias: {
+    fzf: path.resolve(__dirname, 'node_modules/fzf/dist/fzf.es.js'),
+  },
   banner: {
     js: `"use strict";`,
   },

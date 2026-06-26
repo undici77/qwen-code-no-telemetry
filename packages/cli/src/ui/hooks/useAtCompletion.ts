@@ -364,9 +364,22 @@ export function useAtCompletion(props: UseAtCompletionProps): void {
         }
         fileSearch.current = searcher;
         dispatch({ type: 'INITIALIZE_SUCCESS' });
-        if (state.pattern !== null) {
-          dispatch({ type: 'SEARCH', payload: state.pattern });
-        }
+
+        // Always trigger a SEARCH after init completes so suggestions
+        // appear immediately. Previously checked `state.pattern !== null`
+        // which was ALWAYS false because no action sets pattern during
+        // INITIALIZE — only SEARCH/SEARCH_SUCCESS do. This caused a missed
+        // render cycle where the autocomplete stayed at READY with zero
+        // results until the next keystroke.
+        //
+        // Use the outer-scope `pattern` prop (guaranteed non-null here since
+        // we're inside the initialize callback, itself gated by enabled +
+        // non-null pattern). An empty-string pattern returns all files for
+        // bare "@"; a non-empty one filters directly.
+        dispatch({
+          type: 'SEARCH',
+          payload: pattern ?? '',
+        });
       } catch (_) {
         if (!cancelled) {
           dispatch({ type: 'ERROR' });
