@@ -96,7 +96,7 @@ const askUserQuestionToolSchemaData: FunctionDeclaration = {
             },
             header: {
               description:
-                'Very short label displayed as a chip/tag (max 12 chars). Examples: "Auth method", "Library", "Approach".',
+                'Very short label displayed as a chip/tag (max 10 chars). Examples: "Auth method", "Library", "Approach".',
               type: 'string',
             },
             options: {
@@ -399,8 +399,8 @@ export class AskUserQuestionTool extends BaseDeclarativeTool<
         return `Question ${i + 1}: "header" must be a non-empty string.`;
       }
 
-      if (question.header.length > 12) {
-        return `Question ${i + 1}: "header" must be 12 characters or less.`;
+      if (question.header.length > 16) {
+        return `Question ${i + 1}: "header" must be 16 characters or less.`;
       }
 
       if (!Array.isArray(question.options)) {
