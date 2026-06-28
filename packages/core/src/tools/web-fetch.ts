@@ -274,16 +274,17 @@ export class WebFetchTool extends BaseDeclarativeTool<
     super(
       WebFetchTool.Name,
       ToolDisplayNames.WEB_FETCH,
-      'Fetches content from a specified URL and processes it using an AI model\n- Takes a URL and a prompt as input\n- Supports content negotiation for markdown (reduces tokens by ~80%)\n- Fetches the URL content, converts HTML to text if needed\n- Processes the content with the prompt using a small, fast model\n- Returns the model\'s response about the content\n- Use this tool when you need to retrieve and analyze web content\n\nUsage notes:\n  - IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions. All MCP-provided tools start with "mcp__".\n  - The URL must be a fully-formed valid URL\n  - The prompt should describe what information you want to extract from the page\n  - format parameter (optional): controls only the Accept header sent to the server. All content is normalized to plain text for LLM processing, regardless of format.\n  - "auto" (default): Prefers markdown via content negotiation, accepts HTML, text, or other content as fallback. Use when user does NOT specify a format.\n  - "markdown": Prefers text/markdown. Use when user explicitly asks for markdown content.\n  - "html": Prefers text/html. Content is still converted to plain text for LLM processing.\n  - "text": Prefers text/plain. Use when user explicitly asks for plain text.\n  - This tool is read-only and does not modify any files\n  - Results may be summarized if the content is very large\n  - Supports both public and private/localhost URLs using direct fetch',
+      'Fetches a URL and returns AI-processed content. Always provide both "url" and "prompt" in every call.\n\nParameters:\n  url: The URL to fetch.\n  prompt: What to extract or summarize from the page (e.g., "Summarize this article").\n  format (optional): auto, markdown, html, or text.\n\nSupports content negotiation for markdown. Converts HTML to plain text. Read-only.\nPrefer MCP-provided web fetch tools when available (tools starting with "mcp__").',
       Kind.Fetch,
       {
         properties: {
           url: {
-            description: 'The URL to fetch content from',
+            description: 'The URL to fetch.',
             type: 'string',
           },
           prompt: {
-            description: 'The prompt to run on the fetched content',
+            description:
+              'What to extract or summarize from the page (e.g., "Summarize this article"). Always include a prompt.',
             type: 'string',
           },
           format: {

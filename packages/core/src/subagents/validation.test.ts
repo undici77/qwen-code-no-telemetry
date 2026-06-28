@@ -174,7 +174,7 @@ describe('SubagentValidator', () => {
       const result = validator.validateSystemPrompt('Short');
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        'System prompt must be at least 10 characters long',
+        'System prompt must be at least 12 characters long',
       );
     });
 

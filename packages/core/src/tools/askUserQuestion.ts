@@ -400,7 +400,7 @@ export class AskUserQuestionTool extends BaseDeclarativeTool<
       }
 
       if (question.header.length > 16) {
-        return `Question ${i + 1}: "header" must be 16 characters or less.`;
+        return `Question ${i + 1}: "header" must be 12 characters or less.`;
       }
 
       if (!Array.isArray(question.options)) {
