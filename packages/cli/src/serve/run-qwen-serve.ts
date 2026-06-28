@@ -94,6 +94,8 @@ const DEFAULT_EVENT_RING_SIZE = 8000;
 const DEFAULT_SESSION_IDLE_TIMEOUT_MS = 30 * 60_000;
 const WORKSPACE_SETTING_SCOPE =
   'Workspace' as import('../config/settings.js').SettingScope;
+type WorkspaceSettingsWrite =
+  import('./workspace-service/types.js').WorkspaceSettingsWrite;
 
 function isPositiveIntegerMs(value: number): boolean {
   return Number.isFinite(value) && Number.isInteger(value) && value > 0;
@@ -392,6 +394,7 @@ type ProviderConfig = NonNullable<ReturnType<CoreRuntime['findProviderById']>>;
 type SettingsRuntime = typeof import('../config/settings.js');
 type LoadedSettingsAdapterRuntime =
   typeof import('../config/loadedSettingsAdapter.js');
+type TrustedFoldersRuntime = typeof import('../config/trustedFolders.js');
 
 function normalizeInstallModelIds(
   req: ServeAuthProviderInstallRequest,
@@ -532,18 +535,22 @@ let settingsRuntimePromise:
   | Promise<{
       settings: SettingsRuntime;
       loadedSettingsAdapter: LoadedSettingsAdapterRuntime;
+      trustedFolders: TrustedFoldersRuntime;
     }>
   | undefined;
 function loadSettingsRuntimeModules(): Promise<{
   settings: SettingsRuntime;
   loadedSettingsAdapter: LoadedSettingsAdapterRuntime;
+  trustedFolders: TrustedFoldersRuntime;
 }> {
   settingsRuntimePromise ??= Promise.all([
     import('../config/settings.js'),
     import('../config/loadedSettingsAdapter.js'),
-  ]).then(([settings, loadedSettingsAdapter]) => ({
+    import('../config/trustedFolders.js'),
+  ]).then(([settings, loadedSettingsAdapter, trustedFolders]) => ({
     settings,
     loadedSettingsAdapter,
+    trustedFolders,
   }));
   return settingsRuntimePromise;
 }
@@ -554,6 +561,7 @@ async function loadServeRuntimeModules() {
     bridgeModule,
     spawnChannelModule,
     workspaceModule,
+    workspaceTypesModule,
     daemonStatusProviderModule,
     workspaceProvidersStatusModule,
   ] = await Promise.all([
@@ -561,6 +569,7 @@ async function loadServeRuntimeModules() {
     import('@qwen-code/acp-bridge/bridge'),
     import('@qwen-code/acp-bridge/spawnChannel'),
     import('./workspace-service/index.js'),
+    import('./workspace-service/types.js'),
     import('./daemon-status-provider.js'),
     import('./workspace-providers-status.js'),
   ]);
@@ -571,6 +580,8 @@ async function loadServeRuntimeModules() {
     createAcpSessionBridge: bridgeModule.createAcpSessionBridge,
     createSpawnChannelFactory: spawnChannelModule.createSpawnChannelFactory,
     createDaemonWorkspaceService: workspaceModule.createDaemonWorkspaceService,
+    WorkspaceSettingsPartialPersistError:
+      workspaceTypesModule.WorkspaceSettingsPartialPersistError,
     createDaemonStatusProvider:
       daemonStatusProviderModule.createDaemonStatusProvider,
     createWorkspaceProvidersStatusProvider:
@@ -1393,9 +1404,9 @@ export async function runQwenServe(
     QWEN_SERVE_MCP_BUDGET_MODE: opts.mcpBudgetMode,
   };
 
-  const cliVersion = await getCliVersion();
+  const cliVersionPromise = getCliVersion();
+  let cliVersion: string | undefined;
 
-  const trustedWorkspace = deps.trustedWorkspace ?? true;
   const diagnosticSink = (line: string, level?: 'info' | 'warn' | 'error') =>
     daemonLog.raw(line, level);
 
@@ -1467,11 +1478,14 @@ export async function runQwenServe(
     app: Application;
     bridge: AcpSessionBridge;
   }> => {
-    const [runtime, core, settingsRuntime] = await Promise.all([
-      loadServeRuntimeModules(),
-      loadCoreRuntime(),
-      loadSettingsRuntimeModules(),
-    ]);
+    const [runtime, core, settingsRuntime, resolvedCliVersion] =
+      await Promise.all([
+        loadServeRuntimeModules(),
+        loadCoreRuntime(),
+        loadSettingsRuntimeModules(),
+        cliVersionPromise,
+      ]);
+    cliVersion = resolvedCliVersion;
     let runtimeBootSettings:
       | ReturnType<SettingsRuntime['loadSettings']>
       | undefined;
@@ -1484,15 +1498,43 @@ export async function runQwenServe(
           `(${err instanceof Error ? err.message : String(err)}); falling back to defaults.`,
       );
     }
+    const trustedWorkspace =
+      deps.trustedWorkspace ??
+      (runtimeBootSettings
+        ? settingsRuntime.trustedFolders.getWorkspaceTrustStatus(
+            runtimeBootSettings.merged,
+            boundWorkspace,
+          ).effective.state === 'trusted'
+        : true);
+    if (
+      deps.trustedWorkspace === undefined &&
+      runtimeBootSettings &&
+      !trustedWorkspace
+    ) {
+      daemonLog.warn(
+        'workspace file writes are disabled because the bound workspace is not trusted',
+        { workspace: boundWorkspace },
+      );
+    }
     const daemonWorkspaceHash = core.hashDaemonWorkspace(boundWorkspace);
-    const daemonTelemetrySettings = await core.resolveTelemetrySettings({
-      env: process.env,
-      settings: runtimeBootSettings?.merged.telemetry,
-    });
+    let daemonTelemetrySettings: TelemetrySettings;
+    try {
+      daemonTelemetrySettings = await core.resolveTelemetrySettings({
+        env: process.env,
+        settings: runtimeBootSettings?.merged.telemetry,
+      });
+    } catch (err) {
+      if (err instanceof core.FatalConfigError) {
+        throw new core.FatalConfigError(
+          `Invalid telemetry configuration: ${err.message}.`,
+        );
+      }
+      throw err;
+    }
     core.initializeTelemetry(
       createDaemonTelemetryRuntimeConfig(
         daemonTelemetrySettings,
-        cliVersion,
+        resolvedCliVersion,
         `daemon:${daemonWorkspaceHash}:${process.pid}`,
         {
           otlpEndpoint: core.DEFAULT_OTLP_ENDPOINT,
@@ -1584,6 +1626,57 @@ export async function runQwenServe(
           [...next].sort(),
         );
       });
+    const persistSettingFn = (
+      workspace: string,
+      scope: import('../config/settings.js').SettingScope,
+      key: string,
+      value: unknown,
+    ) =>
+      withSettingsLock(workspace, async () => {
+        const fresh = settingsRuntime.settings.loadSettings(workspace);
+        fresh.setValue(scope, key, value);
+        return fresh;
+      });
+    const persistSettingsFn = (
+      workspace: string,
+      writes: WorkspaceSettingsWrite[],
+    ): Promise<void> =>
+      withSettingsLock(workspace, async () => {
+        const fresh = settingsRuntime.settings.loadSettings(workspace);
+        const writesByScope = new Map<
+          import('../config/settings.js').SettingScope,
+          number
+        >();
+        for (const write of writes) {
+          writesByScope.set(
+            write.scope,
+            (writesByScope.get(write.scope) ?? 0) + 1,
+          );
+        }
+        const committedScopes = new Set<
+          import('../config/settings.js').SettingScope
+        >();
+        let committed = 0;
+        try {
+          fresh.setValues(writes, (scope) => {
+            committedScopes.add(scope);
+            committed += writesByScope.get(scope) ?? 0;
+          });
+        } catch (err) {
+          const failedWrite =
+            writes.find((write) => !committedScopes.has(write.scope)) ??
+            writes[committed];
+          const message = `persistSettings partial failure (workspace=${workspace}, committed=${committed}/${writes.length}, failedKey=${failedWrite?.key ?? '<unknown>'}, failedScope=${failedWrite?.scope ?? '<unknown>'}): ${
+            err instanceof Error ? err.message : String(err)
+          }`;
+          writeStderrLine(`qwen serve: ${message}`);
+          throw new runtime.WorkspaceSettingsPartialPersistError(
+            message,
+            writes.filter((write) => committedScopes.has(write.scope)),
+            err,
+          );
+        }
+      });
     const bridge =
       deps.bridge ??
       runtime.createAcpSessionBridge({
@@ -1635,6 +1728,8 @@ export async function runQwenServe(
       workspaceProvidersStatusProvider,
       isChannelLive: () => bridge.isChannelLive(),
       persistDisabledTools: persistDisabledToolsFn,
+      persistSetting: persistSettingFn,
+      persistSettings: persistSettingsFn,
       reloadDaemonEnv: (workspace) =>
         withSettingsLock(workspace, async () => {
           const fresh = settingsRuntime.settings.loadSettings(workspace, {
@@ -1664,17 +1759,14 @@ export async function runQwenServe(
       bridge,
       webShellDir,
       boundWorkspace,
-      qwenCodeVersion: cliVersion,
+      qwenCodeVersion: resolvedCliVersion,
       startup,
       fsFactory,
       daemonLog,
       workspace: workspaceService,
       persistDisabledTools: persistDisabledToolsFn,
-      persistSetting: (workspace, scope, key, value) =>
-        withSettingsLock(workspace, async () => {
-          const fresh = settingsRuntime.settings.loadSettings(workspace);
-          fresh.setValue(scope, key, value);
-        }),
+      persistSetting: persistSettingFn,
+      persistSettings: persistSettingsFn,
       installAuthProvider: (req) =>
         withSettingsLock(
           boundWorkspace,
@@ -1689,26 +1781,32 @@ export async function runQwenServe(
             });
             const plan = core.buildInstallPlan(provider, inputs);
             const fresh = settingsRuntime.settings.loadSettings(boundWorkspace);
+            const adapter =
+              settingsRuntime.loadedSettingsAdapter.createLoadedSettingsAdapter(
+                fresh,
+              );
             await core.applyProviderInstallPlan(plan, {
-              settings:
-                settingsRuntime.loadedSettingsAdapter.createLoadedSettingsAdapter(
-                  fresh,
-                ),
+              settings: adapter,
               doRefreshAuth: false,
             });
             core.emitDaemonLog('Auth provider installed.', {
               'qwen-code.daemon.auth.provider_id': provider.id,
               'qwen-code.daemon.auth.auth_type': plan.authType,
             });
+            const effectiveModelId =
+              (adapter.getValue('model.name') as string | undefined) ??
+              plan.modelSelection?.modelId;
+            const effectiveBaseUrl =
+              (adapter.getValue('model.baseUrl') as string | undefined) ??
+              plan.modelSelection?.baseUrl ??
+              inputs.baseUrl;
             return {
               v: 1,
               providerId: provider.id,
               providerLabel: provider.label,
               authType: plan.authType,
-              ...(plan.modelSelection?.modelId
-                ? { modelId: plan.modelSelection.modelId }
-                : {}),
-              ...(inputs.baseUrl ? { baseUrl: inputs.baseUrl } : {}),
+              ...(effectiveModelId ? { modelId: effectiveModelId } : {}),
+              ...(effectiveBaseUrl ? { baseUrl: effectiveBaseUrl } : {}),
               message: `Successfully configured ${provider.label}. Use /model to switch models.`,
             };
           },
@@ -1725,6 +1823,8 @@ export async function runQwenServe(
     runtimeStartupSettled = true;
     markRuntimeReady();
   }
+
+  cliVersion ??= await cliVersionPromise;
 
   const bootstrapApp = createBootstrapServeApp({
     opts,

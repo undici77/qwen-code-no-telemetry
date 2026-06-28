@@ -256,3 +256,6 @@ export function logMemoryRecall(
 ): void {}
 export function logPromptSuggestion(_config: Config, _event: unknown): void {}
 export function logSpeculation(_config: Config, _event: unknown): void {}
+
+// No-op for no-telemetry policy
+export function recordSkillInvocation(_config: Config, _event: unknown): void {}

@@ -10,10 +10,10 @@ import type {
   GenerateContentResponseUsageMetadata,
 } from '@google/genai';
 import { GenerateContentResponse } from '@google/genai';
-import { SpanStatusCode } from '../../telemetry/dummy-otel.js';
+import { SpanStatusCode } from '@opentelemetry/api';
 import type { Config } from '../../config/config.js';
 import type { ContentGenerator } from '../contentGenerator.js';
-import { AuthType } from '../authTypes.js';
+import { AuthType } from '../contentGenerator.js';
 import { LoggingContentGenerator } from './index.js';
 import { OpenAIContentConverter } from '../openaiContentGenerator/converter.js';
 import { openaiRequestCaptureContext } from '../openaiContentGenerator/requestCaptureContext.js';
@@ -22,11 +22,10 @@ import {
   logApiResponse,
   logApiError,
 } from '../../telemetry/loggers.js';
-import type {
-  ApiRequestEvent,
-  ApiResponseEvent,
-  ApiErrorEvent,
-} from '../../telemetry/types.js';
+import {
+  addModelOutputAttributes,
+  isTelemetrySdkInitialized,
+} from '../../telemetry/index.js';
 import { OpenAILogger } from '../../utils/openaiLogger.js';
 import type OpenAI from 'openai';
 
@@ -122,6 +121,7 @@ vi.mock('../../telemetry/tracer.js', () => ({
 }));
 
 vi.mock('../../telemetry/index.js', () => {
+  const isTelemetrySdkInitialized = vi.fn(() => true);
   function createSpan(
     name: string,
     attributes: Record<string, string | number | boolean>,
@@ -213,6 +213,12 @@ vi.mock('../../telemetry/index.js', () => {
     addSystemPromptAttributes: vi.fn(),
     addToolSchemaAttributes: vi.fn(),
     addModelOutputAttributes: vi.fn(),
+    isTelemetrySdkInitialized,
+    areSensitiveSpanAttributesEnabled: vi.fn(
+      (config: Pick<Config, 'getTelemetryIncludeSensitiveSpanAttributes'>) =>
+        isTelemetrySdkInitialized() &&
+        config.getTelemetryIncludeSensitiveSpanAttributes(),
+    ),
   };
 });
 
@@ -252,15 +258,20 @@ const convertGeminiResponseToOpenAISpy = vi
   } as OpenAI.Chat.ChatCompletion);
 
 const createConfig = (overrides: Record<string, unknown> = {}): Config => {
-  const configContent = {
+  const configContent: Record<string, unknown> = {
     authType: 'openai',
     enableOpenAILogging: false,
     ...overrides,
   };
   return {
     getContentGeneratorConfig: () => configContent,
-    getAuthType: () => configContent.authType as AuthType | undefined,
+    getAuthType: () => configContent['authType'] as AuthType | undefined,
     getWorkingDir: () => process.cwd(),
+    getTelemetryIncludeSensitiveSpanAttributes: () =>
+      Boolean(configContent['includeSensitiveSpanAttributes']),
+    getTelemetrySensitiveSpanAttributeMaxLength: () =>
+      (configContent['sensitiveSpanAttributeMaxLength'] as number) ??
+      1024 * 1024,
   } as Config;
 };
 
@@ -327,6 +338,7 @@ const RESPONSE_TEXT_TRUNCATION_SUFFIX = '...[truncated]';
 describe('LoggingContentGenerator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTelemetrySdkInitialized).mockReturnValue(true);
     activeOtelContext.current = 'root';
     loggingSpanRecords.length = 0;
     loggingSpanNamesWithSetStatusFailure.clear();
@@ -403,10 +415,7 @@ describe('LoggingContentGenerator', () => {
 
     expect(response.responseId).toBe('resp-1');
     expect(logApiRequest).toHaveBeenCalledTimes(1);
-    const [, requestEvent] = vi.mocked(logApiRequest).mock.calls[0] as [
-      Config,
-      ApiRequestEvent,
-    ];
+    const [, requestEvent] = vi.mocked(logApiRequest).mock.calls[0];
     const loggedContents = JSON.parse(requestEvent.request_text || '[]');
     expect(loggedContents[0].parts[0]).toEqual({
       text: 'Hello\n[Thought: internal]',
@@ -416,10 +425,7 @@ describe('LoggingContentGenerator', () => {
     });
 
     expect(logApiResponse).toHaveBeenCalledTimes(1);
-    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0] as [
-      Config,
-      ApiResponseEvent,
-    ];
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
     expect(responseEvent.response_id).toBe('resp-1');
     expect(responseEvent.model).toBe('model-v2');
     expect(responseEvent.prompt_id).toBe('prompt-1');
@@ -852,6 +858,322 @@ describe('LoggingContentGenerator', () => {
     );
   });
 
+  it('passes uncapped response text to sensitive model output attributes', async () => {
+    const longText = 'x'.repeat(MAX_RESPONSE_TEXT_LENGTH + 100);
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-long', 'test-model', [{ text: longText }]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-long');
+
+    expect(vi.mocked(addModelOutputAttributes).mock.calls.at(-1)?.[2]).toBe(
+      longText,
+    );
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
+    expect(responseEvent.response_text).toHaveLength(MAX_RESPONSE_TEXT_LENGTH);
+    expect(responseEvent.response_text).toBe(
+      `${longText.slice(
+        0,
+        MAX_RESPONSE_TEXT_LENGTH - RESPONSE_TEXT_TRUNCATION_SUFFIX.length,
+      )}${RESPONSE_TEXT_TRUNCATION_SUFFIX}`,
+    );
+  });
+
+  it('excludes thought parts from sensitive model output attributes', async () => {
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-thought', 'test-model', [
+            { text: 'visible' },
+            { text: 'hidden thought', thought: true },
+          ]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-thought');
+
+    const sensitiveCall = vi.mocked(addModelOutputAttributes).mock.calls.at(-1);
+    expect(sensitiveCall?.[2]).toBe('visible');
+    expect(sensitiveCall?.[3]).toBe('visible'.length);
+  });
+
+  it('bounds sensitive model output collection while preserving original length', async () => {
+    const longText = 'x'.repeat(MAX_RESPONSE_TEXT_LENGTH + 100);
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-long', 'test-model', [{ text: longText }]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({
+        includeSensitiveSpanAttributes: true,
+        sensitiveSpanAttributeMaxLength: 10,
+      }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-long');
+
+    const sensitiveCall = vi.mocked(addModelOutputAttributes).mock.calls.at(-1);
+    expect(sensitiveCall?.[2]).toBe('x'.repeat(10));
+    expect(sensitiveCall?.[3]).toBe(longText.length);
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
+    expect(responseEvent.response_text).toHaveLength(MAX_RESPONSE_TEXT_LENGTH);
+  });
+
+  it('accumulates sensitive model output length across multiple parts', async () => {
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-multipart', 'test-model', [
+            { text: 'a'.repeat(100) },
+            { text: 'b'.repeat(100) },
+          ]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({
+        includeSensitiveSpanAttributes: true,
+        sensitiveSpanAttributeMaxLength: 150,
+      }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-multipart');
+
+    const sensitiveCall = vi.mocked(addModelOutputAttributes).mock.calls.at(-1);
+    expect(sensitiveCall?.[2]).toBe('a'.repeat(100) + 'b'.repeat(50));
+    expect(sensitiveCall?.[3]).toBe(200);
+  });
+
+  it('does not fail generateContent when sensitive span output attributes fail', async () => {
+    vi.mocked(addModelOutputAttributes).mockImplementationOnce(() => {
+      throw new TypeError('bad span attribute input');
+    });
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-safe', 'test-model', [{ text: 'visible' }]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    const response = await generator.generateContent(request, 'prompt-safe');
+
+    expect(response.responseId).toBe('resp-safe');
+    expect(logApiResponse).toHaveBeenCalledTimes(1);
+    expect(getGenerateContentSpanRecord().statuses).toEqual([
+      { code: SpanStatusCode.OK },
+    ]);
+  });
+
+  it('skips sensitive model output attributes when the sensitive flag is disabled', async () => {
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-safe', 'test-model', [{ text: 'secret' }]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(wrapped, createConfig(), {
+      model: 'test-model',
+      authType: AuthType.USE_OPENAI,
+      enableOpenAILogging: false,
+    });
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-no-sensitive');
+
+    expect(addModelOutputAttributes).not.toHaveBeenCalled();
+  });
+
+  it('skips sensitive model output attributes when telemetry SDK is not initialized', async () => {
+    vi.mocked(isTelemetrySdkInitialized).mockReturnValue(false);
+    const wrapped = createWrappedGenerator(
+      vi
+        .fn()
+        .mockResolvedValue(
+          createResponse('resp-safe', 'test-model', [{ text: 'secret' }]),
+        ),
+      vi.fn(),
+    );
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    await generator.generateContent(request, 'prompt-no-sdk');
+
+    expect(addModelOutputAttributes).not.toHaveBeenCalled();
+  });
+
+  it('passes uncapped stream response text to sensitive model output attributes', async () => {
+    const longText = 'x'.repeat(MAX_RESPONSE_TEXT_LENGTH + 100);
+    const streamFn = vi.fn().mockResolvedValue(
+      (async function* () {
+        yield createResponse('resp-long', 'test-model', [{ text: longText }]);
+      })(),
+    );
+    const wrapped = createWrappedGenerator(vi.fn(), streamFn);
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    const stream = await generator.generateContentStream(
+      request,
+      'prompt-long',
+    );
+    for await (const _ of stream) {
+      // consume
+    }
+
+    expect(vi.mocked(addModelOutputAttributes).mock.calls.at(-1)?.[2]).toBe(
+      longText,
+    );
+  });
+
+  it('does not fail generateContentStream when sensitive span output attributes fail', async () => {
+    vi.mocked(addModelOutputAttributes).mockImplementationOnce(() => {
+      throw new TypeError('bad span attribute input');
+    });
+    const streamFn = vi.fn().mockResolvedValue(
+      (async function* () {
+        yield createResponse('resp-safe', 'test-model', [{ text: 'visible' }]);
+      })(),
+    );
+    const wrapped = createWrappedGenerator(vi.fn(), streamFn);
+    const generator = new LoggingContentGenerator(
+      wrapped,
+      createConfig({ includeSensitiveSpanAttributes: true }),
+      {
+        model: 'test-model',
+        authType: AuthType.USE_OPENAI,
+        enableOpenAILogging: false,
+      },
+    );
+
+    const request = {
+      model: 'test-model',
+      contents: 'Hello',
+    } as unknown as GenerateContentParameters;
+
+    const stream = await generator.generateContentStream(
+      request,
+      'prompt-safe',
+    );
+    const responses: GenerateContentResponse[] = [];
+    for await (const response of stream) {
+      responses.push(response);
+    }
+
+    expect(responses).toHaveLength(1);
+    expect(logApiResponse).toHaveBeenCalledTimes(1);
+    expect(getStreamSpanRecord().statuses).toEqual([
+      { code: SpanStatusCode.OK },
+    ]);
+  });
+
   it.each([
     ['thought-only', [{ text: 'hidden thought', thought: true }]],
     [
@@ -913,10 +1235,7 @@ describe('LoggingContentGenerator', () => {
     ).rejects.toThrow('boom');
 
     expect(logApiError).toHaveBeenCalledTimes(1);
-    const [, errorEvent] = vi.mocked(logApiError).mock.calls[0] as [
-      Config,
-      ApiErrorEvent,
-    ];
+    const [, errorEvent] = vi.mocked(logApiError).mock.calls[0];
     expect(errorEvent.response_id).toBe('req-99');
     expect(errorEvent.status_code).toBe(429);
     expect(errorEvent.error_type).toBe('rate_limit');
@@ -1033,10 +1352,7 @@ describe('LoggingContentGenerator', () => {
     expect(seen).toHaveLength(2);
 
     expect(logApiResponse).toHaveBeenCalledTimes(1);
-    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0] as [
-      Config,
-      ApiResponseEvent,
-    ];
+    const [, responseEvent] = vi.mocked(logApiResponse).mock.calls[0];
     expect(responseEvent.response_id).toBe('resp-1');
     expect(responseEvent.input_token_count).toBe(2);
     expect(responseEvent.response_text).toBe('Hello world');
