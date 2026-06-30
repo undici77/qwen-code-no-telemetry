@@ -2176,6 +2176,243 @@ describe('createAcpSessionBridge', () => {
       await bridge.shutdown();
     });
 
+    it('strips a client-spoofed continue meta key (only continueSession may set it)', async () => {
+      const handle = makeChannel();
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      await bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'spoof continue' }],
+        _meta: { 'qwen.daemon.continueLastTurn': true },
+      } as PromptRequest);
+
+      expect(
+        handle.agent.promptCalls[0]?._meta?.['qwen.daemon.continueLastTurn'],
+      ).toBe(undefined);
+      await bridge.shutdown();
+    });
+
+    it('strips both spoofed retry and continue meta keys from one prompt', async () => {
+      const handle = makeChannel();
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      await bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'spoof both' }],
+        _meta: {
+          'qwen.daemon.retry': true,
+          'qwen.daemon.continueLastTurn': true,
+        },
+      } as PromptRequest);
+
+      expect(handle.agent.promptCalls[0]?._meta?.['qwen.daemon.retry']).toBe(
+        undefined,
+      );
+      expect(
+        handle.agent.promptCalls[0]?._meta?.['qwen.daemon.continueLastTurn'],
+      ).toBe(undefined);
+      await bridge.shutdown();
+    });
+
+    it('rejects continueSession for a nonexistent session', async () => {
+      const handle = makeChannel();
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+
+      await expect(bridge.continueSession('no-such-session')).rejects.toThrow();
+
+      await bridge.shutdown();
+    });
+
+    it('returns the accepted decision even if the dispatched continuation turn rejects', async () => {
+      const handle = makeChannel({
+        promptImpl: () => {
+          throw new Error('continuation turn blew up');
+        },
+        extMethodImpl: (method) => {
+          if (method === 'qwen/control/session/continue') {
+            return { accepted: true, interruption: 'interrupted_prompt' };
+          }
+          throw new Error(`unexpected extMethod ${method}`);
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      // The turn is admitted, so the ack returns accepted; the async turn
+      // failure must be logged/swallowed, not surfaced as a rejection here.
+      const decision = await bridge.continueSession(session.sessionId, {
+        promptId: 'p-fail',
+      });
+      expect(decision.accepted).toBe(true);
+      // Let the rejected turn settle — it must not become an unhandled throw.
+      await new Promise((r) => setTimeout(r, 20));
+
+      await bridge.shutdown();
+    });
+
+    it('routes an accepted continueSession through sendPrompt with the trusted continue meta', async () => {
+      const handle = makeChannel({
+        promptImpl: () => ({ stopReason: 'end_turn' }),
+        extMethodImpl: (method) => {
+          if (method === 'qwen/control/session/continue') {
+            return { accepted: true, interruption: 'interrupted_prompt' };
+          }
+          throw new Error(`unexpected extMethod ${method}`);
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      // Accepted continuation echoes the correlation id and a replay cursor,
+      // mirroring the POST /prompt 202 contract.
+      const decision = await bridge.continueSession(session.sessionId, {
+        promptId: 'cont-1',
+      });
+      expect(decision).toMatchObject({
+        accepted: true,
+        interruption: 'interrupted_prompt',
+        promptId: 'cont-1',
+      });
+      expect(typeof decision.lastEventId).toBe('number');
+
+      // The continuation runs through the tracked prompt path (fire-and-forget),
+      // so the agent receives a prompt() carrying the re-armed continue meta.
+      await vi.waitFor(() => {
+        expect(handle.agent.promptCalls).toHaveLength(1);
+      });
+      expect(handle.agent.promptCalls[0]?.prompt).toEqual([]);
+      expect(
+        handle.agent.promptCalls[0]?._meta?.['qwen.daemon.continueLastTurn'],
+      ).toBe(true);
+
+      await bridge.shutdown();
+    });
+
+    it('does not dispatch a continuation turn when continueSession is rejected', async () => {
+      const handle = makeChannel({
+        promptImpl: () => ({ stopReason: 'end_turn' }),
+        extMethodImpl: (method) => {
+          if (method === 'qwen/control/session/continue') {
+            return { accepted: false, interruption: 'none' };
+          }
+          throw new Error(`unexpected extMethod ${method}`);
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      const decision = await bridge.continueSession(session.sessionId);
+      expect(decision).toEqual({ accepted: false, interruption: 'none' });
+
+      // Give a (regression) fire-and-forget dispatch enough time to actually
+      // reach the agent — a single microtask flush would let one slip through —
+      // then assert nothing ran.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(handle.agent.promptCalls).toHaveLength(0);
+
+      await bridge.shutdown();
+    });
+
+    it('rejects continueSession with an unregistered client id before running the pre-check', async () => {
+      const handle = makeChannel({
+        extMethodImpl: (method) => {
+          if (method === 'qwen/control/session/continue') {
+            return { accepted: true, interruption: 'interrupted_prompt' };
+          }
+          throw new Error(`unexpected extMethod ${method}`);
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      // No client ids are registered on this session, so any id is untrusted.
+      await expect(
+        bridge.continueSession(session.sessionId, {
+          clientId: 'not-registered',
+        }),
+      ).rejects.toThrow();
+      // Validation precedes the pre-check, so neither the control method nor a
+      // continuation turn runs.
+      expect(handle.agent.promptCalls).toHaveLength(0);
+
+      await bridge.shutdown();
+    });
+
+    it('tracks a continuation as a busy prompt and queues a racing prompt behind it (no idle window, no abort)', async () => {
+      // End-to-end guard for the IDX-7 fix: while a continuation runs, the
+      // daemon must report the session BUSY (not idle), and a racing
+      // POST /prompt must queue behind it via the FIFO rather than be admitted
+      // into a "hidden" continuation and abort it.
+      let releaseContinuation: (() => void) | undefined;
+      const handle = makeChannel({
+        promptImpl: async () => {
+          // The first prompt is the continuation — hang so we can observe the
+          // busy state and the queued racing prompt. Later prompts return at
+          // once.
+          if (!releaseContinuation) {
+            await new Promise<void>((r) => {
+              releaseContinuation = r;
+            });
+          }
+          return { stopReason: 'end_turn' };
+        },
+        extMethodImpl: (method) => {
+          if (method === 'qwen/control/session/continue') {
+            return { accepted: true, interruption: 'interrupted_prompt' };
+          }
+          throw new Error(`unexpected extMethod ${method}`);
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      const decision = await bridge.continueSession(session.sessionId);
+      expect(decision.accepted).toBe(true);
+      // Continuation has reached the agent and is now hanging.
+      await vi.waitFor(() => {
+        expect(handle.agent.promptCalls).toHaveLength(1);
+      });
+
+      const summaryOf = () =>
+        bridge
+          .getDaemonStatusSnapshot()
+          .sessions.find((s) => s.sessionId === session.sessionId);
+
+      // #1: not idle during the continuation.
+      expect(summaryOf()?.hasActivePrompt).toBe(true);
+      expect(summaryOf()?.pendingPromptCount).toBe(1);
+
+      // #2: a racing prompt queues behind the continuation (FIFO), it does not
+      // run concurrently and does not abort the continuation.
+      const racing = bridge
+        .sendPrompt(
+          session.sessionId,
+          {
+            sessionId: session.sessionId,
+            prompt: [{ type: 'text', text: 'racing prompt' }],
+          },
+          undefined,
+          { clientId: session.clientId },
+        )
+        .catch(() => {});
+      await vi.waitFor(() => {
+        expect(summaryOf()?.pendingPromptCount).toBe(2);
+      });
+      // Still queued — only the continuation has reached the agent.
+      expect(handle.agent.promptCalls).toHaveLength(1);
+
+      // Releasing the continuation lets the queued prompt run in order.
+      releaseContinuation?.();
+      await racing;
+      await vi.waitFor(() => {
+        expect(handle.agent.promptCalls).toHaveLength(2);
+      });
+
+      await bridge.shutdown();
+    });
+
     it('honors retry once after a turn_error', async () => {
       let calls = 0;
       const handle = makeChannel({
@@ -2903,6 +3140,65 @@ describe('createAcpSessionBridge', () => {
       await bridge.shutdown();
     });
 
+    it('keeps a removed queued prompt counted until its FIFO node drains', async () => {
+      let releaseFirst: (() => void) | undefined;
+      const factory: ChannelFactory = async () =>
+        makeChannel({
+          promptImpl: async (p) => {
+            const text =
+              (p.prompt[0] as { text?: string } | undefined)?.text ?? '';
+            if (text === 'hold') {
+              await new Promise<void>((resolve) => {
+                releaseFirst = resolve;
+              });
+            }
+            return { stopReason: 'end_turn' };
+          },
+        }).channel;
+      const bridge = makeBridge({
+        channelFactory: factory,
+        maxPendingPromptsPerSession: 2,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      const active = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'hold' }],
+      });
+      const queued = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'remove me' }],
+      });
+
+      await vi.waitFor(() => {
+        expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(2);
+      });
+      const queuedId = bridge.getPendingPrompts(session.sessionId)[1]?.promptId;
+      expect(queuedId).toBeDefined();
+      expect(bridge.removePendingPrompt(session.sessionId, queuedId!)).toEqual({
+        removed: true,
+      });
+
+      expect(() =>
+        bridge.sendPrompt(session.sessionId, {
+          sessionId: session.sessionId,
+          prompt: [{ type: 'text', text: 'overflow before drain' }],
+        }),
+      ).toThrow(PromptQueueFullError);
+
+      await vi.waitFor(() => expect(releaseFirst).toBeDefined());
+      releaseFirst!();
+      await active;
+      await expect(queued).rejects.toBeDefined();
+      await expect(
+        bridge.sendPrompt(session.sessionId, {
+          sessionId: session.sessionId,
+          prompt: [{ type: 'text', text: 'after drain' }],
+        }),
+      ).resolves.toEqual({ stopReason: 'end_turn' });
+      await bridge.shutdown();
+    });
+
     it('does not count pre-aborted prompts against the pending cap', async () => {
       let releaseFirst: (() => void) | undefined;
       let calls = 0;
@@ -3136,6 +3432,357 @@ describe('createAcpSessionBridge', () => {
           prompt: [{ type: 'text', text: 'x' }],
         }),
       ).rejects.toBeInstanceOf(SessionNotFoundError);
+    });
+  });
+
+  describe('pendingPromptList', () => {
+    it('tracks a single prompt without publishing a pending_prompt_added event', async () => {
+      const events: BridgeEvent[] = [];
+      const handle = makeChannel({
+        promptImpl: () => ({ stopReason: 'end_turn' }),
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const sub = (async () => {
+        for await (const ev of bridge.subscribeEvents(session.sessionId)) {
+          events.push(ev);
+        }
+      })();
+      await bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'first prompt' }],
+      });
+      const addedEvents = events.filter(
+        (e) => e.type === 'pending_prompt_added',
+      );
+      expect(addedEvents).toHaveLength(0);
+      expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(0);
+      sub.catch(() => {});
+      await bridge.shutdown();
+    });
+
+    it('publishes pending_prompt_added only for queued prompts', async () => {
+      const events: BridgeEvent[] = [];
+      let resolveFirst: (() => void) | undefined;
+      const firstDone = new Promise<void>((r) => {
+        resolveFirst = r;
+      });
+      const handle = makeChannel({
+        promptImpl: async (req: PromptRequest) => {
+          if ((req.prompt[0] as { text?: string }).text === 'blocking') {
+            await firstDone;
+          }
+          return { stopReason: 'end_turn' } as PromptResponse;
+        },
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const sub = (async () => {
+        for await (const ev of bridge.subscribeEvents(session.sessionId)) {
+          events.push(ev);
+        }
+      })();
+
+      const p1 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'blocking' }],
+      });
+      const p2 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'queued behind first' }],
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+      const addedEvents = events.filter(
+        (e) => e.type === 'pending_prompt_added',
+      );
+      expect(addedEvents).toHaveLength(1);
+      expect(
+        (addedEvents[0] as BridgeEvent & { data: { text: string } }).data.text,
+      ).toBe('queued behind first');
+
+      const pending = bridge.getPendingPrompts(session.sessionId);
+      expect(pending).toHaveLength(2);
+      expect(pending[0]?.state).toBe('running');
+      expect(pending[1]?.state).toBe('queued');
+
+      resolveFirst!();
+      await p1;
+      await p2;
+      await vi.waitFor(() => {
+        expect(
+          events.filter((e) => e.type === 'pending_prompt_started'),
+        ).toHaveLength(1);
+        expect(
+          events.filter(
+            (e) =>
+              e.type === 'pending_prompt_completed' &&
+              (e as BridgeEvent & { data: { state: string } }).data.state ===
+                'completed',
+          ),
+        ).toHaveLength(1);
+      });
+      const startedEvents = events.filter(
+        (e) => e.type === 'pending_prompt_started',
+      );
+      expect(startedEvents).toHaveLength(1);
+      expect(
+        (startedEvents[0] as BridgeEvent & { data: { text: string } }).data
+          .text,
+      ).toBe('queued behind first');
+      expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(0);
+      sub.catch(() => {});
+      await bridge.shutdown();
+    });
+
+    it('removePendingPrompt aborts a queued prompt and removes it from the list', async () => {
+      let resolveFirst: (() => void) | undefined;
+      const firstDone = new Promise<void>((r) => {
+        resolveFirst = r;
+      });
+      const handle = makeChannel({
+        promptImpl: async (req: PromptRequest) => {
+          if ((req.prompt[0] as { text?: string }).text === 'blocker') {
+            await firstDone;
+          }
+          return { stopReason: 'end_turn' } as PromptResponse;
+        },
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      const p1 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'blocker' }],
+      });
+      const p2 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'to be removed' }],
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+      const pending = bridge.getPendingPrompts(session.sessionId);
+      expect(pending).toHaveLength(2);
+      const queuedId = pending[1]?.promptId;
+      expect(queuedId).toBeDefined();
+
+      const result = bridge.removePendingPrompt(session.sessionId, queuedId!);
+      expect(result.removed).toBe(true);
+      expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(1);
+
+      const again = bridge.removePendingPrompt(
+        session.sessionId,
+        'nonexistent',
+      );
+      expect(again.removed).toBe(false);
+
+      resolveFirst!();
+      await p1;
+      await expect(p2).rejects.toBeDefined();
+      expect(handle.agent.cancelCalls).toHaveLength(0);
+      await bridge.shutdown();
+    });
+
+    it('skips an accepted queued prompt when its caller aborts before it starts', async () => {
+      const events: BridgeEvent[] = [];
+      let resolveFirst: (() => void) | undefined;
+      const firstDone = new Promise<void>((r) => {
+        resolveFirst = r;
+      });
+      const handle = makeChannel({
+        promptImpl: async (req: PromptRequest) => {
+          if ((req.prompt[0] as { text?: string }).text === 'blocker') {
+            await firstDone;
+          }
+          return { stopReason: 'end_turn' } as PromptResponse;
+        },
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const sub = (async () => {
+        for await (const ev of bridge.subscribeEvents(session.sessionId)) {
+          events.push(ev);
+        }
+      })();
+
+      const p1 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'blocker' }],
+      });
+      const abortQueued = new AbortController();
+      const p2 = bridge.sendPrompt(
+        session.sessionId,
+        {
+          sessionId: session.sessionId,
+          prompt: [{ type: 'text', text: 'aborted queued' }],
+        },
+        abortQueued.signal,
+      );
+      const p3 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'next prompt' }],
+      });
+
+      await vi.waitFor(() => {
+        const pending = bridge.getPendingPrompts(session.sessionId);
+        expect(pending).toHaveLength(3);
+        expect(pending[1]?.state).toBe('queued');
+      });
+      abortQueued.abort();
+
+      resolveFirst!();
+      await p1;
+      await expect(p2).rejects.toBeDefined();
+      await p3;
+
+      const startedTexts = events
+        .filter((e) => e.type === 'pending_prompt_started')
+        .map((e) => (e as BridgeEvent & { data: { text: string } }).data.text);
+      expect(startedTexts).toContain('next prompt');
+      expect(startedTexts).not.toContain('aborted queued');
+      expect(handle.agent.promptCalls.map((req) => req.prompt[0])).toEqual([
+        { type: 'text', text: 'blocker' },
+        { type: 'text', text: 'next prompt' },
+      ]);
+      expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(0);
+
+      sub.catch(() => {});
+      await bridge.shutdown();
+    });
+
+    it('removePendingPrompt aborts a running prompt and triggers cancel', async () => {
+      const events: BridgeEvent[] = [];
+      let rejectPrompt: ((err: Error) => void) | undefined;
+      const promptPromise = new Promise<PromptResponse>((_resolve, reject) => {
+        rejectPrompt = reject;
+      });
+      const handle = makeChannel({
+        promptImpl: () => promptPromise,
+        cancelImpl: () => {
+          rejectPrompt?.(new Error('cancelled'));
+        },
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const sub = (async () => {
+        for await (const ev of bridge.subscribeEvents(session.sessionId)) {
+          events.push(ev);
+        }
+      })();
+
+      const p1 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'running prompt' }],
+      });
+
+      await new Promise((r) => setTimeout(r, 20));
+      const pending = bridge.getPendingPrompts(session.sessionId);
+      expect(pending).toHaveLength(1);
+      expect(pending[0]?.state).toBe('running');
+      const runningId = pending[0]?.promptId;
+      expect(runningId).toBeDefined();
+
+      const result = bridge.removePendingPrompt(session.sessionId, runningId!);
+      expect(result.removed).toBe(true);
+
+      // The running prompt is removed from the list immediately.
+      expect(bridge.getPendingPrompts(session.sessionId)).toHaveLength(0);
+
+      // The prompt should reject after the cancel path fires.
+      await expect(p1).rejects.toBeDefined();
+
+      // Cancel was forwarded to the agent.
+      expect(handle.agent.cancelCalls.length).toBeGreaterThanOrEqual(1);
+
+      // A pending_prompt_completed event with state 'removed' was published.
+      const completedEvents = events.filter(
+        (e) => e.type === 'pending_prompt_completed',
+      );
+      const removedEvent = completedEvents.find(
+        (e) =>
+          (e as BridgeEvent & { data: { promptId: string } }).data.promptId ===
+            runningId &&
+          (e as BridgeEvent & { data: { state: string } }).data.state ===
+            'removed',
+      );
+      expect(removedEvent).toBeDefined();
+
+      sub.catch(() => {});
+      await bridge.shutdown();
+    });
+
+    it('keeps later prompts queued while a removed running prompt is still settling', async () => {
+      let resolveFirst: (() => void) | undefined;
+      const firstDone = new Promise<void>((r) => {
+        resolveFirst = r;
+      });
+      const handle = makeChannel({
+        promptImpl: async (req: PromptRequest) => {
+          if (
+            (req.prompt[0] as { text?: string }).text === 'slow running prompt'
+          ) {
+            await firstDone;
+          }
+          return { stopReason: 'end_turn' } as PromptResponse;
+        },
+      });
+      const bridge = makeBridge({
+        channelFactory: async () => handle.channel,
+      });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      const p1 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'slow running prompt' }],
+      });
+      await new Promise((r) => setTimeout(r, 20));
+      const runningId = bridge.getPendingPrompts(session.sessionId)[0]
+        ?.promptId;
+      expect(runningId).toBeDefined();
+
+      expect(bridge.removePendingPrompt(session.sessionId, runningId!)).toEqual(
+        { removed: true },
+      );
+
+      const p2 = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'next prompt' }],
+      });
+      await new Promise((r) => setTimeout(r, 20));
+
+      const pending = bridge.getPendingPrompts(session.sessionId);
+      expect(pending).toHaveLength(1);
+      expect(pending[0]?.text).toBe('next prompt');
+      expect(pending[0]?.state).toBe('queued');
+
+      resolveFirst!();
+      await p1;
+      await p2;
+      await bridge.shutdown();
+    });
+
+    it('removePendingPrompt throws SessionNotFoundError for unknown sessions', () => {
+      const bridge = makeBridge();
+      expect(() => bridge.removePendingPrompt('unknown', 'some-id')).toThrow(
+        SessionNotFoundError,
+      );
+    });
+
+    it('getPendingPrompts throws SessionNotFoundError for unknown sessions', () => {
+      const bridge = makeBridge();
+      expect(() => bridge.getPendingPrompts('unknown')).toThrow(
+        SessionNotFoundError,
+      );
     });
   });
 

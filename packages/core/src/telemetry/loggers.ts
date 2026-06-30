@@ -257,5 +257,13 @@ export function logMemoryRecall(
 export function logPromptSuggestion(_config: Config, _event: unknown): void {}
 export function logSpeculation(_config: Config, _event: unknown): void {}
 
-// No-op for no-telemetry policy
-export function recordSkillInvocation(_config: Config, _event: unknown): void {}
+export function recordSkillInvocation(
+  config: Config,
+  event: { skillName: string; success: boolean },
+): void {
+  uiTelemetryService.recordSkillInvocation(
+    event.skillName,
+    event.success,
+    config.getSessionId(),
+  );
+}

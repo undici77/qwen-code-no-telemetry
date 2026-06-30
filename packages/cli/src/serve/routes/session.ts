@@ -504,6 +504,40 @@ export function registerSessionRoutes(
     },
   );
 
+  app.post(
+    '/session/:id/continue',
+    mutate({ strict: true }),
+    async (req, res) => {
+      const sessionId = req.params['id'];
+      if (!sessionId) {
+        res
+          .status(400)
+          .json({ error: '`sessionId` route parameter is required' });
+        return;
+      }
+      // Forward the originator and a generated promptId so the bridge can
+      // attribute and correlate the continuation turn (it now runs through the
+      // prompt-admission path, same as POST /session/:id/prompt). The accepted
+      // response echoes promptId + lastEventId as the replay/correlation anchor.
+      const clientId = parseClientIdHeader(req, res);
+      if (clientId === null) return;
+      const promptId = crypto.randomUUID();
+      try {
+        res.status(200).json(
+          await bridge.continueSession(sessionId, {
+            ...(clientId !== undefined ? { clientId } : {}),
+            promptId,
+          }),
+        );
+      } catch (err) {
+        sendBridgeError(res, err, {
+          route: 'POST /session/:id/continue',
+          sessionId,
+        });
+      }
+    },
+  );
+
   app.post('/session/:id/prompt', mutate(), async (req, res) => {
     const sessionId = req.params['id'];
     const body = safeBody(req);
@@ -563,6 +597,16 @@ export function registerSessionRoutes(
     addDaemonRequestAttribute('qwen-code.prompt_id', promptId);
 
     const abort = new AbortController();
+    let responseFinished = false;
+    const onResClose = () => {
+      if (!responseFinished) abort.abort();
+    };
+    const onResFinish = () => {
+      responseFinished = true;
+      res.off('close', onResClose);
+    };
+    res.once('close', onResClose);
+    res.once('finish', onResFinish);
     const effectiveDeadlineMs = resolvePromptDeadlineMs(
       promptDeadlineMs,
       requestDeadlineMs,
@@ -594,6 +638,8 @@ export function registerSessionRoutes(
       );
     } catch (err) {
       if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      res.off('close', onResClose);
+      res.off('finish', onResFinish);
       if (daemonLog && err instanceof PromptQueueFullError) {
         daemonLog.warn('prompt admission rejected: queue full', {
           sessionId,
@@ -616,6 +662,7 @@ export function registerSessionRoutes(
       });
       return;
     }
+    res.off('close', onResClose);
 
     promptPromise
       .then(
@@ -1061,6 +1108,51 @@ export function registerSessionRoutes(
     } catch (err) {
       sendBridgeError(res, err, {
         route: 'POST /session/:id/mid-turn-message',
+        sessionId,
+      });
+    }
+  });
+
+  // Pending prompt queue: list and remove.
+  app.get('/session/:id/pending-prompts', (req, res) => {
+    const sessionId = requireSessionId(req, res);
+    if (sessionId === null) return;
+    const clientId = parseClientIdHeader(req, res);
+    if (clientId === null) return;
+    try {
+      const pendingPrompts = bridge.getPendingPrompts(
+        sessionId,
+        clientId !== undefined ? { clientId } : undefined,
+      );
+      res.status(200).json({ pendingPrompts });
+    } catch (err) {
+      sendBridgeError(res, err, {
+        route: 'GET /session/:id/pending-prompts',
+        sessionId,
+      });
+    }
+  });
+
+  app.delete('/session/:id/pending-prompts/:promptId', mutate(), (req, res) => {
+    const sessionId = requireSessionId(req, res);
+    if (sessionId === null) return;
+    const clientId = parseClientIdHeader(req, res);
+    if (clientId === null) return;
+    const promptId = req.params['promptId'];
+    if (!promptId) {
+      res.status(400).json({ error: '`promptId` route parameter is required' });
+      return;
+    }
+    try {
+      const result = bridge.removePendingPrompt(
+        sessionId,
+        promptId,
+        clientId !== undefined ? { clientId } : undefined,
+      );
+      res.status(200).json(result);
+    } catch (err) {
+      sendBridgeError(res, err, {
+        route: 'DELETE /session/:id/pending-prompts/:promptId',
         sessionId,
       });
     }

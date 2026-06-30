@@ -435,12 +435,16 @@ export enum LoopType {
   REPETITIVE_THOUGHTS = 'repetitive_thoughts',
   READ_FILE_LOOP = 'read_file_loop',
   ACTION_STAGNATION = 'action_stagnation',
+  /** Similar read-only shell inspection commands repeat with varied args. */
+  SHELL_COMMAND_STAGNATION = 'shell_command_stagnation',
   /** Same (tool, args) pair appears N times across the entire turn, not necessarily consecutively. */
   GLOBAL_TOOL_CALL_DUPLICATE = 'global_tool_call_duplicate',
   /** Two tools alternating in a fixed pattern (A B A B A B ...). */
   ALTERNATING_TOOL_CALL_PATTERN = 'alternating_tool_call_pattern',
   /** Total tool calls in a single turn exceeded the always-on hard cap, regardless of pattern. */
   TURN_TOOL_CALL_CAP = 'turn_tool_call_cap',
+  /** The same tool repeatedly failed schema validation with fresh tool-call ids. */
+  INVALID_TOOL_PARAMS_STAGNATION = 'invalid_tool_params_stagnation',
 }
 
 export class LoopDetectedEvent implements BaseTelemetryEvent {

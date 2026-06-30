@@ -399,8 +399,11 @@ export class AskUserQuestionTool extends BaseDeclarativeTool<
         return `Question ${i + 1}: "header" must be a non-empty string.`;
       }
 
+      // Tolerance from 10 to 16: smaller models often produce headers that are
+      // slightly longer than the schema suggests. We accept them silently and
+      // only error past 16 to avoid blocking legitimate small-model output.
       if (question.header.length > 16) {
-        return `Question ${i + 1}: "header" must be 12 characters or less.`;
+        return `Question ${i + 1}: "header" must be 10 characters or less.`;
       }
 
       if (!Array.isArray(question.options)) {

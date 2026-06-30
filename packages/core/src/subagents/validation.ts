@@ -179,10 +179,7 @@ export class SubagentValidator {
 
     const trimmedPrompt = prompt.trim();
 
-    // Enforce >= 16 but tell the user "at least 12" — a deliberate tolerance
-    // so small models that can't work exactly with 12 chars still get a valid
-    // system prompt without rejecting prompts that are borderline.
-    if (trimmedPrompt.length < 16) {
+    if (trimmedPrompt.length < 12) {
       errors.push('System prompt must be at least 12 characters long');
     }
 

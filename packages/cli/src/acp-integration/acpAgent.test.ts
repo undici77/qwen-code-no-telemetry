@@ -294,6 +294,7 @@ vi.mock('@qwen-code/qwen-code-core', () => ({
   getAutoMemoryRoot: vi.fn(
     (projectRoot: string) => `${projectRoot}/.qwen/memory`,
   ),
+  getUserAutoMemoryRoot: vi.fn(() => '/tmp/user-memory'),
   QwenOAuth2Event: {},
   qwenOAuth2Events: { on: vi.fn(), off: vi.fn() },
   MCPDiscoveryState: {
@@ -347,6 +348,8 @@ vi.mock('@qwen-code/qwen-code-core', () => ({
   SessionService: vi.fn(),
   Storage: {
     getGlobalQwenDir: vi.fn(() => '/tmp/qwen-global-test'),
+    getGlobalTempDir: vi.fn(() => '/tmp/qwen-global-temp'),
+    getUserExtensionsDir: vi.fn(() => '/tmp/qwen-extensions'),
   },
   parseRule: vi.fn((raw: string) => {
     const trimmed = raw.trim();
@@ -567,6 +570,7 @@ import {
   extractFilesFromTarGz,
   fetchAllowedGitHub,
   createWorkspaceMcpBudget,
+  deliverClientMcpMessage,
 } from './acpAgent.js';
 import { gzipSync } from 'node:zlib';
 import type { Config } from '@qwen-code/qwen-code-core';
@@ -596,11 +600,12 @@ import {
 } from '../config/permission-settings.js';
 import { loadCliConfig } from '../config/config.js';
 import { createLoadedSettingsAdapter } from '../config/loadedSettingsAdapter.js';
+import { AcpFileSystemService } from './service/filesystem.js';
 import { Session, buildAvailableCommandsSnapshot } from './session/Session.js';
 import {
   SERVE_STATUS_EXT_METHODS,
   SERVE_CONTROL_EXT_METHODS,
-} from '../serve/status.js';
+} from '@qwen-code/acp-bridge/status';
 import {
   updateOutputLanguageFile,
   writeOutputLanguageAndRegisterPath,
@@ -1209,6 +1214,78 @@ describe('QwenAgent MCP SSE/HTTP support', () => {
         },
       },
     });
+
+    mockConnectionState.resolve();
+    await agentPromise;
+  });
+
+  it('configures ACP file system fallback roots for read_file allowed local roots', async () => {
+    const fsCapabilities = { readTextFile: true, writeTextFile: true };
+    const fallbackFileSystem = {};
+    const innerConfig = {
+      ...makeInnerConfig(),
+      getTargetDir: vi.fn().mockReturnValue('/project'),
+      getSessionId: vi.fn().mockReturnValue('session-with-fs'),
+      getFileSystemService: vi.fn().mockReturnValue(fallbackFileSystem),
+      setFileSystemService: vi.fn(),
+      storage: {
+        getProjectTempDir: vi.fn().mockReturnValue('/project/.qwen/tmp'),
+        getProjectDir: vi.fn().mockReturnValue('/project'),
+        getUserSkillsDirs: vi.fn().mockReturnValue(['/home/test/.qwen/skills']),
+      },
+    };
+    vi.mocked(loadSettings).mockReturnValue(makeSessionSettings());
+    vi.mocked(loadCliConfig).mockResolvedValue(
+      innerConfig as unknown as Config,
+    );
+    vi.mocked(Session).mockImplementation(
+      () =>
+        ({
+          getId: vi.fn().mockReturnValue('session-with-fs'),
+          getConfig: vi.fn().mockReturnValue(innerConfig),
+          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+          replayHistory: vi.fn().mockResolvedValue(undefined),
+          installRewriter: vi.fn(),
+          startCronScheduler: vi.fn(),
+          dispose: vi.fn(),
+        }) as unknown as InstanceType<typeof Session>,
+    );
+
+    const agentPromise = runAcpAgent(
+      mockConfig,
+      makeSessionSettings(),
+      mockArgv,
+    );
+    await vi.waitFor(() => expect(capturedAgentFactory).toBeDefined());
+
+    const fakeConn = {
+      get closed() {
+        return mockConnectionState.promise;
+      },
+    } as AgentSideConnectionLike;
+    const agent = capturedAgentFactory!(fakeConn) as AgentLike;
+
+    await agent.initialize({ clientCapabilities: { fs: fsCapabilities } });
+    await agent.newSession({ cwd: '/project', mcpServers: [] });
+
+    expect(AcpFileSystemService).toHaveBeenCalledWith(
+      fakeConn,
+      'session-with-fs',
+      fsCapabilities,
+      fallbackFileSystem,
+      {
+        localReadRoots: [
+          '/project/.qwen/tmp',
+          path.join('/project', 'subagents'),
+          '/tmp/qwen-global-temp',
+          '/project/.qwen/memory',
+          '/tmp/user-memory',
+          '/home/test/.qwen/skills',
+          '/tmp/qwen-extensions',
+        ],
+      },
+    );
+    expect(innerConfig.setFileSystemService).toHaveBeenCalled();
 
     mockConnectionState.resolve();
     await agentPromise;
@@ -2036,6 +2113,62 @@ describe('QwenAgent MCP SSE/HTTP support', () => {
     await agentPromise;
   });
 
+  it('provider status filters fastOnly and voiceOnly models', async () => {
+    mockConfig = {
+      ...mockConfig,
+      getTargetDir: vi.fn().mockReturnValue('/work/status'),
+      getAuthType: vi.fn().mockReturnValue('qwen'),
+      getActiveRuntimeModelSnapshot: vi.fn().mockReturnValue(undefined),
+      getModel: vi.fn().mockReturnValue('qwen-plus'),
+      getAllConfiguredModels: vi.fn().mockReturnValue([
+        {
+          id: 'qwen-plus',
+          label: 'Qwen Plus',
+          authType: 'qwen',
+        },
+        {
+          id: 'qwen-flash',
+          label: 'Qwen Flash',
+          authType: 'qwen',
+          fastOnly: true,
+        },
+        {
+          id: 'qwen-asr',
+          label: 'Qwen ASR',
+          authType: 'qwen',
+          voiceOnly: true,
+        },
+      ]),
+    } as unknown as Config;
+
+    const agentPromise = runAcpAgent(
+      mockConfig,
+      makeSessionSettings(),
+      mockArgv,
+    );
+    await vi.waitFor(() => expect(capturedAgentFactory).toBeDefined());
+
+    const agent = capturedAgentFactory!({
+      get closed() {
+        return mockConnectionState.promise;
+      },
+    }) as AgentLike;
+
+    const status = await agent.extMethod(
+      SERVE_STATUS_EXT_METHODS.workspaceProviders,
+      {},
+    );
+
+    expect(
+      (status['providers'] as Array<{ models: Array<{ modelId: string }> }>)
+        .flatMap((provider) => provider.models)
+        .map((model) => model.modelId),
+    ).toEqual(['qwen-plus(qwen)']);
+
+    mockConnectionState.resolve();
+    await agentPromise;
+  });
+
   it('provider status uses runtime model ids for base id and token limit', async () => {
     mockConfig = {
       ...mockConfig,
@@ -2091,6 +2224,79 @@ describe('QwenAgent MCP SSE/HTTP support', () => {
       ],
     });
     expect(vi.mocked(tokenLimit)).toHaveBeenCalledWith('runtime-qwen-plus');
+
+    mockConnectionState.resolve();
+    await agentPromise;
+  });
+
+  it('session model selectors filter fastOnly and voiceOnly models', async () => {
+    const sessionId = '11111111-1111-1111-1111-111111111111';
+    const innerConfig = await setupSessionMocks(sessionId);
+    Object.assign(innerConfig, {
+      getModel: vi.fn().mockReturnValue('main-model'),
+      getAuthType: vi.fn().mockReturnValue('api-key'),
+      getAllConfiguredModels: vi.fn().mockReturnValue([
+        {
+          id: 'main-model',
+          label: 'Main Model',
+          authType: 'api-key',
+        },
+        {
+          id: 'fast-model',
+          label: 'Fast Model',
+          authType: 'api-key',
+          fastOnly: true,
+        },
+        {
+          id: 'voice-model',
+          label: 'Voice Model',
+          authType: 'api-key',
+          voiceOnly: true,
+        },
+      ]),
+    });
+
+    const agentPromise = runAcpAgent(
+      mockConfig,
+      makeSessionSettings(),
+      mockArgv,
+    );
+    await vi.waitFor(() => expect(capturedAgentFactory).toBeDefined());
+
+    const agent = capturedAgentFactory!({
+      get closed() {
+        return mockConnectionState.promise;
+      },
+    }) as AgentLike;
+
+    const session = (await agent.newSession({
+      cwd: '/tmp',
+      mcpServers: [],
+    })) as {
+      models: { availableModels: Array<{ modelId: string }> };
+      configOptions: Array<{
+        id: string;
+        options: Array<{ value: string }>;
+      }>;
+    };
+    const context = (await agent.extMethod(
+      SERVE_STATUS_EXT_METHODS.sessionContext,
+      { sessionId },
+    )) as {
+      state: { models: { availableModels: Array<{ modelId: string }> } };
+    };
+
+    expect(
+      session.models.availableModels.map((model) => model.modelId),
+    ).toEqual(['main-model(api-key)']);
+    expect(
+      session.configOptions
+        .find((option) => option.id === 'model')
+        ?.options.map((option) => option.value),
+    ).toEqual(['main-model(api-key)']);
+    expect(
+      context.state.models.availableModels.map((model) => model.modelId),
+    ).toEqual(['main-model(api-key)']);
 
     mockConnectionState.resolve();
     await agentPromise;
@@ -4956,6 +5162,10 @@ describe('QwenAgent MCP SSE/HTTP support', () => {
       // pins that the bootstrap path opts out of MCP discovery (so
       // bootstrap + per-session don't double-spawn N stdio servers).
       skipMcpDiscovery: true,
+      // #5626 Phase 2: bootstrap (workspace-level) config binds the reverse
+      // tool channel SDK callback so a runtime-added client-hosted MCP server
+      // (`workspaceMcpRuntimeAdd` targets THIS manager) round-trips over the WS.
+      sendSdkMcpMessage: expect.any(Function),
     });
 
     mockConnectionState.resolve();
@@ -5003,6 +5213,9 @@ describe('QwenAgent MCP SSE/HTTP support', () => {
       // pins that the bootstrap path opts out of MCP discovery (so
       // bootstrap + per-session don't double-spawn N stdio servers).
       skipMcpDiscovery: true,
+      // #5626 Phase 2: bootstrap config binds the reverse-tool-channel SDK
+      // callback (see the sibling bootstrap test for rationale).
+      sendSdkMcpMessage: expect.any(Function),
     });
     expect(initialize).toHaveBeenCalledTimes(1);
     expect(fireSessionStartEvent).toHaveBeenCalledTimes(1);
@@ -7530,5 +7743,48 @@ describe('createWorkspaceMcpBudget — env parsing', () => {
 
   it('returns undefined when the budget env var is unset', () => {
     expect(createWorkspaceMcpBudget(onEvent)).toBeUndefined();
+  });
+});
+
+describe('deliverClientMcpMessage — reverse tool channel (#5626)', () => {
+  type Args = Parameters<typeof deliverClientMcpMessage>;
+  const message = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/list',
+  } as unknown as Args[2];
+
+  it('throws when the ACP connection is not wired yet', async () => {
+    await expect(
+      deliverClientMcpMessage(undefined, 'srv', message),
+    ).rejects.toThrow("client MCP server 'srv' has no ACP connection yet");
+  });
+
+  it.each([
+    { label: 'undefined', response: {} },
+    { label: 'null', response: { payload: null } },
+  ])('throws when the parent reply payload is $label', async ({ response }) => {
+    const connection = {
+      extMethod: vi.fn().mockResolvedValue(response),
+    } as unknown as Args[0];
+    await expect(
+      deliverClientMcpMessage(connection, 'srv', message),
+    ).rejects.toThrow(
+      "client_mcp/message returned no payload for server 'srv'",
+    );
+  });
+
+  it('returns the parent reply payload on success', async () => {
+    const payload = { jsonrpc: '2.0', id: 1, result: { tools: [] } };
+    const extMethod = vi.fn().mockResolvedValue({ payload });
+    const connection = { extMethod } as unknown as Args[0];
+
+    await expect(
+      deliverClientMcpMessage(connection, 'srv', message),
+    ).resolves.toBe(payload);
+    expect(extMethod).toHaveBeenCalledWith(expect.anything(), {
+      server: 'srv',
+      payload: message,
+    });
   });
 });

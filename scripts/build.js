@@ -69,6 +69,7 @@ const buildOrder = [
         'packages/webui',
         'packages/web-shell',
         'packages/vscode-ide-companion',
+        'packages/chrome-extension',
       ]),
 ];
 

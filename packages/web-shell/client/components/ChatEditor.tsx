@@ -52,13 +52,15 @@ interface ChatEditorProps {
   onToggleShortcuts?: () => void;
   onCancel?: () => void;
   isRunning?: boolean;
+  /** First Esc armed a cancel — the send button shows an "Esc to stop" hint. */
+  cancelArmed?: boolean;
   disabled?: boolean;
   placeholderText?: string;
   commands: CommandInfo[];
   skills?: SkillInfo[];
   slashCommandCategoryOrder?: CommandDisplayCategoryOrder;
   queuedMessages?: string[];
-  onPopQueuedMessages?: () => string | null;
+  onPopQueuedMessages?: () => boolean;
   onClearQueuedMessages?: () => boolean;
   currentMode?: string;
   currentModel?: string;
@@ -849,6 +851,7 @@ export const ChatEditor = memo(
       onToggleShortcuts,
       onCancel,
       isRunning = false,
+      cancelArmed = false,
       disabled = false,
       placeholderText = 'Type a message...',
       commands,
@@ -856,7 +859,6 @@ export const ChatEditor = memo(
       slashCommandCategoryOrder,
       queuedMessages = [],
       onPopQueuedMessages,
-      onClearQueuedMessages,
       currentMode = 'default',
       currentModel = '',
       chatWidthMode = '1000',
@@ -888,7 +890,6 @@ export const ChatEditor = memo(
       slashCommandCategoryOrder,
       queuedMessages,
       onPopQueuedMessages,
-      onClearQueuedMessages,
       currentMode,
       onFocusFooter,
       dialogOpen,
@@ -1214,6 +1215,7 @@ export const ChatEditor = memo(
 
     // Model display label
     const modelLabel = getModelDisplayName(currentModel);
+    const showCancelButton = isRunning && !core.hasContent;
 
     return (
       <div className={styles.editorShell}>
@@ -1549,25 +1551,36 @@ export const ChatEditor = memo(
                 )}
                 <button
                   className={
-                    isRunning
+                    showCancelButton
                       ? `${styles.sendBtn} ${styles.sendBtnRunning}`
                       : styles.sendBtn
                   }
                   disabled={
-                    isRunning ? !onCancel : core.disabled || !core.hasContent
+                    showCancelButton
+                      ? !onCancel
+                      : core.disabled || !core.hasContent
                   }
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (isRunning) {
+                    if (showCancelButton) {
                       onCancel?.();
                       return;
                     }
                     core.submitText();
                   }}
-                  aria-label={isRunning ? t('stream.cancel') : t('editor.send')}
+                  aria-label={
+                    showCancelButton ? t('stream.cancel') : t('editor.send')
+                  }
                 >
-                  {isRunning ? <StopIcon /> : <SendIcon />}
+                  {showCancelButton ? <StopIcon /> : <SendIcon />}
                 </button>
+                <span
+                  role="status"
+                  aria-live="polite"
+                  className={styles.srOnly}
+                >
+                  {isRunning && cancelArmed ? t('stream.cancelArmed') : ''}
+                </span>
               </div>
             </div>
           </div>
