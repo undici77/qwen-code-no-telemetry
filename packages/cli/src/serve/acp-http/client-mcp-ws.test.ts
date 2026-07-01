@@ -19,6 +19,7 @@ import { SdkControlClientTransport } from '@qwen-code/qwen-code-core';
 import type { DaemonWorkspaceService } from '../workspace-service/types.js';
 import { mountAcpHttp } from './index.js';
 import type { ClientMcpServerProvider } from './client-mcp-ws.js';
+import { WorkspaceRememberTaskLane } from '../workspace-remember.js';
 
 vi.mock('../../utils/stdioHelpers.js', () => ({
   writeStderrLine: vi.fn(),
@@ -177,6 +178,7 @@ describe('client_mcp_over_ws reverse channel (serve layer)', () => {
         boundWorkspace: '/ws',
         workspace: fakeWorkspace,
         enabled: true,
+        workspaceRememberLane: new WorkspaceRememberTaskLane(fakeBridge),
         clientMcpOverWs: opts.clientMcpOverWs ?? true,
         ...(opts.withProvider === false ? {} : { clientMcpProvider: provider }),
       });

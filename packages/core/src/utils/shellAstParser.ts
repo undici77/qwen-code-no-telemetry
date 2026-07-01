@@ -41,7 +41,7 @@ async function loadWasmBinary(
   fallbackSpecifier: string,
 ): Promise<Uint8Array> {
   const nativeFs =
-    (process.getBuiltinModule?.('fs') as
+    ((process as any).getBuiltinModule?.('fs') as
       | typeof import('node:fs')
       | undefined) ?? fs;
   const moduleFilePath = fileURLToPath(import.meta.url);

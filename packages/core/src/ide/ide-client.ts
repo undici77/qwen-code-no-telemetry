@@ -893,8 +893,8 @@ export class IdeClient {
     }
 
     this.client.setNotificationHandler(
-      IdeContextNotificationSchema,
-      (notification) => {
+      IdeContextNotificationSchema as any,
+      ((notification: any) => {
         ideContextStore.set(notification.params);
         const isTrusted = notification.params.workspaceState?.isTrusted;
         if (isTrusted !== undefined) {
@@ -902,7 +902,7 @@ export class IdeClient {
             listener(isTrusted);
           }
         }
-      },
+      }) as any,
     );
     this.client.onerror = (_error) => {
       const errorMessage = _error instanceof Error ? _error.message : `_error`;
@@ -920,8 +920,8 @@ export class IdeClient {
       );
     };
     this.client.setNotificationHandler(
-      IdeDiffAcceptedNotificationSchema,
-      (notification) => {
+      IdeDiffAcceptedNotificationSchema as any,
+      ((notification: any) => {
         const { filePath, content } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -930,12 +930,12 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      },
+      }) as any,
     );
 
     this.client.setNotificationHandler(
-      IdeDiffRejectedNotificationSchema,
-      (notification) => {
+      IdeDiffRejectedNotificationSchema as any,
+      ((notification: any) => {
         const { filePath } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -944,14 +944,14 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      },
+      }) as any,
     );
 
     // For backwards compatability. Newer extension versions will only send
     // IdeDiffRejectedNotificationSchema.
     this.client.setNotificationHandler(
-      IdeDiffClosedNotificationSchema,
-      (notification) => {
+      IdeDiffClosedNotificationSchema as any,
+      ((notification: any) => {
         const { filePath } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -960,7 +960,7 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      },
+      }) as any,
     );
   }
 

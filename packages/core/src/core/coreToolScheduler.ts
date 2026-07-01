@@ -83,6 +83,7 @@ import {
   applyAutoModeDecision,
   evaluateAutoMode,
   getAutoModePermissionDeniedReason,
+  shouldClassifyAllShellForAutoMode,
   shouldForceAutoModeReviewForAllow,
   shouldFirePermissionDeniedForAutoMode,
   shouldRunAutoModeForCall,
@@ -107,6 +108,7 @@ import levenshtein from 'fast-levenshtein';
 import { getPlanModeSystemReminder } from './prompts.js';
 import { ShellToolInvocation } from '../tools/shell.js';
 import { IdeClient } from '../ide/ide-client.js';
+import { isSubagentLikeExecutionContext } from '../agents/runtime/subagent-plan-tool-policy.js';
 import { safeSetStatus } from '../telemetry/tracer.js';
 import { SpanStatusCode, type Span } from '../telemetry/dummy-otel.js';
 import {
@@ -2070,7 +2072,8 @@ export class CoreToolScheduler {
 
           const forceAutoReviewForAllow =
             approvalMode === ApprovalMode.AUTO &&
-            shouldForceAutoModeReviewForAllow(pmCtx, this.config.getCwd());
+            (shouldForceAutoModeReviewForAllow(pmCtx, this.config.getCwd()) ||
+              shouldClassifyAllShellForAutoMode(canonicalName, this.config));
           const confirmationPermission = getEffectivePermissionForConfirmation(
             finalPermission,
             forceAutoReviewForAllow,
@@ -2265,7 +2268,12 @@ export class CoreToolScheduler {
                 responseParts: convertToFunctionResponse(
                   reqInfo.name,
                   reqInfo.callId,
-                  getPlanModeSystemReminder(),
+                  // SDK and subagent-like callers should return the plan
+                  // directly instead of entering an interactive approval flow.
+                  getPlanModeSystemReminder(
+                    isSubagentLikeExecutionContext() ||
+                      this.config.getSdkMode(),
+                  ),
                 ),
                 resultDisplay: 'Plan mode blocked a non-read-only tool call.',
                 error: undefined,
@@ -4208,11 +4216,15 @@ export class CoreToolScheduler {
 
         const forceAutoReviewForAllow =
           this.config.getApprovalMode() === ApprovalMode.AUTO &&
-          shouldForceAutoModeReviewForAllow(pmCtx, this.config.getCwd());
+          (shouldForceAutoModeReviewForAllow(pmCtx, this.config.getCwd()) ||
+            shouldClassifyAllShellForAutoMode(
+              pendingTool.request.name,
+              this.config,
+            ));
 
         if (finalPermission === 'allow' && forceAutoReviewForAllow) {
           debugLogger.info(
-            `Auto mode: pending L4 allow overridden by protected-write guard for ${pendingTool.request.name}`,
+            `Auto mode: pending L4 allow overridden by protected-write guard or classifyAllShell for ${pendingTool.request.name}`,
           );
           const denialState = this.config.getAutoModeDenialState();
           const fallback = shouldFallback(denialState);

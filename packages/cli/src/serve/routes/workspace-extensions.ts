@@ -545,7 +545,7 @@ export function registerWorkspaceExtensionRoutes(
   app.get('/workspace/extensions/operations/:operationId', async (req, res) => {
     try {
       buildWorkspaceCtx('GET /workspace/extensions/operations/:operationId');
-      const operationId = req.params['operationId'];
+      const operationId = req.params['operationId'] as string;
       if (!operationId) {
         res.status(400).json({ error: 'Missing extension operation id' });
         return;
@@ -789,7 +789,7 @@ export function registerWorkspaceExtensionRoutes(
         ) {
           return;
         }
-        const name = req.params['name'];
+        const name = req.params['name'] as string;
         if (!name) {
           res.status(400).json({ error: 'Missing extension name' });
           return;
@@ -835,7 +835,7 @@ export function registerWorkspaceExtensionRoutes(
         ) {
           return;
         }
-        const name = req.params['name'];
+        const name = req.params['name'] as string;
         if (!name) {
           res.status(400).json({ error: 'Missing extension name' });
           return;
@@ -881,7 +881,7 @@ export function registerWorkspaceExtensionRoutes(
         ) {
           return;
         }
-        const name = req.params['name'];
+        const name = req.params['name'] as string;
         if (!name) {
           res.status(400).json({ error: 'Missing extension name' });
           return;
@@ -958,7 +958,7 @@ export function registerWorkspaceExtensionRoutes(
         ) {
           return;
         }
-        const name = req.params['name'];
+        const name = req.params['name'] as string;
         if (!name) {
           res.status(400).json({ error: 'Missing extension name' });
           return;

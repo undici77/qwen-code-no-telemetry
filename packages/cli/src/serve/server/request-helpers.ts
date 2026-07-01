@@ -126,7 +126,7 @@ export function parseOptionalWorkspaceCwd(
 }
 
 export function requireSessionId(req: Request, res: Response): string | null {
-  const sessionId = req.params['id'];
+  const sessionId = req.params['id'] as string;
   if (!sessionId) {
     res.status(400).json({ error: '`sessionId` route parameter is required' });
     return null;

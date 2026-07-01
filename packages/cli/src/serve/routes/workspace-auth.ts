@@ -213,7 +213,7 @@ export function registerWorkspaceAuthRoutes(
     '/workspace/auth/device-flow/:id',
     mutate({ strict: true }),
     async (req, res) => {
-      const id = req.params['id'];
+      const id = req.params['id'] as string;
       if (!id) {
         res.status(404).json({
           error: 'Device-flow id required',
@@ -246,7 +246,7 @@ export function registerWorkspaceAuthRoutes(
     '/workspace/auth/device-flow/:id',
     mutate({ strict: true }),
     (req, res) => {
-      const id = req.params['id'];
+      const id = req.params['id'] as string;
       if (!id) {
         res.status(404).json({
           error: 'Device-flow id required',

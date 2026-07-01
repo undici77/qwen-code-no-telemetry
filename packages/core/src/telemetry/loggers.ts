@@ -60,12 +60,18 @@ import type {
 } from './types.js';
 import { isInternalPromptId } from '../utils/internalPromptIds.js';
 import { recordTokenUsageFromApiResponseBestEffort } from '../services/tokenUsageService.js';
+import { isChatRecordingSuppressed } from '../utils/chat-recording-suppression-context.js';
 
 // No-op implementations for no-telemetry policy
 // All telemetry functions are replaced with empty stubs
 
 export function getCommonAttributes(_config: Config): Record<string, unknown> {
   return {};
+}
+
+function recordUiTelemetryEventToChat(config: Config, uiEvent: UiEvent): void {
+  if (isChatRecordingSuppressed()) return;
+  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
 }
 
 export function logStartSession(
@@ -76,9 +82,15 @@ export function logUserPrompt(_config: Config, _event: UserPromptEvent): void {}
 export function logUserRetry(_config: Config, _event: UserRetryEvent): void {}
 
 export function logToolCall(config: Config, event: ToolCallEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
-  });
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_TOOL_CALL,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  if (!isInternalPromptId(event.prompt_id)) {
+    recordUiTelemetryEventToChat(config, uiEvent);
+  }
   uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
@@ -105,9 +117,15 @@ export function logRipgrepFallback(
 export function logApiRetry(_config: Config, _event: ApiRetryEvent): void {}
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
-  });
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_API_ERROR,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  if (!isInternalPromptId(event.prompt_id)) {
+    recordUiTelemetryEventToChat(config, uiEvent);
+  }
   uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
@@ -125,7 +143,7 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
     if (config.getUsageStatisticsEnabled()) {
       recordTokenUsageFromApiResponseBestEffort(config, event);
     }
-    config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
+    recordUiTelemetryEventToChat(config, uiEvent);
   }
 }
 

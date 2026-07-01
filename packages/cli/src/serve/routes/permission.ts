@@ -31,8 +31,8 @@ export function registerPermissionRoutes(
   const { bridge, mutate, sendPermissionVoteError } = deps;
 
   app.post('/session/:id/permission/:requestId', mutate(), (req, res) => {
-    const sessionId = req.params['id'];
-    const requestId = req.params['requestId'];
+    const sessionId = req.params['id'] as string;
+    const requestId = req.params['requestId'] as string;
     const response = parsePermissionVoteBody(req, res);
     if (response === undefined) return;
     const clientId = parseClientIdHeader(req, res);
@@ -71,7 +71,7 @@ export function registerPermissionRoutes(
   });
 
   app.post('/permission/:requestId', mutate(), (req, res) => {
-    const requestId = req.params['requestId'];
+    const requestId = req.params['requestId'] as string;
     const response = parsePermissionVoteBody(req, res);
     if (response === undefined) return;
     const clientId = parseClientIdHeader(req, res);

@@ -11,6 +11,7 @@ import type {
   SendTypingResp,
   BaseInfo,
 } from './types.js';
+import * as crypto from 'node:crypto';
 
 // ── Error handling ────────────────────────────────────────────────
 

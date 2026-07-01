@@ -286,7 +286,7 @@ export async function writeLine(
     // for the string case, with no behavior delta on tested versions.
     await fs.promises.appendFile(filePath, Buffer.from(line, 'utf8'), {
       flush: true,
-    });
+    } as any);
   });
 }
 
@@ -315,7 +315,7 @@ export function writeLineSync(filePath: string, data: unknown): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.appendFileSync(filePath, Buffer.from(line, 'utf8'), { flush: true });
+  fs.appendFileSync(filePath, Buffer.from(line, 'utf8'), { flush: true } as any);
 }
 
 /**
