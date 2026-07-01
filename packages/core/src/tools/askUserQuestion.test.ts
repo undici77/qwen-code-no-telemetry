@@ -90,7 +90,7 @@ describe('AskUserQuestionTool', () => {
       };
 
       const result = tool.validateToolParams(params);
-      expect(result).toContain('12 characters or less');
+      expect(result).toContain('10 characters or less');
     });
 
     it('should reject question with too few options', () => {

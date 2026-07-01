@@ -87,12 +87,10 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
     'event.name': EVENT_TOOL_CALL,
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
-  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
   if (!isInternalPromptId(event.prompt_id)) {
+    uiTelemetryService.addEvent(uiEvent, config.getSessionId());
     recordUiTelemetryEventToChat(config, uiEvent);
   }
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logHookCall(_config: Config, _event: HookCallEvent): void {}
@@ -126,8 +124,6 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
   if (!isInternalPromptId(event.prompt_id)) {
     recordUiTelemetryEventToChat(config, uiEvent);
   }
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
 }
 
 export function logApiCancel(_config: Config, _event: ApiCancelEvent): void {}

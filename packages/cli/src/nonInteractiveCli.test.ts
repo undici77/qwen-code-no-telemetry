@@ -3201,16 +3201,10 @@ describe('runNonInteractive', () => {
       'prompt-id-dup',
     );
 
-    expect(mockCoreExecuteToolCall).toHaveBeenCalledOnce();
-    expect(mockCoreExecuteToolCall).toHaveBeenCalledWith(
-      mockConfig,
-      expect.objectContaining({
+    expect(mockCoreExecuteToolCall).toHaveBeenCalledExactlyOnceWith(mockConfig, expect.objectContaining({
         callId: 'dup_id_0001',
         args: { file_path: 'a.ts' },
-      }),
-      expect.any(AbortSignal),
-      expect.any(Object),
-    );
+      }), expect.any(AbortSignal), expect.any(Object));
 
     const toolResultParts = mockGeminiClient.sendMessageStream.mock.calls[1][0];
     expect(toolResultParts).toHaveLength(2);

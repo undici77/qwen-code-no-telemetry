@@ -200,8 +200,7 @@ describe('registerMcpHotReload', () => {
     merged.mcpServers = { a: { command: 'a' } };
     await listener([]);
 
-    expect(fc.reinitializeMcpServers).toHaveBeenCalledOnce();
-    expect(fc.reinitializeMcpServers).toHaveBeenCalledWith({
+    expect(fc.reinitializeMcpServers).toHaveBeenCalledExactlyOnceWith({
       a: { command: 'a' },
       cliSrv: { command: 'cli' },
     });
