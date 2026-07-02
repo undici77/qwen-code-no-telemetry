@@ -10,7 +10,7 @@ import { LspConfigLoader } from './LspConfigLoader.js';
 import type { Extension } from '../extension/extensionManager.js';
 
 describe('LspConfigLoader config-driven behavior', () => {
-  const workspaceRoot = '/workspace';
+  const workspaceRoot = '/mock-workspace';
 
   afterEach(() => {
     mock.restore();
@@ -157,7 +157,7 @@ describe('LspConfigLoader config-driven behavior', () => {
 });
 
 describe('LspConfigLoader extension configs', () => {
-  const workspaceRoot = '/workspace';
+  const workspaceRoot = '/mock-workspace';
   const extensionPath = '/extensions/ts-plugin';
 
   afterEach(() => {

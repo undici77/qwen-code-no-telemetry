@@ -108,7 +108,12 @@ import levenshtein from 'fast-levenshtein';
 import { getPlanModeSystemReminder } from './prompts.js';
 import { ShellToolInvocation } from '../tools/shell.js';
 import { IdeClient } from '../ide/ide-client.js';
-import { isSubagentLikeExecutionContext } from '../agents/runtime/subagent-plan-tool-policy.js';
+import {
+  getPlanRequiredTeammatePreApprovalMessage,
+  isPlanRequiredTeammateAwaitingApproval,
+  isPlanRequiredTeammatePreApprovalAllowedTool,
+  shouldUsePlanOnlyReminderInSubagentContext,
+} from '../agents/runtime/subagent-plan-tool-policy.js';
 import { safeSetStatus } from '../telemetry/tracer.js';
 import { SpanStatusCode, type Span } from '../telemetry/dummy-otel.js';
 import {
@@ -2060,8 +2065,13 @@ export class CoreToolScheduler {
             canonicalName,
             toolParams,
           );
-          const { finalPermission, pmForcedAsk, pmCtx, denyMessage } =
-            flowResult;
+          const {
+            defaultPermission,
+            finalPermission,
+            pmForcedAsk,
+            pmCtx,
+            denyMessage,
+          } = flowResult;
 
           // ---- L5: Final decision based on permission + ApprovalMode ----
           const approvalMode = this.config.getApprovalMode();
@@ -2083,6 +2093,52 @@ export class CoreToolScheduler {
             debugLogger.info(
               `Auto mode: L4 allow overridden by protected-write guard for ${canonicalName}`,
             );
+          }
+
+          if (
+            isPlanRequiredTeammateAwaitingApproval(this.config) &&
+            finalPermission !== 'deny'
+          ) {
+            const isExplicitPreApprovalTool =
+              isPlanRequiredTeammatePreApprovalAllowedTool(
+                canonicalName,
+                toolParams,
+              );
+            const canRunBeforeLeaderApproval =
+              isExplicitPreApprovalTool &&
+              (canonicalName === ToolNames.EXIT_PLAN_MODE ||
+                canonicalName === ToolNames.TASK_UPDATE ||
+                (defaultPermission === 'allow' &&
+                  finalPermission === 'allow' &&
+                  !forceAutoReviewForAllow));
+
+            if (canRunBeforeLeaderApproval) {
+              this.setToolCallOutcome(
+                reqInfo.callId,
+                ToolConfirmationOutcome.ProceedAlways,
+              );
+              this.setStatusInternal(reqInfo.callId, 'scheduled');
+              continue;
+            }
+
+            const message =
+              getPlanRequiredTeammatePreApprovalMessage(canonicalName);
+            this.setStatusInternal(
+              reqInfo.callId,
+              'error',
+              createErrorResponse(
+                reqInfo,
+                new Error(message),
+                ToolErrorType.EXECUTION_DENIED,
+              ),
+            );
+            setToolSpanFailure(
+              toolSpan,
+              TOOL_FAILURE_KIND_PLAN_MODE_BLOCKED,
+              TOOL_SPAN_STATUS_PLAN_MODE_BLOCKED,
+            );
+            this.finalizeToolSpan(reqInfo.callId);
+            continue;
           }
 
           if (finalPermission === 'allow' && !forceAutoReviewForAllow) {
@@ -2268,10 +2324,11 @@ export class CoreToolScheduler {
                 responseParts: convertToFunctionResponse(
                   reqInfo.name,
                   reqInfo.callId,
-                  // SDK and subagent-like callers should return the plan
-                  // directly instead of entering an interactive approval flow.
+                  // SDK callers and ordinary subagent-like callers should
+                  // return plans directly. Plan-required teammates have a
+                  // dedicated exit_plan_mode approval path instead.
                   getPlanModeSystemReminder(
-                    isSubagentLikeExecutionContext() ||
+                    shouldUsePlanOnlyReminderInSubagentContext() ||
                       this.config.getSdkMode(),
                   ),
                 ),
