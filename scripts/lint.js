@@ -102,6 +102,7 @@ const LINTERS = {
     run: `
       actionlint \
         -color \
+        -pyflakes= \
         -shellcheck= \
         -ignore 'SC2002:' \
         -ignore 'SC2016:' \

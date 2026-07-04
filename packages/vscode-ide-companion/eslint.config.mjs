@@ -61,7 +61,7 @@ export default [
       // - ./styles/**: local CSS modules loaded by the webview
       'import/no-internal-modules': 'off',
 
-      curly: 'warn',
+      curly: ['warn', 'multi-line'],
       eqeqeq: ['warn', 'always', { null: 'ignore' }],
       'no-throw-literal': 'warn',
       semi: 'warn',

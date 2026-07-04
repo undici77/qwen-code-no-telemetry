@@ -61,6 +61,7 @@ export default defineConfig({
       'src/telemetry/daemon-tracing.test.ts',
       'src/telemetry/trace-context.test.ts',
       'src/telemetry/qwen-logger/qwen-logger.test.ts',
+      'src/telemetry/event-loop-lag-metrics.test.ts',
     ],
     outputFile: {
       junit: 'junit.xml',
