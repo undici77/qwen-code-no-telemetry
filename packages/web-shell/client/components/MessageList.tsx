@@ -1805,7 +1805,7 @@ export const MessageList = memo(
     // list — used only to locate rows hidden inside a collapsed turn — while
     // `visibleItems` is what actually renders.
     const { collapseCompletedTurns } = useWebShellCustomization();
-    const collapseEnabled = collapseCompletedTurns ?? true;
+    const collapseEnabled = collapseCompletedTurns ?? false;
     const [collapseOverrides, setCollapseOverrides] = useState<
       ReadonlyMap<string, boolean>
     >(() => new Map());

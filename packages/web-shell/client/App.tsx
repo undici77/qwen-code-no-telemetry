@@ -769,7 +769,7 @@ export function App({
   sidebar,
   composerToolbarActions,
   compactThinking = false,
-  collapseCompletedTurns = true,
+  collapseCompletedTurns = false,
   markdownTableMode = 'basic',
   virtualScrollThreshold,
   markdown,

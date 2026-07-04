@@ -36,8 +36,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.19.5-no-telemetry/install.sh \
-    | bash -s v0.19.5-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.19.6-no-telemetry/install.sh \
+    | bash -s v0.19.6-no-telemetry
 ```
 
 ### Option 2 — Docker
