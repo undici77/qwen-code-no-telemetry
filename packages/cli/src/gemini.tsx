@@ -6,6 +6,7 @@
 
 import {
   AuthType,
+  type Config,
   InputFormat,
   isDebugLoggingDegraded,
   isBareMode,
@@ -18,7 +19,6 @@ import {
   persistSessionUsage,
   uiTelemetryService,
   writeRuntimeStatus,
-  type Config,
 } from '@qwen-code/qwen-code-core';
 import dns from 'node:dns';
 import os from 'node:os';
@@ -44,6 +44,9 @@ import {
 } from './config/settings.js';
 import { SettingsWatcher } from './config/settingsWatcher.js';
 import { registerMcpHotReload } from './config/hot-reload.js';
+import { LspConfigWatcher } from './config/lsp-config-watcher.js';
+import { ExtensionFileWatcher } from './config/extension-file-watcher.js';
+import { ExtensionRefreshState } from './config/extension-refresh-state.js';
 import { initializeI18n, resolveLanguageSetting } from './i18n/index.js';
 import {
   setupStartupWorktree,
@@ -51,6 +54,7 @@ import {
   buildStartupWorktreeNotice,
   type StartupWorktreeContext,
 } from './startup/worktreeStartup.js';
+import { startEarlyStartupPrefetches } from './startup/startup-prefetch.js';
 import {
   cleanupCheckpoints,
   registerCleanup,
@@ -76,7 +80,6 @@ import { getCliVersionDisplay } from './utils/version.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
 import { writeStderrLine } from './utils/stdioHelpers.js';
 import { getHeadlessYoloSafetyWarning } from './utils/headlessSafetyWarnings.js';
-import { preconnectApi } from './utils/apiPreconnect.js';
 import { initializeLlmOutputLanguage } from './utils/languageUtils.js';
 import { AppContainer } from './ui/AppContainer.js';
 import { KeypressProvider } from './ui/contexts/KeypressContext.js';
@@ -123,6 +126,25 @@ function setWindowTitle(settings: LoadedSettings, folderName?: string) {
 }
 
 const debugLogger = createDebugLogger('STARTUP');
+
+interface RuntimeLspReinitializeResult {
+  reconcile: {
+    added: string[];
+    removed: string[];
+    restarted: string[];
+    unchanged: string[];
+    failed: string[];
+  };
+  skipped: Array<{ name: string }>;
+}
+
+interface RuntimeLspClient {
+  reinitialize?: () => Promise<RuntimeLspReinitializeResult>;
+}
+
+interface RuntimeLspConfig {
+  reinitializeLsp?: () => Promise<RuntimeLspReinitializeResult | undefined>;
+}
 
 function clearCorruptionEnvVars(): void {
   delete process.env[ENV_CORRUPTED_PATH];
@@ -838,6 +860,30 @@ export async function main() {
       registerCleanup(disposeMcpHotReload);
     }
 
+    registerLspHotReload(config, registerCleanup);
+
+    const extensionRefreshState = new ExtensionRefreshState();
+    const extensionFileWatcher =
+      isBareMode(argv.bare) || config.isSafeMode()
+        ? undefined
+        : new ExtensionFileWatcher(config, undefined, extensionRefreshState);
+    extensionFileWatcher?.startWatching();
+    if (extensionFileWatcher) {
+      const restartExtensionWatcher = () =>
+        extensionFileWatcher.restartWatching();
+      extensionRefreshState.on(
+        AppEvent.ExtensionsReloaded,
+        restartExtensionWatcher,
+      );
+      registerCleanup(() => {
+        extensionRefreshState.off(
+          AppEvent.ExtensionsReloaded,
+          restartExtensionWatcher,
+        );
+        extensionFileWatcher.stopWatching();
+      });
+    }
+
     // Phase D-1: persist the WorktreeSession sidecar so Phase C's restore
     // machinery on a subsequent `--resume` picks the worktree back up, and
     // capture any override of a previously-resumed session's worktree so
@@ -910,20 +956,7 @@ export async function main() {
     // This ensures MCP server subprocesses are properly terminated on exit
     registerCleanup(() => config.shutdown());
 
-    // Startup optimization: preconnect API to warm TCP+TLS connection
-    // Fires early; cost is one HEAD request even for local-only commands
-    try {
-      const modelsConfig = config.getModelsConfig();
-      const authType = modelsConfig.getCurrentAuthType();
-      const resolvedBaseUrl = modelsConfig.getGenerationConfig().baseUrl;
-      const proxy = config.getProxy();
-      preconnectApi(authType, { resolvedBaseUrl, proxy });
-    } catch (error) {
-      // If we can't get authType, skip preconnect - it's optional optimization
-      debugLogger.debug(
-        `Preconnect skipped due to error getting authType: ${error}`,
-      );
-    }
+    startEarlyStartupPrefetches(config);
 
     const wasRaw = process.stdin.isRaw;
     let kittyProtocolDetectionComplete: Promise<boolean> | undefined;
@@ -987,7 +1020,16 @@ export async function main() {
     // For stream-json mode, defer config.initialize() until after the initialize control request
     // For other modes, initialize normally
     const { initializeApp } = await import('./core/initializer.js');
-    const initializationResult = await initializeApp(config, settings);
+    let input = config.getQuestion();
+    const hasRemoteInput = Boolean(config.getInputFile?.());
+    const deferIdeConnection =
+      config.isInteractive() &&
+      !config.getExperimentalZedIntegration() &&
+      !input &&
+      !hasRemoteInput;
+    const initializationResult = await initializeApp(config, settings, {
+      deferIdeConnection,
+    });
     profileCheckpoint('after_initialize_app');
 
     if (config.getExperimentalZedIntegration()) {
@@ -998,26 +1040,6 @@ export async function main() {
       process.exit(0);
     }
 
-    // Background housekeeping: file-history cleanup and (future) other
-    // periodic disk maintenance. Interactive-only — serve/SDK/ACP modes
-    // don't create the file-history dirs this cleans, so they skip.
-    // Dynamic import keeps --help / one-shot --prompt paths from loading
-    // this code at all. Timers inside are .unref()'d so they never block
-    // process exit.
-    if (config.isInteractive()) {
-      // .catch() is intentional: a dynamic-import or module-init failure
-      // (theoretically near-impossible — the module has no top-level side
-      // effects — but defense in depth matches the runPass try/catch in
-      // scheduler.ts) becomes a swallowed log instead of an unhandled
-      // promise rejection that crashes the REPL.
-      void import('./utils/housekeeping/scheduler.js')
-        .then((m) => m.startBackgroundHousekeeping(config, settings))
-        .catch((err) => {
-          debugLogger.warn('failed to start background housekeeping:', err);
-        });
-    }
-
-    let input = config.getQuestion();
     const startupWarnings = [
       ...new Set([
         ...(config.isSafeMode()
@@ -1095,6 +1117,10 @@ export async function main() {
         startupWarnings,
         process.cwd(),
         initializationResult!,
+        {
+          postRenderConnectIde: deferIdeConnection,
+          extensionRefreshState,
+        },
       );
       // Clean up corruption env vars so subsequent relaunch children
       // and subprocesses don't inherit stale state.
@@ -1275,4 +1301,114 @@ export async function main() {
 
 export function createNonInteractivePromptId(sessionId: string): string {
   return `${sessionId}########0`;
+}
+
+/**
+ * Watches `.lsp.json` for changes and reconciles running LSP servers
+ * (add / remove / restart) without requiring a session restart.
+ *
+ * Silently no-ops when LSP is disabled or the active client does not
+ * support runtime reinitialization.
+ *
+ * Emits {@link AppEvent.LspStatusChanged} after every successful reload
+ * so the UI can reflect the new server state.
+ */
+export function registerLspHotReload(
+  config: Config,
+  registerCleanup: (fn: () => void | Promise<void>) => void,
+): void {
+  const lspClient = config.getLspClient?.() as
+    | (ReturnType<Config['getLspClient']> & RuntimeLspClient)
+    | undefined;
+  const runtimeConfig = config as Config & RuntimeLspConfig;
+  const reinitializeLsp = runtimeConfig.reinitializeLsp;
+  if (
+    config.isLspEnabled?.() !== true ||
+    !lspClient?.reinitialize ||
+    !reinitializeLsp
+  ) {
+    return;
+  }
+  const lspConfigWatcher = new LspConfigWatcher(config.getProjectRoot());
+  debugLogger.info(
+    `Registering LSP config hot reload watcher for ${config.getProjectRoot()}`,
+  );
+  lspConfigWatcher.startWatching(async (event) => {
+    if (event.changeType === 'invalid') {
+      debugLogger.warn(`Invalid LSP config file ${event.path}: ${event.error}`);
+      appEvents.emit(AppEvent.LogError, event.error);
+      return;
+    }
+    debugLogger.info(
+      `Reloading LSP server settings: changeType=${event.changeType}, path=${event.path}`,
+    );
+    let errorReported = false;
+    try {
+      const result = await reinitializeLsp();
+      if (result) {
+        const failedServers = getRuntimeReloadFailedNames(result.reconcile);
+        debugLogger.info(
+          `Reloaded LSP server settings: added=${formatRuntimeReloadNames(
+            result.reconcile.added,
+          )}, removed=${formatRuntimeReloadNames(
+            result.reconcile.removed,
+          )}, restarted=${formatRuntimeReloadNames(
+            result.reconcile.restarted,
+          )}, unchanged=${formatRuntimeReloadNames(
+            result.reconcile.unchanged,
+          )}, failed=${formatRuntimeReloadNames(
+            failedServers,
+          )}, skipped=${formatRuntimeReloadNames(
+            result.skipped.map((server) => server.name),
+          )}`,
+        );
+        if (failedServers.length > 0) {
+          appEvents.emit(AppEvent.LspStatusChanged);
+          const changedServers = [
+            ...result.reconcile.added,
+            ...result.reconcile.removed,
+            ...result.reconcile.restarted,
+          ];
+          const message = `LSP reload partially completed: changed=${formatRuntimeReloadNames(
+            changedServers,
+          )}, failed=${formatRuntimeReloadNames(
+            failedServers,
+          )}. Run with --debug for details.`;
+          appEvents.emit(AppEvent.LogError, message);
+          errorReported = true;
+          throw new Error(message);
+        }
+      } else {
+        debugLogger.info(
+          'Skipped LSP server settings reload because LSP is disabled or no client is available',
+        );
+      }
+      appEvents.emit(AppEvent.LspStatusChanged);
+    } catch (error) {
+      debugLogger.warn('Failed to reload LSP server settings:', error);
+      if (!errorReported) {
+        const message =
+          error instanceof Error
+            ? `Failed to reload LSP server settings: ${error.message}. Some LSP servers may have been partially updated. Run with --debug for details.`
+            : 'Failed to reload LSP server settings; some LSP servers may have been partially updated. Run with --debug for details.';
+        appEvents.emit(AppEvent.LogError, message);
+      }
+      throw error;
+    }
+  });
+  registerCleanup(() => lspConfigWatcher.stopWatching());
+}
+
+function formatRuntimeReloadNames(names: readonly string[]): string {
+  return names.length === 0 ? '<none>' : names.join(',');
+}
+
+/**
+ * Reads the optional failed bucket defensively because the CLI may typecheck
+ * against stale core dist declarations during local development.
+ */
+function getRuntimeReloadFailedNames(reconcile: {
+  failed?: readonly string[];
+}): readonly string[] {
+  return reconcile.failed ?? [];
 }

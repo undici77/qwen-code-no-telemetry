@@ -24,6 +24,30 @@ export interface InitializationResult {
   geminiMdFileCount: number;
 }
 
+export interface InitializeAppOptions {
+  /**
+   * When true, skip the awaited IDE connection inside initializeApp().
+   * Ordinary interactive TUI startup uses this so IDE IPC can run after first
+   * paint; non-TUI paths leave it false so the first request keeps IDE context.
+   */
+  deferIdeConnection?: boolean;
+}
+
+/**
+ * Establishes the startup IDE connection and records the connection telemetry.
+ *
+ * Callers choose whether to await this on the startup critical path. Headless,
+ * stream-json, and ACP/Zed await it before their first request; ordinary TUI
+ * startup schedules it post-render through startup prefetch.
+ */
+export async function connectIdeForStartup(config: Config): Promise<void> {
+  if (!config.getIdeMode()) return;
+
+  const ideClient = await IdeClient.getInstance();
+  await ideClient.connect();
+  logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.START));
+}
+
 /**
  * Orchestrates the application's startup initialization.
  * This runs BEFORE the React UI is rendered.
@@ -34,6 +58,7 @@ export interface InitializationResult {
 export async function initializeApp(
   config: Config,
   settings: LoadedSettings,
+  options: InitializeAppOptions = {},
 ): Promise<InitializationResult> {
   // Initialize i18n system
   await initializeI18n(
@@ -50,10 +75,8 @@ export async function initializeApp(
   const shouldOpenAuthDialog =
     !config.getModelsConfig().wasAuthTypeExplicitlyProvided() || !!authError;
 
-  if (config.getIdeMode()) {
-    const ideClient = await IdeClient.getInstance();
-    await ideClient.connect();
-    logIdeConnection(config, new IdeConnectionEvent(IdeConnectionType.START));
+  if (!options.deferIdeConnection) {
+    await connectIdeForStartup(config);
   }
 
   return {

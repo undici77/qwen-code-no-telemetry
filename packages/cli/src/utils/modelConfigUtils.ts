@@ -197,35 +197,38 @@ export interface ResolvedCliGenerationConfig {
   warnings: string[];
 }
 
-export function getAuthTypeFromEnv(): AuthType | undefined {
-  if (process.env['QWEN_OAUTH']) {
+export function getAuthTypeFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): AuthType | undefined {
+  if (env['QWEN_OAUTH']) {
     return AuthType.QWEN_OAUTH;
   }
 
   if (
-    process.env['OPENAI_API_KEY'] &&
-    (process.env['OPENAI_MODEL'] || process.env['QWEN_MODEL']) &&
-    process.env['OPENAI_BASE_URL']
+    env['OPENAI_API_KEY'] &&
+    (env['OPENAI_MODEL'] || env['QWEN_MODEL']) &&
+    env['OPENAI_BASE_URL']
   ) {
     return AuthType.USE_OPENAI;
   }
 
-  if (process.env['GEMINI_API_KEY']) {
+  if (env['GEMINI_API_KEY'] && env['GEMINI_MODEL']) {
     return AuthType.USE_GEMINI;
   }
 
-  if (process.env['GOOGLE_API_KEY']) {
+  if (env['GOOGLE_API_KEY'] && env['GOOGLE_MODEL']) {
     return AuthType.USE_VERTEX_AI;
   }
 
-  if (process.env['ANTHROPIC_API_KEY']) {
+  if (
+    env['ANTHROPIC_API_KEY'] &&
+    env['ANTHROPIC_MODEL'] &&
+    env['ANTHROPIC_BASE_URL']
+  ) {
     return AuthType.USE_ANTHROPIC;
   }
 
-  // Default to OpenAI for the no-telemetry version if no other type is specified.
-  // This ensures compatibility with common development and test environments
-  // where OPENAI_API_KEY might be provided but other markers are missing.
-  return AuthType.USE_OPENAI;
+  return undefined;
 }
 
 /**

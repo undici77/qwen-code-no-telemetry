@@ -14,6 +14,7 @@ import request from 'supertest';
 import { trace, type Span } from '@opentelemetry/api';
 import {
   createServeApp,
+  computeKeepaliveIntervalMs,
   detectFromLoopback,
   listWorkspaceSessionsForResponse,
   PromptDeadlineExceededError,
@@ -49,6 +50,7 @@ import {
   Storage,
   TrustGateError,
   type Extension,
+  type SessionListItem,
 } from '@qwen-code/qwen-code-core';
 import * as qwenCore from '@qwen-code/qwen-code-core';
 import type { DaemonStatusProvider } from '@qwen-code/acp-bridge';
@@ -70,6 +72,7 @@ import {
   SessionBusyError,
   SessionLimitExceededError,
   SessionNotFoundError,
+  TotalSessionLimitExceededError,
   WorkspaceMismatchError,
   type BridgeHeartbeatResult,
   type BridgeHeartbeatState,
@@ -111,6 +114,23 @@ import type { DaemonLogger } from './daemon-logger.js';
 import { FsError, type WorkspaceFileSystemFactory } from './fs/index.js';
 import { getRateLimiter } from './rate-limit.js';
 import type { DaemonWorkspaceService } from './workspace-service/types.js';
+import {
+  createWorkspaceRegistry,
+  type WorkspaceRegistry,
+  type WorkspaceRuntime,
+} from './workspace-registry.js';
+import {
+  ClientMcpSenderRegistry,
+  createClientMcpServerProvider,
+} from './acp-http/client-mcp-sender-registry.js';
+import {
+  DeviceFlowRegistry,
+  TooManyActiveDeviceFlowsError,
+  UpstreamDeviceFlowError,
+  brandSecret,
+  type DeviceFlowProvider,
+  type DeviceFlowRegistry as DeviceFlowRegistryType,
+} from './auth/device-flow.js';
 import { resetHomeEnvBootstrapForTesting } from '../config/settings.js';
 import {
   resetTrustedFoldersForTesting,
@@ -216,6 +236,7 @@ const EXPECTED_STAGE1_FEATURES = [
   'session_close',
   'session_archive',
   'session_metadata',
+  'session_organization',
   'session_export',
   // Issue #4175 PR 14. Always-on. Daemon supports the MCP client
   // guardrail surface (`--mcp-client-budget`, `clientCount` /
@@ -339,6 +360,7 @@ const EXPECTED_REGISTERED_FEATURES = [
   'session_branch',
   'rate_limit',
   'workspace_reload',
+  'multi_workspace_sessions',
   'client_mcp_over_ws',
   'cdp_tunnel_over_ws',
   'voice_transcribe',
@@ -575,6 +597,7 @@ interface FakeBridgeOpts {
       filePath: string;
     }>;
     touchedTopics: Array<'user' | 'feedback' | 'project' | 'reference'>;
+    touchedScopes: Array<'user' | 'project'>;
   }>;
   workspaceMemoryDreamImpl?: () => Promise<{
     summary?: string;
@@ -862,6 +885,7 @@ function fakeBridge(opts: FakeBridgeOpts = {}): FakeBridge {
       summary: 'forgot',
       removedEntries: [],
       touchedTopics: [],
+      touchedScopes: [],
     }));
   const workspaceMemoryDreamImpl =
     opts.workspaceMemoryDreamImpl ??
@@ -1255,6 +1279,7 @@ function fakeBridge(opts: FakeBridgeOpts = {}): FakeBridge {
         maxSessions: 20,
         maxPendingPromptsPerSession: 5,
         eventRingSize: 8000,
+        compactedReplayMaxBytes: 4 * 1024 * 1024,
         channelIdleTimeoutMs: 0,
         sessionIdleTimeoutMs: 1_800_000,
       },
@@ -2035,6 +2060,22 @@ describe('createServeApp', () => {
           expect(
             getAdvertisedServeFeatures(undefined, {
               reloadAvailable: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
+        if (feature === 'multi_workspace_sessions') {
+          expect(predicate({ multiWorkspaceSessionsEnabled: true })).toBe(true);
+          expect(predicate({ multiWorkspaceSessionsEnabled: false })).toBe(
+            false,
+          );
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              multiWorkspaceSessionsEnabled: true,
             }),
           ).toContain(feature);
           expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
@@ -5892,12 +5933,16 @@ describe('createServeApp', () => {
         });
         const calls = action === 'load' ? bridge.loadCalls : bridge.resumeCalls;
         expect(calls).toEqual([
-          { sessionId: 'persisted-1', workspaceCwd: WS_BOUND },
+          {
+            sessionId: 'persisted-1',
+            workspaceCwd: WS_BOUND,
+            ...(action === 'load' ? { historyReplay: 'response' } : {}),
+          },
         ]);
       }
     });
 
-    it('passes explicit cwd through to the bridge', async () => {
+    it('passes explicit primary cwd through to the bridge', async () => {
       const bridge = fakeBridge({
         loadImpl: async (req) => ({
           sessionId: req.sessionId,
@@ -5907,16 +5952,54 @@ describe('createServeApp', () => {
           state: { configOptions: [] },
         }),
       });
-      const app = createServeApp(baseOpts, undefined, { bridge });
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge },
+      );
       const res = await request(app)
         .post('/session/persisted-2/load')
         .set('Host', `127.0.0.1:${baseOpts.port}`)
-        .send({ cwd: '/work/a' });
+        .send({ cwd: WS_BOUND });
 
       expect(res.status).toBe(200);
       expect(res.body.state).toEqual({ configOptions: [] });
       expect(bridge.loadCalls).toEqual([
-        { sessionId: 'persisted-2', workspaceCwd: '/work/a' },
+        {
+          sessionId: 'persisted-2',
+          workspaceCwd: WS_BOUND,
+          historyReplay: 'response',
+        },
+      ]);
+    });
+
+    it('surfaces partial response-mode replay details from load', async () => {
+      const bridge = fakeBridge({
+        loadImpl: async (req) => ({
+          sessionId: req.sessionId,
+          workspaceCwd: req.workspaceCwd,
+          attached: false,
+          clientId: 'client-load',
+          state: {},
+          partial: true,
+          replayError: 'replay boom',
+        }),
+      });
+      const app = createServeApp(baseOpts, undefined, { bridge });
+      const res = await request(app)
+        .post('/session/persisted-partial/load')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.partial).toBe(true);
+      expect(res.body.replayError).toBe('replay boom');
+      expect(bridge.loadCalls).toEqual([
+        {
+          sessionId: 'persisted-partial',
+          workspaceCwd: realpathSync.native(process.cwd()),
+          historyReplay: 'response',
+        },
       ]);
     });
 
@@ -5935,6 +6018,7 @@ describe('createServeApp', () => {
           {
             sessionId: 'persisted-1',
             workspaceCwd: realpathSync.native(process.cwd()),
+            ...(action === 'load' ? { historyReplay: 'response' } : {}),
             clientId: 'client-1',
           },
         ]);
@@ -6039,7 +6123,7 @@ describe('createServeApp', () => {
       });
     });
 
-    it('400 workspace_mismatch when the bridge throws WorkspaceMismatchError', async () => {
+    it('400 workspace_mismatch before touching the bridge for non-primary cwd', async () => {
       const bridge = fakeBridge({
         loadImpl: async () => {
           throw new WorkspaceMismatchError(WS_BOUND, WS_DIFFERENT);
@@ -6061,6 +6145,7 @@ describe('createServeApp', () => {
         boundWorkspace: WS_BOUND,
         requestedWorkspace: WS_DIFFERENT,
       });
+      expect(bridge.loadCalls).toHaveLength(0);
     });
 
     it('503 + Retry-After: 5 when the bridge throws SessionLimitExceededError', async () => {
@@ -6803,6 +6888,559 @@ describe('createServeApp', () => {
       } finally {
         listSessionsSpy.mockRestore();
       }
+    });
+
+    it('lists organized sessions pinned first and filters by custom group', async () => {
+      const olderPinnedId = '550e8400-e29b-41d4-a716-446655440000';
+      const newerId = '550e8400-e29b-41d4-a716-446655440001';
+      await writeStoredSession({
+        sessionId: olderPinnedId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:00:00.000Z',
+        prompt: 'older pinned',
+        mtime: new Date('2026-05-17T12:00:00.000Z'),
+      });
+      await writeStoredSession({
+        sessionId: newerId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T13:00:00.000Z',
+        prompt: 'newer unpinned',
+        mtime: new Date('2026-05-17T13:00:00.000Z'),
+      });
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND, token: 'secret' },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const auth = (req: request.Test): request.Test =>
+        req
+          .set('Host', `127.0.0.1:${baseOpts.port}`)
+          .set('Authorization', 'Bearer secret');
+
+      const groupRes = await auth(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'Frontend', color: 'blue' });
+      expect(groupRes.status).toBe(201);
+      const groupId = groupRes.body.group.id as string;
+
+      const organizationRes = await auth(
+        request(app).patch(`/session/${olderPinnedId}/organization`),
+      ).send({ isPinned: true, groupId });
+      expect(organizationRes.status).toBe(200);
+
+      const organized = await auth(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=all`,
+        ),
+      );
+      expect(organized.status).toBe(200);
+      expect(
+        organized.body.sessions.map((s: { sessionId: string }) => s.sessionId),
+      ).toEqual([olderPinnedId, newerId]);
+      expect(organized.body.sessions[0]).toMatchObject({
+        sessionId: olderPinnedId,
+        isPinned: true,
+        groupId,
+      });
+
+      const filtered = await auth(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=${encodeURIComponent(groupId)}`,
+        ),
+      );
+      expect(filtered.status).toBe(200);
+      expect(filtered.body.sessions).toEqual([
+        expect.objectContaining({ sessionId: olderPinnedId, groupId }),
+      ]);
+    });
+
+    it('updates and deletes session groups through REST', async () => {
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      await writeStoredSession({
+        sessionId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:00:00.000Z',
+        prompt: 'stored session',
+        mtime: new Date('2026-05-17T12:00:00.000Z'),
+      });
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const host = (req: request.Test): request.Test =>
+        req.set('Host', `127.0.0.1:${baseOpts.port}`);
+
+      const groupRes = await host(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'Frontend', color: 'blue' });
+      expect(groupRes.status).toBe(201);
+      const groupId = groupRes.body.group.id as string;
+
+      const updateRes = await host(
+        request(app).patch(
+          `/workspace/${encodeURIComponent(
+            WS_BOUND,
+          )}/session-groups/${encodeURIComponent(groupId)}`,
+        ),
+      ).send({ name: 'UI', color: 'purple', order: 4 });
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.group).toMatchObject({
+        id: groupId,
+        name: 'UI',
+        color: 'purple',
+        order: 4,
+      });
+
+      const organizationRes = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ isPinned: true, groupId });
+      expect(organizationRes.status).toBe(200);
+
+      const deleteRes = await host(
+        request(app).delete(
+          `/workspace/${encodeURIComponent(
+            WS_BOUND,
+          )}/session-groups/${encodeURIComponent(groupId)}`,
+        ),
+      );
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body).toEqual({ deleted: true });
+
+      const groupsRes = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      );
+      expect(groupsRes.status).toBe(200);
+      expect(groupsRes.body.groups).toEqual([]);
+
+      const organized = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=ungrouped`,
+        ),
+      );
+      expect(organized.status).toBe(200);
+      expect(organized.body.sessions).toEqual([
+        expect.objectContaining({
+          sessionId,
+          groupId: null,
+          isPinned: true,
+        }),
+      ]);
+    });
+
+    it('returns session organization errors for invalid REST inputs', async () => {
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      await writeStoredSession({
+        sessionId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:00:00.000Z',
+        prompt: 'stored session',
+        mtime: new Date('2026-05-17T12:00:00.000Z'),
+      });
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const host = (req: request.Test): request.Test =>
+        req.set('Host', `127.0.0.1:${baseOpts.port}`);
+
+      const invalidView = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=recent`,
+        ),
+      );
+      expect(invalidView.status).toBe(400);
+      expect(invalidView.body.code).toBe('invalid_session_view');
+
+      const groupWithoutOrganizedView = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?group=pinned`,
+        ),
+      );
+      expect(groupWithoutOrganizedView.status).toBe(400);
+      expect(groupWithoutOrganizedView.body.code).toBe(
+        'invalid_session_group_filter',
+      );
+
+      const groupRes = await host(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'Backend', color: 'blue' });
+      expect(groupRes.status).toBe(201);
+
+      const duplicateGroup = await host(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'backend', color: 'green' });
+      expect(duplicateGroup.status).toBe(409);
+      expect(duplicateGroup.body.code).toBe('group_name_conflict');
+
+      const invalidOrganizationBody = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ isPinned: 'yes' });
+      expect(invalidOrganizationBody.status).toBe(400);
+      expect(invalidOrganizationBody.body.code).toBe(
+        'invalid_session_organization',
+      );
+
+      const invalidColorBody = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ color: 'pink' });
+      expect(invalidColorBody.status).toBe(400);
+      expect(invalidColorBody.body).toMatchObject({
+        code: 'invalid_session_organization',
+        field: 'color',
+      });
+
+      const unknownGroupFilter = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=missing-group`,
+        ),
+      );
+      expect(unknownGroupFilter.status).toBe(404);
+      expect(unknownGroupFilter.body.code).toBe('group_not_found');
+
+      const unknownGroupAssignment = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ groupId: 'missing-group' });
+      expect(unknownGroupAssignment.status).toBe(404);
+      expect(unknownGroupAssignment.body.code).toBe('group_not_found');
+
+      const missingSession = await host(
+        request(app).patch(
+          '/session/550e8400-e29b-41d4-a716-446655440099/organization',
+        ),
+      ).send({ isPinned: true });
+      expect(missingSession.status).toBe(404);
+    });
+
+    it('assigns a quick color tag through REST and surfaces it in organized lists', async () => {
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      await writeStoredSession({
+        sessionId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:00:00.000Z',
+        prompt: 'stored session',
+        mtime: new Date('2026-05-17T12:00:00.000Z'),
+      });
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const host = (req: request.Test): request.Test =>
+        req.set('Host', `127.0.0.1:${baseOpts.port}`);
+
+      const assignRes = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ color: 'green' });
+      expect(assignRes.status).toBe(200);
+      expect(assignRes.body).toMatchObject({
+        sessionId,
+        color: 'green',
+        groupId: null,
+      });
+
+      const organized = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=all`,
+        ),
+      );
+      expect(organized.status).toBe(200);
+      expect(organized.body.sessions).toEqual([
+        expect.objectContaining({ sessionId, color: 'green', groupId: null }),
+      ]);
+
+      // Picking "Ungrouped" (or a named group) clears the color tag.
+      const clearRes = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ color: null });
+      expect(clearRes.status).toBe(200);
+      expect(clearRes.body.color).toBeNull();
+    });
+
+    it('paginates organized sessions with opaque cursors', async () => {
+      for (let i = 0; i < 4; i++) {
+        await writeStoredSession({
+          sessionId: `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}`,
+          cwd: WS_BOUND,
+          timestamp: `2026-05-17T12:0${i}:00.000Z`,
+          prompt: `organized ${i}`,
+          mtime: new Date(`2026-05-17T12:1${i}:00.000Z`),
+        });
+      }
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const host = (req: request.Test): request.Test =>
+        req.set('Host', `127.0.0.1:${baseOpts.port}`);
+
+      const page1 = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&size=2`,
+        ),
+      );
+      expect(page1.status).toBe(200);
+      expect(page1.body.sessions).toHaveLength(2);
+      expect(page1.body.nextCursor).toEqual(expect.any(String));
+
+      const insertedSessionId = '550e8400-e29b-41d4-a716-446655449999';
+      await writeStoredSession({
+        sessionId: insertedSessionId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:09:00.000Z',
+        prompt: 'organized inserted',
+        mtime: new Date('2026-05-17T12:19:00.000Z'),
+      });
+
+      const page2 = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(
+            WS_BOUND,
+          )}/sessions?view=organized&size=2&cursor=${encodeURIComponent(
+            page1.body.nextCursor as string,
+          )}`,
+        ),
+      );
+      expect(page2.status).toBe(200);
+      expect(page2.body.sessions).toHaveLength(2);
+      expect(page2.body.nextCursor).toBeUndefined();
+
+      const allIds = [...page1.body.sessions, ...page2.body.sessions].map(
+        (session: { sessionId: string }) => session.sessionId,
+      );
+      expect(new Set(allIds).size).toBe(4);
+      expect(allIds).not.toContain(insertedSessionId);
+
+      const mismatchedCursor = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(
+            WS_BOUND,
+          )}/sessions?view=organized&group=pinned&cursor=${encodeURIComponent(
+            page1.body.nextCursor as string,
+          )}`,
+        ),
+      );
+      expect(mismatchedCursor.status).toBe(400);
+      expect(mismatchedCursor.body.code).toBe('invalid_cursor');
+      expect(mismatchedCursor.body.error).toContain(
+        'not a valid organized cursor',
+      );
+
+      const invalidCursor = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(
+            WS_BOUND,
+          )}/sessions?view=organized&cursor=not-a-cursor`,
+        ),
+      );
+      expect(invalidCursor.status).toBe(400);
+      expect(invalidCursor.body.code).toBe('invalid_cursor');
+      expect(invalidCursor.body.error).toContain(
+        'not a valid organized cursor',
+      );
+    });
+
+    it('reports organized session truncation in the response', async () => {
+      const items: SessionListItem[] = Array.from(
+        { length: 50_001 },
+        (_, i) => {
+          const timestamp = new Date(
+            Date.UTC(2026, 4, 17, 12, 0, i),
+          ).toISOString();
+          return {
+            sessionId: `session-${i}`,
+            cwd: WS_BOUND,
+            startTime: timestamp,
+            mtime: Date.parse(timestamp),
+            prompt: `prompt ${i}`,
+            filePath: `/tmp/session-${i}.jsonl`,
+          };
+        },
+      );
+      const listSessionsSpy = vi
+        .spyOn(SessionService.prototype, 'listSessions')
+        .mockResolvedValue({
+          items,
+          nextCursor: 1,
+          hasMore: true,
+        });
+
+      try {
+        const bridge = fakeBridge();
+        const app = createServeApp(
+          { ...baseOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge, boundWorkspace: WS_BOUND },
+        );
+        const res = await request(app)
+          .get(
+            `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized`,
+          )
+          .set('Host', `127.0.0.1:${baseOpts.port}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.sessions).toHaveLength(20);
+        expect(res.body.truncated).toBe(true);
+      } finally {
+        listSessionsSpy.mockRestore();
+      }
+    });
+
+    it('stops organized session scans when a cursor page is empty', async () => {
+      const listSessionsSpy = vi
+        .spyOn(SessionService.prototype, 'listSessions')
+        .mockResolvedValue({
+          items: [],
+          nextCursor: 1,
+          hasMore: true,
+        });
+
+      try {
+        const bridge = fakeBridge();
+        const app = createServeApp(
+          { ...baseOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge, boundWorkspace: WS_BOUND },
+        );
+        const res = await request(app)
+          .get(
+            `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized`,
+          )
+          .set('Host', `127.0.0.1:${baseOpts.port}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.sessions).toEqual([]);
+        expect(listSessionsSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        listSessionsSpy.mockRestore();
+      }
+    });
+
+    it('allows session organization mutations on loopback without a token', async () => {
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      await writeStoredSession({
+        sessionId,
+        cwd: WS_BOUND,
+        timestamp: '2026-05-17T12:00:00.000Z',
+        prompt: 'stored session',
+        mtime: new Date('2026-05-17T12:00:00.000Z'),
+      });
+      const bridge = fakeBridge();
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const host = (req: request.Test): request.Test =>
+        req.set('Host', `127.0.0.1:${baseOpts.port}`);
+
+      const groupRes = await host(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'Local', color: 'green' });
+      expect(groupRes.status).toBe(201);
+
+      const organizationRes = await host(
+        request(app).patch(`/session/${sessionId}/organization`),
+      ).send({ isPinned: true, groupId: groupRes.body.group.id });
+      expect(organizationRes.status).toBe(200);
+
+      const organized = await host(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=pinned`,
+        ),
+      );
+      expect(organized.status).toBe(200);
+      expect(organized.body.sessions).toEqual([
+        expect.objectContaining({
+          sessionId,
+          isPinned: true,
+          groupId: groupRes.body.group.id,
+        }),
+      ]);
+    });
+
+    it('applies organization metadata to live-only sessions in organized lists', async () => {
+      const liveId = '550e8400-e29b-41d4-a716-446655440099';
+      const liveSummary = {
+        sessionId: liveId,
+        workspaceCwd: WS_BOUND,
+        createdAt: '2026-05-17T12:00:00.000Z',
+        updatedAt: '2026-05-17T12:00:00.000Z',
+        clientCount: 1,
+        hasActivePrompt: false,
+      };
+      const bridge = fakeBridge({
+        listImpl: () => [liveSummary],
+        summaryImpl: () => liveSummary,
+      });
+      const app = createServeApp(
+        { ...baseOpts, workspace: WS_BOUND, token: 'secret' },
+        undefined,
+        { bridge, boundWorkspace: WS_BOUND },
+      );
+      const auth = (req: request.Test): request.Test =>
+        req
+          .set('Host', `127.0.0.1:${baseOpts.port}`)
+          .set('Authorization', 'Bearer secret');
+
+      const groupRes = await auth(
+        request(app).post(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/session-groups`,
+        ),
+      ).send({ name: 'Frontend', color: 'blue' });
+      expect(groupRes.status).toBe(201);
+
+      const organizationRes = await auth(
+        request(app).patch(`/session/${liveId}/organization`),
+      ).send({ isPinned: true, groupId: groupRes.body.group.id });
+      expect(organizationRes.status).toBe(200);
+
+      const organized = await auth(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=all`,
+        ),
+      );
+      expect(organized.status).toBe(200);
+      expect(organized.body.sessions).toEqual([
+        expect.objectContaining({
+          sessionId: liveId,
+          isPinned: true,
+          groupId: groupRes.body.group.id,
+        }),
+      ]);
+
+      const pinned = await auth(
+        request(app).get(
+          `/workspace/${encodeURIComponent(WS_BOUND)}/sessions?view=organized&group=pinned`,
+        ),
+      );
+      expect(pinned.status).toBe(200);
+      expect(pinned.body.sessions).toEqual([
+        expect.objectContaining({
+          sessionId: liveId,
+          isPinned: true,
+          groupId: groupRes.body.group.id,
+        }),
+      ]);
     });
 
     it('excludes live sessions from subsequent pages to prevent cross-page duplicates', async () => {
@@ -7567,24 +8205,24 @@ describe('createServeApp', () => {
   });
 
   describe('POST /session/:id/approval-mode (#4175 Wave 4 PR 17)', () => {
-    // Strict-gated route: refuses on no-token loopback defaults. All
-    // tests configure a token and forward `Authorization: Bearer …`.
+    // Non-strict route: works on no-token loopback defaults (matches
+    // POST /session/:id/model). Token-configured tests still forward
+    // `Authorization: Bearer …`.
     const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
     const auth = (req: request.Test): request.Test =>
       req
         .set('Host', `127.0.0.1:${tokenOpts.port}`)
         .set('Authorization', 'Bearer secret');
 
-    it('401 on no-token daemon: strict gate refuses without bearer auth', async () => {
+    it('200 on no-token daemon without bearer auth', async () => {
       const bridge = fakeBridge();
       const app = createServeApp(baseOpts, undefined, { bridge });
       const res = await request(app)
         .post('/session/session-A/approval-mode')
         .set('Host', `127.0.0.1:${baseOpts.port}`)
         .send({ mode: 'yolo' });
-      expect(res.status).toBe(401);
-      expect(res.body.code).toBe('token_required');
-      expect(bridge.setApprovalModeCalls).toHaveLength(0);
+      expect(res.status).toBe(200);
+      expect(bridge.setApprovalModeCalls).toHaveLength(1);
     });
 
     it('200 with the typed result on success and persist defaults to false', async () => {
@@ -10040,15 +10678,11 @@ describe('createServeApp', () => {
       await writeSession(sid);
       let firstCloseStarted!: () => void;
       let releaseFirstClose!: () => void;
-      let secondCloseStarted!: () => void;
       const firstCloseStartedPromise = new Promise<void>((resolve) => {
         firstCloseStarted = resolve;
       });
       const firstCloseReleasedPromise = new Promise<void>((resolve) => {
         releaseFirstClose = resolve;
-      });
-      const secondCloseStartedPromise = new Promise<void>((resolve) => {
-        secondCloseStarted = resolve;
       });
       let closeCount = 0;
       const bridge = fakeBridge({
@@ -10057,8 +10691,6 @@ describe('createServeApp', () => {
           if (closeCount === 1) {
             firstCloseStarted();
             await firstCloseReleasedPromise;
-          } else {
-            secondCloseStarted();
           }
         },
       });
@@ -10080,23 +10712,19 @@ describe('createServeApp', () => {
         .send({ sessionIds: [sid] })
         .then((res) => res);
 
-      const raceResult = await Promise.race([
-        secondCloseStartedPromise.then(() => 'archive-started'),
-        new Promise((resolve) => setTimeout(() => resolve('blocked'), 25)),
-      ]);
+      const archiveRes = await archivePromise;
 
       releaseFirstClose();
       try {
-        expect(raceResult).toBe('blocked');
-        const deleteRes = await deletePromise;
-        expect(deleteRes.status).toBe(200);
-        expect(deleteRes.body.removed).toEqual([sid]);
-        const archiveRes = await archivePromise;
+        expect(closeCount).toBe(1);
         expect(archiveRes.status).toBe(409);
         expect(archiveRes.body).toMatchObject({
           code: 'session_archiving',
           sessionId: sid,
         });
+        const deleteRes = await deletePromise;
+        expect(deleteRes.status).toBe(200);
+        expect(deleteRes.body.removed).toEqual([sid]);
       } finally {
         await Promise.allSettled([deletePromise, archivePromise]);
       }
@@ -11343,6 +11971,7 @@ describe('createServeApp', () => {
             maxSessions: 20,
             maxPendingPromptsPerSession: 5,
             eventRingSize: 8000,
+            compactedReplayMaxBytes: 4 * 1024 * 1024,
             channelIdleTimeoutMs: 0,
             sessionIdleTimeoutMs: 1_800_000,
           },
@@ -11454,18 +12083,80 @@ describe('createServeApp', () => {
       expect(res.body).toMatchObject({
         code: 'session_limit_exceeded',
         limit: 20,
+        scope: 'workspace',
       });
     });
+
+    it('503 + Retry-After + total scope and daemon log when bridge throws TotalSessionLimitExceededError', async () => {
+      const bridge = fakeBridge({
+        spawnImpl: async () => {
+          throw new TotalSessionLimitExceededError(10);
+        },
+      });
+      const daemonLog = fakeDaemonLog();
+      const app = createServeApp(baseOpts, undefined, {
+        bridge,
+        daemonLog,
+      });
+      const res = await request(app)
+        .post('/session')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ cwd: '/work/a' });
+      expect(res.status).toBe(503);
+      expect(res.headers['retry-after']).toBe('5');
+      expect(res.body).toMatchObject({
+        code: 'session_limit_exceeded',
+        limit: 10,
+        scope: 'total',
+      });
+      expect(daemonLog.warn).toHaveBeenCalledWith(
+        'total session admission rejected',
+        expect.objectContaining({
+          route: 'POST /session',
+          limit: 10,
+          scope: 'total',
+        }),
+      );
+    });
+  });
+});
+
+describe('computeKeepaliveIntervalMs', () => {
+  it('keeps the first heartbeat inside small custom idle windows', () => {
+    expect(computeKeepaliveIntervalMs(10_000)).toBe(5_000);
+  });
+
+  it('caps large idle windows at the relaxed maximum cadence', () => {
+    expect(computeKeepaliveIntervalMs(60 * 60_000)).toBe(10 * 60_000);
+  });
+
+  it('uses the relaxed cadence when idle reaping is disabled', () => {
+    expect(computeKeepaliveIntervalMs(0)).toBe(10 * 60_000);
   });
 });
 
 describe('runQwenServe', () => {
   let handle: RunHandle | undefined;
+  let runtimeDir: string | undefined;
+
+  beforeEach(async () => {
+    runtimeDir = await fsp.mkdtemp(
+      path.join(os.tmpdir(), 'qwen-serve-runtime-'),
+    );
+    // Keep real scheduled task state out of startup/shutdown tests; otherwise a
+    // developer's ~/.qwen/scheduled_tasks.json could rehydrate sessions here.
+    Storage.setRuntimeBaseDir(runtimeDir);
+  });
 
   afterEach(async () => {
     if (handle) {
       await handle.close();
       handle = undefined;
+    }
+    Storage.setRuntimeBaseDir(null);
+    if (runtimeDir) {
+      await fsp.rm(runtimeDir, { recursive: true, force: true });
+      runtimeDir = undefined;
     }
     // Scrub any env vars individual tests may have set so leftover
     // state can't leak into the next test in this worker.
@@ -12215,17 +12906,10 @@ describe('runQwenServe', () => {
     }
   });
 
-  it('honors deps.fsFactory override (#4175 PR 19 follow-up #2)', async () => {
-    // The injection point exists so embedded callers (other tools
-    // wrapping the daemon, future runtime locality contracts) can
-    // swap in a remote-fronting factory. This test asserts
-    // `runQwenServe` does NOT silently shadow a caller-supplied
-    // factory with its built-in default. A regression that ignored
-    // `deps.fsFactory` and fell back to the built-in factory would
-    // resolve `a.txt` against `process.cwd()`, find no such file,
-    // and return 404 `path_not_found`. The sentinel-throwing
-    // factory ensures we see 400 with `sentinel-from-fake-factory`
-    // in the body — proof the override actually drives the request.
+  it('keeps deps.fsFactory override out of REST routes', async () => {
+    // The bridge can use an injected multi-root factory, but REST routes
+    // still serialize primary-relative paths. Pin that REST gets the
+    // primary-only factory built by runQwenServe instead of the injected one.
     const sentinelMessage = 'sentinel-from-fake-factory';
     const fsFactory: WorkspaceFileSystemFactory = {
       assertCanWrite: () => {},
@@ -12269,21 +12953,28 @@ describe('runQwenServe', () => {
       }),
     };
     const bridge = fakeBridge();
-    handle = await runQwenServe(
-      {
-        hostname: '127.0.0.1',
-        port: 0,
-        mode: 'http-bridge',
-        workspace: process.cwd(),
-      },
-      { bridge, fsFactory },
+    const wsRoot = await fsp.mkdtemp(
+      path.join(os.tmpdir(), 'qwen-runqwen-rest-fs-'),
     );
-    const port = (handle.server.address() as { port: number }).port;
-    const res = await fetch(`http://127.0.0.1:${port}/file?path=a.txt`);
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string; errorKind: string };
-    expect(body.errorKind).toBe('parse_error');
-    expect(body.error).toContain(sentinelMessage);
+    try {
+      handle = await runQwenServe(
+        {
+          hostname: '127.0.0.1',
+          port: 0,
+          mode: 'http-bridge',
+          workspace: wsRoot,
+        },
+        { bridge, fsFactory },
+      );
+      const port = (handle.server.address() as { port: number }).port;
+      const res = await fetch(`http://127.0.0.1:${port}/file?path=a.txt`);
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { error: string; errorKind: string };
+      expect(body.errorKind).toBe('path_not_found');
+      expect(body.error).not.toContain(sentinelMessage);
+    } finally {
+      await fsp.rm(wsRoot, { recursive: true, force: true });
+    }
   });
 
   it('trust snapshot defaults to true (operator-chosen workspace)', async () => {
@@ -12348,7 +13039,7 @@ describe('runQwenServe', () => {
         './fs/index.js'
       );
       const factory = createWorkspaceFileSystemFactory({
-        boundWorkspace: wsRoot,
+        boundWorkspaces: [wsRoot],
         trusted: false,
         emit: () => undefined,
       });
@@ -13421,6 +14112,66 @@ describe('runQwenServe SIGINT handler', () => {
 });
 
 describe('createServeApp ServeAppDeps.fsFactory wiring (#4175 PR 18)', () => {
+  function makeInjectedWorkspaceRuntime() {
+    const bridge = fakeBridge();
+    const fsFactory = {
+      forRequest: vi.fn(() => ({ marker: 'registry-fs' })),
+    } as unknown as WorkspaceFileSystemFactory;
+    const clientMcpSenderRegistry = new ClientMcpSenderRegistry();
+    return {
+      workspaceId: 'ws-registry',
+      workspaceCwd: '/work/registry-primary',
+      primary: true,
+      trusted: true,
+      env: { mode: 'parent-process', overlayKeys: [] },
+      bridge,
+      workspaceService: {} as DaemonWorkspaceService,
+      routeFileSystemFactory: fsFactory,
+      clientMcpSenderRegistry,
+    } satisfies WorkspaceRuntime;
+  }
+
+  it('parks a single-workspace registry on app.locals for the canonical primary workspace', async () => {
+    const { createServeApp } = await import('./server.js');
+    const app = createServeApp(
+      {
+        port: 0,
+        hostname: '127.0.0.1',
+        workspace: '/work/bound',
+      } as Parameters<typeof createServeApp>[0],
+      () => 0,
+    );
+    const locals = app.locals as {
+      boundWorkspace?: string;
+      workspaceRegistry?: WorkspaceRegistry;
+    };
+
+    expect(locals.workspaceRegistry).toBeDefined();
+    expect(locals.workspaceRegistry!.primary.workspaceCwd).toBe(
+      locals.boundWorkspace,
+    );
+    expect(locals.workspaceRegistry!.primary.workspaceId).toMatch(
+      /^[a-f0-9]{16}$/,
+    );
+    expect(locals.workspaceRegistry!.primary.primary).toBe(true);
+    expect(locals.workspaceRegistry!.primary.trusted).toBe(false);
+    expect(locals.workspaceRegistry!.primary.env).toEqual({
+      mode: 'parent-process',
+      overlayKeys: [],
+    });
+    expect(locals.workspaceRegistry!.list()).toEqual([
+      locals.workspaceRegistry!.primary,
+    ]);
+
+    const res = await request(app)
+      .get('/capabilities')
+      .set('Host', '127.0.0.1:0')
+      .expect(200);
+    expect(res.body.workspaceCwd).toBe(
+      locals.workspaceRegistry!.primary.workspaceCwd,
+    );
+  });
+
   it('parks a default WorkspaceFileSystemFactory on app.locals when none is injected', async () => {
     const { createServeApp } = await import('./server.js');
     const app = createServeApp(
@@ -13456,7 +14207,323 @@ describe('createServeApp ServeAppDeps.fsFactory wiring (#4175 PR 18)', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { fsFactory: sentinel as any },
     );
-    expect((app.locals as { fsFactory?: unknown }).fsFactory).toBe(sentinel);
+    const locals = app.locals as {
+      fsFactory?: unknown;
+      workspaceRegistry?: WorkspaceRegistry;
+    };
+    expect(locals.fsFactory).toBe(sentinel);
+    expect(locals.workspaceRegistry!.primary.routeFileSystemFactory).toBe(
+      sentinel,
+    );
+  });
+
+  it('threads production-style primary trust into the default runtime metadata', async () => {
+    const { createServeApp } = await import('./server.js');
+    const app = createServeApp(
+      {
+        port: 0,
+        hostname: '127.0.0.1',
+        workspace: '/work/bound',
+      } as Parameters<typeof createServeApp>[0],
+      () => 0,
+      { primaryWorkspaceTrusted: true } as Parameters<typeof createServeApp>[2],
+    );
+    const locals = app.locals as { workspaceRegistry?: WorkspaceRegistry };
+
+    expect(locals.workspaceRegistry!.primary.trusted).toBe(true);
+  });
+
+  it('threads primary runtime env metadata into the default registry runtime', async () => {
+    const { createServeApp } = await import('./server.js');
+    const primaryRuntimeEnv = {
+      mode: 'runtime-overlay',
+      overlayKeys: ['OPENAI_API_KEY'],
+      envFilePaths: [],
+      effectiveEnv: { OPENAI_API_KEY: 'runtime-key' },
+    } as const;
+    const app = createServeApp(
+      {
+        port: 0,
+        hostname: '127.0.0.1',
+        workspace: '/work/bound',
+      } as Parameters<typeof createServeApp>[0],
+      () => 0,
+      { primaryRuntimeEnv } as Parameters<typeof createServeApp>[2],
+    );
+    const locals = app.locals as { workspaceRegistry?: WorkspaceRegistry };
+
+    expect(locals.workspaceRegistry!.primary.env).toBe(primaryRuntimeEnv);
+  });
+
+  it('wires total admission into the internally-created bridge', async () => {
+    type AdmissionContext = {
+      operation: 'spawn';
+      workspaceCwd: string;
+    };
+    let freshSessionAdmission:
+      | ((context: AdmissionContext) => { release(): void })
+      | undefined;
+    vi.resetModules();
+    vi.doMock('./acp-session-bridge.js', async () => {
+      const actual = await vi.importActual<
+        typeof import('./acp-session-bridge.js')
+      >('./acp-session-bridge.js');
+      return {
+        ...actual,
+        createAcpSessionBridge: vi.fn((opts: unknown) => {
+          freshSessionAdmission = (
+            opts as {
+              freshSessionAdmission?: typeof freshSessionAdmission;
+            }
+          ).freshSessionAdmission;
+          return fakeBridge();
+        }),
+      };
+    });
+
+    try {
+      const { createServeApp } = await import('./server.js');
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: WS_BOUND,
+          maxTotalSessions: 1,
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+      );
+
+      expect(freshSessionAdmission).toBeDefined();
+      const first = freshSessionAdmission!({
+        operation: 'spawn',
+        workspaceCwd: WS_BOUND,
+      });
+      let rejection: unknown;
+      try {
+        freshSessionAdmission!({
+          operation: 'spawn',
+          workspaceCwd: WS_BOUND,
+        });
+      } catch (err) {
+        rejection = err;
+      }
+      expect(rejection).toMatchObject({
+        name: 'TotalSessionLimitExceededError',
+        limit: 1,
+        scope: 'total',
+        operation: 'spawn',
+        workspaceCwd: WS_BOUND,
+      });
+      first.release();
+    } finally {
+      vi.doUnmock('./acp-session-bridge.js');
+      vi.resetModules();
+    }
+  });
+
+  it('uses an injected workspace registry as the primary runtime source', async () => {
+    const { createServeApp } = await import('./server.js');
+    const runtime = makeInjectedWorkspaceRuntime();
+    const registry = createWorkspaceRegistry([runtime]);
+
+    const app = createServeApp(
+      {
+        port: 0,
+        hostname: '127.0.0.1',
+        workspace: '/work/ignored',
+      } as Parameters<typeof createServeApp>[0],
+      () => 0,
+      { workspaceRegistry: registry } as Parameters<typeof createServeApp>[2],
+    );
+    const locals = app.locals as {
+      boundWorkspace?: string;
+      fsFactory?: unknown;
+      workspaceRegistry?: WorkspaceRegistry;
+    };
+
+    expect(locals.workspaceRegistry).toBe(registry);
+    expect(locals.boundWorkspace).toBe('/work/registry-primary');
+    expect(locals.fsFactory).toBe(runtime.routeFileSystemFactory);
+
+    const res = await request(app)
+      .get('/capabilities')
+      .set('Host', '127.0.0.1:0')
+      .expect(200);
+    expect(res.body.workspaceCwd).toBe('/work/registry-primary');
+    expect(res.body.features).toContain('workspace_reload');
+  });
+
+  it('accepts matching runtime deps when a workspace registry is injected', async () => {
+    const { createServeApp } = await import('./server.js');
+    const runtime = makeInjectedWorkspaceRuntime();
+    const registry = createWorkspaceRegistry([runtime]);
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          bridge: runtime.bridge,
+          workspace: runtime.workspaceService,
+          fsFactory: runtime.routeFileSystemFactory,
+          clientMcpSenderRegistry: runtime.clientMcpSenderRegistry,
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).not.toThrow();
+  });
+
+  it('uses the injected registry sender when client-MCP over WS is enabled', async () => {
+    const { createServeApp } = await import('./server.js');
+    const runtime = makeInjectedWorkspaceRuntime();
+    const registry = createWorkspaceRegistry([runtime]);
+
+    expect(() => {
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+          clientMcpOverWs: true,
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          bridge: runtime.bridge,
+        } as Parameters<typeof createServeApp>[2],
+      );
+    }).not.toThrow();
+
+    const provider = createClientMcpServerProvider(
+      runtime.clientMcpSenderRegistry,
+      runtime.bridge,
+      'connA',
+    );
+    const sendSdkMcpMessage: Parameters<
+      typeof provider.registerClientMcpServer
+    >[1] = vi.fn(async (_serverName, message) => message);
+
+    await expect(
+      provider.registerClientMcpServer('chrome-tools', sendSdkMcpMessage),
+    ).resolves.toEqual({ toolCount: 3 });
+
+    expect(runtime.clientMcpSenderRegistry.serverNames()).toEqual([
+      'chrome-tools',
+    ]);
+    expect(runtime.bridge.addRuntimeMcpServerCalls).toHaveLength(1);
+    expect(runtime.bridge.addRuntimeMcpServerCalls[0]).toMatchObject({
+      name: 'chrome-tools',
+      originatorClientId: 'connA',
+    });
+
+    const payload = { jsonrpc: '2.0', id: 1, method: 'ping' } as const;
+    const sender = runtime.clientMcpSenderRegistry.lookup('chrome-tools');
+    expect(sender).toBeDefined();
+    await expect(sender!(payload)).resolves.toEqual(payload);
+    expect(sendSdkMcpMessage).toHaveBeenCalledWith('chrome-tools', payload);
+
+    await provider.unregisterClientMcpServer('chrome-tools');
+    expect(runtime.clientMcpSenderRegistry.serverNames()).toEqual([]);
+    expect(runtime.bridge.removeRuntimeMcpServerCalls).toEqual([
+      { name: 'chrome-tools', originatorClientId: 'connA' },
+    ]);
+  });
+
+  it('rejects conflicting runtime deps when a workspace registry is injected', async () => {
+    const { createServeApp } = await import('./server.js');
+    const runtime = makeInjectedWorkspaceRuntime();
+    const registry = createWorkspaceRegistry([runtime]);
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          boundWorkspace: '/work/other',
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(
+      /workspaceRegistry conflicts with deps\.boundWorkspace: .*registry primary cwd="\/work\/registry-primary".*workspaceId="ws-registry".*deps\.boundWorkspace="\/work\/other"/,
+    );
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          bridge: fakeBridge(),
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(
+      /workspaceRegistry conflicts with deps\.bridge: .*workspaceId="ws-registry".*deps\.bridge is a different object/,
+    );
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          workspace: {} as DaemonWorkspaceService,
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(
+      /workspaceRegistry conflicts with deps\.workspace: .*workspaceId="ws-registry".*deps\.workspace is a different object/,
+    );
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          fsFactory: {
+            forRequest: vi.fn(() => ({ marker: 'other-fs' })),
+          } as unknown as WorkspaceFileSystemFactory,
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(
+      /workspaceRegistry conflicts with deps\.fsFactory: .*workspaceId="ws-registry".*deps\.fsFactory is a different object/,
+    );
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/ignored',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRegistry: registry,
+          clientMcpSenderRegistry: {},
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(
+      /workspaceRegistry conflicts with deps\.clientMcpSenderRegistry: .*workspaceId="ws-registry".*deps\.clientMcpSenderRegistry is a different object/,
+    );
   });
 
   it('passes custom ignore files through resolveBridgeFsFactory', async () => {
@@ -13471,7 +14538,7 @@ describe('createServeApp ServeAppDeps.fsFactory wiring (#4175 PR 18)', () => {
       await fsp.writeFile(path.join(tmp, 'agent.txt'), 'agent');
 
       const factory = resolveBridgeFsFactory({
-        boundWorkspace: tmp,
+        boundWorkspaces: [tmp],
         trusted: true,
         customIgnoreFiles: ['.cursorignore'],
       });
@@ -13541,7 +14608,7 @@ describe('auth device-flow routes', () => {
   // whose `poll` is scripted per-test. Lives at the top of the suite so
   // every `it()` can compose it with the registry.
   function makeFakeProvider(): {
-    provider: import('./auth/device-flow.js').DeviceFlowProvider;
+    provider: DeviceFlowProvider;
     startCount: () => number;
   } {
     let starts = 0;
@@ -13554,12 +14621,8 @@ describe('auth device-flow routes', () => {
             deviceCode:
               // Use the brandSecret helper so the secret follows the same
               // redaction shape the production provider produces.
-              (await import('./auth/device-flow.js')).brandSecret(
-                `device-${starts}`,
-              ),
-            pkceVerifier: (await import('./auth/device-flow.js')).brandSecret(
-              `pkce-${starts}`,
-            ),
+              brandSecret(`device-${starts}`),
+            pkceVerifier: brandSecret(`pkce-${starts}`),
             userCode: `USER-${starts}`,
             verificationUri: 'https://idp.example/verify',
             verificationUriComplete: 'https://idp.example/verify?u=AB12',
@@ -14040,17 +15103,15 @@ describe('auth device-flow routes', () => {
     // must surface as 502 with code:'upstream_error' instead of falling
     // through `sendBridgeError`'s generic 500 path. Build a fake
     // provider whose start always throws.
-    const { UpstreamDeviceFlowError } = await import('./auth/device-flow.js');
-    const failingProvider: import('./auth/device-flow.js').DeviceFlowProvider =
-      {
-        providerId: 'qwen-oauth',
-        async start() {
-          throw new UpstreamDeviceFlowError('mocked upstream outage');
-        },
-        async poll() {
-          return { kind: 'pending' as const };
-        },
-      };
+    const failingProvider: DeviceFlowProvider = {
+      providerId: 'qwen-oauth',
+      async start() {
+        throw new UpstreamDeviceFlowError('mocked upstream outage');
+      },
+      async poll() {
+        return { kind: 'pending' as const };
+      },
+    };
     const bridge = fakeBridge();
     const app = createServeApp({ ...baseOpts, token: 'tkn' }, undefined, {
       bridge,
@@ -14069,10 +15130,7 @@ describe('auth device-flow routes', () => {
   it('sweeper-driven auto-expiry transitions a stale entry to status:error and surfaces over GET', async () => {
     // PR 21 fold-in 0 P1-13: cover the time-based expiry path via an
     // injected registry with a controlled clock + manual sweeper trigger.
-    const { DeviceFlowRegistry, brandSecret } = await import(
-      './auth/device-flow.js'
-    );
-    const fakeProvider: import('./auth/device-flow.js').DeviceFlowProvider = {
+    const fakeProvider: DeviceFlowProvider = {
       providerId: 'qwen-oauth',
       async start() {
         return {
@@ -14172,9 +15230,6 @@ describe('auth device-flow routes', () => {
 
   it('POST returns 409 too_many_active_flows when registry cap is reached', async () => {
     // Inject a fake registry whose `start` always throws the cap error.
-    const { TooManyActiveDeviceFlowsError } = await import(
-      './auth/device-flow.js'
-    );
     const fakeRegistry = {
       start: async () => {
         throw new TooManyActiveDeviceFlowsError();
@@ -14183,7 +15238,7 @@ describe('auth device-flow routes', () => {
       cancel: () => undefined,
       listPending: () => [],
       dispose: () => {},
-    } as unknown as import('./auth/device-flow.js').DeviceFlowRegistry;
+    } as unknown as DeviceFlowRegistryType;
 
     const bridge = fakeBridge();
     const app = createServeApp({ ...baseOpts, token: 'tkn' }, undefined, {

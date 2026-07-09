@@ -29,6 +29,7 @@ import {
   DEFAULT_OTLP_ENDPOINT,
   SENSITIVE_SPAN_ATTRIBUTE_MAX_LENGTH_LIMIT,
   QwenLogger,
+  initializeTelemetry,
   isTelemetrySdkInitialized,
   shutdownTelemetry,
   refreshSessionContext,
@@ -39,11 +40,12 @@ import type {
 } from '../core/contentGenerator.js';
 import { DEFAULT_DASHSCOPE_BASE_URL } from '../core/openaiContentGenerator/constants.js';
 import {
+  AuthType,
   createContentGenerator,
   createContentGeneratorConfig,
   resolveContentGeneratorConfigWithSources,
 } from '../core/contentGenerator.js';
-import { AuthType } from '../core/authTypes.js';
+import { DEFAULT_TOKEN_LIMIT } from '../core/tokenLimits.js';
 import { GeminiClient } from '../core/client.js';
 import { ShellTool } from '../tools/shell.js';
 import { canUseRipgrep } from '../utils/ripgrepUtils.js';
@@ -501,6 +503,28 @@ describe('Server Config (config.ts)', () => {
     );
   });
 
+  describe('shell execution config', () => {
+    it('allows explicitly clearing the configured pager', () => {
+      const config = new Config(baseParams);
+
+      config.setShellExecutionConfig({ pager: 'less' });
+      expect(config.getShellExecutionConfig().pager).toBe('less');
+
+      config.setShellExecutionConfig({ pager: undefined });
+      expect(config.getShellExecutionConfig().pager).toBeUndefined();
+    });
+
+    it('preserves the existing pager when an update omits the pager key', () => {
+      const config = new Config(baseParams);
+
+      config.setShellExecutionConfig({ pager: 'less' });
+      expect(config.getShellExecutionConfig().pager).toBe('less');
+
+      config.setShellExecutionConfig({ terminalWidth: 120 });
+      expect(config.getShellExecutionConfig().pager).toBe('less');
+    });
+  });
+
   describe('getMaxSubagentDepth', () => {
     it('defaults to 5 when unset', () => {
       expect(new Config(baseParams).getMaxSubagentDepth()).toBe(5);
@@ -563,6 +587,51 @@ describe('Server Config (config.ts)', () => {
           maxSubagentDepth: 5000,
         }).getMaxSubagentDepth(),
       ).toBe(100);
+    });
+  });
+
+  describe('setAutoSkillEnabled', () => {
+    it('flips the live value read by getAutoSkillEnabled', () => {
+      const config = new Config({ ...baseParams, enableAutoSkill: true });
+      expect(config.getAutoSkillEnabled()).toBe(true);
+      config.setAutoSkillEnabled(false);
+      expect(config.getAutoSkillEnabled()).toBe(false);
+      config.setAutoSkillEnabled(true);
+      expect(config.getAutoSkillEnabled()).toBe(true);
+    });
+  });
+
+  describe('agents.maxParallelAgents', () => {
+    it('configures the background task registry concurrency cap', () => {
+      const config = new Config({
+        ...baseParams,
+        agents: {
+          maxParallelAgents: 1,
+        },
+      });
+      const registry = config.getBackgroundTaskRegistry();
+
+      registry.register({
+        agentId: 'bg-1',
+        description: 'one',
+        isBackgrounded: true,
+        status: 'running',
+        startTime: Date.now(),
+        abortController: new AbortController(),
+        outputFile: '/tmp/bg-1.jsonl',
+      });
+
+      expect(() =>
+        registry.register({
+          agentId: 'bg-2',
+          description: 'two',
+          isBackgrounded: true,
+          status: 'running',
+          startTime: Date.now(),
+          abortController: new AbortController(),
+          outputFile: '/tmp/bg-2.jsonl',
+        }),
+      ).toThrow('maximum concurrent background agents (1) reached');
     });
   });
 
@@ -1011,6 +1080,118 @@ describe('Server Config (config.ts)', () => {
         id: 'vl-same-provider',
         baseUrl: 'https://primary.example.com',
       });
+    });
+  });
+
+  describe('getModelFallbacks', () => {
+    it('returns empty array by default when unset', () => {
+      expect(new Config(baseParams).getModelFallbacks()).toEqual([]);
+    });
+
+    it('returns empty array when set to undefined', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: undefined,
+        }).getModelFallbacks(),
+      ).toEqual([]);
+    });
+
+    it('returns empty array when set to empty array', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: [],
+        }).getModelFallbacks(),
+      ).toEqual([]);
+    });
+
+    it('accepts an array of model IDs', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: ['qwen-plus', 'qwen-turbo'],
+        }).getModelFallbacks(),
+      ).toEqual(['qwen-plus', 'qwen-turbo']);
+    });
+
+    it('caps at 3 entries', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: [
+            'model-a',
+            'model-b',
+            'model-c',
+            'model-d',
+            'model-e',
+          ],
+        }).getModelFallbacks(),
+      ).toEqual(['model-a', 'model-b', 'model-c']);
+    });
+
+    it('deduplicates entries', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: ['qwen-plus', 'qwen-turbo', 'qwen-plus'],
+        }).getModelFallbacks(),
+      ).toEqual(['qwen-plus', 'qwen-turbo']);
+    });
+
+    it('trims whitespace from entries', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: ['  qwen-plus  ', ' qwen-turbo '],
+        }).getModelFallbacks(),
+      ).toEqual(['qwen-plus', 'qwen-turbo']);
+    });
+
+    it('removes blank entries', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: ['', '  ', 'qwen-plus', '', 'qwen-turbo'],
+        }).getModelFallbacks(),
+      ).toEqual(['qwen-plus', 'qwen-turbo']);
+    });
+
+    it('deduplicates after trimming', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: ['qwen-plus', ' qwen-plus ', 'qwen-turbo'],
+        }).getModelFallbacks(),
+      ).toEqual(['qwen-plus', 'qwen-turbo']);
+    });
+
+    it('returns a readonly array', () => {
+      const config = new Config({
+        ...baseParams,
+        modelFallbacks: ['qwen-plus'],
+      });
+      const fallbacks = config.getModelFallbacks();
+      // The returned array should be readonly (TypeScript enforces this,
+      // but verify the reference is stable)
+      expect(fallbacks).toEqual(['qwen-plus']);
+    });
+
+    it('caps at 3 after deduplication and blank removal', () => {
+      expect(
+        new Config({
+          ...baseParams,
+          modelFallbacks: [
+            '',
+            'model-a',
+            'model-a', // duplicate
+            '',
+            'model-b',
+            'model-c',
+            'model-d', // 4th unique, should be dropped
+          ],
+        }).getModelFallbacks(),
+      ).toEqual(['model-a', 'model-b', 'model-c']);
     });
   });
 
@@ -1714,13 +1895,13 @@ describe('Server Config (config.ts)', () => {
       expect(cache.size()).toBe(0);
     });
 
-    it('refreshes the telemetry session context', () => {
+    it('refreshes the telemetry session context with the new session ID', () => {
       const config = new Config(baseParams);
       vi.mocked(refreshSessionContext).mockClear();
 
-      config.startNewSession();
+      const newSessionId = config.startNewSession();
 
-      expect(refreshSessionContext).toHaveBeenCalledWith(config);
+      expect(refreshSessionContext).toHaveBeenCalledWith(newSessionId);
     });
 
     it('flushes the outgoing chat recording service when switching sessions', () => {
@@ -1851,6 +2032,158 @@ describe('Server Config (config.ts)', () => {
       servers: [],
       initializationError: 'LSP client is not initialized',
     });
+  });
+
+  it('should no-op LSP reinitialize when disabled or unavailable', async () => {
+    const disabledConfig = new Config({
+      ...baseParams,
+      lsp: { enabled: false },
+    });
+    await expect(disabledConfig.reinitializeLsp()).resolves.toBeUndefined();
+
+    const noClientConfig = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+    });
+    await expect(noClientConfig.reinitializeLsp()).resolves.toBeUndefined();
+  });
+
+  it('should delegate LSP reinitialize to the configured client', async () => {
+    const result = {
+      reconcile: {
+        added: ['tsserver'],
+        removed: [],
+        restarted: [],
+        unchanged: [],
+        failed: [],
+      },
+      skipped: [],
+    };
+    const reinitialize = vi.fn().mockResolvedValue(result);
+    const config = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+      lspClient: {
+        reinitialize,
+      } as unknown as ConfigParameters['lspClient'],
+    });
+
+    await expect(config.reinitializeLsp()).resolves.toBe(result);
+    expect(reinitialize).toHaveBeenCalledOnce();
+  });
+
+  it('should surface partial LSP reinitialize failures in status snapshot', async () => {
+    const result = {
+      reconcile: {
+        added: ['tsserver'],
+        removed: [],
+        restarted: [],
+        unchanged: [],
+        failed: ['clangd'],
+      },
+      skipped: [],
+    };
+    const config = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+      lspClient: {
+        reinitialize: vi.fn().mockResolvedValue(result),
+      } as unknown as ConfigParameters['lspClient'],
+    });
+
+    await expect(config.reinitializeLsp()).resolves.toBe(result);
+    expect(config.getLspStatusSnapshot()).toMatchObject({
+      initializationError: 'LSP reload partially failed: clangd',
+    });
+  });
+
+  it('should surface LSP reinitialize failures in status snapshot', async () => {
+    const config = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+      lspClient: {
+        reinitialize: vi.fn().mockRejectedValue(new Error('invalid lsp json')),
+      } as unknown as ConfigParameters['lspClient'],
+    });
+
+    await expect(config.reinitializeLsp()).rejects.toThrow('invalid lsp json');
+    expect(config.getLspStatusSnapshot()).toMatchObject({
+      initializationError: 'invalid lsp json',
+    });
+  });
+
+  it('should clear previous LSP reinitialize failures after recovery', async () => {
+    const result = {
+      reconcile: {
+        added: [],
+        removed: [],
+        restarted: [],
+        unchanged: ['tsserver'],
+        failed: [],
+      },
+      skipped: [],
+    };
+    const reinitialize = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('invalid lsp json'))
+      .mockResolvedValueOnce(result);
+    const config = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+      lspClient: {
+        reinitialize,
+      } as unknown as ConfigParameters['lspClient'],
+    });
+
+    await expect(config.reinitializeLsp()).rejects.toThrow('invalid lsp json');
+    expect(config.getLspStatusSnapshot()).toMatchObject({
+      initializationError: 'invalid lsp json',
+    });
+
+    await expect(config.reinitializeLsp()).resolves.toBe(result);
+    expect(config.getLspStatusSnapshot().initializationError).toBeUndefined();
+  });
+
+  it('should clear partial LSP reinitialize failures after full recovery', async () => {
+    const partialFailure = {
+      reconcile: {
+        added: [],
+        removed: [],
+        restarted: [],
+        unchanged: [],
+        failed: ['clangd'],
+      },
+      skipped: [],
+    };
+    const success = {
+      reconcile: {
+        added: [],
+        removed: [],
+        restarted: [],
+        unchanged: ['clangd'],
+        failed: [],
+      },
+      skipped: [],
+    };
+    const reinitialize = vi
+      .fn()
+      .mockResolvedValueOnce(partialFailure)
+      .mockResolvedValueOnce(success);
+    const config = new Config({
+      ...baseParams,
+      lsp: { enabled: true },
+      lspClient: {
+        reinitialize,
+      } as unknown as ConfigParameters['lspClient'],
+    });
+
+    await expect(config.reinitializeLsp()).resolves.toBe(partialFailure);
+    expect(config.getLspStatusSnapshot()).toMatchObject({
+      initializationError: 'LSP reload partially failed: clangd',
+    });
+
+    await expect(config.reinitializeLsp()).resolves.toBe(success);
+    expect(config.getLspStatusSnapshot().initializationError).toBeUndefined();
   });
 
   describe('initialize', () => {
@@ -3210,14 +3543,17 @@ describe('Server Config (config.ts)', () => {
   });
 
   it('getWarnings should use the model token limit when no contextWindowSize is configured', () => {
+    const warningThresholdTokens = Math.floor(DEFAULT_TOKEN_LIMIT * 0.15);
     const config = new Config({
       ...baseParams,
       model: 'unknown-model-for-context-warning-test',
-      userMemory: 'a'.repeat(100_000),
+      userMemory: 'a'.repeat((warningThresholdTokens + 1) * 4),
     });
 
     expect(config.getWarnings()).toContainEqual(
-      expect.stringContaining("model's 131,072 token context window"),
+      expect.stringContaining(
+        `model's ${DEFAULT_TOKEN_LIMIT.toLocaleString()} token context window`,
+      ),
     );
   });
 
@@ -3787,6 +4123,21 @@ describe('Server Config (config.ts)', () => {
     };
     const config = new Config(paramsWithTelemetry);
     expect(config.getTelemetryEnabled()).toBe(true);
+    expect(config.isTelemetryInitializationDeferred()).toBe(false);
+    expect(initializeTelemetry).toHaveBeenCalledWith(config);
+  });
+
+  it('Config constructor should defer telemetry initialization when requested', () => {
+    const paramsWithTelemetry: ConfigParameters = {
+      ...baseParams,
+      telemetry: { enabled: true },
+      deferTelemetryInitialization: true,
+    };
+    const config = new Config(paramsWithTelemetry);
+
+    expect(config.getTelemetryEnabled()).toBe(true);
+    expect(config.isTelemetryInitializationDeferred()).toBe(true);
+    expect(initializeTelemetry).not.toHaveBeenCalled();
   });
 
   it('Config shutdown should flush telemetry when SDK is initialized', async () => {
@@ -3838,41 +4189,43 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('Usage Statistics', () => {
-    it('defaults usage statistics to disabled for no-telemetry policy', () => {
+    it('defaults usage statistics to enabled if not specified', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
       });
 
-      expect(config.getUsageStatisticsEnabled()).toBe(false);
+      expect(config.getUsageStatisticsEnabled()).toBe(true);
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
-      'always returns false for usage statistics (input: $enabled)',
+      'sets usage statistics based on the provided value (enabled: $enabled)',
       ({ enabled }) => {
         const config = new Config({
           ...baseParams,
           usageStatisticsEnabled: enabled,
         });
-        expect(config.getUsageStatisticsEnabled()).toBe(false);
+        expect(config.getUsageStatisticsEnabled()).toBe(enabled);
       },
     );
 
-    it('usage statistics disabled returns value correctly', () => {
+    it('logs the session start event', async () => {
       const config = new Config({
         ...baseParams,
-        usageStatisticsEnabled: false,
+        usageStatisticsEnabled: true,
       });
-      expect(config.getUsageStatisticsEnabled()).toBe(false);
+      await config.initialize();
+
+      expect(QwenLogger.prototype.logStartSessionEvent).toHaveBeenCalledOnce();
     });
   });
 
   describe('GitCoAuthor Settings', () => {
-    it('defaults both commit and pr to false when not specified', () => {
+    it('defaults both commit and pr to true when not specified', () => {
       const config = new Config({ ...baseParams, gitCoAuthor: undefined });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(false);
-      expect(settings.pr).toBe(false);
+      expect(settings.commit).toBe(true);
+      expect(settings.pr).toBe(true);
     });
 
     it('accepts an object with independent commit and pr toggles', () => {
@@ -3944,15 +4297,15 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    // A genuinely-absent sub-field still defaults to false (no-telemetry default).
-    it('defaults absent commit/pr to false', () => {
+    // A genuinely-absent sub-field still defaults to true (schema default).
+    it('defaults absent commit/pr to true', () => {
       const config = new Config({
         ...baseParams,
         gitCoAuthor: {} as { commit?: boolean; pr?: boolean },
       });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(false);
-      expect(settings.pr).toBe(false);
+      expect(settings.commit).toBe(true);
+      expect(settings.pr).toBe(true);
     });
   });
 
@@ -4263,24 +4616,6 @@ describe('Server Config (config.ts)', () => {
       };
       const config = new Config(paramsWithUndefinedBuiltinRipgrep);
       expect(config.getUseBuiltinRipgrep()).toBe(true);
-    });
-  });
-
-  describe('GitCoAuthor Configuration', () => {
-    it('should default gitCoAuthor to false when not provided', () => {
-      const config = new Config(baseParams);
-      expect(config.getGitCoAuthor().commit).toBe(false);
-      expect(config.getGitCoAuthor().pr).toBe(false);
-    });
-
-    it('should set gitCoAuthor fields to true when explicitly provided as true', () => {
-      const paramsWithCoAuthor: ConfigParameters = {
-        ...baseParams,
-        gitCoAuthor: true,
-      };
-      const config = new Config(paramsWithCoAuthor);
-      expect(config.getGitCoAuthor().commit).toBe(true);
-      expect(config.getGitCoAuthor().pr).toBe(true);
     });
   });
 
@@ -5751,6 +6086,52 @@ describe('disabledTools runtime sync (#4282 fold-in 5 P2-2 / #4297 fold-in 5)', 
     });
     config.setDisabledTools(new Set());
     expect(config.getDisabledTools()).toEqual(new Set());
+  });
+});
+
+describe('visibleTools', () => {
+  const baseParams: ConfigParameters = {
+    targetDir: '.',
+    debugMode: false,
+    model: 'test-model',
+    cwd: '.',
+  };
+
+  it('initializes from `visibleTools` ConfigParameters', () => {
+    const config = new Config({
+      ...baseParams,
+      visibleTools: ['Foo', 'Bar'],
+    });
+    expect(config.getVisibleTools()).toEqual(new Set(['Foo', 'Bar']));
+  });
+
+  it('defaults to an empty set when `visibleTools` is omitted', () => {
+    const config = new Config(baseParams);
+    expect(config.getVisibleTools()).toEqual(new Set());
+  });
+
+  it('filters out non-string entries', () => {
+    const config = new Config({
+      ...baseParams,
+      visibleTools: [
+        'tool_a',
+        42 as unknown as string,
+        null as unknown as string,
+        'tool_b',
+      ],
+    });
+    expect(config.getVisibleTools()).toEqual(new Set(['tool_a', 'tool_b']));
+  });
+
+  it('is readonly — returned set preserves config state', () => {
+    const config = new Config({
+      ...baseParams,
+      visibleTools: ['web_fetch'],
+    });
+    const set = config.getVisibleTools();
+    expect(set.has('web_fetch')).toBe(true);
+    // always returns the same reference
+    expect(config.getVisibleTools()).toBe(set);
   });
 });
 

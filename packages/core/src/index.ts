@@ -122,6 +122,7 @@ export {
 } from './tools/skill-utils.js';
 export { atomicWriteFile } from './utils/atomicFileWrite.js';
 export { nextFireTime, parseCron } from './utils/cronParser.js';
+export * from './services/session-organization-service.js';
 
 // Backward-compatible type re-exports for tool classes removed from eager loading.
 // These preserve TypeScript type compatibility for downstream consumers.
@@ -206,7 +207,16 @@ export {
 } from './services/chatCompressionService.js';
 export * from './services/chatRecordingService.js';
 export * from './services/cronScheduler.js';
-export type { DurableCronTask } from './services/cronTasksFile.js';
+export type { DurableCronTask, CronTaskRun } from './services/cronTasksFile.js';
+export {
+  readCronTasks,
+  updateCronTasks,
+  removeCronTasks,
+  getCronFilePath,
+  generateCronTaskId,
+  appendCronRun,
+  MAX_TASK_RUNS,
+} from './services/cronTasksFile.js';
 export * from './services/fileDiscoveryService.js';
 export * from './services/fileHistoryService.js';
 export * from './services/fileReadCache.js';
@@ -268,6 +278,7 @@ export {
 } from './agents/runtime/workflow-saved.js';
 export * from './services/toolUseSummary.js';
 export * from './services/usageHistoryService.js';
+export * from './services/usage-dashboard-service.js';
 export * from './utils/bareMode.js';
 export * from './utils/safe-mode.js';
 export * from './utils/toolResultDisplayCompaction.js';
@@ -315,6 +326,7 @@ export * from './ide/types.js';
 // ============================================================================
 
 export * from './lsp/constants.js';
+export * from './lsp/configHash.js';
 export * from './lsp/LspConfigLoader.js';
 export * from './lsp/LspConnectionFactory.js';
 export * from './lsp/LspResponseNormalizer.js';

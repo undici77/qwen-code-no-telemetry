@@ -1068,11 +1068,15 @@ export class Session implements SessionContext {
    * Replays conversation history to the client using modular components.
    * Delegates to HistoryReplayer for consistent event emission.
    */
-  async replayHistory(records: ChatRecord[]): Promise<void> {
+  primeTurnFromHistory(records: ChatRecord[]): void {
     this.turn = Math.max(
       this.turn,
       computeInitialTurnFromHistory(records, this.config.getSessionId()),
     );
+  }
+
+  async replayHistory(records: ChatRecord[]): Promise<void> {
+    this.primeTurnFromHistory(records);
     await this.historyReplayer.replay(records);
   }
 
@@ -1147,7 +1151,9 @@ export class Session implements SessionContext {
 
   getRewindableUserTurnCount(): number {
     const apiHistory = this.captureHistorySnapshot();
-    const startIndex = getStartupContextLength(apiHistory);
+    const startIndex = getStartupContextLength(apiHistory, {
+      includeCompressed: true,
+    });
     let count = 0;
 
     for (let i = startIndex; i < apiHistory.length; i++) {
@@ -1183,7 +1189,9 @@ export class Session implements SessionContext {
     apiHistory: Content[],
     targetTurnIndex: number,
   ): number {
-    const startIndex = getStartupContextLength(apiHistory);
+    const startIndex = getStartupContextLength(apiHistory, {
+      includeCompressed: true,
+    });
 
     if (targetTurnIndex === 0) {
       return startIndex;
@@ -1878,6 +1886,9 @@ export class Session implements SessionContext {
                     ) {
                       functionCalls.push(...resp.value.functionCalls);
                     }
+                    if (resp.type === StreamEventType.MODEL_FALLBACK) {
+                      functionCalls.length = 0;
+                    }
                   }
                 } catch (error) {
                   // Restore the stripped orphan if the send threw before
@@ -2196,6 +2207,9 @@ export class Session implements SessionContext {
                 resp.value.functionCalls
               ) {
                 functionCalls.push(...resp.value.functionCalls);
+              }
+              if (resp.type === StreamEventType.MODEL_FALLBACK) {
+                functionCalls.length = 0;
               }
             }
           } catch (error) {
@@ -3114,6 +3128,9 @@ export class Session implements SessionContext {
                   ) {
                     functionCalls.push(...resp.value.functionCalls);
                   }
+                  if (resp.type === StreamEventType.MODEL_FALLBACK) {
+                    functionCalls.length = 0;
+                  }
                 }
 
                 if (usageMetadata) {
@@ -3422,6 +3439,9 @@ export class Session implements SessionContext {
                 resp.value.functionCalls
               ) {
                 functionCalls.push(...resp.value.functionCalls);
+              }
+              if (resp.type === StreamEventType.MODEL_FALLBACK) {
+                functionCalls.length = 0;
               }
             }
 
