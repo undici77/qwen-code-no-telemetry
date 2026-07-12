@@ -161,7 +161,7 @@ describe('renameCommand', () => {
   });
 
   it('should rename via ChatRecordingService when available', async () => {
-    const mockRecordCustomTitle = vi.fn().mockReturnValue(true);
+    const mockRecordCustomTitle = vi.fn().mockResolvedValue(true);
     const mockConfig = {
       getChatRecordingService: vi.fn().mockReturnValue({
         recordCustomTitle: mockRecordCustomTitle,
@@ -185,6 +185,54 @@ describe('renameCommand', () => {
       messageType: 'info',
       content: 'Session renamed to "my-feature"',
     });
+  });
+
+  it('waits for durable title persistence before reporting success', async () => {
+    let resolveTitle!: (value: boolean) => void;
+    const recordCustomTitle = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveTitle = resolve;
+        }),
+    );
+    const setSessionName = vi.fn();
+    const mockConfig = {
+      getChatRecordingService: vi.fn().mockReturnValue({ recordCustomTitle }),
+    };
+    mockContext = createMockCommandContext({
+      services: { config: mockConfig as never },
+      ui: { setSessionName },
+    });
+
+    const result = renameCommand.action!(mockContext, 'durable-title');
+    await vi.waitFor(() => expect(recordCustomTitle).toHaveBeenCalledOnce());
+    expect(setSessionName).not.toHaveBeenCalled();
+
+    resolveTitle(true);
+    await expect(result).resolves.toMatchObject({ messageType: 'info' });
+    expect(setSessionName).toHaveBeenCalledWith('durable-title');
+  });
+
+  it('does not update the UI when durable title persistence fails', async () => {
+    const setSessionName = vi.fn();
+    const mockConfig = {
+      getChatRecordingService: vi.fn().mockReturnValue({
+        recordCustomTitle: vi.fn().mockResolvedValue(false),
+      }),
+    };
+    mockContext = createMockCommandContext({
+      services: { config: mockConfig as never },
+      ui: { setSessionName },
+    });
+
+    await expect(
+      renameCommand.action!(mockContext, 'failed-title'),
+    ).resolves.toEqual({
+      type: 'message',
+      messageType: 'error',
+      content: 'Failed to rename session.',
+    });
+    expect(setSessionName).not.toHaveBeenCalled();
   });
 
   it('should fall back to SessionService when ChatRecordingService is unavailable', async () => {
@@ -220,7 +268,7 @@ describe('renameCommand', () => {
       });
       const mockConfig = {
         getChatRecordingService: vi.fn().mockReturnValue({
-          recordCustomTitle: vi.fn().mockReturnValue(true),
+          recordCustomTitle: vi.fn().mockResolvedValue(true),
         }),
       };
       mockContext = createMockCommandContext({
@@ -239,7 +287,7 @@ describe('renameCommand', () => {
         title: 'Refactor auth middleware',
         modelUsed: 'qwen-turbo',
       });
-      const mockRecordCustomTitle = vi.fn().mockReturnValue(true);
+      const mockRecordCustomTitle = vi.fn().mockResolvedValue(true);
       const mockConfig = {
         getChatRecordingService: vi.fn().mockReturnValue({
           recordCustomTitle: mockRecordCustomTitle,
@@ -332,7 +380,7 @@ describe('renameCommand', () => {
         title: 'Fix login button on mobile',
         modelUsed: 'qwen-turbo',
       });
-      const mockRecordCustomTitle = vi.fn().mockReturnValue(true);
+      const mockRecordCustomTitle = vi.fn().mockResolvedValue(true);
       const mockConfig = {
         getChatRecordingService: vi.fn().mockReturnValue({
           recordCustomTitle: mockRecordCustomTitle,

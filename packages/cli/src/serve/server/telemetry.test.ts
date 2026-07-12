@@ -96,6 +96,81 @@ describe('daemonTelemetryMiddleware — recordRequest seam', () => {
     expect(recordRequest).not.toHaveBeenCalled();
   });
 
+  it('maps plural workspace session listing to the existing route label', () => {
+    const recordRequest = vi.fn();
+    const mw = daemonTelemetryMiddleware(() => '/ws', recordRequest);
+    const res = mockRes(200);
+
+    mw(
+      mockReq('GET', '/workspaces/ws-secondary/sessions'),
+      res,
+      vi.fn() as unknown as NextFunction,
+    );
+    res.emit('finish');
+
+    expect(recordRequest).toHaveBeenCalledTimes(1);
+    expect(coreMocks.withDaemonRequestSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'GET',
+        route: 'GET /workspace/:id/sessions',
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('attributes workspace transcript reads to the target workspace and session', () => {
+    const mw = daemonTelemetryMiddleware(() => '/workspace/secondary');
+    const res = mockRes(200);
+
+    mw(
+      mockReq('GET', '/workspaces/ws-secondary/session/session-1/transcript'),
+      res,
+      vi.fn() as unknown as NextFunction,
+    );
+    res.emit('finish');
+
+    expect(coreMocks.withDaemonRequestSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'GET',
+        route: 'GET /workspaces/:workspace/session/:id/transcript',
+        sessionId: 'session-1',
+        workspaceHash: 'hash:/workspace/secondary',
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it('normalizes plural workspace agent routes to stable route labels', () => {
+    const mw = daemonTelemetryMiddleware(() => '/ws');
+    for (const [method, path, route] of [
+      ['GET', '/workspaces/ws-secondary/agents', 'GET /workspace/agents'],
+      [
+        'GET',
+        '/workspaces/ws-secondary/agents/reviewer',
+        'GET /workspace/agents/:agentType',
+      ],
+      ['POST', '/workspaces/ws-secondary/agents', 'POST /workspace/agents'],
+      [
+        'POST',
+        '/workspaces/ws-secondary/agents/reviewer',
+        'POST /workspace/agents/:agentType',
+      ],
+      [
+        'DELETE',
+        '/workspaces/ws-secondary/agents/reviewer',
+        'DELETE /workspace/agents/:agentType',
+      ],
+    ] as const) {
+      const res = mockRes(200);
+      mw(mockReq(method, path), res, vi.fn() as unknown as NextFunction);
+      res.emit('finish');
+      expect(coreMocks.withDaemonRequestSpan).toHaveBeenLastCalledWith(
+        expect.objectContaining({ method, route }),
+        expect.any(Function),
+      );
+    }
+  });
+
   it('excludes the dashboard status poll (GET /daemon/status) from recordRequest', () => {
     const recordRequest = vi.fn();
     const mw = daemonTelemetryMiddleware(() => '/ws', recordRequest);

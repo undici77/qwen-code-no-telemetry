@@ -38,7 +38,13 @@ import type { TaskBase, TaskRegistration, TaskStatus } from './tasks/types.js';
 const debugLogger = createDebugLogger('BACKGROUND_TASKS');
 
 const MAX_DESCRIPTION_LENGTH = 40;
-const MAX_RECENT_ACTIVITIES = 5;
+/**
+ * Cap on each agent's rolling `recentActivities` buffer. Exported so UI
+ * consumers that render the buffer (e.g. the detail dialog's Progress
+ * section) can bound their display to the same value instead of
+ * hardcoding a coincidentally-equal number.
+ */
+export const MAX_RECENT_ACTIVITIES = 10;
 export const DEFAULT_MAX_CONCURRENT_BACKGROUND_AGENTS = 10;
 export const BACKGROUND_AGENT_CONCURRENCY_ENV =
   'QWEN_CODE_MAX_BACKGROUND_AGENTS';
@@ -1004,6 +1010,26 @@ export class BackgroundTaskRegistry {
       if (!entry.isBackgrounded) continue;
       if (entry.status === 'running') return true;
       if (entry.status === 'cancelled' && !entry.notified) return true;
+    }
+    return false;
+  }
+
+  /**
+   * True while any background entry is still actually executing. Unlike
+   * `hasUnfinalizedTasks()`, a `cancelled`-but-not-yet-finalized entry
+   * does NOT count: its work has already been aborted and only the
+   * terminal task-notification is outstanding. Session-switch gates
+   * (/clear, /resume) key off this instead — they abort-and-reset the
+   * registry right after passing the gate, which suppresses that very
+   * notification, so blocking on it made the command silently no-op
+   * when the user cleared immediately after cancelling (issue #5949).
+   * Headless holdback loops must keep using `hasUnfinalizedTasks()` so
+   * every task_started still pairs with a task_notification.
+   */
+  hasRunningTasks(): boolean {
+    for (const entry of this.agents.values()) {
+      if (!entry.isBackgrounded) continue;
+      if (entry.status === 'running') return true;
     }
     return false;
   }

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 import {
@@ -21,13 +22,16 @@ import {
   useTranscriptStore,
   useWorkspaceActions,
   useWorkspaceEventSignals,
+  type DaemonWorkspaceActions,
   type DaemonSessionNotice,
   type DaemonStreamingState,
 } from '@qwen-code/webui/daemon-react-sdk';
 import { isDaemonTurnError } from '@qwen-code/sdk/daemon';
 import type {
+  DaemonInputAnnotation,
   DaemonTranscriptBlock,
   DaemonSessionTaskStatus,
+  DaemonSessionArtifact,
 } from '@qwen-code/sdk/daemon';
 import { extractPendingPermission } from './adapters/transcriptAdapter';
 import { MessageList, type MessageListHandle } from './components/MessageList';
@@ -67,6 +71,22 @@ import { ToolsDialog } from './components/dialogs/ToolsDialog';
 import { DaemonStatusDialog } from './components/dialogs/DaemonStatusDialog';
 import { SessionOverviewPanel } from './components/SessionOverviewPanel';
 import { SplitView } from './components/SplitView';
+import {
+  ArtifactPanel,
+  type ArtifactPanelTab,
+} from './components/artifacts/ArtifactPanel';
+import type {
+  TurnOutputFileChange,
+  TurnOutputKind,
+  TurnOutputOpenRequest,
+  TurnOutputScheduledTask,
+} from './components/artifacts/TurnOutputs';
+import { TURN_OUTPUT_KINDS } from './components/artifacts/TurnOutputs';
+import {
+  getArtifactsByTurn,
+  getFileChangesByTurn,
+  getScheduledTasksByTurn,
+} from './components/artifacts/turnOutputSelectors';
 import { useIsLargeScreen } from './hooks/useIsLargeScreen';
 import { MAX_SPLIT_PANES, parseSplitSessionIds } from './utils/splitUrl';
 import { ScheduledTasksDialog } from './components/dialogs/ScheduledTasksDialog';
@@ -80,7 +100,11 @@ import { ThemeDialog } from './components/dialogs/ThemeDialog';
 import { DeleteSessionDialog } from './components/dialogs/DeleteSessionDialog';
 import { ReleaseSessionDialog } from './components/dialogs/ReleaseSessionDialog';
 import { RewindDialog } from './components/dialogs/RewindDialog';
-import { WebShellSidebar } from './components/sidebar/WebShellSidebar';
+import {
+  WebShellSidebar,
+  type WebShellSidebarBranding,
+  type WebShellSidebarFooterOptions,
+} from './components/sidebar/WebShellSidebar';
 import {
   getLocalCommands,
   localizeBuiltinDescriptions,
@@ -90,6 +114,7 @@ import { mergeCommands } from './hooks/daemonSessionMappers';
 import { useAnimationFrameValue } from './hooks/useAnimationFrameValue';
 import { useBackgroundTasks } from './hooks/useBackgroundTasks';
 import { useMessages } from './hooks/useMessages';
+import { useSessionArtifacts } from './hooks/useSessionArtifacts';
 import { useShallowMemo, useStableArray } from './hooks/useShallowMemo';
 import {
   I18nProvider,
@@ -105,6 +130,7 @@ import {
 } from './utils/copyCommand';
 import { isEditableTarget } from './utils/dom';
 import { getModelDisplayName } from './utils/modelDisplay';
+import { hasMultipleWorkspaces, workspaceBasename } from './utils/workspace';
 import { isVisibleComposerModel } from './utils/composerModels';
 import { filterModelSwitchMessages } from './utils/modelSwitchMessages';
 import { decideEscapeIntent } from './utils/escapeIntent';
@@ -160,6 +186,7 @@ import {
   type TodoSnapshotDiff,
 } from './utils/todos';
 import { ThemeProvider } from './themeContext';
+import { InteractionBlockContext } from './interactionBlockContext';
 import {
   WebShellThemeId,
   THEME_SETTING_KEY,
@@ -174,17 +201,24 @@ import {
   type WebShellMarkdownCustomization,
   type ToolHeaderExtraRenderer,
   type UserMessageContentRenderer,
+  type UserMessageContentParser,
+  type AssistantTurnFooterRenderer,
   type WelcomeHeaderRenderer,
   type WelcomeFooterRenderer,
   type ComposerToolbarStartRenderer,
   type ComposerToolbarEndRenderer,
   type ComposerToolbarRightRenderer,
+  type ComposerHeaderRenderer,
   type FooterRenderer,
   type LoadingPhrasesResolver,
   type MarkdownTableMode,
   type WebShellTaskInfo,
   type WebShellAtProvider,
+  type WebShellBuiltinAtProvidersConfig,
+  type ComposerTagClickHandler,
+  type ComposerTagRenderer,
   type WebShellComposerTagIconMap,
+  type WebShellBottomStatusItem,
 } from './customization';
 import type { CommandDisplayCategoryOrder } from './utils/commandDisplay';
 import styles from './App.module.css';
@@ -235,10 +269,39 @@ function TodoContextsProvider({
 
 const MODES_CYCLE = DAEMON_APPROVAL_MODES;
 const MAX_TOASTS = 4;
+const DEFAULT_REVIEW_PANEL_WIDTH = 760;
+const MIN_ARTIFACT_PANEL_WIDTH = 320;
+const MIN_CHAT_PANE_WIDTH_WITH_ARTIFACT_PANEL = 500;
+const MAX_ARTIFACT_PANEL_SESSION_STATES = 20;
+interface ArtifactPanelSessionState {
+  open: boolean;
+  tabs: ArtifactPanelTab[];
+  activeTabId: string | null;
+  reviewChanges: readonly TurnOutputFileChange[];
+  selectedReviewPath: string | null;
+  extraArtifacts: DaemonSessionArtifact[];
+  width: number;
+}
+interface PaneArtifactSnapshot {
+  artifacts: readonly DaemonSessionArtifact[];
+  workspaceActions: DaemonWorkspaceActions;
+}
 // Cap on how long a manual "run now" waits for its bound session to become
 // active before giving up, so the scheduled-tasks UI can't stay stuck disabled
 // if the switch never completes.
 const BOUND_RUN_SWITCH_TIMEOUT_MS = 30_000;
+
+function availableSkillInfos(status: {
+  skills?: Array<{ status?: string; name: string; description?: string }>;
+}): SkillInfo[] {
+  return (status.skills ?? [])
+    .filter((skill) => skill.status === 'ok')
+    .map((skill) => ({
+      name: skill.name,
+      description: skill.description ?? '',
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 const COMPACT_MODE_SETTING_KEY = 'ui.compactMode';
 const HIDE_TIPS_SETTING_KEY = 'ui.hideTips';
 
@@ -280,6 +343,7 @@ interface ActiveGoalStatus {
 interface SendPromptOptionsWithRetry {
   optimisticUserMessage?: boolean;
   images?: PromptImage[];
+  inputAnnotations?: DaemonInputAnnotation[];
   retry?: boolean;
   clearComposerOnPromptStart?: boolean;
   commitComposerAccepted?: ComposerSubmitCommit;
@@ -342,6 +406,12 @@ export interface BugReportInfo {
 export interface WebShellSidebarOptions {
   enabled?: boolean;
   defaultCollapsed?: boolean;
+  /** Whether to show WebShell's built-in compact drawer toggle. Defaults to true. */
+  showCompactToggle?: boolean;
+  /** Hide or replace the leading New Chat brand mark. */
+  branding?: false | WebShellSidebarBranding;
+  /** Hide the footer completely or select the built-in entries it exposes. */
+  footer?: false | WebShellSidebarFooterOptions;
 }
 
 export type SessionChangeEvent =
@@ -354,6 +424,8 @@ export interface WebShellApi {
   openSplitView: () => void;
   /** Open the Session Overview panel, matching the built-in sidebar button. */
   openSessionOverview: () => void;
+  /** Open the compact session drawer, matching the hamburger control. */
+  openSessionDrawer: () => void;
 }
 
 export interface WebShellProps {
@@ -379,6 +451,15 @@ export interface WebShellProps {
   splitSessionIds?: readonly string[];
   /** Called when the split pane list changes from inside WebShell. */
   onSplitSessionIdsChange?: (sessionIds: string[]) => void;
+  /**
+   * Called instead of the built-in right panel open behavior when a user clicks
+   * a turn output such as review changes, an artifact, or a scheduled task.
+   */
+  onRightPanelOpen?: (request: TurnOutputOpenRequest) => void;
+  /**
+   * Controls which turn output cards appear below messages. Defaults to all.
+   */
+  messageTurnOutputs?: readonly TurnOutputKind[];
   /** Imperative handle for externally opening WebShell surfaces. */
   shellRef?: React.Ref<WebShellApi>;
   /** Built-in composer toolbar actions to show. Defaults to all actions. */
@@ -401,6 +482,8 @@ export interface WebShellProps {
   hiddenSlashCommands?: string[];
   /** Slash command category order. Defaults to custom, skill, system. */
   slashCommandCategoryOrder?: CommandDisplayCategoryOrder;
+  /** Built-in @ mention providers to enable. Defaults to all built-ins. */
+  builtinAtProviders?: WebShellBuiltinAtProvidersConfig;
   /** Additional @ mention categories shown alongside built-in files/extensions. */
   atProviders?: readonly WebShellAtProvider[];
   /** Icon URLs for custom composer tag kinds used by @ mention chips. */
@@ -411,16 +494,36 @@ export interface WebShellProps {
   renderWelcomeHeader?: WelcomeHeaderRenderer;
   /** Custom renderer shown below the chat composer in the empty welcome state. */
   renderWelcomeFooter?: WelcomeFooterRenderer;
+  /**
+   * Show renderWelcomeFooter between the welcome header and composer on
+   * mobile empty state. Requires renderWelcomeFooter to be provided for the
+   * mobile CSS reordering to take effect.
+   */
+  mobileWelcomeFooterMiddle?: boolean;
+  /** Parse user-message text into display parts such as chips. */
+  parseUserMessageContent?: UserMessageContentParser;
   /** Custom renderer for the inside of user chat bubbles. Defaults to plain text. */
   renderUserMessageContent?: UserMessageContentRenderer;
+  /** Custom renderer for composer and user-message tags. */
+  renderComposerTag?: ComposerTagRenderer;
+  /** Custom hover content for composer and user-message tags. */
+  renderComposerTagTooltip?: ComposerTagRenderer;
+  /** Click handler for composer and user-message tags. */
+  onComposerTagClick?: ComposerTagClickHandler;
+  /** Custom renderer displayed after the final assistant message of each turn. */
+  renderAssistantTurnFooter?: AssistantTurnFooterRenderer;
   /** Custom renderer inserted before the built-in chat composer toolbar controls. */
   renderComposerToolbarStart?: ComposerToolbarStartRenderer;
   /** Custom renderer inserted after the built-in composer toolbar controls. */
   renderComposerToolbarEnd?: ComposerToolbarEndRenderer;
   /** Custom renderer inserted into the composer toolbar's right-side action area. */
   renderComposerToolbarRight?: ComposerToolbarRightRenderer;
+  /** Custom renderer shown directly above the chat composer input. */
+  renderComposerHeader?: ComposerHeaderRenderer;
   /** Custom component for the footer area below the Editor. Replaces the built-in StatusBar. */
   renderFooter?: FooterRenderer;
+  /** Extra status items shown in the floating bottom panel beside the TODO summary. */
+  bottomStatusItems?: readonly WebShellBottomStatusItem[];
   /** Collapse thinking blocks to 5 lines with a click-to-expand toggle. */
   compactThinking?: boolean;
   /** Auto-collapse completed turns to just the prompt and final answer, with a per-turn toggle. Defaults to true. */
@@ -462,7 +565,9 @@ export interface WebShellProps {
 }
 
 type SessionActionsWithCreate = {
-  createSession: () => Promise<{ sessionId: string }>;
+  createSession: (options?: {
+    workspaceCwd?: string;
+  }) => Promise<{ sessionId: string }>;
   attachSession: () => Promise<void>;
   closeSession: () => Promise<void>;
   clearSession: () => Promise<void>;
@@ -477,25 +582,35 @@ const emptyComposerApi: WebShellComposerApi = {
   submit: () => {},
 };
 
+const EMPTY_BOTTOM_STATUS_ITEMS: readonly WebShellBottomStatusItem[] = [];
 const DEFAULT_CHAT_MAX_WIDTH = 1000;
+const BOTTOM_PANEL_GAP_PX = 6;
+const BOTTOM_PANEL_FALLBACK_INSET_PX = 40;
 type ChatWidthMode = `${typeof DEFAULT_CHAT_MAX_WIDTH}` | 'wide';
 
 const CHAT_WIDTH_STORAGE_KEY = 'qwen-code-web-shell-chat-width';
 const CHAT_SHELL_HORIZONTAL_PADDING = 40;
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'qwen-code-web-shell-sidebar-collapsed';
 
-function resolveSidebarOptions(
-  sidebar: WebShellProps['sidebar'],
-): Required<WebShellSidebarOptions> {
+function resolveSidebarOptions(sidebar: WebShellProps['sidebar']): {
+  enabled: boolean;
+  defaultCollapsed: boolean;
+  showCompactToggle: boolean;
+  branding?: false | WebShellSidebarBranding;
+  footer?: false | WebShellSidebarFooterOptions;
+} {
   if (sidebar === true) {
-    return { enabled: true, defaultCollapsed: false };
+    return { enabled: true, defaultCollapsed: false, showCompactToggle: true };
   }
   if (!sidebar) {
-    return { enabled: false, defaultCollapsed: false };
+    return { enabled: false, defaultCollapsed: false, showCompactToggle: true };
   }
   return {
     enabled: sidebar.enabled ?? true,
     defaultCollapsed: sidebar.defaultCollapsed ?? false,
+    showCompactToggle: sidebar.showCompactToggle ?? true,
+    branding: sidebar.branding,
+    footer: sidebar.footer,
   };
 }
 
@@ -625,12 +740,6 @@ function isAlreadyDispatched(error: unknown): error is AlreadyDispatchedError {
     error !== null &&
     (error as AlreadyDispatchedError)._alreadyDispatched === true
   );
-}
-
-function logSessionNoticesHook(notices: readonly DaemonSessionNotice[]): void {
-  if (notices.length > 0) {
-    console.info('[web-shell] useSessionNotices()', { notices });
-  }
 }
 
 function shouldToastNotice(notice: DaemonSessionNotice): boolean {
@@ -824,20 +933,31 @@ export function App({
   onBugReport,
   hiddenSlashCommands,
   slashCommandCategoryOrder,
+  builtinAtProviders,
   atProviders,
   composerTagIcons,
   renderToolHeaderExtra,
   renderWelcomeHeader,
   renderWelcomeFooter,
+  mobileWelcomeFooterMiddle = false,
+  parseUserMessageContent,
   renderUserMessageContent,
+  renderComposerTag,
+  renderComposerTagTooltip,
+  onComposerTagClick,
+  renderAssistantTurnFooter,
   renderComposerToolbarStart,
   renderComposerToolbarEnd,
   renderComposerToolbarRight,
+  renderComposerHeader,
   renderFooter,
+  bottomStatusItems,
   chatMaxWidth,
   sidebar,
   splitSessionIds: externalSplitSessionIds,
   onSplitSessionIdsChange,
+  onRightPanelOpen,
+  messageTurnOutputs,
   shellRef,
   composerToolbarActions,
   compactThinking = false,
@@ -875,20 +995,29 @@ export function App({
     string | null
   >(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
+  const [forceMobileDrawer, setForceMobileDrawer] = useState(false);
+  const closeMobileDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
+    setForceMobileDrawer(false);
+  }, []);
   // The Session Overview panel (mission control for managing many sessions at
   // once) is only offered on large screens; below that there is no room for it
   // to be useful.
   const isLargeScreen = useIsLargeScreen();
+  // In split view the session sidebar competes with the panes for width. Below
+  // this width it auto-collapses to its icon rail so the panes get the room, and
+  // expands again once the window grows back. A wide split keeps the full
+  // sidebar (and the user's own collapse preference).
+  const splitSidebarHasRoom = useIsLargeScreen('(min-width: 1200px)');
 
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 760px)');
     const handler = (e: MediaQueryListEvent) => {
-      if (!e.matches) setMobileDrawerOpen(false);
+      if (!e.matches) closeMobileDrawer();
     };
     mql.addEventListener('change', handler);
     return () => mql.removeEventListener('change', handler);
-  }, []);
+  }, [closeMobileDrawer]);
 
   useEffect(() => {
     if (!mobileDrawerOpen) return;
@@ -941,13 +1070,20 @@ export function App({
   }, []);
   const customization = useMemo(
     () => ({
+      composerTagIcons,
       renderToolHeaderExtra,
       renderWelcomeHeader,
       renderWelcomeFooter,
+      parseUserMessageContent,
       renderUserMessageContent,
+      renderComposerTag,
+      renderComposerTagTooltip,
+      onComposerTagClick,
+      renderAssistantTurnFooter,
       renderComposerToolbarStart,
       renderComposerToolbarEnd,
       renderComposerToolbarRight,
+      renderComposerHeader,
       renderFooter,
       compactThinking,
       collapseCompletedTurns,
@@ -956,13 +1092,20 @@ export function App({
       loadingPhrases,
     }),
     [
+      composerTagIcons,
       renderToolHeaderExtra,
       renderWelcomeHeader,
       renderWelcomeFooter,
+      parseUserMessageContent,
       renderUserMessageContent,
+      renderComposerTag,
+      renderComposerTagTooltip,
+      onComposerTagClick,
+      renderAssistantTurnFooter,
       renderComposerToolbarStart,
       renderComposerToolbarEnd,
       renderComposerToolbarRight,
+      renderComposerHeader,
       renderFooter,
       compactThinking,
       collapseCompletedTurns,
@@ -972,12 +1115,21 @@ export function App({
     ],
   );
   const CustomFooter = renderFooter;
+  const CustomComposerHeader = renderComposerHeader;
   const store = useTranscriptStore();
   const blocks = useTranscriptBlocks();
   const connection = useConnection();
   const sessionActions = useActions();
   const { notices, dismissNotice } = useSessionNotices();
   const workspaceActions = useWorkspaceActions();
+  // Phase 4: the workspace picked for the *next* new session on multi-workspace
+  // daemons. Kept in a ref too because session creation is lazy (first prompt),
+  // so the ensureSessionForPrompt callback must read the latest value.
+  const [selectedWorkspaceCwd, setSelectedWorkspaceCwd] = useState<
+    string | undefined
+  >(undefined);
+  const selectedWorkspaceCwdRef = useRef(selectedWorkspaceCwd);
+  selectedWorkspaceCwdRef.current = selectedWorkspaceCwd;
   const onToastRef = useRef(onToast);
   onToastRef.current = onToast;
   const toastIdRef = useRef(0);
@@ -1013,6 +1165,7 @@ export function App({
   const nextRecapMessageIdRef = useRef(1);
   const nextBtwMessageIdRef = useRef(1);
   const btwAbortControllerRef = useRef<AbortController | null>(null);
+  const chatPaneRef = useRef<HTMLDivElement | null>(null);
   const currentSessionIdRef = useRef(connection.sessionId);
   const lastNotifiedSessionIdRef = useRef<string | undefined>(undefined);
   const lastGoalSessionIdRef = useRef(connection.sessionId);
@@ -1041,6 +1194,502 @@ export function App({
     }
     return filterModelSwitchMessages(result);
   }, [messages, recapMessage]);
+  const {
+    artifacts,
+    loading: artifactsLoading,
+    error: artifactsError,
+  } = useSessionArtifacts();
+  const [artifactPanelExtraArtifacts, setArtifactPanelExtraArtifacts] =
+    useState<DaemonSessionArtifact[]>([]);
+  const [paneArtifactSnapshots, setPaneArtifactSnapshots] = useState<
+    Map<string, PaneArtifactSnapshot>
+  >(() => new Map());
+  const [artifactPanelTabs, setArtifactPanelTabs] = useState<
+    ArtifactPanelTab[]
+  >([]);
+  useEffect(() => {
+    if (artifactPanelExtraArtifacts.length === 0 || artifacts.length === 0) {
+      return;
+    }
+    const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
+    const paneArtifactIds = new Set(
+      artifactPanelTabs
+        .filter((tab) => tab.kind === 'artifact' && tab.workspaceActions)
+        .map((tab) => (tab.kind === 'artifact' ? tab.artifactId : '')),
+    );
+    setArtifactPanelExtraArtifacts((previous) => {
+      const next = previous.filter(
+        (artifact) =>
+          !artifactIds.has(artifact.id) || paneArtifactIds.has(artifact.id),
+      );
+      return next.length === previous.length ? previous : next;
+    });
+  }, [artifacts, artifactPanelExtraArtifacts.length, artifactPanelTabs]);
+  const paneArtifactExtras = useMemo(
+    () =>
+      Array.from(paneArtifactSnapshots.values()).flatMap((snapshot) => [
+        ...snapshot.artifacts,
+      ]),
+    [paneArtifactSnapshots],
+  );
+  const artifactPanelArtifacts = useMemo(() => {
+    if (
+      artifactPanelExtraArtifacts.length === 0 &&
+      paneArtifactExtras.length === 0
+    ) {
+      return artifacts;
+    }
+    const merged = [...artifacts];
+    for (const artifact of [
+      ...artifactPanelExtraArtifacts,
+      ...paneArtifactExtras,
+    ]) {
+      const index = merged.findIndex((item) => item.id === artifact.id);
+      if (index < 0) {
+        merged.push(artifact);
+      }
+    }
+    return merged;
+  }, [artifacts, artifactPanelExtraArtifacts, paneArtifactExtras]);
+  const handlePaneArtifactsChange = useCallback(
+    (
+      paneSessionId: string,
+      paneArtifacts: readonly DaemonSessionArtifact[],
+      paneWorkspaceActions: DaemonWorkspaceActions,
+    ) => {
+      setPaneArtifactSnapshots((current) => {
+        const previous = current.get(paneSessionId);
+        const unchanged =
+          previous?.workspaceActions === paneWorkspaceActions &&
+          previous.artifacts.length === paneArtifacts.length &&
+          previous.artifacts.every((artifact, index) => {
+            const nextArtifact = paneArtifacts[index];
+            return (
+              nextArtifact?.id === artifact.id &&
+              nextArtifact.updatedAt === artifact.updatedAt &&
+              nextArtifact.sizeBytes === artifact.sizeBytes
+            );
+          });
+        if (unchanged) return current;
+        const next = new Map(current);
+        if (paneArtifacts.length === 0) {
+          next.delete(paneSessionId);
+        } else {
+          next.set(paneSessionId, {
+            artifacts: [...paneArtifacts],
+            workspaceActions: paneWorkspaceActions,
+          });
+        }
+        return next;
+      });
+      const artifactIds = new Set(paneArtifacts.map((artifact) => artifact.id));
+      setArtifactPanelTabs((tabs) => {
+        let changed = false;
+        const next = tabs.map((tab) => {
+          if (tab.kind !== 'artifact' || !artifactIds.has(tab.artifactId)) {
+            return tab;
+          }
+          const updated = {
+            id: tab.id,
+            kind: 'artifact' as const,
+            title: tab.title,
+            artifactId: tab.artifactId,
+            workspaceActions: tab.workspaceActions ?? paneWorkspaceActions,
+          };
+          if (tab.previewContent !== undefined) changed = true;
+          if (tab.workspaceActions) return updated;
+          changed = true;
+          return updated;
+        });
+        return changed ? next : tabs;
+      });
+    },
+    [],
+  );
+  const artifactsByTurn = useMemo(
+    () =>
+      getArtifactsByTurn(
+        displayMessages,
+        artifacts,
+        connection.workspaceCwd || '',
+      ),
+    [displayMessages, artifacts, connection.workspaceCwd],
+  );
+  const fileChangesByTurn = useMemo(
+    () =>
+      getFileChangesByTurn(
+        displayMessages,
+        artifactsByTurn,
+        connection.workspaceCwd || '',
+      ),
+    [displayMessages, artifactsByTurn, connection.workspaceCwd],
+  );
+  const scheduledTasksByTurn = useMemo(
+    () => getScheduledTasksByTurn(displayMessages),
+    [displayMessages],
+  );
+  const visibleTurnOutputKinds = useMemo(
+    () => new Set<TurnOutputKind>(messageTurnOutputs ?? TURN_OUTPUT_KINDS),
+    [messageTurnOutputs],
+  );
+  const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
+  const artifactPanelOpenRef = useRef(artifactPanelOpen);
+  artifactPanelOpenRef.current = artifactPanelOpen;
+  const [activeArtifactPanelTabId, setActiveArtifactPanelTabId] = useState<
+    string | null
+  >(null);
+  const activeArtifactPanelTabIdRef = useRef(activeArtifactPanelTabId);
+  activeArtifactPanelTabIdRef.current = activeArtifactPanelTabId;
+  const [reviewChanges, setReviewChanges] = useState<
+    readonly TurnOutputFileChange[]
+  >([]);
+  const [selectedReviewPath, setSelectedReviewPath] = useState<string | null>(
+    null,
+  );
+  const [artifactPanelWidth, setArtifactPanelWidth] = useState(
+    DEFAULT_REVIEW_PANEL_WIDTH,
+  );
+  const artifactPanelResizeCleanupRef = useRef<(() => void) | null>(null);
+  const artifactPanelSessionStateRef = useRef<ArtifactPanelSessionState | null>(
+    null,
+  );
+  const artifactPanelStateBySessionRef = useRef(
+    new Map<string, ArtifactPanelSessionState>(),
+  );
+  const artifactPanelSessionIdRef = useRef(connection.sessionId);
+  artifactPanelSessionStateRef.current = {
+    open: artifactPanelOpen,
+    tabs: artifactPanelTabs,
+    activeTabId: activeArtifactPanelTabId,
+    reviewChanges,
+    selectedReviewPath,
+    extraArtifacts: artifactPanelExtraArtifacts,
+    width: artifactPanelWidth,
+  };
+  useEffect(() => {
+    const previousSessionId = artifactPanelSessionIdRef.current;
+    if (previousSessionId) {
+      const currentState = artifactPanelSessionStateRef.current;
+      if (currentState) {
+        artifactPanelStateBySessionRef.current.set(
+          previousSessionId,
+          currentState,
+        );
+        if (
+          artifactPanelStateBySessionRef.current.size >
+          MAX_ARTIFACT_PANEL_SESSION_STATES
+        ) {
+          const oldestSessionId = artifactPanelStateBySessionRef.current
+            .keys()
+            .next().value;
+          if (oldestSessionId) {
+            artifactPanelStateBySessionRef.current.delete(oldestSessionId);
+          }
+        }
+      }
+    }
+
+    const nextSessionId = connection.sessionId;
+    artifactPanelSessionIdRef.current = nextSessionId;
+    const savedState = nextSessionId
+      ? artifactPanelStateBySessionRef.current.get(nextSessionId)
+      : undefined;
+    if (!savedState) {
+      setArtifactPanelOpen(false);
+      setArtifactPanelTabs([]);
+      setActiveArtifactPanelTabId(null);
+      setReviewChanges([]);
+      setSelectedReviewPath(null);
+      setArtifactPanelExtraArtifacts([]);
+      setPaneArtifactSnapshots(new Map());
+      setArtifactPanelWidth(DEFAULT_REVIEW_PANEL_WIDTH);
+      return;
+    }
+
+    setArtifactPanelOpen(savedState.open);
+    setArtifactPanelTabs(savedState.tabs);
+    setActiveArtifactPanelTabId(savedState.activeTabId);
+    setReviewChanges(savedState.reviewChanges);
+    setSelectedReviewPath(savedState.selectedReviewPath);
+    setArtifactPanelExtraArtifacts(savedState.extraArtifacts);
+    setPaneArtifactSnapshots(new Map());
+    setArtifactPanelWidth(savedState.width);
+  }, [connection.sessionId]);
+  const getMaxArtifactPanelWidth = useCallback(() => {
+    const chatPaneWidth = chatPaneRef.current?.getBoundingClientRect().width;
+    if (!chatPaneWidth) {
+      return Math.max(
+        MIN_ARTIFACT_PANEL_WIDTH,
+        window.innerWidth - MIN_CHAT_PANE_WIDTH_WITH_ARTIFACT_PANEL,
+      );
+    }
+    return Math.max(
+      MIN_ARTIFACT_PANEL_WIDTH,
+      artifactPanelWidth +
+        chatPaneWidth -
+        MIN_CHAT_PANE_WIDTH_WITH_ARTIFACT_PANEL,
+    );
+  }, [artifactPanelWidth]);
+  const getDefaultReviewPanelWidth = useCallback(() => {
+    const chatPaneWidth =
+      chatPaneRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const maxWidth = Math.max(
+      MIN_ARTIFACT_PANEL_WIDTH,
+      chatPaneWidth - MIN_CHAT_PANE_WIDTH_WITH_ARTIFACT_PANEL,
+    );
+    return Math.min(
+      maxWidth,
+      Math.max(DEFAULT_REVIEW_PANEL_WIDTH, Math.round(chatPaneWidth * 0.56)),
+    );
+  }, []);
+  const openArtifactPanel = useCallback(
+    (artifactId: string, previewContent?: string) => {
+      if (!artifactId) return;
+      const artifact = artifactPanelArtifacts.find(
+        (item) => item.id === artifactId,
+      );
+      const tab: ArtifactPanelTab = {
+        id: `artifact:${artifactId}`,
+        kind: 'artifact',
+        artifactId,
+        title: artifact?.title ?? 'Artifact',
+        ...(previewContent !== undefined ? { previewContent } : {}),
+      };
+      setArtifactPanelTabs((tabs) =>
+        tabs.some((item) => item.id === tab.id)
+          ? tabs.map((item) =>
+              item.id === tab.id ? { ...item, ...tab } : item,
+            )
+          : [...tabs, tab],
+      );
+      setActiveArtifactPanelTabId(tab.id);
+      setArtifactPanelWidth((width) =>
+        artifactPanelOpenRef.current ? width : getDefaultReviewPanelWidth(),
+      );
+      setArtifactPanelOpen(true);
+    },
+    [artifactPanelArtifacts, getDefaultReviewPanelWidth],
+  );
+  const openReviewPanel = useCallback(
+    (changes: readonly TurnOutputFileChange[], selectedPath?: string) => {
+      const reviewTab: ArtifactPanelTab = {
+        id: 'review',
+        kind: 'review',
+        title: t('turnOutputs.review'),
+      };
+      setArtifactPanelTabs((tabs) =>
+        tabs.some((item) => item.id === reviewTab.id)
+          ? tabs
+          : [reviewTab, ...tabs],
+      );
+      setActiveArtifactPanelTabId(reviewTab.id);
+      setReviewChanges(changes);
+      setSelectedReviewPath(selectedPath ?? null);
+      setArtifactPanelWidth((width) =>
+        artifactPanelOpenRef.current ? width : getDefaultReviewPanelWidth(),
+      );
+      setArtifactPanelOpen(true);
+    },
+    [getDefaultReviewPanelWidth, t],
+  );
+  const openScheduledTaskPanel = useCallback(
+    (
+      task: TurnOutputScheduledTask,
+      tabWorkspaceActions?: ReturnType<typeof useWorkspaceActions>,
+    ) => {
+      const tab: ArtifactPanelTab = {
+        id: `scheduled-task:${task.toolCallId}`,
+        kind: 'scheduled_task',
+        title: t('scheduledTasks.title'),
+        task,
+        ...(tabWorkspaceActions
+          ? { workspaceActions: tabWorkspaceActions }
+          : {}),
+      };
+      setArtifactPanelTabs((tabs) =>
+        tabs.some((item) => item.id === tab.id)
+          ? tabs.map((item) => (item.id === tab.id ? tab : item))
+          : [...tabs, tab],
+      );
+      setActiveArtifactPanelTabId(tab.id);
+      setArtifactPanelWidth((width) =>
+        artifactPanelOpenRef.current ? width : getDefaultReviewPanelWidth(),
+      );
+      setArtifactPanelOpen(true);
+    },
+    [getDefaultReviewPanelWidth, t],
+  );
+  const handleTurnOutputOpen = useCallback(
+    (request: TurnOutputOpenRequest) => {
+      if (onRightPanelOpen) {
+        onRightPanelOpen(request);
+        return;
+      }
+      if (request.kind === 'review') {
+        openReviewPanel(request.changes, request.selectedPath);
+        return;
+      }
+      if (request.kind === 'scheduled_task') {
+        openScheduledTaskPanel(request.task, request.workspaceActions);
+        return;
+      }
+
+      if (!request.workspaceActions) {
+        setArtifactPanelExtraArtifacts((current) => {
+          const index = current.findIndex(
+            (artifact) => artifact.id === request.artifact.id,
+          );
+          if (index < 0) return [...current, request.artifact];
+          const next = [...current];
+          next[index] = request.artifact;
+          return next;
+        });
+      }
+      const tab: ArtifactPanelTab = {
+        id: request.id,
+        kind: 'artifact',
+        title: request.title,
+        artifactId: request.artifactId,
+        ...(request.workspaceActions
+          ? { workspaceActions: request.workspaceActions }
+          : {}),
+        ...(request.previewContent !== undefined
+          ? { previewContent: request.previewContent }
+          : {}),
+      };
+      setArtifactPanelTabs((tabs) =>
+        tabs.some((item) => item.id === tab.id)
+          ? tabs.map((item) =>
+              item.id === tab.id ? { ...item, ...tab } : item,
+            )
+          : [...tabs, tab],
+      );
+      setActiveArtifactPanelTabId(tab.id);
+      setArtifactPanelWidth((width) =>
+        artifactPanelOpenRef.current ? width : getDefaultReviewPanelWidth(),
+      );
+      setArtifactPanelOpen(true);
+    },
+    [
+      getDefaultReviewPanelWidth,
+      onRightPanelOpen,
+      openReviewPanel,
+      openScheduledTaskPanel,
+    ],
+  );
+  const closeArtifactPanel = useCallback(() => {
+    setArtifactPanelOpen(false);
+    setArtifactPanelTabs([]);
+    setActiveArtifactPanelTabId(null);
+    setReviewChanges([]);
+    setSelectedReviewPath(null);
+    setArtifactPanelExtraArtifacts([]);
+    setPaneArtifactSnapshots(new Map());
+  }, []);
+  useLayoutEffect(() => {
+    if (!artifactPanelOpen) return;
+    const clampWidth = () => {
+      setArtifactPanelWidth((width) => {
+        const chatPaneWidth =
+          chatPaneRef.current?.getBoundingClientRect().width ??
+          window.innerWidth - width;
+        const maxWidth = Math.max(
+          MIN_ARTIFACT_PANEL_WIDTH,
+          width + chatPaneWidth - MIN_CHAT_PANE_WIDTH_WITH_ARTIFACT_PANEL,
+        );
+        return Math.min(width, maxWidth);
+      });
+    };
+    clampWidth();
+    window.addEventListener('resize', clampWidth);
+    const chatPane = chatPaneRef.current;
+    const observer = new ResizeObserver(clampWidth);
+    if (chatPane) observer.observe(chatPane);
+    return () => {
+      window.removeEventListener('resize', clampWidth);
+      observer.disconnect();
+    };
+  }, [artifactPanelOpen]);
+  const closeArtifactPanelTab = useCallback((tabId: string) => {
+    setArtifactPanelTabs((tabs) => {
+      const nextTabs = tabs.filter((tab) => tab.id !== tabId);
+      if (nextTabs.length === 0) {
+        setArtifactPanelOpen(false);
+        setActiveArtifactPanelTabId(null);
+        setReviewChanges([]);
+        setSelectedReviewPath(null);
+        setArtifactPanelExtraArtifacts([]);
+        setPaneArtifactSnapshots(new Map());
+        return nextTabs;
+      }
+      if (activeArtifactPanelTabIdRef.current === tabId) {
+        const closedIndex = tabs.findIndex((tab) => tab.id === tabId);
+        const nextActive =
+          nextTabs[Math.min(closedIndex, nextTabs.length - 1)] ?? nextTabs[0];
+        setActiveArtifactPanelTabId(nextActive.id);
+      }
+      return nextTabs;
+    });
+  }, []);
+  const handleArtifactPanelResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const resizeHandle = event.currentTarget;
+      resizeHandle.setPointerCapture(event.pointerId);
+      const startX = event.clientX;
+      const startWidth = artifactPanelWidth;
+      const maxWidth = getMaxArtifactPanelWidth();
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
+      let pendingWidth = startWidth;
+      let animationFrame: number | null = null;
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      const flushWidth = () => {
+        animationFrame = null;
+        setArtifactPanelWidth(pendingWidth);
+      };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        pendingWidth = Math.min(
+          maxWidth,
+          Math.max(
+            MIN_ARTIFACT_PANEL_WIDTH,
+            startWidth - (moveEvent.clientX - startX),
+          ),
+        );
+        if (animationFrame === null) {
+          animationFrame = window.requestAnimationFrame(flushWidth);
+        }
+      };
+      let handlePointerUp: () => void = () => {};
+      const cleanupResize = (commitWidth: boolean) => {
+        artifactPanelResizeCleanupRef.current = null;
+        if (animationFrame !== null) {
+          window.cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        }
+        if (commitWidth) setArtifactPanelWidth(pendingWidth);
+        if (resizeHandle.hasPointerCapture(event.pointerId)) {
+          resizeHandle.releasePointerCapture(event.pointerId);
+        }
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+        window.removeEventListener('pointercancel', handlePointerUp);
+      };
+      handlePointerUp = () => cleanupResize(true);
+      artifactPanelResizeCleanupRef.current = () => cleanupResize(false);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+      window.addEventListener('pointercancel', handlePointerUp);
+    },
+    [artifactPanelWidth, getMaxArtifactPanelWidth],
+  );
+  useEffect(() => () => artifactPanelResizeCleanupRef.current?.(), []);
   const messageBlocks = useAnimationFrameValue(blocks);
   const rawPendingApproval = useMemo(
     () => extractPendingPermission(messageBlocks),
@@ -1127,6 +1776,55 @@ export function App({
     setTodoPanelMode(nextTodoPanelMode);
   }
   const showFloatingTodos = nextTodoPanelMode !== 'hidden';
+  const floatingBottomStatusItems =
+    bottomStatusItems ?? EMPTY_BOTTOM_STATUS_ITEMS;
+  const showBottomPanels =
+    showFloatingTodos || floatingBottomStatusItems.length > 0;
+  const footerRef = useRef<HTMLDivElement>(null);
+  const bottomPanelsRef = useRef<HTMLDivElement>(null);
+  const [bottomPanelInset, setBottomPanelInset] = useState(0);
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (!showBottomPanels) {
+      setBottomPanelInset(0);
+      setBottomPanelHeight(0);
+      return;
+    }
+    const node = bottomPanelsRef.current;
+    if (!node) {
+      setBottomPanelInset(BOTTOM_PANEL_FALLBACK_INSET_PX);
+      setBottomPanelHeight(0);
+      return;
+    }
+    const updateInset = () => {
+      const footer = footerRef.current;
+      const panelRect = node.getBoundingClientRect();
+      const footerRect = footer?.getBoundingClientRect();
+      const panelHeight = Math.ceil(panelRect.height);
+      const overlapAboveFooter = footerRect
+        ? Math.max(0, footerRect.top - panelRect.top)
+        : panelHeight + BOTTOM_PANEL_GAP_PX;
+      setBottomPanelHeight(panelHeight);
+      setBottomPanelInset(
+        Math.max(BOTTOM_PANEL_FALLBACK_INSET_PX, Math.ceil(overlapAboveFooter)),
+      );
+    };
+    updateInset();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateInset);
+    observer.observe(node);
+    if (footerRef.current) observer.observe(footerRef.current);
+    return () => observer.disconnect();
+  }, [showBottomPanels]);
+  const contentStyle = useMemo(
+    () =>
+      ({
+        '--web-shell-bottom-panel-inset': `${bottomPanelInset}px`,
+        '--web-shell-bottom-panel-height': `${bottomPanelHeight}px`,
+        '--web-shell-bottom-panel-gap': `${BOTTOM_PANEL_GAP_PX}px`,
+      }) as CSSProperties,
+    [bottomPanelHeight, bottomPanelInset],
+  );
   const backgroundTaskActivityKey = useMemo(
     () => getBackgroundTaskActivityKey(messages),
     [messages],
@@ -1146,7 +1844,6 @@ export function App({
   const messageListRef = useRef<MessageListHandle | null>(null);
   const editorRef = useRef<EditorHandle | null>(null);
   const notifiedComposerReadyRef = useRef<EditorHandle | null>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
   const [canScrollMessageListToBottom, setCanScrollMessageListToBottom] =
     useState(false);
   const previousFooterRectRef = useRef<DOMRect | null>(null);
@@ -1228,11 +1925,7 @@ export function App({
     workspaceActions
       .loadSkillsStatus()
       .then((status) => {
-        setLoadedSkills(
-          (status?.skills ?? [])
-            .map((s) => ({ name: s.name, description: s.description ?? '' }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        );
+        setLoadedSkills(availableSkillInfos(status));
       })
       .catch(() => {});
   }, [connected, workspaceActions]);
@@ -1257,6 +1950,10 @@ export function App({
   );
   // Sessions to seed the split view with (e.g. the selection from the overview).
   const [splitSessionIds, setSplitSessionIds] = useState<string[]>([]);
+  // Latest pane list, readable from the shrink-close effect without making it a
+  // dependency (it changes on every pane add/remove).
+  const splitSessionIdsRef = useRef<string[]>(splitSessionIds);
+  splitSessionIdsRef.current = splitSessionIds;
   const [showExtensionsDialog, setShowExtensionsDialog] = useState(false);
   const [mcpDialogMessage, setMcpDialogMessage] =
     useState<SerializedMcpStatusMessage | null>(null);
@@ -1335,6 +2032,12 @@ export function App({
     () => ({
       openSplitView: () => requestOpenSplitView(),
       openSessionOverview: () => openPanel('sessions'),
+      openSessionDrawer: () => {
+        setActivePanel(null);
+        setMainView('chat');
+        setForceMobileDrawer(true);
+        setMobileDrawerOpen(true);
+      },
     }),
     [openPanel, requestOpenSplitView],
   );
@@ -1396,23 +2099,53 @@ export function App({
       openSplitView(ids);
     }
   }, [externalSplitControlled, openSplitView]);
-  // If the viewport shrinks below the large-screen breakpoint, close the Session
-  // Overview panel and the split view — both are large-screen-only surfaces
-  // whose entry points are hidden on small screens, so leaving them up would
-  // strand the user in a view they can no longer re-enter.
-  // When a shrink closes the split, its panes unmount and take keyboard focus
-  // with them; flag the composer to be refocused once the chat is shown again.
+  // If the viewport shrinks below the large-screen breakpoint, fold away the
+  // Session Overview panel and the split view — both are large-screen-only
+  // surfaces whose entry points are hidden on small screens. The split is only
+  // folded, not discarded: growing back past the breakpoint restores it, so a
+  // transient resize is lossless. When a shrink folds the split, its panes
+  // unmount and take keyboard focus with them; flag the composer to be refocused
+  // once the chat is shown again.
   const focusComposerAfterSplitCloseRef = useRef(false);
+  // True while the split view is only *temporarily* folded away because the
+  // window is narrower than the large-screen breakpoint. Growing back past the
+  // breakpoint restores it, so a transient resize doesn't drop the user's panes.
+  const splitFoldedByShrinkRef = useRef(false);
   useEffect(() => {
-    if (!isLargeScreen && activePanel === 'sessions') {
+    if (isLargeScreen) {
+      // Grew back above the breakpoint: restore a split that a shrink folded
+      // away. Standalone/uncontrolled only — a controlled host owns its split
+      // lifecycle and re-opens it itself.
+      if (splitFoldedByShrinkRef.current) {
+        splitFoldedByShrinkRef.current = false;
+        if (!externalSplitControlled && splitSessionIdsRef.current.length > 0) {
+          setMainView((prev) => (prev === 'chat' ? 'split' : prev));
+        }
+      }
+      return;
+    }
+    if (activePanel === 'sessions') {
       setActivePanel(null);
     }
-    if (!isLargeScreen && mainView === 'split') {
+    if (mainView === 'split') {
       notifyControlledSplitClose();
       setMainView('chat');
       focusComposerAfterSplitCloseRef.current = true;
+      // Fold, don't discard: remember to restore the same split once the screen
+      // grows back, so a transient shrink is lossless. The chat's own connection
+      // (its session, git branch, URL, …) is left untouched — restoring the
+      // split, or dropping back to that chat, is exactly what it was before.
+      if (!externalSplitControlled) {
+        splitFoldedByShrinkRef.current = true;
+      }
     }
-  }, [isLargeScreen, activePanel, mainView, notifyControlledSplitClose]);
+  }, [
+    isLargeScreen,
+    activePanel,
+    mainView,
+    notifyControlledSplitClose,
+    externalSplitControlled,
+  ]);
   // Land focus on the composer after a shrink-driven split close so keyboard
   // users aren't dropped onto <body> — but not when the chat now shows an
   // approval overlay (it owns the keyboard) or a panel (its Back self-focuses).
@@ -1517,6 +2250,17 @@ export function App({
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [memoryRefreshSignal, setMemoryRefreshSignal] = useState(0);
   const [memoryAddSignal, setMemoryAddSignal] = useState(0);
+  const [externalInteractionBlockCount, setExternalInteractionBlockCount] =
+    useState(0);
+  const registerInteractionBlocker = useCallback(() => {
+    let released = false;
+    setExternalInteractionBlockCount((count) => count + 1);
+    return () => {
+      if (released) return;
+      released = true;
+      setExternalInteractionBlockCount((count) => Math.max(0, count - 1));
+    };
+  }, []);
 
   // Refresh commands when extensions change (install/uninstall/update).
   const workspaceEventSignals = useWorkspaceEventSignals();
@@ -1642,7 +2386,12 @@ export function App({
             SessionActionsWithCreate,
           modelId,
           modeId,
+          workspaceCwd: selectedWorkspaceCwdRef.current,
         });
+        // One-shot: the picker targets only the *next* new session, so clear
+        // it after creation. The next new chat defaults back to the primary
+        // workspace unless the user picks one again.
+        setSelectedWorkspaceCwd(undefined);
       })().catch((error: unknown) => {
         createSessionPromiseRef.current = null;
         throw error;
@@ -1684,6 +2433,7 @@ export function App({
       opts?: {
         optimisticUserMessage?: boolean;
         retry?: boolean;
+        inputAnnotations?: DaemonInputAnnotation[];
         clearComposerOnPromptStart?: boolean;
         commitComposerAccepted?: ComposerSubmitCommit;
         onAdmitted?: () => void;
@@ -1741,6 +2491,7 @@ export function App({
       }
       const promptOptions: SendPromptOptionsWithRetry = {
         images,
+        inputAnnotations: opts?.inputAnnotations,
         optimisticUserMessage: opts?.optimisticUserMessage,
         retry: opts?.retry,
         ...(opts?.onAdmitted ? { onAdmitted: opts.onAdmitted } : {}),
@@ -1802,6 +2553,7 @@ export function App({
     agentsDialogMode !== null ||
     showMemoryDialog ||
     showAuthDialog ||
+    externalInteractionBlockCount > 0 ||
     // The Settings / Daemon Status panel replaces the chat surface, so — like a
     // modal — it must suppress chat-only global shortcuts (Ctrl+L/O/Y, the
     // Shift+Tab mode cycle, the btw hotkey). Escape is intercepted earlier and
@@ -1817,11 +2569,9 @@ export function App({
     (error: unknown, fallback: string) => {
       if (isAbortError(error)) return;
       if (isDaemonTurnError(error)) {
-        console.debug('[web-shell] turn error rendered in transcript', error);
         return;
       }
       if (isAlreadyDispatched(error)) {
-        console.debug('[web-shell] error already handled by notice', error);
         return;
       }
       const message = formatError(error, fallback);
@@ -1863,6 +2613,7 @@ export function App({
       images?: PromptImage[],
       onComplete?: () => void,
       commitComposerAccepted?: ComposerSubmitCommit,
+      inputAnnotations?: DaemonInputAnnotation[],
     ) => {
       if (onSubmitBeforeRef.current) {
         onSubmitBeforeRef
@@ -1871,7 +2622,12 @@ export function App({
             prompt: text,
           })
           .then(() => {
-            const result = rawEnqueuePrompt(text, images, onComplete);
+            const result = rawEnqueuePrompt(
+              text,
+              images,
+              onComplete,
+              inputAnnotations,
+            );
             if (result !== false) {
               if (commitComposerAccepted) {
                 commitComposerAccepted();
@@ -1897,7 +2653,12 @@ export function App({
           });
         return false;
       }
-      const result = rawEnqueuePrompt(text, images, onComplete);
+      const result = rawEnqueuePrompt(
+        text,
+        images,
+        onComplete,
+        inputAnnotations,
+      );
       const sessionId = connectionRef.current.sessionId;
       if (sessionId && text.trim()) {
         dispatchSessionChangeRef.current?.({
@@ -1913,13 +2674,10 @@ export function App({
   );
 
   useEffect(() => {
-    logSessionNoticesHook(notices);
     for (const notice of notices) {
       if (shouldToastNotice(notice)) {
         pushToast(toastToneFromNotice(notice), notice.message);
-      } else if (notice.category === 'lifecycle') {
-        console.debug('[web-shell] daemon notice', notice);
-      } else {
+      } else if (notice.category !== 'lifecycle') {
         console.warn('[web-shell] daemon notice', notice);
       }
       dismissNotice(notice.id);
@@ -2659,6 +3417,19 @@ export function App({
     [loadSidebarSession, reportError],
   );
 
+  // Listen for `qwen:open-session` events dispatched by the markdown renderer
+  // when a `qwen-session://<id>` link is clicked. Navigate to the session.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const sessionId = (e as CustomEvent<string>).detail;
+      if (typeof sessionId === 'string' && sessionId) {
+        handleOpenSessionFromOverview(sessionId);
+      }
+    };
+    window.addEventListener('qwen:open-session', handler);
+    return () => window.removeEventListener('qwen:open-session', handler);
+  }, [handleOpenSessionFromOverview]);
+
   useEffect(() => {
     if (
       sidebarSwitchingSessionId !== null &&
@@ -2973,6 +3744,7 @@ export function App({
       text: string,
       images?: PromptImage[],
       commitComposerAccepted?: ComposerSubmitCommit,
+      metadata?: { inputAnnotations?: DaemonInputAnnotation[] },
     ) => {
       if (connectionRef.current.loadingTranscript) {
         pushToast('warning', t('editor.sessionLoading'));
@@ -2991,7 +3763,11 @@ export function App({
         promptText: string,
         promptImages: PromptImage[] | undefined,
         errorMessage: string,
-        opts?: { optimisticUserMessage?: boolean; retry?: boolean },
+        opts?: {
+          optimisticUserMessage?: boolean;
+          retry?: boolean;
+          inputAnnotations?: DaemonInputAnnotation[];
+        },
       ) => {
         const deferComposerCommit = Boolean(onSubmitBeforeRef.current);
         const clearComposerOnPromptStart =
@@ -3016,12 +3792,14 @@ export function App({
                 images,
                 undefined,
                 commitComposerAccepted,
+                metadata?.inputAnnotations,
               );
             }
             return submitPromptFromEditor(
               text,
               images,
               'Failed to send hidden slash command',
+              { inputAnnotations: metadata?.inputAnnotations },
             );
           }
           if (cmd === 'help') {
@@ -3201,12 +3979,14 @@ export function App({
                   images,
                   undefined,
                   commitComposerAccepted,
+                  metadata?.inputAnnotations,
                 );
               }
               return submitPromptFromEditor(
                 text,
                 images,
                 'Failed to send /model --fast',
+                { inputAnnotations: metadata?.inputAnnotations },
               );
             }
             if (modelArg === '--voice') {
@@ -3276,6 +4056,7 @@ export function App({
                   prompt,
                   images,
                   'Failed to send plan prompt',
+                  { inputAnnotations: metadata?.inputAnnotations },
                 );
               }
               return true;
@@ -3288,6 +4069,7 @@ export function App({
                 if (prompt) {
                   return sendPrompt(prompt, images, {
                     clearComposerOnPromptStart: true,
+                    inputAnnotations: metadata?.inputAnnotations,
                   }).catch((error: unknown) =>
                     reportError(error, 'Failed to send plan prompt'),
                   );
@@ -3376,24 +4158,21 @@ export function App({
                   images,
                   undefined,
                   commitComposerAccepted,
+                  metadata?.inputAnnotations,
                 );
               }
               return submitPromptFromEditor(
                 text,
                 images,
                 'Failed to send /skills command',
+                { inputAnnotations: metadata?.inputAnnotations },
               );
             } else {
               if (echoOrDeferLocalCommand(text, images)) return true;
               workspaceActions
                 .loadSkillsStatus()
                 .then((status) => {
-                  const skills = (status?.skills ?? [])
-                    .map((s) => ({
-                      name: s.name,
-                      description: s.description ?? '',
-                    }))
-                    .sort((a, b) => a.name.localeCompare(b.name));
+                  const skills = availableSkillInfos(status);
                   setLoadedSkills(skills);
                   if (skills.length === 0) {
                     store.dispatch([
@@ -3633,12 +4412,14 @@ export function App({
                   images,
                   undefined,
                   commitComposerAccepted,
+                  metadata?.inputAnnotations,
                 );
               }
               return submitPromptFromEditor(
                 text,
                 images,
                 'Failed to send /rename command',
+                { inputAnnotations: metadata?.inputAnnotations },
               );
             }
             const displayName = renameArg.displayName;
@@ -3828,9 +4609,17 @@ export function App({
         }
         // Forward slash commands as prompts
         if (promptBlocked) {
-          return enqueuePrompt(text, images, undefined, commitComposerAccepted);
+          return enqueuePrompt(
+            text,
+            images,
+            undefined,
+            commitComposerAccepted,
+            metadata?.inputAnnotations,
+          );
         }
-        return submitPromptFromEditor(text, images, 'Failed to send command');
+        return submitPromptFromEditor(text, images, 'Failed to send command', {
+          inputAnnotations: metadata?.inputAnnotations,
+        });
       } else if (text.startsWith('!')) {
         if (promptBlocked) {
           pushToast('error', t('queue.shellBlocked'));
@@ -3845,9 +4634,17 @@ export function App({
         return true;
       } else {
         if (promptBlocked) {
-          return enqueuePrompt(text, images, undefined, commitComposerAccepted);
+          return enqueuePrompt(
+            text,
+            images,
+            undefined,
+            commitComposerAccepted,
+            metadata?.inputAnnotations,
+          );
         }
-        return submitPromptFromEditor(text, images, 'Failed to send message');
+        return submitPromptFromEditor(text, images, 'Failed to send message', {
+          inputAnnotations: metadata?.inputAnnotations,
+        });
       }
     },
     [
@@ -3891,8 +4688,14 @@ export function App({
       text: string,
       images?: PromptImage[],
       commitComposerAccepted?: ComposerSubmitCommit,
+      metadata?: { inputAnnotations?: DaemonInputAnnotation[] },
     ) => {
-      const accepted = handleSubmit(text, images, commitComposerAccepted);
+      const accepted = handleSubmit(
+        text,
+        images,
+        commitComposerAccepted,
+        metadata,
+      );
       if (accepted !== false) {
         resumeChatBottomFollow('smooth');
       }
@@ -4229,7 +5032,6 @@ export function App({
   };
 
   const commands = useMemo(() => {
-    const skillNames = new Set(connection.skills ?? []);
     return localizeBuiltinDescriptions(
       mergeCommands(connection.commands ?? [], getLocalCommands(t)),
       t,
@@ -4238,17 +5040,15 @@ export function App({
         (command) => !hiddenCommands.has(normalizeHiddenCommand(command.name)),
       )
       .map((command) => {
-        if (!skillNames.has(command.name)) return command;
         const skillKey = skillDescriptionKey(command.name);
+        if (!skillKey) return command;
         return {
           ...command,
           displayCategory: 'skill' as const,
-          description: skillKey
-            ? t(skillKey)
-            : command.description || t('skills.run'),
+          description: t(skillKey),
         };
       });
-  }, [connection.commands, connection.skills, hiddenCommands, t]);
+  }, [connection.commands, hiddenCommands, t]);
 
   const welcomeHeaderProps = useMemo(
     () => ({
@@ -4286,6 +5086,13 @@ export function App({
     !showFloatingTodos &&
     !pendingApproval &&
     !btwMessage;
+  const useMobileWelcomeMiddleLayout =
+    isChatEmptyState && mobileWelcomeFooterMiddle;
+  const showMobileWelcomeFooterMiddle =
+    useMobileWelcomeMiddleLayout && Boolean(welcomeFooter);
+  const hasWelcomeMiddle = isChatEmptyState && showMobileWelcomeFooterMiddle;
+  const hasMobileComposerBottom =
+    isChatEmptyState && useMobileWelcomeMiddleLayout;
   const missingSession =
     connection.status !== 'connecting' &&
     !connection.sessionId &&
@@ -4618,6 +5425,7 @@ export function App({
                 className={[
                   styles.mobileDrawer,
                   mobileDrawerOpen ? styles.mobileDrawerOpen : undefined,
+                  forceMobileDrawer ? styles.mobileDrawerForced : undefined,
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -4628,7 +5436,11 @@ export function App({
                   aria-hidden="true"
                 />
                 <WebShellSidebar
-                  collapsed={sidebarCollapsed && !mobileDrawerOpen}
+                  collapsed={
+                    (sidebarCollapsed ||
+                      (mainView === 'split' && !splitSidebarHasRoom)) &&
+                    !mobileDrawerOpen
+                  }
                   onCollapsedChange={handleSidebarCollapsedChange}
                   onOpenSettings={() => {
                     closeMobileDrawer();
@@ -4663,17 +5475,27 @@ export function App({
                   onError={reportError}
                   mobileOpen={mobileDrawerOpen}
                   sessionListReloadToken={sessionListReloadToken}
+                  selectedWorkspaceCwd={selectedWorkspaceCwd}
+                  onSelectWorkspace={setSelectedWorkspaceCwd}
+                  branding={sidebarOptions.branding}
+                  footer={sidebarOptions.footer}
                 />
               </div>
             )}
             <div
-              className={
-                mainView !== 'chat'
-                  ? `${styles.chatPane} ${styles.chatPaneShowingPage}`
-                  : styles.chatPane
-              }
+              ref={chatPaneRef}
+              className={[
+                styles.chatPane,
+                mainView !== 'chat' ? styles.chatPaneShowingPage : undefined,
+                hasMobileComposerBottom
+                  ? styles.chatPaneWithMobileComposerBottom
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               {sidebarOptions.enabled &&
+                sidebarOptions.showCompactToggle &&
                 !activePanel &&
                 mainView === 'chat' && (
                   <button
@@ -4686,7 +5508,10 @@ export function App({
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                    onClick={() => setMobileDrawerOpen((open) => !open)}
+                    onClick={() => {
+                      setForceMobileDrawer(false);
+                      setMobileDrawerOpen((open) => !open);
+                    }}
                     aria-label={t('sidebar.toggleMenu')}
                     aria-expanded={mobileDrawerOpen}
                   >
@@ -4809,6 +5634,10 @@ export function App({
                   <div className={styles.fullPageBody}>
                     <ScheduledTasksDialog
                       onRunPrompt={runTaskManually}
+                      // Registered workspaces (multi-workspace daemons only) so
+                      // the page aggregates every project's schedule and the New
+                      // form can target one; absent/single → primary-only view.
+                      workspaces={connection.capabilities?.workspaces}
                       onCreateViaChat={() => {
                         // Start a FRESH session and jump to it so the task-
                         // creation chat doesn't pile onto the current
@@ -4886,17 +5715,29 @@ export function App({
                         // is launched from), not the single-session chat.
                         onExit={handleSplitExit}
                         onError={reportError}
+                        onRightPanelOpen={handleTurnOutputOpen}
+                        onPaneArtifactsChange={handlePaneArtifactsChange}
+                        messageTurnOutputs={messageTurnOutputs}
                       />
                     </CompactModeContext.Provider>
                   </WebShellCustomizationProvider>
                 </div>
               )}
               <div
-                className={
+                className={[
+                  styles.chatViewWrap,
+                  hasMobileComposerBottom
+                    ? styles.chatViewWithMobileComposerBottom
+                    : undefined,
+                  hasWelcomeMiddle
+                    ? styles.chatViewWithWelcomeMiddle
+                    : undefined,
                   activePanel || mainView !== 'chat'
-                    ? `${styles.chatViewWrap} ${styles.chatViewHidden}`
-                    : styles.chatViewWrap
-                }
+                    ? styles.chatViewHidden
+                    : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 // Hide the outer chat whenever a panel or a full-page view (split
                 // / scheduled tasks) is up. `display:none` drops the subtree from
                 // layout and the tab order, and aria-hidden keeps AT out — so no
@@ -4934,62 +5775,130 @@ export function App({
                         timeline={todoTimeline}
                         details={todoDetails}
                       >
-                        <div
-                          className={[
-                            styles.content,
-                            showFloatingTodos ||
-                            displayMessages.length > 0 ||
-                            pendingApproval
-                              ? styles.contentHasMessages
-                              : undefined,
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                        <InteractionBlockContext.Provider
+                          value={registerInteractionBlocker}
                         >
-                          <MessageList
-                            ref={messageListRef}
-                            messages={displayMessages}
-                            pendingApproval={pendingToolApproval}
-                            onShowContextDetail={handleShowContextDetail}
-                            loadingTranscript={connection.loadingTranscript}
-                            catchingUp={connection.catchingUp}
-                            isResponding={streamingState !== 'idle'}
-                            activeTurnStartedAt={activeTurnStartedAt}
-                            workspaceCwd={connection.workspaceCwd || ''}
-                            hideSessionTimeline={
-                              effectiveChatWidthMode === 'wide'
+                          {(() => {
+                            const contentClassName = [
+                              styles.content,
+                              showFloatingTodos ||
+                              displayMessages.length > 0 ||
+                              pendingApproval
+                                ? styles.contentHasMessages
+                                : undefined,
+                            ]
+                              .filter(Boolean)
+                              .join(' ');
+
+                            const messageList = (
+                            <MessageList
+                              ref={messageListRef}
+                              messages={displayMessages}
+                              pendingApproval={pendingToolApproval}
+                              onShowContextDetail={handleShowContextDetail}
+                              loadingTranscript={connection.loadingTranscript}
+                              catchingUp={connection.catchingUp}
+                              isResponding={streamingState !== 'idle'}
+                              activeTurnStartedAt={activeTurnStartedAt}
+                              workspaceCwd={connection.workspaceCwd || ''}
+                              hideSessionTimeline={
+                                effectiveChatWidthMode === 'wide'
+                              }
+                              showRetryHint={showRetryHint}
+                              onRetryClick={handleRetry}
+                              onBranchSession={handleBranchCurrentSession}
+                              bottomOverlayInset={bottomPanelInset}
+                              welcomeHeader={
+                                isChatEmptyState ? welcomeHeader : undefined
+                              }
+                              centerWelcomeHeader={
+                                showMobileWelcomeFooterMiddle || undefined
+                              }
+                              tailContent={undefined}
+                              tailKey={undefined}
+                              onCanScrollToBottomChange={
+                                handleCanScrollToBottomChange
+                              }
+                              virtualScrollThreshold={virtualScrollThreshold}
+                              turnFileChanges={
+                                visibleTurnOutputKinds.has('file')
+                                  ? fileChangesByTurn
+                                  : undefined
+                              }
+                              turnArtifacts={
+                                visibleTurnOutputKinds.has('artifact')
+                                  ? artifactsByTurn
+                                  : undefined
+                              }
+                              turnScheduledTasks={
+                                visibleTurnOutputKinds.has('scheduled_task')
+                                  ? scheduledTasksByTurn
+                                  : undefined
+                              }
+                              onTurnOutputOpen={handleTurnOutputOpen}
+                              onReviewChanges={openReviewPanel}
+                              onOpenArtifact={openArtifactPanel}
+                              onOpenScheduledTask={openScheduledTaskPanel}
+                            />
+                            );
+
+                            const btwPanel =
+                              !showMobileWelcomeFooterMiddle &&
+                              btwMessage?.role === 'btw' ? (
+                              <div className={styles.btwPanel}>
+                                <BtwMessage
+                                  question={btwMessage.question}
+                                  answer={btwMessage.answer}
+                                  isPending={btwMessage.isPending}
+                                />
+                              </div>
+                              ) : null;
+
+                            if (showMobileWelcomeFooterMiddle) {
+                              return (
+                                <div className={styles.mobileWelcomeGroup}>
+                                  <div
+                                    style={contentStyle}
+                                    className={contentClassName}
+                                  >
+                                    {messageList}
+                                    {btwPanel}
+                                  </div>
+                                  <div
+                                    className={styles.mobileWelcomeFooterMiddle}
+                                  >
+                                    {welcomeFooter}
+                                  </div>
+                                </div>
+                              );
                             }
-                            showRetryHint={showRetryHint}
-                            onRetryClick={handleRetry}
-                            onBranchSession={handleBranchCurrentSession}
-                            welcomeHeader={
-                              isChatEmptyState ? welcomeHeader : undefined
-                            }
-                            tailContent={undefined}
-                            tailKey={undefined}
-                            onCanScrollToBottomChange={
-                              handleCanScrollToBottomChange
-                            }
-                            virtualScrollThreshold={virtualScrollThreshold}
-                          />
-                          {btwMessage?.role === 'btw' && (
-                            <div className={styles.btwPanel}>
-                              <BtwMessage
-                                question={btwMessage.question}
-                                answer={btwMessage.answer}
-                                isPending={btwMessage.isPending}
-                              />
-                            </div>
-                          )}
-                        </div>
+                            return (
+                              <div
+                                style={contentStyle}
+                                className={contentClassName}
+                              >
+                                {messageList}
+                                {btwPanel}
+                              </div>
+                            );
+                          })()}
+                        </InteractionBlockContext.Provider>
                       </TodoContextsProvider>
                     </CompactModeContext.Provider>
 
-                    <div ref={footerRef} className={styles.footer}>
+                    <div
+                      ref={footerRef}
+                      style={contentStyle}
+                      className={
+                        CustomFooter
+                          ? `${styles.footer} ${styles.footerWithCustomFooter}`
+                          : styles.footer
+                      }
+                    >
                       {canScrollMessageListToBottom && (
                         <div
                           className={
-                            showFloatingTodos
+                            showBottomPanels
                               ? `${styles.scrollToBottomLayer} ${styles.scrollToBottomLayerWithTodos}`
                               : styles.scrollToBottomLayer
                           }
@@ -5016,9 +5925,15 @@ export function App({
                           </button>
                         </div>
                       )}
-                      {showFloatingTodos && (
-                        <div className={styles.bottomPanels}>
-                          <TodoPanel todos={floatingTodos} />
+                      {showBottomPanels && (
+                        <div
+                          ref={bottomPanelsRef}
+                          className={styles.bottomPanels}
+                        >
+                          <TodoPanel
+                            todos={showFloatingTodos ? floatingTodos : []}
+                            statusItems={floatingBottomStatusItems}
+                          />
                         </div>
                       )}
                       {/* Only render the outer session's approval on the chat
@@ -5068,6 +5983,17 @@ export function App({
                           onInsert={insertQueuedPrompt}
                           onEdit={editQueuedPrompt}
                         />
+                        {CustomComposerHeader && (
+                          <div className={styles.composerHeader}>
+                            <CustomComposerHeader
+                              disabled={isDisabled}
+                              isRunning={streamingState !== 'idle'}
+                              currentMode={currentMode}
+                              currentModel={currentModel}
+                              sessionName={sessionDisplayName}
+                            />
+                          </div>
+                        )}
                         <ChatEditor
                           ref={setEditorHandle}
                           onSubmit={handleEditorSubmit}
@@ -5081,6 +6007,7 @@ export function App({
                           commands={commands}
                           skills={loadedSkills}
                           slashCommandCategoryOrder={slashCommandCategoryOrder}
+                          builtinAtProviders={builtinAtProviders}
                           atProviders={atProviders}
                           composerTagIcons={composerTagIcons}
                           queuedMessages={queuedTexts}
@@ -5089,6 +6016,14 @@ export function App({
                           onClearQueuedMessages={clearQueuedPrompts}
                           currentMode={currentMode}
                           currentModel={currentModel}
+                          gitBranch={connection.gitBranch}
+                          workspaceName={
+                            hasMultipleWorkspaces(connection.capabilities) &&
+                            connection.workspaceCwd
+                              ? workspaceBasename(connection.workspaceCwd)
+                              : undefined
+                          }
+                          workspaceTitle={connection.workspaceCwd || undefined}
                           chatWidthMode={chatWidthMode}
                           showChatWidthToggle={!isChatEmptyState}
                           chatWidthToggleMin={chatWidthToggleMin}
@@ -5116,31 +6051,61 @@ export function App({
                         />
                       </div>
                       {CustomFooter ? (
-                        <CustomFooter
-                          connected={connected}
-                          mode={currentMode}
-                          model={currentModel}
-                          streamingState={streamingState}
-                          contextUsageRatio={
-                            (connection.contextWindow ?? 0) > 0
-                              ? (connection.tokenCount ?? 0) /
-                                (connection.contextWindow ?? 0)
-                              : 0
-                          }
-                          activeGoal={activeGoal}
-                          tasks={footerTasks}
-                          availableModes={MODES_CYCLE}
-                          availableModels={(connection.models ?? [])
-                            .filter(isVisibleComposerModel)
-                            .map((m) => ({
-                              id: m.id,
-                              label: getModelDisplayName(m.label || m.id),
-                              contextWindow: m.contextWindow,
-                            }))}
-                          skills={loadedSkills}
-                          onSelectMode={handleSetMode}
-                          onSelectModel={handleModelSelect}
-                        />
+                        hasMobileComposerBottom ? (
+                          <div className={styles.customFooter}>
+                            <CustomFooter
+                              connected={connected}
+                              mode={currentMode}
+                              model={currentModel}
+                              streamingState={streamingState}
+                              contextUsageRatio={
+                                (connection.contextWindow ?? 0) > 0
+                                  ? (connection.tokenCount ?? 0) /
+                                    (connection.contextWindow ?? 0)
+                                  : 0
+                              }
+                              activeGoal={activeGoal}
+                              tasks={footerTasks}
+                              availableModes={MODES_CYCLE}
+                              availableModels={(connection.models ?? [])
+                                .filter(isVisibleComposerModel)
+                                .map((m) => ({
+                                  id: m.id,
+                                  label: getModelDisplayName(m.label || m.id),
+                                  contextWindow: m.contextWindow,
+                                }))}
+                              skills={loadedSkills}
+                              onSelectMode={handleSetMode}
+                              onSelectModel={handleModelSelect}
+                            />
+                          </div>
+                        ) : (
+                          <CustomFooter
+                            connected={connected}
+                            mode={currentMode}
+                            model={currentModel}
+                            streamingState={streamingState}
+                            contextUsageRatio={
+                              (connection.contextWindow ?? 0) > 0
+                                ? (connection.tokenCount ?? 0) /
+                                  (connection.contextWindow ?? 0)
+                                : 0
+                            }
+                            activeGoal={activeGoal}
+                            tasks={footerTasks}
+                            availableModes={MODES_CYCLE}
+                            availableModels={(connection.models ?? [])
+                              .filter(isVisibleComposerModel)
+                              .map((m) => ({
+                                id: m.id,
+                                label: getModelDisplayName(m.label || m.id),
+                                contextWindow: m.contextWindow,
+                              }))}
+                            skills={loadedSkills}
+                            onSelectMode={handleSetMode}
+                            onSelectModel={handleModelSelect}
+                          />
+                        )
                       ) : (
                         <StatusBar
                           onSelectMode={() =>
@@ -5164,7 +6129,16 @@ export function App({
                         />
                       )}
                       {isChatEmptyState && welcomeFooter && (
-                        <div className={styles.emptyWelcomeFooter}>
+                        <div
+                          className={[
+                            styles.emptyWelcomeFooter,
+                            showMobileWelcomeFooterMiddle
+                              ? styles.desktopWelcomeFooter
+                              : undefined,
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                        >
                           {welcomeFooter}
                         </div>
                       )}
@@ -5173,6 +6147,33 @@ export function App({
                 </div>
               </div>
             </div>
+            {artifactPanelOpen && (
+              <>
+                <div
+                  className={styles.artifactResizeHandle}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-valuemin={MIN_ARTIFACT_PANEL_WIDTH}
+                  aria-valuemax={getMaxArtifactPanelWidth()}
+                  aria-valuenow={artifactPanelWidth}
+                  onPointerDown={handleArtifactPanelResizeStart}
+                />
+                <ArtifactPanel
+                  artifacts={artifactPanelArtifacts}
+                  tabs={artifactPanelTabs}
+                  activeTabId={activeArtifactPanelTabId}
+                  reviewChanges={reviewChanges}
+                  selectedReviewPath={selectedReviewPath}
+                  panelWidth={artifactPanelWidth}
+                  workspaceCwd={connection.workspaceCwd || ''}
+                  loading={artifactsLoading}
+                  error={artifactsError}
+                  onSelectTab={setActiveArtifactPanelTabId}
+                  onCloseTab={closeArtifactPanelTab}
+                  onClose={closeArtifactPanel}
+                />
+              </>
+            )}
           </div>
         </div>
       </I18nProvider>

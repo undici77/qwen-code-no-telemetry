@@ -2,9 +2,19 @@ export { App as WebShell } from './App';
 export type {
   WebShellApi,
   WebShellProps,
+  WebShellSidebarOptions,
   BugReportInfo,
   SessionChangeEvent,
 } from './App';
+export type {
+  WebShellSidebarBranding,
+  WebShellSidebarFooterItem,
+  WebShellSidebarFooterOptions,
+} from './components/sidebar/WebShellSidebar';
+export type {
+  TurnOutputKind,
+  TurnOutputOpenRequest,
+} from './components/artifacts/TurnOutputs';
 export type { ComposerToolbarAction } from './components/ChatEditor';
 export type { ToastTone } from './components/ToastHost';
 export type { WebShellLanguage } from './i18n';
@@ -17,13 +27,22 @@ export type {
   ToolHeaderExtraRenderer,
   ToolHeaderExtraRenderInfo,
   ToolHeaderKind,
+  ComposerTagClickHandler,
+  ComposerTagRenderer,
   UserMessageContentRenderer,
   UserMessageContentRenderInfo,
+  UserMessageContentParser,
+  AssistantTurnFooterRenderer,
   ComposerToolbarStartRenderer,
+  ComposerHeaderRenderer,
   ComposerToolbarRightRenderer,
   WelcomeFooterRenderer,
+  WebShellAtItemRenderInfo,
+  WebShellAtItemRenderer,
   WebShellComposerApi,
   WebShellBuiltinComposerTagKind,
+  WebShellBuiltinAtProviderId,
+  WebShellBuiltinAtProvidersConfig,
   WebShellComposerInput,
   WebShellComposerTag,
   WebShellComposerTagIconMap,
@@ -39,10 +58,16 @@ export type {
   WebShellFooterRenderInfo,
   FooterRenderer,
   LoadingPhrasesResolver,
+  WebShellAtProviderTab,
   WebShellAtItem,
   WebShellAtProvider,
+  WebShellBottomStatusItem,
+  WebShellAssistantMessageInfo,
+  WebShellAssistantTurnFooterRenderInfo,
   WebShellCodeBlockRenderInfo,
+  WebShellIconSource,
   WebShellTaskInfo,
+  WebShellUserMessagePart,
   WebShellAgentTask,
   WebShellShellTask,
   WebShellMonitorTask,

@@ -20,7 +20,7 @@ import { getIdeProcessInfo } from './process-utils.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResultSchema, type AnyObjectSchema } from '@modelcontextprotocol/sdk/types.js';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { EnvHttpProxyAgent, fetch as undiciFetch } from 'undici';
@@ -922,8 +922,8 @@ export class IdeClient {
     }
 
     this.client.setNotificationHandler(
-      IdeContextNotificationSchema as any,
-      ((notification: any) => {
+      IdeContextNotificationSchema as AnyObjectSchema,
+      (notification) => {
         ideContextStore.set(notification.params);
         const isTrusted = notification.params.workspaceState?.isTrusted;
         if (isTrusted !== undefined) {
@@ -931,7 +931,7 @@ export class IdeClient {
             listener(isTrusted);
           }
         }
-      }) as any,
+      },
     );
     this.client.onerror = (_error) => {
       const errorMessage = _error instanceof Error ? _error.message : `_error`;
@@ -949,8 +949,8 @@ export class IdeClient {
       );
     };
     this.client.setNotificationHandler(
-      IdeDiffAcceptedNotificationSchema as any,
-      ((notification: any) => {
+      IdeDiffAcceptedNotificationSchema as AnyObjectSchema,
+      (notification) => {
         const { filePath, content } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -959,12 +959,12 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      }) as any,
+      },
     );
 
     this.client.setNotificationHandler(
-      IdeDiffRejectedNotificationSchema as any,
-      ((notification: any) => {
+      IdeDiffRejectedNotificationSchema as AnyObjectSchema,
+      (notification) => {
         const { filePath } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -973,14 +973,14 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      }) as any,
+      },
     );
 
-    // For backwards compatability. Newer extension versions will only send
+    // For backwards compatibility. Newer extension versions will only send
     // IdeDiffRejectedNotificationSchema.
     this.client.setNotificationHandler(
-      IdeDiffClosedNotificationSchema as any,
-      ((notification: any) => {
+      IdeDiffClosedNotificationSchema as AnyObjectSchema,
+      (notification) => {
         const { filePath } = notification.params;
         const resolver = this.diffResponses.get(filePath);
         if (resolver) {
@@ -989,7 +989,7 @@ export class IdeClient {
         } else {
           debugLogger.debug(`No resolver found for ${filePath}`);
         }
-      }) as any,
+      },
     );
   }
 
