@@ -1090,7 +1090,9 @@ describe('CoreToolScheduler', () => {
       new AbortController().signal,
     );
 
-    expect(execute).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ file_path: 'a.ts' }));
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ file_path: 'a.ts' }),
+    );
 
     const completedCalls = onAllToolCallsComplete.mock
       .calls[0][0] as ToolCall[];

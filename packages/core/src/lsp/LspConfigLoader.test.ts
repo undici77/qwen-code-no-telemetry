@@ -172,7 +172,7 @@ describe('LspConfigLoader config-driven behavior', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain(
-        'Invalid LSP server config in /workspace/.lsp.json: typescript',
+        `Invalid LSP server config in ${workspaceRoot}/.lsp.json: typescript`,
       );
     }
   });

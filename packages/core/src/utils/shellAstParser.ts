@@ -41,9 +41,9 @@ async function loadWasmBinary(
   fallbackSpecifier: string,
 ): Promise<Uint8Array> {
   const nativeFs =
-    ((process as unknown as { getBuiltinModule?: (name: string) => unknown }).getBuiltinModule?.('fs') as
-      | typeof import('node:fs')
-      | undefined) ?? fs;
+    ((
+      process as unknown as { getBuiltinModule?: (name: string) => unknown }
+    ).getBuiltinModule?.('fs') as typeof import('node:fs') | undefined) ?? fs;
   const moduleFilePath = fileURLToPath(import.meta.url);
   const isBundleMode =
     !moduleFilePath.includes(path.join('src', '')) &&

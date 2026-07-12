@@ -1683,9 +1683,13 @@ export class GitWorktreeService {
     // (PR #4174 review #3259975242.)
     if (existing === '') {
       try {
-        execFileSync('git', ['config', '--local', 'core.hooksPath', hooksPath], {
-          cwd: worktreePath,
-        });
+        execFileSync(
+          'git',
+          ['config', '--local', 'core.hooksPath', hooksPath],
+          {
+            cwd: worktreePath,
+          },
+        );
       } catch (err) {
         debugLogger.error(
           `configureHooksPath: failed to write config to ${worktreePath}: ${err}`,

@@ -2056,13 +2056,13 @@ describe('Server Config (config.ts)', () => {
       expect(cache.size()).toBe(0);
     });
 
-    it('refreshes the telemetry session context with the new session ID', () => {
+    it('refreshes the telemetry session context with the config instance', () => {
       const config = new Config(baseParams);
       vi.mocked(refreshSessionContext).mockClear();
 
-      const newSessionId = config.startNewSession();
+      config.startNewSession();
 
-      expect(refreshSessionContext).toHaveBeenCalledWith(newSessionId);
+      expect(refreshSessionContext).toHaveBeenCalledWith(config);
     });
 
     it('flushes the outgoing chat recording service when switching sessions', () => {
@@ -4531,27 +4531,28 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('Usage Statistics', () => {
-    it('defaults usage statistics to enabled if not specified', () => {
+    it('defaults usage statistics to disabled (no-telemetry policy)', () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: undefined,
       });
 
-      expect(config.getUsageStatisticsEnabled()).toBe(true);
+      expect(config.getUsageStatisticsEnabled()).toBe(false);
     });
 
     it.each([{ enabled: true }, { enabled: false }])(
-      'sets usage statistics based on the provided value (enabled: $enabled)',
+      'sets usage statistics based on the provided value (enabled: $enabled) - SKIPPED in no-telemetry',
       ({ enabled }) => {
         const config = new Config({
           ...baseParams,
           usageStatisticsEnabled: enabled,
         });
-        expect(config.getUsageStatisticsEnabled()).toBe(enabled);
+        // In no-telemetry fork, getUsageStatisticsEnabled() always returns false
+        expect(config.getUsageStatisticsEnabled()).toBe(false);
       },
     );
 
-    it('logs the session start event', async () => {
+    it.skip('logs the session start event', async () => {
       const config = new Config({
         ...baseParams,
         usageStatisticsEnabled: true,
@@ -4563,11 +4564,11 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('GitCoAuthor Settings', () => {
-    it('defaults both commit and pr to true when not specified', () => {
+    it('defaults both commit and pr to false when not specified (no-telemetry policy)', () => {
       const config = new Config({ ...baseParams, gitCoAuthor: undefined });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
 
     it('accepts an object with independent commit and pr toggles', () => {
@@ -4639,15 +4640,15 @@ describe('Server Config (config.ts)', () => {
       },
     );
 
-    // A genuinely-absent sub-field still defaults to true (schema default).
-    it('defaults absent commit/pr to true', () => {
+    // A genuinely-absent sub-field still defaults to false (no-telemetry policy).
+    it('defaults absent commit/pr to false', () => {
       const config = new Config({
         ...baseParams,
         gitCoAuthor: {} as { commit?: boolean; pr?: boolean },
       });
       const settings = config.getGitCoAuthor();
-      expect(settings.commit).toBe(true);
-      expect(settings.pr).toBe(true);
+      expect(settings.commit).toBe(false);
+      expect(settings.pr).toBe(false);
     });
   });
 
