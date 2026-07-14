@@ -21,6 +21,10 @@ import {
   resolvePromptDeadlineMs,
 } from './server.js';
 import type { ChannelWorkerSnapshot } from './channel-worker-supervisor.js';
+import {
+  ChannelWorkerControlError,
+  type ChannelWorkerControlState,
+} from './channel-worker-manager.js';
 import { runQwenServe, type RunHandle } from './run-qwen-serve.js';
 import {
   resolveWebShellDir,
@@ -45,12 +49,16 @@ import type {
 } from '@agentclientprotocol/sdk';
 import {
   ApprovalMode,
+  BTW_MAX_INPUT_LENGTH,
   ExtensionManager,
   ExtensionUpdateState,
   SessionService,
   Storage,
   TrustGateError,
   type Extension,
+  type CommittedExtensionMutation,
+  type PrepareExtensionInstallOptions,
+  type PreparedExtensionMutation,
   type SessionListItem,
 } from '@qwen-code/qwen-code-core';
 import * as qwenCore from '@qwen-code/qwen-code-core';
@@ -75,6 +83,7 @@ import {
   SessionLimitExceededError,
   SessionNotFoundError,
   TotalSessionLimitExceededError,
+  WorkspaceDrainingError,
   WorkspaceMismatchError,
   type BridgeHeartbeatResult,
   type BridgeHeartbeatState,
@@ -115,7 +124,10 @@ import { CAPABILITIES_SCHEMA_VERSION, type ServeOptions } from './types.js';
 import type { DaemonLogger } from './daemon-logger.js';
 import { FsError, type WorkspaceFileSystemFactory } from './fs/index.js';
 import { getRateLimiter } from './rate-limit.js';
-import type { DaemonWorkspaceService } from './workspace-service/types.js';
+import {
+  WorkspaceSkillNotToggleableError,
+  type DaemonWorkspaceService,
+} from './workspace-service/types.js';
 import type { WorkspaceRegistrationStore } from './workspace-registration-store.js';
 import {
   createWorkspaceRegistry,
@@ -276,10 +288,11 @@ const EXPECTED_STAGE1_FEATURES = [
   // hash-aware text mutation routes behind the strict mutation gate.
   'workspace_file_bytes',
   'workspace_file_write',
-  // #4175 Wave 4 PR 17. Mutation control routes (approval mode toggle,
-  // workspace tool enable/disable, init scaffold, MCP server restart).
+  // Mutation control routes (approval mode, workspace tool/skill toggles,
+  // init scaffold, and MCP server restart).
   'session_approval_mode_control',
   'workspace_tool_toggle',
+  'workspace_skill_toggle',
   'workspace_permissions',
   'workspace_trust',
   'workspace_init',
@@ -309,7 +322,9 @@ const EXPECTED_STAGE1_FEATURES = [
   'workspace_extensions',
   'session_branch',
   'workspace_qualified_rest_core',
+  'extension_management_v2',
   'workspace_persisted_transcript',
+  'workspace_session_export',
   // Baseline (always advertised) — presence means the `/voice/stream`
   // endpoint exists; the WS errors if no voice model is configured.
   'voice_transcribe',
@@ -355,7 +370,9 @@ const EXPECTED_REGISTERED_FEATURES = [
       f !== 'workspace_extensions' &&
       f !== 'session_branch' &&
       f !== 'workspace_qualified_rest_core' &&
+      f !== 'extension_management_v2' &&
       f !== 'workspace_persisted_transcript' &&
+      f !== 'workspace_session_export' &&
       f !== 'voice_transcribe',
   ),
   'workspace_settings',
@@ -387,10 +404,17 @@ const EXPECTED_REGISTERED_FEATURES = [
   'rate_limit',
   'workspace_reload',
   'channel_reload',
+  'channel_control',
   'multi_workspace_sessions',
+  'multi_workspace_session_rewind',
+  'multi_workspace_session_shell',
   'persistent_workspace_registration',
+  'workspace_runtime_removal',
   'workspace_qualified_rest_core',
+  'workspace_qualified_voice',
+  'extension_management_v2',
   'workspace_persisted_transcript',
+  'workspace_session_export',
   'workspace_qualified_acp',
   'client_mcp_over_ws',
   'cdp_tunnel_over_ws',
@@ -535,6 +559,12 @@ interface FakeBridgeOpts {
     sessionId: string,
     context?: BridgeClientRequestContext,
   ) => Promise<{ sessionId: string; recap: string | null }>;
+  generateSessionBtwImpl?: (
+    sessionId: string,
+    question: string,
+    signal?: AbortSignal,
+    context?: BridgeClientRequestContext,
+  ) => Promise<{ sessionId: string; answer: string | null }>;
   launchSessionForkAgentImpl?: (
     sessionId: string,
     directive: string,
@@ -764,6 +794,12 @@ interface FakeBridge extends AcpSessionBridge {
   }>;
   generateSessionRecapCalls: Array<{
     sessionId: string;
+    context?: BridgeClientRequestContext;
+  }>;
+  generateSessionBtwCalls: Array<{
+    sessionId: string;
+    question: string;
+    signal?: AbortSignal;
     context?: BridgeClientRequestContext;
   }>;
   forkCalls: Array<{
@@ -1238,6 +1274,13 @@ function fakeBridge(opts: FakeBridgeOpts = {}): FakeBridge {
       sessionId,
       recap: 'Default fake recap.',
     }));
+  const generateSessionBtwCalls: FakeBridge['generateSessionBtwCalls'] = [];
+  const generateSessionBtwImpl =
+    opts.generateSessionBtwImpl ??
+    (async (sessionId: string) => ({
+      sessionId,
+      answer: 'mock btw answer',
+    }));
   const forkCalls: FakeBridge['forkCalls'] = [];
   const launchSessionForkAgentImpl =
     opts.launchSessionForkAgentImpl ??
@@ -1379,6 +1422,7 @@ function fakeBridge(opts: FakeBridgeOpts = {}): FakeBridge {
     setApprovalModeCalls,
     shellCalls,
     generateSessionRecapCalls,
+    generateSessionBtwCalls,
     forkCalls,
     workspaceMemoryRememberCalls,
     workspaceMemoryForgetCalls,
@@ -1656,8 +1700,14 @@ function fakeBridge(opts: FakeBridgeOpts = {}): FakeBridge {
       });
       return generateSessionRecapImpl(sessionId, context);
     },
-    async generateSessionBtw(sessionId, _question, _signal, _context) {
-      return { sessionId, answer: 'mock btw answer' };
+    async generateSessionBtw(sessionId, question, signal, context) {
+      generateSessionBtwCalls.push({
+        sessionId,
+        question,
+        ...(signal ? { signal } : {}),
+        ...(context ? { context } : {}),
+      });
+      return generateSessionBtwImpl(sessionId, question, signal, context);
     },
     async launchSessionForkAgent(sessionId, directive, context) {
       forkCalls.push({
@@ -2176,6 +2226,20 @@ describe('createServeApp', () => {
           );
           continue;
         }
+        if (feature === 'channel_control') {
+          expect(predicate({ channelControlAvailable: true })).toBe(true);
+          expect(predicate({ channelControlAvailable: false })).toBe(false);
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              channelControlAvailable: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
         if (feature === 'multi_workspace_sessions') {
           expect(predicate({ multiWorkspaceSessionsEnabled: true })).toBe(true);
           expect(predicate({ multiWorkspaceSessionsEnabled: false })).toBe(
@@ -2185,6 +2249,53 @@ describe('createServeApp', () => {
           expect(
             getAdvertisedServeFeatures(undefined, {
               multiWorkspaceSessionsEnabled: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
+        if (feature === 'multi_workspace_session_rewind') {
+          expect(predicate({ multiWorkspaceSessionsEnabled: true })).toBe(true);
+          expect(predicate({ multiWorkspaceSessionsEnabled: false })).toBe(
+            false,
+          );
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              multiWorkspaceSessionsEnabled: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
+        if (feature === 'multi_workspace_session_shell') {
+          expect(
+            predicate({
+              multiWorkspaceSessionsEnabled: true,
+              sessionShellCommandEnabled: true,
+            }),
+          ).toBe(true);
+          expect(
+            predicate({
+              multiWorkspaceSessionsEnabled: true,
+              sessionShellCommandEnabled: false,
+            }),
+          ).toBe(false);
+          expect(
+            predicate({
+              multiWorkspaceSessionsEnabled: false,
+              sessionShellCommandEnabled: true,
+            }),
+          ).toBe(false);
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              multiWorkspaceSessionsEnabled: true,
+              sessionShellCommandEnabled: true,
             }),
           ).toContain(feature);
           expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
@@ -2210,9 +2321,55 @@ describe('createServeApp', () => {
           );
           continue;
         }
+        if (feature === 'workspace_runtime_removal') {
+          expect(predicate({ workspaceRuntimeRemovalAvailable: true })).toBe(
+            true,
+          );
+          expect(predicate({ workspaceRuntimeRemovalAvailable: false })).toBe(
+            false,
+          );
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              workspaceRuntimeRemovalAvailable: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
         if (feature === 'workspace_qualified_acp') {
           // Advertised only when BOTH multi-workspace sessions and the HTTP ACP
           // surface are enabled.
+          expect(
+            predicate({
+              multiWorkspaceSessionsEnabled: true,
+              acpHttpEnabled: true,
+            }),
+          ).toBe(true);
+          expect(
+            predicate({
+              multiWorkspaceSessionsEnabled: true,
+              acpHttpEnabled: false,
+            }),
+          ).toBe(false);
+          expect(predicate({ multiWorkspaceSessionsEnabled: false })).toBe(
+            false,
+          );
+          expect(predicate({})).toBe(false);
+          expect(
+            getAdvertisedServeFeatures(undefined, {
+              multiWorkspaceSessionsEnabled: true,
+              acpHttpEnabled: true,
+            }),
+          ).toContain(feature);
+          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
+            feature,
+          );
+          continue;
+        }
+        if (feature === 'workspace_qualified_voice') {
           expect(
             predicate({
               multiWorkspaceSessionsEnabled: true,
@@ -2700,7 +2857,14 @@ describe('createServeApp', () => {
         'persistent_workspace_registration',
       );
       expect(before.body.features).not.toContain('multi_workspace_sessions');
-      expect(before.body.workspaces).toBeUndefined();
+      expect(before.body.workspaces).toEqual([
+        {
+          id: 'primary-id',
+          cwd: WS_BOUND,
+          primary: true,
+          trusted: true,
+        },
+      ]);
 
       registry.add(
         makeWorkspaceRuntimeForTest({
@@ -2755,6 +2919,53 @@ describe('createServeApp', () => {
       } finally {
         await fsp.rm(tempHome, { recursive: true, force: true });
         restoreEnv('QWEN_HOME', previousQwenHome);
+        resetHomeEnvBootstrapForTesting();
+      }
+    });
+
+    it('loads workspace environment for direct-embed Voice capability checks', async () => {
+      const previousQwenHome = process.env['QWEN_HOME'];
+      const previousWorkspaceAsrKey = process.env['WORKSPACE_ASR_KEY'];
+      const tempHome = await fsp.mkdtemp(
+        path.join(os.tmpdir(), 'qwen-voice-capability-env-'),
+      );
+      const workspace = path.join(tempHome, 'workspace');
+      try {
+        await fsp.mkdir(workspace);
+        await fsp.writeFile(
+          path.join(workspace, '.env'),
+          'WORKSPACE_ASR_KEY=workspace-secret\n',
+          'utf8',
+        );
+        process.env['QWEN_HOME'] = tempHome;
+        resetHomeEnvBootstrapForTesting();
+        await fsp.writeFile(
+          path.join(tempHome, 'settings.json'),
+          JSON.stringify({
+            modelProviders: {
+              openai: [
+                {
+                  id: 'qwen3-asr-flash',
+                  baseUrl: 'https://asr.example/v1',
+                  envKey: 'WORKSPACE_ASR_KEY',
+                },
+              ],
+            },
+          }),
+          'utf8',
+        );
+
+        const app = createServeApp({ ...baseOpts, workspace });
+        const res = await request(app)
+          .get('/capabilities')
+          .set('Host', `127.0.0.1:${baseOpts.port}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.features).toContain('workspace_voice_transcription');
+      } finally {
+        await fsp.rm(tempHome, { recursive: true, force: true });
+        restoreEnv('QWEN_HOME', previousQwenHome);
+        restoreEnv('WORKSPACE_ASR_KEY', previousWorkspaceAsrKey);
         resetHomeEnvBootstrapForTesting();
       }
     });
@@ -3525,16 +3736,47 @@ describe('createServeApp', () => {
 
     const mockExtensionManagerMethods = (overrides?: {
       refreshCache?: () => Promise<void>;
-      installExtension?: () => Promise<Extension>;
+      prepareExtensionInstall?: (
+        options: PrepareExtensionInstallOptions,
+      ) => Promise<Extension>;
+      prepareExtensionUpdate?: (extension: Extension) => Promise<Extension>;
+      commitPreparedExtension?: (
+        prepared: PreparedExtensionMutation,
+      ) => Promise<CommittedExtensionMutation>;
+      disposePreparedExtension?: (
+        prepared: PreparedExtensionMutation,
+      ) => Promise<void>;
       getLoadedExtensions?: () => Extension[];
-      enableExtension?: () => Promise<void>;
-      disableExtension?: () => Promise<void>;
-      uninstallExtension?: () => Promise<void>;
+      enableExtension?: () => Promise<unknown>;
+      disableExtension?: () => Promise<unknown>;
+      uninstallExtension?: () => Promise<unknown>;
       checkForAllExtensionUpdates?: (
         cb: (name: string, state: ExtensionUpdateState) => void,
+        signal?: AbortSignal,
+        schedule?: <T>(task: () => Promise<T>) => Promise<T>,
       ) => Promise<void>;
       updateExtension?: () => Promise<{ updatedVersion?: string } | undefined>;
     }) => {
+      const preparedExtensions = new Map<
+        PreparedExtensionMutation,
+        Extension
+      >();
+      let generation = 0;
+      const createPrepared = (
+        extension: Extension,
+        operation: 'install' | 'update',
+      ): PreparedExtensionMutation => {
+        const prepared = {
+          operation,
+          identity: {
+            id: extension.id ?? 'a'.repeat(64),
+            name: extension.name,
+          },
+          version: extension.version ?? extension.config.version ?? '1.0.0',
+        } as PreparedExtensionMutation;
+        preparedExtensions.set(prepared, extension);
+        return prepared;
+      };
       const spies = [
         vi
           .spyOn(ExtensionManager.prototype, 'refreshCache')
@@ -3542,10 +3784,57 @@ describe('createServeApp', () => {
             overrides?.refreshCache ?? (async () => undefined),
           ),
         vi
-          .spyOn(ExtensionManager.prototype, 'installExtension')
+          .spyOn(ExtensionManager.prototype, 'prepareExtensionInstall')
+          .mockImplementation(async function (options) {
+            const extension = overrides?.prepareExtensionInstall
+              ? await overrides.prepareExtensionInstall.call(this, options)
+              : testExtension('installed-ext');
+            return createPrepared(extension, 'install');
+          }),
+        vi
+          .spyOn(ExtensionManager.prototype, 'prepareExtensionUpdate')
+          .mockImplementation(async function ({ extension, signal }) {
+            const state = await qwenCore.checkForExtensionUpdate(
+              extension,
+              this,
+              signal,
+            );
+            if (state === ExtensionUpdateState.UP_TO_DATE) {
+              return { upToDate: true, extension };
+            }
+            if (state !== ExtensionUpdateState.UPDATE_AVAILABLE) {
+              throw new Error(
+                `Extension "${extension.name}" update check returned ${state}.`,
+              );
+            }
+            const updated = overrides?.prepareExtensionUpdate
+              ? await overrides.prepareExtensionUpdate.call(this, extension)
+              : ({
+                  ...extension,
+                  config: { ...extension.config, version: '1.2.4' },
+                  version: '1.2.4',
+                } as Extension);
+            return {
+              upToDate: false,
+              prepared: createPrepared(updated, 'update'),
+            };
+          }),
+        vi
+          .spyOn(ExtensionManager.prototype, 'commitPreparedExtension')
+          .mockImplementation(async (prepared) =>
+            overrides?.commitPreparedExtension
+              ? await overrides.commitPreparedExtension(prepared)
+              : {
+                  identity: prepared.identity,
+                  version: prepared.version,
+                  generation: ++generation,
+                  extension: preparedExtensions.get(prepared),
+                },
+          ),
+        vi
+          .spyOn(ExtensionManager.prototype, 'disposePreparedExtension')
           .mockImplementation(
-            overrides?.installExtension ??
-              (async () => testExtension('installed-ext')),
+            overrides?.disposePreparedExtension ?? (async () => undefined),
           ),
         vi
           .spyOn(ExtensionManager.prototype, 'getLoadedExtensions')
@@ -3556,17 +3845,20 @@ describe('createServeApp', () => {
         vi
           .spyOn(ExtensionManager.prototype, 'enableExtension')
           .mockImplementation(
-            overrides?.enableExtension ?? (async () => undefined),
+            (overrides?.enableExtension ??
+              (async () => ({ generation: ++generation }))) as never,
           ),
         vi
           .spyOn(ExtensionManager.prototype, 'disableExtension')
           .mockImplementation(
-            overrides?.disableExtension ?? (async () => undefined),
+            (overrides?.disableExtension ??
+              (async () => ({ generation: ++generation }))) as never,
           ),
         vi
           .spyOn(ExtensionManager.prototype, 'uninstallExtension')
           .mockImplementation(
-            overrides?.uninstallExtension ?? (async () => undefined),
+            (overrides?.uninstallExtension ??
+              (async () => ({ generation: ++generation }))) as never,
           ),
         vi
           .spyOn(ExtensionManager.prototype, 'checkForAllExtensionUpdates')
@@ -3642,7 +3934,7 @@ describe('createServeApp', () => {
       );
       let managerTrustedFlag: boolean | undefined;
       const restore = mockExtensionManagerMethods({
-        async installExtension() {
+        async prepareExtensionInstall() {
           managerTrustedFlag = (
             this as unknown as { isWorkspaceTrusted?: boolean }
           ).isWorkspaceTrusted;
@@ -3698,7 +3990,7 @@ describe('createServeApp', () => {
     it('queues extension install and refreshes active sessions', async () => {
       let requestSettingError: string | undefined;
       const restore = mockExtensionManagerMethods({
-        async installExtension() {
+        async prepareExtensionInstall() {
           const manager = this as unknown as {
             requestSetting?: (setting: { envVar: string }) => Promise<string>;
           };
@@ -3747,14 +4039,15 @@ describe('createServeApp', () => {
           });
         });
         expect(
-          vi.mocked(ExtensionManager.prototype.installExtension),
+          vi.mocked(ExtensionManager.prototype.prepareExtensionInstall),
         ).toHaveBeenCalledWith(
           expect.objectContaining({
-            ref: 'v1.2.3',
-            autoUpdate: true,
-            allowPreRelease: true,
+            installMetadata: expect.objectContaining({
+              ref: 'v1.2.3',
+              autoUpdate: true,
+              allowPreRelease: true,
+            }),
           }),
-          expect.any(Function),
         );
         expect(requestSettingError).toContain(
           'requires interactive configuration',
@@ -3795,7 +4088,7 @@ describe('createServeApp', () => {
         releaseInstall = resolve;
       });
       const restore = mockExtensionManagerMethods({
-        installExtension: async () => {
+        prepareExtensionInstall: async () => {
           await installBlocker;
           return testExtension('installed-ext');
         },
@@ -3837,25 +4130,45 @@ describe('createServeApp', () => {
           .send({ source: 'https://example.com/second-ext', consent: true });
         expect(second.status).toBe(202);
 
+        await vi.waitFor(async () => {
+          const poll = await request(app)
+            .get(
+              `/workspace/extensions/operations/${encodeURIComponent(
+                second.body.operationId as string,
+              )}`,
+            )
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret');
+          expect(poll.body.status).toBe('running');
+        });
+
+        const third = await request(app)
+          .post('/workspace/extensions/install')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ source: 'https://example.com/third-ext', consent: true });
+        expect(third.status).toBe(202);
+
         const queued = await request(app)
           .get(
             `/workspace/extensions/operations/${encodeURIComponent(
-              second.body.operationId as string,
+              third.body.operationId as string,
             )}`,
           )
           .set('Host', `127.0.0.1:${tokenOpts.port}`)
           .set('Authorization', 'Bearer secret');
         expect(queued.status).toBe(200);
         expect(queued.body).toMatchObject({
-          operationId: second.body.operationId,
+          operationId: third.body.operationId,
           operation: 'install',
           status: 'queued',
-          source: 'https://example.com/second-ext',
+          source: 'https://example.com/third-ext',
         });
 
         releaseInstall!();
         await vi.waitFor(() => {
-          expect(bridge.extensionEvents.length).toBeGreaterThanOrEqual(2);
+          expect(bridge.extensionEvents.length).toBeGreaterThanOrEqual(3);
         });
       } finally {
         releaseInstall?.();
@@ -3863,9 +4176,163 @@ describe('createServeApp', () => {
       }
     });
 
+    it('commits in preparation completion order', async () => {
+      let releaseFirst: (() => void) | undefined;
+      let firstStarted = false;
+      const commits: string[] = [];
+      let generation = 0;
+      const restore = mockExtensionManagerMethods({
+        prepareExtensionInstall: async ({ installMetadata }) => {
+          const name = installMetadata.source.endsWith('/first-ext')
+            ? 'first-ext'
+            : 'second-ext';
+          if (name === 'first-ext') {
+            firstStarted = true;
+            await new Promise<void>((resolve) => {
+              releaseFirst = resolve;
+            });
+          }
+          return testExtension(name);
+        },
+        commitPreparedExtension: async (prepared) => {
+          commits.push(prepared.identity.name);
+          return {
+            identity: prepared.identity,
+            version: prepared.version,
+            generation: ++generation,
+          };
+        },
+      });
+      try {
+        const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+        const bridge = fakeBridge({ knownClientIds: ['client-1'] });
+        const app = createServeApp(
+          { ...tokenOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge },
+        );
+
+        await request(app)
+          .post('/workspace/extensions/install')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ source: 'https://example.com/first-ext', consent: true });
+        await vi.waitFor(() => expect(firstStarted).toBe(true));
+
+        await request(app)
+          .post('/workspace/extensions/install')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ source: 'https://example.com/second-ext', consent: true });
+        await vi.waitFor(() => expect(commits).toEqual(['second-ext']));
+
+        releaseFirst?.();
+        await vi.waitFor(() =>
+          expect(commits).toEqual(['second-ext', 'first-ext']),
+        );
+        await vi.waitFor(() => expect(bridge.extensionEvents).toHaveLength(2));
+      } finally {
+        releaseFirst?.();
+        restore();
+      }
+    });
+
+    it('maps coded commit warnings to the legacy refresh-error status', async () => {
+      const restore = mockExtensionManagerMethods({
+        commitPreparedExtension: async (prepared) => ({
+          identity: prepared.identity,
+          version: prepared.version,
+          generation: 3,
+          warnings: [
+            {
+              code: 'extension_temp_cleanup_failed',
+              error: 'cleanup denied',
+            },
+          ],
+        }),
+      });
+      try {
+        const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+        const app = createServeApp(
+          { ...tokenOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge: fakeBridge({ knownClientIds: ['client-1'] }) },
+        );
+        const started = await request(app)
+          .post('/workspace/extensions/install')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ source: 'https://example.com/warning-ext', consent: true });
+
+        await vi.waitFor(async () => {
+          const operation = await request(app)
+            .get(`/workspace/extensions/operations/${started.body.operationId}`)
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret');
+          expect(operation.body).toMatchObject({
+            status: 'succeeded_with_refresh_error',
+            result: { error: 'cleanup denied' },
+            warnings: [
+              {
+                code: 'extension_temp_cleanup_failed',
+                error: 'cleanup denied',
+              },
+            ],
+          });
+        });
+      } finally {
+        restore();
+      }
+    });
+
+    it('maps resultless committed warnings to a legacy top-level error', async () => {
+      const restore = mockExtensionManagerMethods({
+        commitPreparedExtension: async (prepared) => ({
+          identity: prepared.identity,
+          version: prepared.version,
+          generation: 3,
+        }),
+        disposePreparedExtension: async () => {
+          throw new Error('cleanup exploded');
+        },
+      });
+      try {
+        const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+        const app = createServeApp(
+          { ...tokenOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge: fakeBridge({ knownClientIds: ['client-1'] }) },
+        );
+        const started = await request(app)
+          .post('/workspace/extensions/install')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ source: 'https://example.com/warning-ext', consent: true });
+
+        await vi.waitFor(async () => {
+          const operation = await request(app)
+            .get(`/workspace/extensions/operations/${started.body.operationId}`)
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret');
+          expect(operation.body).toMatchObject({
+            status: 'succeeded_with_refresh_error',
+            error:
+              'Commit succeeded but post-commit work failed: cleanup exploded',
+          });
+          expect(operation.body).not.toHaveProperty('result');
+        });
+      } finally {
+        restore();
+      }
+    });
+
     it('evicts the oldest terminal extension operations', async () => {
       const restore = mockExtensionManagerMethods({
-        async installExtension() {
+        async prepareExtensionInstall() {
           return testExtension('installed-ext');
         },
       });
@@ -3951,9 +4418,12 @@ describe('createServeApp', () => {
     });
 
     it('broadcasts a failed extension install with redacted error details', async () => {
+      const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
       const restore = mockExtensionManagerMethods({
-        installExtension: async () => {
-          throw new Error('https://user:token@example.com/private-ext failed');
+        prepareExtensionInstall: async () => {
+          throw new Error(
+            'https://user:\n\tsecret@example.com/private-ext failed',
+          );
         },
       });
       try {
@@ -3986,7 +4456,7 @@ describe('createServeApp', () => {
             error: 'https://***REDACTED***@example.com/private-ext failed',
           });
         });
-        expect(bridge.extensionEvents.at(-1)?.error).not.toContain('token');
+        expect(bridge.extensionEvents.at(-1)?.error).not.toContain('secret');
 
         const poll = await request(app)
           .get(
@@ -4004,23 +4474,45 @@ describe('createServeApp', () => {
           source: 'https://example.com/private-ext',
           error: 'https://***REDACTED***@example.com/private-ext failed',
         });
-        expect(poll.body.error).not.toContain('token');
+        expect(poll.body.error).not.toContain('secret');
+        const logged = stderr.mock.calls
+          .map(([chunk]) => String(chunk))
+          .join('');
+        expect(logged).toContain(
+          'https://***REDACTED***@example.com/private-ext failed',
+        );
+        expect(logged).not.toContain('secret');
       } finally {
+        stderr.mockRestore();
         restore();
       }
     });
 
     it('does not report a successful extension install as failed when session refresh fails', async () => {
       const restore = mockExtensionManagerMethods({
-        async installExtension() {
+        async prepareExtensionInstall() {
           return testExtension('installed-ext');
+        },
+        async commitPreparedExtension(prepared) {
+          return {
+            identity: prepared.identity,
+            version: prepared.version,
+            generation: 3,
+            warnings: [
+              {
+                code: 'extension_temp_cleanup_failed',
+                error: 'cleanup denied',
+              },
+            ],
+          };
         },
       });
       try {
         const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
         const bridge = fakeBridge({ knownClientIds: ['client-1'] });
+        const refreshError = 'x'.repeat(600);
         bridge.refreshExtensionsForAllSessions = async () => {
-          throw new Error('refresh broke');
+          throw new Error(refreshError);
         };
         const app = createServeApp(
           { ...tokenOpts, workspace: WS_BOUND },
@@ -4047,7 +4539,7 @@ describe('createServeApp', () => {
             name: 'installed-ext',
             refreshed: 0,
             failed: 1,
-            error: 'refresh broke',
+            error: refreshError.slice(0, 500),
           });
         });
 
@@ -4068,8 +4560,11 @@ describe('createServeApp', () => {
             status: 'installed',
             refreshed: 0,
             failed: 1,
-            error: 'refresh broke',
+            error: refreshError.slice(0, 500),
           },
+          warnings: expect.arrayContaining([
+            expect.objectContaining({ error: refreshError.slice(0, 500) }),
+          ]),
         });
       } finally {
         restore();
@@ -4082,7 +4577,7 @@ describe('createServeApp', () => {
         releaseInstall = resolve;
       });
       const restore = mockExtensionManagerMethods({
-        installExtension: async () => {
+        prepareExtensionInstall: async () => {
           await installBlocker;
           return testExtension('installed-ext');
         },
@@ -4111,13 +4606,39 @@ describe('createServeApp', () => {
           Array.from({ length: 10 }, () => install()),
         );
         const rejected = await install();
+        const legacyRequests = Promise.all([
+          request(app)
+            .post('/workspace/extensions/check-updates')
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret')
+            .set('X-Qwen-Client-Id', 'client-1')
+            .send({}),
+          request(app)
+            .post('/workspace/extensions/refresh')
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret')
+            .set('X-Qwen-Client-Id', 'client-1')
+            .send({}),
+        ]);
+        const releaseTimer = setTimeout(() => releaseInstall?.(), 100);
+        const [checkUpdatesResponse, refresh] = await legacyRequests;
+        clearTimeout(releaseTimer);
+
+        releaseInstall?.();
 
         expect(accepted.every((res) => res.status === 202)).toBe(true);
         expect(rejected.status).toBe(429);
         expect(rejected.body).toMatchObject({
           code: 'extension_queue_full',
         });
-        releaseInstall?.();
+        expect(checkUpdatesResponse.status).toBe(429);
+        expect(checkUpdatesResponse.body).toMatchObject({
+          code: 'extension_queue_full',
+        });
+        expect(refresh.status).toBe(429);
+        expect(refresh.body).toMatchObject({
+          code: 'extension_queue_full',
+        });
         await vi.waitFor(() => {
           expect(
             bridge.extensionEvents.filter(
@@ -4291,6 +4812,7 @@ describe('createServeApp', () => {
         'http://example.com/repo',
         'ftp://example.com/repo',
         'file:///tmp/repo',
+        'git@github.com:owner/repo.git',
       ]) {
         const res = await request(app)
           .post('/workspace/extensions/install')
@@ -4303,7 +4825,7 @@ describe('createServeApp', () => {
           });
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toBe('`source` must use https or ssh');
+        expect(res.body.error).toBe('`source` must use https');
       }
     });
 
@@ -4596,21 +5118,24 @@ describe('createServeApp', () => {
       }
     });
 
-    it('serializes check-updates behind queued extension mutations', async () => {
-      let releaseInstall: (() => void) | undefined;
+    it('shares the two preparation slots with check-updates', async () => {
+      const releases: Array<() => void> = [];
       const calls: string[] = [];
       const restore = mockExtensionManagerMethods({
-        installExtension: async () => {
-          calls.push('install:start');
+        prepareExtensionInstall: async () => {
+          const index = releases.length + 1;
+          calls.push(`install-${index}:start`);
           await new Promise<void>((resolve) => {
-            releaseInstall = resolve;
+            releases.push(resolve);
           });
-          calls.push('install:end');
-          return testExtension('installed-ext');
+          calls.push(`install-${index}:end`);
+          return testExtension(`installed-ext-${index}`);
         },
-        checkForAllExtensionUpdates: async (cb) => {
-          calls.push('check-updates');
-          cb('test-ext', ExtensionUpdateState.UP_TO_DATE);
+        checkForAllExtensionUpdates: async (cb, _signal, schedule) => {
+          await schedule!(async () => {
+            calls.push('check-updates');
+            cb('test-ext', ExtensionUpdateState.UP_TO_DATE);
+          });
         },
       });
       try {
@@ -4622,17 +5147,19 @@ describe('createServeApp', () => {
           { bridge },
         );
 
-        await request(app)
-          .post('/workspace/extensions/install')
-          .set('Host', `127.0.0.1:${tokenOpts.port}`)
-          .set('Authorization', 'Bearer secret')
-          .set('X-Qwen-Client-Id', 'client-1')
-          .send({
-            source: 'https://example.com/installed-ext',
-            consent: true,
-          });
+        for (const name of ['first', 'second']) {
+          await request(app)
+            .post('/workspace/extensions/install')
+            .set('Host', `127.0.0.1:${tokenOpts.port}`)
+            .set('Authorization', 'Bearer secret')
+            .set('X-Qwen-Client-Id', 'client-1')
+            .send({
+              source: `https://example.com/${name}`,
+              consent: true,
+            });
+        }
         await vi.waitFor(() => {
-          expect(calls).toEqual(['install:start']);
+          expect(calls).toEqual(['install-1:start', 'install-2:start']);
         });
 
         const checkUpdates = request(app)
@@ -4642,19 +5169,28 @@ describe('createServeApp', () => {
           .set('X-Qwen-Client-Id', 'client-1')
           .send({})
           .then((response) => response);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(calls).toEqual(['install:start']);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(calls).toEqual(['install-1:start', 'install-2:start']);
 
-        releaseInstall?.();
+        releases[0]?.();
+        await vi.waitFor(() => expect(calls).toContain('check-updates'));
         const res = await checkUpdates;
         expect(res.status).toBe(200);
         expect(calls).toEqual([
-          'install:start',
-          'install:end',
+          'install-1:start',
+          'install-2:start',
+          'install-1:end',
           'check-updates',
         ]);
+        releases[1]?.();
+        await vi.waitFor(() =>
+          expect(bridge.extensionEvents).toEqual([
+            expect.objectContaining({ status: 'installed' }),
+            expect.objectContaining({ status: 'installed' }),
+          ]),
+        );
       } finally {
-        releaseInstall?.();
+        releases.forEach((release) => release());
         restore();
       }
     });
@@ -4728,10 +5264,20 @@ describe('createServeApp', () => {
         });
         expect(
           vi.mocked(ExtensionManager.prototype.enableExtension),
-        ).toHaveBeenCalledWith('test-ext', expect.anything(), WS_BOUND);
+        ).toHaveBeenCalledWith(
+          'test-ext',
+          expect.anything(),
+          WS_BOUND,
+          expect.any(Function),
+        );
         expect(
           vi.mocked(ExtensionManager.prototype.disableExtension),
-        ).toHaveBeenCalledWith('test-ext', expect.anything(), WS_BOUND);
+        ).toHaveBeenCalledWith(
+          'test-ext',
+          expect.anything(),
+          WS_BOUND,
+          expect.any(Function),
+        );
       } finally {
         restore();
       }
@@ -4765,10 +5311,20 @@ describe('createServeApp', () => {
         await vi.waitFor(() => {
           expect(
             vi.mocked(ExtensionManager.prototype.enableExtension),
-          ).toHaveBeenCalledWith('test-ext', expect.anything(), WS_BOUND);
+          ).toHaveBeenCalledWith(
+            'test-ext',
+            expect.anything(),
+            WS_BOUND,
+            expect.any(Function),
+          );
           expect(
             vi.mocked(ExtensionManager.prototype.disableExtension),
-          ).toHaveBeenCalledWith('test-ext', expect.anything(), WS_BOUND);
+          ).toHaveBeenCalledWith(
+            'test-ext',
+            expect.anything(),
+            WS_BOUND,
+            expect.any(Function),
+          );
         });
       } finally {
         restore();
@@ -4799,10 +5355,10 @@ describe('createServeApp', () => {
       });
     });
 
-    it('serializes extension refresh behind queued mutations', async () => {
+    it('does not block manual refresh behind preparation', async () => {
       let releaseInstall: (() => void) | undefined;
       const restore = mockExtensionManagerMethods({
-        installExtension: async () => {
+        prepareExtensionInstall: async () => {
           await new Promise<void>((resolve) => {
             releaseInstall = resolve;
           });
@@ -4829,7 +5385,7 @@ describe('createServeApp', () => {
           });
         await vi.waitFor(() => {
           expect(
-            vi.mocked(ExtensionManager.prototype.installExtension),
+            vi.mocked(ExtensionManager.prototype.prepareExtensionInstall),
           ).toHaveBeenCalled();
         });
 
@@ -4840,18 +5396,82 @@ describe('createServeApp', () => {
           .set('X-Qwen-Client-Id', 'client-1')
           .send({})
           .then((response) => response);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(bridge.extensionEvents).toEqual([]);
-
-        releaseInstall?.();
         const res = await refresh;
         expect(res.status).toBe(200);
         expect(bridge.extensionEvents).toEqual([
-          expect.objectContaining({ status: 'installed' }),
           expect.objectContaining({ refreshed: 1, failed: 0 }),
         ]);
+
+        releaseInstall?.();
+        await vi.waitFor(() => {
+          expect(bridge.extensionEvents).toEqual([
+            expect.objectContaining({ refreshed: 1, failed: 0 }),
+            expect.objectContaining({ status: 'installed' }),
+          ]);
+        });
       } finally {
         releaseInstall?.();
+        restore();
+      }
+    });
+
+    it('serializes manual refresh behind an extension commit', async () => {
+      let releaseEnable: (() => void) | undefined;
+      const restore = mockExtensionManagerMethods({
+        enableExtension: async () => {
+          await new Promise<void>((resolve) => {
+            releaseEnable = resolve;
+          });
+          return { generation: 1 };
+        },
+      });
+      try {
+        const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+        const bridge = fakeBridge({ knownClientIds: ['client-1'] });
+        const app = createServeApp(
+          { ...tokenOpts, workspace: WS_BOUND },
+          undefined,
+          { bridge },
+        );
+
+        const enable = await request(app)
+          .post('/workspace/extensions/test-ext/enable')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({ scope: 'workspace' });
+        expect(enable.status).toBe(202);
+        await vi.waitFor(() => {
+          expect(
+            vi.mocked(ExtensionManager.prototype.enableExtension),
+          ).toHaveBeenCalled();
+        });
+
+        const refreshRequest = request(app)
+          .post('/workspace/extensions/refresh')
+          .set('Host', `127.0.0.1:${tokenOpts.port}`)
+          .set('Authorization', 'Bearer secret')
+          .set('X-Qwen-Client-Id', 'client-1')
+          .send({});
+        const requestStarted = new Promise<void>((resolve) => {
+          refreshRequest.on('request', () => resolve());
+        });
+        const refresh = refreshRequest.then((response) => response);
+        await requestStarted;
+        const state = await Promise.race([
+          refresh.then(() => 'settled'),
+          new Promise<'pending'>((resolve) =>
+            setTimeout(() => resolve('pending'), 50),
+          ),
+        ]);
+        expect(state).toBe('pending');
+
+        releaseEnable?.();
+        const res = await refresh;
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ refreshed: 1, failed: 0 });
+      } finally {
+        releaseEnable?.();
         restore();
       }
     });
@@ -5071,7 +5691,12 @@ describe('createServeApp', () => {
         });
         expect(
           vi.mocked(ExtensionManager.prototype.uninstallExtension),
-        ).toHaveBeenCalledWith('test-ext', false, WS_BOUND);
+        ).toHaveBeenCalledWith(
+          'test-ext',
+          false,
+          WS_BOUND,
+          expect.any(Function),
+        );
       } finally {
         restore();
       }
@@ -5105,7 +5730,12 @@ describe('createServeApp', () => {
         });
         expect(
           vi.mocked(ExtensionManager.prototype.uninstallExtension),
-        ).toHaveBeenCalledWith('test-ext', false, WS_BOUND);
+        ).toHaveBeenCalledWith(
+          'test-ext',
+          false,
+          WS_BOUND,
+          expect.any(Function),
+        );
       } finally {
         restore();
       }
@@ -9373,6 +10003,85 @@ describe('createServeApp', () => {
     });
   });
 
+  describe('POST /session/:id/btw', () => {
+    it('trims the question and forwards client identity plus an abort signal', async () => {
+      const bridge = fakeBridge();
+      const app = createServeApp(baseOpts, undefined, { bridge });
+
+      const res = await request(app)
+        .post('/session/session-A/btw')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .set('X-Qwen-Client-Id', 'client-1')
+        .send({ question: '  what now?  ' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        sessionId: 'session-A',
+        answer: 'mock btw answer',
+      });
+      expect(bridge.generateSessionBtwCalls).toEqual([
+        expect.objectContaining({
+          sessionId: 'session-A',
+          question: 'what now?',
+          signal: expect.any(AbortSignal),
+          context: { clientId: 'client-1' },
+        }),
+      ]);
+      expect(bridge.generateSessionBtwCalls[0]?.signal?.aborted).toBe(false);
+    });
+
+    it('rejects empty and oversized questions before bridge dispatch', async () => {
+      const bridge = fakeBridge();
+      const app = createServeApp(baseOpts, undefined, { bridge });
+
+      const empty = await request(app)
+        .post('/session/session-A/btw')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ question: '   ' });
+      const oversized = await request(app)
+        .post('/session/session-A/btw')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ question: 'x'.repeat(BTW_MAX_INPUT_LENGTH + 1) });
+
+      expect(empty.status).toBe(400);
+      expect(oversized.status).toBe(400);
+      expect(bridge.generateSessionBtwCalls).toEqual([]);
+    });
+
+    it('rejects a malformed client id before bridge dispatch', async () => {
+      const bridge = fakeBridge();
+      const app = createServeApp(baseOpts, undefined, { bridge });
+
+      const res = await request(app)
+        .post('/session/session-A/btw')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .set('X-Qwen-Client-Id', 'bad client id')
+        .send({ question: 'what now?' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('invalid_client_id');
+      expect(bridge.generateSessionBtwCalls).toEqual([]);
+    });
+
+    it('maps bridge errors through the standard route error response', async () => {
+      const bridge = fakeBridge({
+        generateSessionBtwImpl: async () => {
+          throw new Error('btw failed');
+        },
+      });
+      const app = createServeApp(baseOpts, undefined, { bridge });
+
+      const res = await request(app)
+        .post('/session/session-A/btw')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ question: 'what now?' });
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({ error: 'btw failed' });
+      expect(bridge.generateSessionBtwCalls).toHaveLength(1);
+    });
+  });
+
   describe('POST /session/:id/shell', () => {
     const tokenOpts: ServeOptions = {
       ...baseOpts,
@@ -10245,6 +10954,314 @@ describe('createServeApp', () => {
     });
   });
 
+  describe('/workspace/channel runtime control', () => {
+    const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+    const auth = (req: request.Test): request.Test =>
+      req
+        .set('Host', `127.0.0.1:${tokenOpts.port}`)
+        .set('Authorization', 'Bearer secret');
+    const disabled = (): ChannelWorkerControlState => ({
+      enabled: false,
+      selection: null,
+      transition: 'idle',
+      workers: [],
+    });
+    const running = (): ChannelWorkerControlState => ({
+      enabled: true,
+      selection: { mode: 'names', names: ['telegram'] },
+      transition: 'idle',
+      workers: [
+        {
+          enabled: true,
+          state: 'running',
+          channels: ['telegram'],
+          workspaceId: 'primary',
+          workspaceCwd: WS_BOUND,
+          primary: true,
+        },
+      ],
+    });
+
+    it('exposes disabled state and advertises control but not reload', async () => {
+      let state = disabled();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: vi.fn(async (selection) => {
+          state = { ...running(), selection };
+          return {
+            changed: true,
+            replaced: false,
+            partial: false,
+            state,
+          };
+        }),
+        stopChannelWorker: vi.fn(async () => ({ changed: false, state })),
+        reloadChannelWorker: vi.fn(async () => ({
+          enabled: false,
+          state: 'disabled',
+          channels: [],
+        })),
+      });
+
+      const control = await auth(request(app).get('/workspace/channel'));
+      expect(control.status).toBe(200);
+      expect(control.body).toEqual(disabled());
+
+      const capabilities = await auth(request(app).get('/capabilities'));
+      expect(capabilities.body.features).toContain('channel_control');
+      expect(capabilities.body.features).not.toContain('channel_reload');
+    });
+
+    it('does not advertise reload for degraded manager states', async () => {
+      for (const state of [
+        {
+          enabled: true,
+          selection: null,
+          transition: 'idle',
+          workers: [],
+        },
+        {
+          enabled: true,
+          selection: { mode: 'names', names: ['telegram'] },
+          transition: 'idle',
+          workers: [],
+        },
+      ] satisfies ChannelWorkerControlState[]) {
+        const app = createServeApp(tokenOpts, undefined, {
+          bridge: fakeBridge(),
+          boundWorkspace: WS_BOUND,
+          getChannelWorkerControl: () => state,
+          setChannelWorkerSelection: vi.fn(),
+          stopChannelWorker: vi.fn(),
+          reloadChannelWorker: vi.fn(),
+        });
+
+        const capabilities = await auth(request(app).get('/capabilities'));
+        expect(capabilities.body.features).toContain('channel_control');
+        expect(capabilities.body.features).not.toContain('channel_reload');
+      }
+    });
+
+    it('requires a configured token before any runtime channel mutation', async () => {
+      const state = disabled();
+      const setSelection = vi.fn();
+      const app = createServeApp(baseOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: setSelection,
+        stopChannelWorker: vi.fn(),
+        reloadChannelWorker: vi.fn(),
+      });
+
+      const response = await request(app)
+        .put('/workspace/channel')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ selection: { mode: 'all' } });
+
+      expect(response.status).toBe(401);
+      expect(response.body.code).toBe('token_required');
+      expect(setSelection).not.toHaveBeenCalled();
+    });
+
+    it('strict-gates PUT and normalizes names without sorting them', async () => {
+      let state = disabled();
+      const setSelection = vi.fn(async (selection) => {
+        state = { ...running(), selection };
+        return {
+          changed: true,
+          replaced: false,
+          partial: false,
+          state,
+          created: true,
+        };
+      });
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: setSelection,
+        stopChannelWorker: vi.fn(async () => ({ changed: false, state })),
+        reloadChannelWorker: vi.fn(async () => state.workers[0]!),
+      });
+
+      const unauthenticated = await request(app)
+        .put('/workspace/channel')
+        .set('Host', `127.0.0.1:${tokenOpts.port}`)
+        .send({ selection: { mode: 'all' } });
+      expect(unauthenticated.status).toBe(401);
+      expect(setSelection).not.toHaveBeenCalled();
+
+      const response = await auth(request(app).put('/workspace/channel')).send({
+        selection: {
+          mode: 'names',
+          names: [' discord ', 'telegram', 'discord'],
+        },
+      });
+      expect(response.status).toBe(201);
+      expect(response.body).not.toHaveProperty('created');
+      expect(setSelection).toHaveBeenCalledWith({
+        mode: 'names',
+        names: ['discord', 'telegram'],
+      });
+    });
+
+    it('rejects empty and mixed all selections before changing workers', async () => {
+      const setSelection = vi.fn();
+      const state = disabled();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: setSelection,
+        stopChannelWorker: vi.fn(async () => ({ changed: false, state })),
+        reloadChannelWorker: vi.fn(async () => ({
+          enabled: false,
+          state: 'disabled',
+          channels: [],
+        })),
+      });
+
+      for (const selection of [
+        { mode: 'names', names: [] },
+        { mode: 'all', names: ['telegram'] },
+      ]) {
+        const response = await auth(
+          request(app).put('/workspace/channel'),
+        ).send({ selection });
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe('invalid_channel_selection');
+      }
+      expect(setSelection).not.toHaveBeenCalled();
+    });
+
+    it('returns typed start failure details with credential redaction', async () => {
+      const state = running();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: vi.fn(async () => {
+          throw new ChannelWorkerControlError(
+            'channel_worker_start_failed',
+            'token=start-secret',
+            {
+              rolledBack: false,
+              rollbackError: 'token=rollback-secret',
+            },
+          );
+        }),
+        stopChannelWorker: vi.fn(async () => ({ changed: false, state })),
+        reloadChannelWorker: vi.fn(async () => state.workers[0]!),
+      });
+
+      const response = await auth(request(app).put('/workspace/channel')).send({
+        selection: { mode: 'all' },
+      });
+
+      expect(response.status).toBe(502);
+      expect(response.body).toMatchObject({
+        code: 'channel_worker_start_failed',
+        rolledBack: false,
+        state,
+      });
+      expect(JSON.stringify(response.body)).not.toContain('start-secret');
+      expect(JSON.stringify(response.body)).not.toContain('rollback-secret');
+    });
+
+    it('maps untrusted workspace failures to 403', async () => {
+      const state = disabled();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: vi.fn(async () => {
+          throw Object.assign(new Error('Workspace is not trusted.'), {
+            code: 'untrusted_workspace',
+          });
+        }),
+        stopChannelWorker: vi.fn(async () => ({ changed: false, state })),
+        reloadChannelWorker: vi.fn(async () => ({
+          enabled: false,
+          state: 'disabled',
+          channels: [],
+        })),
+      });
+
+      const response = await auth(request(app).put('/workspace/channel')).send({
+        selection: { mode: 'all' },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({
+        error: 'Workspace is not trusted.',
+        code: 'untrusted_workspace',
+      });
+    });
+
+    it('maps a pre-manager daemon draining gate to the stable 503 error', async () => {
+      const state = disabled();
+      const setSelection = vi.fn();
+      const stopChannelWorker = vi.fn();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        isChannelControlDraining: () => true,
+        setChannelWorkerSelection: setSelection,
+        stopChannelWorker,
+        reloadChannelWorker: vi.fn(async () => ({
+          enabled: false,
+          state: 'disabled',
+          channels: [],
+        })),
+      });
+
+      const response = await auth(request(app).put('/workspace/channel')).send({
+        selection: { mode: 'all' },
+      });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toMatchObject({
+        code: 'daemon_draining',
+        state,
+      });
+      const stopped = await auth(request(app).delete('/workspace/channel'));
+      expect(stopped.status).toBe(503);
+      expect(stopped.body).toMatchObject({ code: 'daemon_draining', state });
+      expect(setSelection).not.toHaveBeenCalled();
+      expect(stopChannelWorker).not.toHaveBeenCalled();
+    });
+
+    it('stops idempotently and removes channel_reload dynamically', async () => {
+      let state = running();
+      const stop = vi.fn(async () => {
+        const changed = state.enabled;
+        state = disabled();
+        return { changed, state };
+      });
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerControl: () => state,
+        setChannelWorkerSelection: vi.fn(),
+        stopChannelWorker: stop,
+        reloadChannelWorker: vi.fn(async () => state.workers[0]!),
+      });
+
+      const first = await auth(request(app).delete('/workspace/channel'));
+      const second = await auth(request(app).delete('/workspace/channel'));
+      expect(first.body).toMatchObject({ changed: true, state: disabled() });
+      expect(second.body).toMatchObject({ changed: false, state: disabled() });
+
+      const capabilities = await auth(request(app).get('/capabilities'));
+      expect(capabilities.body.features).toContain('channel_control');
+      expect(capabilities.body.features).not.toContain('channel_reload');
+    });
+  });
+
   describe('POST /workspace/channel/reload', () => {
     const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
     const auth = (req: request.Test): request.Test =>
@@ -10321,6 +11338,43 @@ describe('createServeApp', () => {
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('channel_worker_not_enabled');
       expect(reloadChannelWorker).not.toHaveBeenCalled();
+    });
+
+    it('returns 503 before the disabled reload precheck while draining', async () => {
+      const reloadChannelWorker = vi.fn(async () => disabledSnapshot);
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerSnapshot: () => disabledSnapshot,
+        isChannelControlDraining: () => true,
+        reloadChannelWorker,
+      });
+
+      const res = await auth(
+        request(app).post('/workspace/channel/reload'),
+      ).send({});
+
+      expect(res.status).toBe(503);
+      expect(res.body.code).toBe('daemon_draining');
+      expect(reloadChannelWorker).not.toHaveBeenCalled();
+    });
+
+    it('waits on reload instead of returning 409 while the manager initializes', async () => {
+      const reloadChannelWorker = vi.fn(async () => runningSnapshot);
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerSnapshot: () => disabledSnapshot,
+        isChannelControlInitializing: () => true,
+        reloadChannelWorker,
+      });
+
+      const res = await auth(
+        request(app).post('/workspace/channel/reload'),
+      ).send({});
+
+      expect(res.status).toBe(200);
+      expect(reloadChannelWorker).toHaveBeenCalledTimes(1);
     });
 
     it('returns 409 when every workspace worker is disabled', async () => {
@@ -10410,6 +11464,34 @@ describe('createServeApp', () => {
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'relaunch failed' });
       expect(reloadChannelWorker).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns typed and redacted reload start failures', async () => {
+      const reloadChannelWorker = vi.fn(async () => {
+        throw new ChannelWorkerControlError(
+          'channel_worker_start_failed',
+          'token=reload-secret',
+          { rolledBack: false, rollbackError: 'token=rollback-secret' },
+        );
+      });
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        boundWorkspace: WS_BOUND,
+        getChannelWorkerSnapshot: () => runningSnapshot,
+        reloadChannelWorker,
+      });
+
+      const res = await auth(
+        request(app).post('/workspace/channel/reload'),
+      ).send({});
+
+      expect(res.status).toBe(502);
+      expect(res.body).toMatchObject({
+        code: 'channel_worker_start_failed',
+        rolledBack: false,
+      });
+      expect(JSON.stringify(res.body)).not.toContain('reload-secret');
+      expect(JSON.stringify(res.body)).not.toContain('rollback-secret');
     });
 
     it('advertises channel_reload only when the reload dep is wired', async () => {
@@ -11292,6 +12374,200 @@ describe('createServeApp', () => {
     });
   });
 
+  describe('POST /workspace/skills/:name/enable', () => {
+    const tokenOpts: ServeOptions = { ...baseOpts, token: 'secret' };
+    const auth = (req: request.Test): request.Test =>
+      req
+        .set('Host', `127.0.0.1:${tokenOpts.port}`)
+        .set('Authorization', 'Bearer secret');
+    const reviewSkill = {
+      kind: 'skill' as const,
+      status: 'ok' as const,
+      name: 'review',
+      description: 'Review changed code',
+      level: 'bundled' as const,
+      modelInvocable: true,
+    };
+
+    it('requires the strict bearer-auth mutation gate', async () => {
+      const bridge = fakeBridge();
+      const app = createServeApp(baseOpts, undefined, { bridge });
+      const res = await request(app)
+        .post('/workspace/skills/review/enable')
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .send({ enabled: false });
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('token_required');
+    });
+
+    it('validates skill names and the enabled body', async () => {
+      const bridge = fakeBridge();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge,
+        primaryWorkspaceTrusted: true,
+      });
+      const empty = await auth(
+        request(app).post('/workspace/skills/%20%20/enable'),
+      ).send({ enabled: false });
+      expect(empty.status).toBe(400);
+      expect(empty.body.code).toBe('invalid_skill_name');
+
+      const tooLong = await auth(
+        request(app).post(`/workspace/skills/${'a'.repeat(257)}/enable`),
+      ).send({ enabled: false });
+      expect(tooLong.status).toBe(400);
+      expect(tooLong.body.code).toBe('invalid_skill_name');
+
+      const badBody = await auth(
+        request(app).post('/workspace/skills/review/enable'),
+      ).send({ enabled: 'no' });
+      expect(badBody.status).toBe(400);
+      expect(badBody.body.code).toBe('invalid_enabled_flag');
+    });
+
+    it('returns the canonical name and deferred activation without a child', async () => {
+      const bridge = fakeBridge({
+        workspaceSkillsImpl: async () => ({
+          v: 1,
+          workspaceCwd: WS_BOUND,
+          initialized: true,
+          skills: [reviewSkill],
+        }),
+      });
+      const persistDisabledSkills = vi.fn().mockResolvedValue({
+        changed: true,
+        disabled: ['review'],
+      });
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge,
+        boundWorkspace: WS_BOUND,
+        persistDisabledSkills,
+        primaryWorkspaceTrusted: true,
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/ReViEw/enable'),
+      ).send({ enabled: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        skillName: 'review',
+        enabled: false,
+        changed: true,
+        activation: 'deferred',
+        sessionsRefreshed: 0,
+        sessionsFailed: 0,
+      });
+      expect(persistDisabledSkills).toHaveBeenCalledWith(
+        WS_BOUND,
+        'review',
+        false,
+      );
+    });
+
+    it('returns 404 for an unknown skill', async () => {
+      const persistDisabledSkills = vi.fn();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge({
+          workspaceSkillsImpl: async () => ({
+            v: 1,
+            workspaceCwd: WS_BOUND,
+            initialized: true,
+            skills: [reviewSkill],
+          }),
+        }),
+        persistDisabledSkills,
+        primaryWorkspaceTrusted: true,
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/missing/enable'),
+      ).send({ enabled: false });
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('skill_not_found');
+      expect(persistDisabledSkills).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown workspace client id before persistence', async () => {
+      const persistDisabledSkills = vi.fn();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+        persistDisabledSkills,
+        primaryWorkspaceTrusted: true,
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/review/enable'),
+      )
+        .set('X-Qwen-Client-Id', 'forged-client')
+        .send({ enabled: false });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('invalid_client_id');
+      expect(persistDisabledSkills).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 without persisting a non-user-invocable skill', async () => {
+      const persistDisabledSkills = vi.fn();
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge({
+          workspaceSkillsImpl: async () => ({
+            v: 1,
+            workspaceCwd: WS_BOUND,
+            initialized: true,
+            skills: [{ ...reviewSkill, userInvocable: false }],
+          }),
+        }),
+        persistDisabledSkills,
+        primaryWorkspaceTrusted: true,
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/review/enable'),
+      ).send({ enabled: false });
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({
+        code: 'skill_not_toggleable',
+        reason: 'not_user_invocable',
+      });
+      expect(persistDisabledSkills).not.toHaveBeenCalled();
+    });
+
+    it('returns the locked scope from persistence validation', async () => {
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge({
+          workspaceSkillsImpl: async () => ({
+            v: 1,
+            workspaceCwd: WS_BOUND,
+            initialized: true,
+            skills: [reviewSkill],
+          }),
+        }),
+        persistDisabledSkills: vi
+          .fn()
+          .mockRejectedValue(
+            new WorkspaceSkillNotToggleableError('review', 'locked', 'user'),
+          ),
+        primaryWorkspaceTrusted: true,
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/review/enable'),
+      ).send({ enabled: true });
+      expect(res.status).toBe(409);
+      expect(res.body).toMatchObject({
+        code: 'skill_not_toggleable',
+        reason: 'locked',
+        lockedScope: 'user',
+      });
+    });
+
+    it('rejects writes to an untrusted primary workspace', async () => {
+      const app = createServeApp(tokenOpts, undefined, {
+        bridge: fakeBridge(),
+      });
+      const res = await auth(
+        request(app).post('/workspace/skills/review/enable'),
+      ).send({ enabled: false });
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('untrusted_workspace');
+    });
+  });
+
   describe('POST /session/:id/permission/:requestId', () => {
     it('200 when bridge accepts the scoped vote', async () => {
       const bridge = fakeBridge();
@@ -11839,6 +13115,57 @@ describe('createServeApp', () => {
         code: 'session_archived',
         sessionId: sid,
       });
+    });
+
+    it('keeps archive blocked while a legacy export is in flight', async () => {
+      const sid = '55555555-bbbb-cccc-dddd-eeeeeeeeeeef';
+      await writeExportSession(sid);
+      let loadStarted!: () => void;
+      let releaseLoad!: () => void;
+      const loadStartedPromise = new Promise<void>((resolve) => {
+        loadStarted = resolve;
+      });
+      const loadReleasedPromise = new Promise<void>((resolve) => {
+        releaseLoad = resolve;
+      });
+      const originalLoadSession = SessionService.prototype.loadSession;
+      const loadSpy = vi
+        .spyOn(SessionService.prototype, 'loadSession')
+        .mockImplementation(async function (this: SessionService, id) {
+          const result = await originalLoadSession.call(this, id);
+          if (id === sid) {
+            loadStarted();
+            await loadReleasedPromise;
+          }
+          return result;
+        });
+      const app = createExportApp();
+      const exportPromise = request(app)
+        .get(`/session/${sid}/export`)
+        .set('Host', `127.0.0.1:${baseOpts.port}`)
+        .then((response) => response);
+
+      try {
+        await loadStartedPromise;
+        const archive = await request(app)
+          .post('/sessions/archive')
+          .set('Host', `127.0.0.1:${baseOpts.port}`)
+          .send({ sessionIds: [sid] });
+        expect(archive.status).toBe(409);
+        expect(archive.body).toMatchObject({
+          code: 'session_archiving',
+          sessionId: sid,
+        });
+
+        releaseLoad();
+        const exported = await exportPromise;
+        expect(exported.status).toBe(200);
+        expect(exported.text).toContain('hello export');
+      } finally {
+        releaseLoad();
+        loadSpy.mockRestore();
+        await Promise.allSettled([exportPromise]);
+      }
     });
   });
 
@@ -14168,6 +15495,7 @@ describe('createServeApp', () => {
   describe('POST /channels/:channelName/webhooks/:source', () => {
     it('isolates webhook configs across workspace sources', async () => {
       const previousQwenHome = process.env['QWEN_HOME'];
+      const previousWebhookSecret = process.env['QWEN_SHARED_WEBHOOK_SECRET'];
       const tempHome = await fsp.mkdtemp(
         path.join(os.tmpdir(), 'qwen-channel-webhooks-multi-home-'),
       );
@@ -14179,9 +15507,9 @@ describe('createServeApp', () => {
       );
       try {
         process.env['QWEN_HOME'] = tempHome;
-        for (const [workspace, channel, secret] of [
-          [primary, 'primary-channel', 'primary-secret'],
-          [secondary, 'secondary-channel', 'secondary-secret'],
+        for (const [workspace, channel] of [
+          [primary, 'primary-channel'],
+          [secondary, 'secondary-channel'],
         ]) {
           const qwenDir = path.join(workspace, '.qwen');
           await fsp.mkdir(qwenDir);
@@ -14194,7 +15522,7 @@ describe('createServeApp', () => {
                   webhooks: {
                     sources: {
                       ci: {
-                        secret,
+                        secretEnv: 'QWEN_SHARED_WEBHOOK_SECRET',
                         targets: {
                           default: {
                             chatId: `${channel}-chat`,
@@ -14210,6 +15538,7 @@ describe('createServeApp', () => {
             'utf8',
           );
         }
+        process.env['QWEN_SHARED_WEBHOOK_SECRET'] = 'primary-secret';
         resetHomeEnvBootstrapForTesting();
 
         const enqueueChannelWebhookTask = vi.fn(async () => ({
@@ -14222,10 +15551,15 @@ describe('createServeApp', () => {
             bridge: fakeBridge(),
             enqueueChannelWebhookTask,
             channelWebhookConfigSources: [
-              { workspaceCwd: primary, channelNames: ['primary-channel'] },
+              {
+                workspaceCwd: primary,
+                channelNames: ['primary-channel'],
+                env: { QWEN_SHARED_WEBHOOK_SECRET: 'primary-secret' },
+              },
               {
                 workspaceCwd: secondary,
                 channelNames: ['secondary-channel'],
+                env: { QWEN_SHARED_WEBHOOK_SECRET: 'secondary-secret' },
               },
             ],
           },
@@ -14271,6 +15605,110 @@ describe('createServeApp', () => {
           fsp.rm(tempHome, { recursive: true, force: true }),
           fsp.rm(primary, { recursive: true, force: true }),
           fsp.rm(secondary, { recursive: true, force: true }),
+        ]);
+        restoreEnv('QWEN_HOME', previousQwenHome);
+        restoreEnv('QWEN_SHARED_WEBHOOK_SECRET', previousWebhookSecret);
+        resetHomeEnvBootstrapForTesting();
+      }
+    });
+
+    it('refreshes webhook authentication when the manager config version changes', async () => {
+      const previousQwenHome = process.env['QWEN_HOME'];
+      const tempHome = await fsp.mkdtemp(
+        path.join(os.tmpdir(), 'qwen-channel-webhooks-runtime-home-'),
+      );
+      const workspace = await fsp.mkdtemp(
+        path.join(os.tmpdir(), 'qwen-channel-webhooks-runtime-workspace-'),
+      );
+      try {
+        process.env['QWEN_HOME'] = tempHome;
+        await fsp.mkdir(path.join(workspace, '.qwen'));
+        await fsp.writeFile(
+          path.join(workspace, '.qwen', 'settings.json'),
+          JSON.stringify({
+            channels: {
+              old: {
+                type: 'dingtalk',
+                webhooks: {
+                  sources: {
+                    ci: {
+                      secret: 'old-secret',
+                      targets: {
+                        default: { chatId: 'old-chat', senderId: 'ci' },
+                      },
+                    },
+                  },
+                },
+              },
+              next: {
+                type: 'dingtalk',
+                webhooks: {
+                  sources: {
+                    ci: {
+                      secret: 'next-secret',
+                      targets: {
+                        default: { chatId: 'next-chat', senderId: 'ci' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+          'utf8',
+        );
+        resetHomeEnvBootstrapForTesting();
+        let version = 1;
+        let names = ['old'];
+        let failSources = false;
+        let refreshWebhookConfigs: (() => void) | undefined;
+        const enqueueChannelWebhookTask = vi.fn(async () => ({
+          accepted: true as const,
+        }));
+        const app = createServeApp({ ...baseOpts, workspace }, undefined, {
+          bridge: fakeBridge(),
+          enqueueChannelWebhookTask,
+          getChannelWebhookConfigVersion: () => version,
+          getChannelWebhookConfigSources: () => {
+            if (failSources) throw new Error('settings busy');
+            return names.length > 0
+              ? [{ workspaceCwd: workspace, channelNames: names }]
+              : [];
+          },
+          registerChannelWebhookConfigRefresh: (refresh) => {
+            refreshWebhookConfigs = refresh;
+          },
+        });
+        const send = (channel: string, secret: string) =>
+          request(app)
+            .post(`/channels/${channel}/webhooks/ci`)
+            .set('Host', `127.0.0.1:${baseOpts.port}`)
+            .set('x-qwen-webhook-secret', secret)
+            .send({ eventType: 'ci', targetRef: 'default', title: 'Build' });
+
+        expect((await send('old', 'old-secret')).status).toBe(202);
+
+        failSources = true;
+        version += 1;
+        expect((await send('old', 'old-secret')).status).toBe(401);
+        failSources = false;
+        expect((await send('old', 'old-secret')).status).toBe(202);
+
+        names = ['next'];
+        version += 1;
+        refreshWebhookConfigs!();
+        names = ['old'];
+        expect((await send('old', 'old-secret')).status).toBe(401);
+        expect((await send('next', 'next-secret')).status).toBe(202);
+
+        names = [];
+        version += 1;
+        refreshWebhookConfigs!();
+        expect((await send('next', 'next-secret')).status).toBe(401);
+      } finally {
+        await Promise.all([
+          fsp.rm(tempHome, { recursive: true, force: true }),
+          fsp.rm(workspace, { recursive: true, force: true }),
         ]);
         restoreEnv('QWEN_HOME', previousQwenHome);
         resetHomeEnvBootstrapForTesting();
@@ -16860,6 +18298,24 @@ describe('createServeApp ServeAppDeps.fsFactory wiring (#4175 PR 18)', () => {
     ).not.toThrow();
   });
 
+  it('requires the Voice coordinator paired with runtime removal', async () => {
+    const { createServeApp } = await import('./server.js');
+
+    expect(() =>
+      createServeApp(
+        {
+          port: 0,
+          hostname: '127.0.0.1',
+          workspace: '/work/bound',
+        } as Parameters<typeof createServeApp>[0],
+        () => 0,
+        {
+          workspaceRuntimeRemoval: {},
+        } as Parameters<typeof createServeApp>[2],
+      ),
+    ).toThrow(/workspaceRuntimeRemoval requires.*voiceCoordinator/);
+  });
+
   it('uses the injected registry sender when client-MCP over WS is enabled', async () => {
     const { createServeApp } = await import('./server.js');
     const runtime = makeInjectedWorkspaceRuntime();
@@ -18859,6 +20315,27 @@ describe('T2.9 serve-side errorKind taxonomy (issue #4514)', () => {
 });
 
 describe('sendBridgeError daemonLog routing', () => {
+  it('maps workspace drain admission failures to 503', async () => {
+    const bridge = fakeBridge({
+      spawnImpl: async () => {
+        throw new WorkspaceDrainingError('/work/a');
+      },
+    });
+    const app = createServeApp(baseOpts, undefined, { bridge });
+
+    const res = await request(app)
+      .post('/session')
+      .set('Host', `127.0.0.1:${baseOpts.port}`)
+      .send({ cwd: '/work/a' });
+
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('5');
+    expect(res.body).toMatchObject({
+      code: 'workspace_draining',
+      workspaceCwd: '/work/a',
+    });
+  });
+
   it('routes 5xx errors through daemonLog when provided', async () => {
     const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'daemon-log-'));
     const stderrLines: string[] = [];

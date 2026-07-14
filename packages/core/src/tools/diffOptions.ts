@@ -7,7 +7,31 @@
 import * as Diff from 'diff';
 import type { DiffStat } from './tools.js';
 
-export const DEFAULT_DIFF_OPTIONS: Diff.PatchOptions = {
+/**
+ * Local type definitions for diff package v7.x which doesn't export these types.
+ */
+interface DiffPatchOptions {
+  context?: number;
+  ignoreWhitespace?: boolean;
+}
+
+interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
+
+interface DiffParsedDiff {
+  oldFileName: string;
+  newFileName: string;
+  oldHeader: string;
+  newHeader: string;
+  hunks: DiffHunk[];
+}
+
+export const DEFAULT_DIFF_OPTIONS: DiffPatchOptions = {
   context: 3,
   ignoreWhitespace: true,
 };
@@ -59,7 +83,7 @@ function structuredPatchSmart(
   newStr: string,
   oldHeader?: string,
   newHeader?: string,
-): Diff.ParsedDiff {
+): DiffParsedDiff {
   const result = Diff.structuredPatch(
     filename,
     filename,
@@ -68,7 +92,7 @@ function structuredPatchSmart(
     oldHeader,
     newHeader,
     DEFAULT_DIFF_OPTIONS,
-  );
+  ) as unknown as DiffParsedDiff;
 
   if (result.hunks.length > 0) {
     return result;
@@ -85,7 +109,7 @@ function structuredPatchSmart(
       ...DEFAULT_DIFF_OPTIONS,
       ignoreWhitespace: false,
     },
-  );
+  ) as unknown as DiffParsedDiff;
 }
 
 export function getDiffStat(
@@ -94,13 +118,13 @@ export function getDiffStat(
   aiStr: string,
   userStr: string,
 ): DiffStat {
-  const getStats = (patch: Diff.ParsedDiff) => {
+  const getStats = (patch: DiffParsedDiff) => {
     let addedLines = 0;
     let removedLines = 0;
     let addedChars = 0;
     let removedChars = 0;
 
-    patch.hunks.forEach((hunk: Diff.Hunk) => {
+    patch.hunks.forEach((hunk: DiffHunk) => {
       hunk.lines.forEach((line: string) => {
         if (line.startsWith('+')) {
           addedLines++;

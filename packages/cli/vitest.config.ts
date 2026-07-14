@@ -110,6 +110,10 @@ export default defineConfig({
         __dirname,
         '../core/src/telemetry/sdk.ts',
       ),
+      '@qwen-code/sdk/daemon': path.resolve(
+        __dirname,
+        '../sdk-typescript/src/daemon/index.ts',
+      ),
     },
   },
   test: {

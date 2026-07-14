@@ -16,11 +16,19 @@ import * as nodeFs from 'node:fs';
 import { access, lstat, open, readFile, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import type { Hunk } from 'diff';
 import { findGitRoot } from './gitUtils.js';
 
-/** Re-export so consumers don't need to depend on `diff` directly. */
-export type GitDiffHunk = Hunk;
+/**
+ * Local type definition for diff package v7.x which doesn't export Hunk.
+ * Structure matches the internal hunk format.
+ */
+export interface GitDiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -284,7 +292,7 @@ export async function fetchGitDiff(cwd: string): Promise<GitDiffResult | null> {
  */
 export async function fetchGitDiffHunks(
   cwd: string,
-): Promise<Map<string, Hunk[]>> {
+): Promise<Map<string, GitDiffHunk[]>> {
   // Walk ancestors once; reuse for the transient-state probe and the diff
   // call. Running from the repo root also keeps hunk keys repo-root-relative
   // regardless of which subdirectory the caller is in.
@@ -411,8 +419,8 @@ export function parseGitNumstat(stdout: string): GitDiffResult {
  * - Skip files whose raw diff exceeds `MAX_DIFF_SIZE_BYTES`.
  * - Truncate per-file content at `MAX_LINES_PER_FILE` lines.
  */
-export function parseGitDiff(stdout: string): Map<string, Hunk[]> {
-  const result = new Map<string, Hunk[]>();
+export function parseGitDiff(stdout: string): Map<string, GitDiffHunk[]> {
+  const result = new Map<string, GitDiffHunk[]>();
   if (!stdout.trim()) return result;
 
   const fileDiffs = stdout.split(/^diff --git /m).filter(Boolean);
@@ -434,8 +442,8 @@ export function parseGitDiff(stdout: string): Map<string, Hunk[]> {
     const filePath = extractFilePath(lines);
     if (filePath === null) continue;
 
-    const fileHunks: Hunk[] = [];
-    let currentHunk: Hunk | null = null;
+    const fileHunks: GitDiffHunk[] = [];
+    let currentHunk: GitDiffHunk | null = null;
     let lineCount = 0;
 
     for (let i = 1; i < lines.length; i++) {

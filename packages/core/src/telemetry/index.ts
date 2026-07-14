@@ -127,6 +127,7 @@ export type {
 
 // Telemetry targets
 export * from './uiTelemetry.js';
+export * from './api-activity-tracker.js';
 export {
   // Core metrics functions
   recordToolCallMetrics,

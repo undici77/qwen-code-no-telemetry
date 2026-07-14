@@ -16,7 +16,20 @@ import {
   unlink,
 } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { diffLines, structuredPatch, type Hunk } from 'diff';
+import { diffLines, structuredPatch } from 'diff';
+
+/**
+ * Local type definitions for diff package v7.x which doesn't export these types.
+ * Structure matches the internal hunk/patch format used by structuredPatch.
+ */
+interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
+
 import { Storage } from '../config/storage.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { MAX_DIFF_SIZE_BYTES } from '../utils/gitDiff.js';
@@ -64,7 +77,7 @@ export interface RewindResult {
 
 export interface TurnFileDiff {
   filePath: string;
-  hunks: Hunk[];
+  hunks: DiffHunk[];
   isNewFile: boolean;
   isDeleted: boolean;
   linesAdded: number;

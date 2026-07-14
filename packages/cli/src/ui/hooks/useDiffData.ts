@@ -5,11 +5,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { Hunk } from 'diff';
 import {
   createDebugLogger,
   fetchGitDiff,
   fetchGitDiffHunks,
+  type GitDiffHunk,
   type GitDiffResult,
 } from '@qwen-code/qwen-code-core';
 
@@ -18,7 +18,7 @@ const debugLogger = createDebugLogger('DiffDialog');
 export interface CurrentDiffData {
   /** `null` ⇒ not a git repo / HEAD missing / mid-rebase / etc. */
   result: GitDiffResult | null;
-  hunks: Map<string, Hunk[]>;
+  hunks: Map<string, GitDiffHunk[]>;
   loading: boolean;
 }
 
@@ -42,7 +42,7 @@ export interface CurrentDiffData {
  */
 export function useDiffData(cwd: string | undefined): CurrentDiffData {
   const [result, setResult] = useState<GitDiffResult | null>(null);
-  const [hunks, setHunks] = useState<Map<string, Hunk[]>>(new Map());
+  const [hunks, setHunks] = useState<Map<string, GitDiffHunk[]>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export function useDiffData(cwd: string | undefined): CurrentDiffData {
       }),
       fetchGitDiffHunks(cwd).catch((err) => {
         debugLogger.debug(`fetchGitDiffHunks failed: ${err}`);
-        return new Map<string, Hunk[]>();
+        return new Map<string, GitDiffHunk[]>();
       }),
     ])
       .then(([statsRes, hunksRes]) => {

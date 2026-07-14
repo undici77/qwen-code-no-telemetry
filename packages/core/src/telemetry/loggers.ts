@@ -58,6 +58,7 @@ import type {
   MemoryRecallEvent,
   HookCallEvent,
 } from './types.js';
+import { apiActivityTracker } from './api-activity-tracker.js';
 import { isInternalPromptId } from '../utils/internalPromptIds.js';
 import { recordTokenUsageFromApiResponseBestEffort } from '../services/tokenUsageService.js';
 import { isChatRecordingSuppressed } from '../utils/chat-recording-suppression-context.js';
@@ -121,6 +122,9 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  // Feed the daemon-status model-API-health charts: one model API error per
+  // failed attempt, drained per live model round by the ACP MessageEmitter.
+  apiActivityTracker.recordError();
   if (!isInternalPromptId(event.prompt_id)) {
     recordUiTelemetryEventToChat(config, uiEvent);
   }

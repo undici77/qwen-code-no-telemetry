@@ -9,7 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   ToolNames,
-  MAINLINE_CODER_MODEL,
+  DEFAULT_QWEN_MODEL,
   OutputFormat,
   NativeLspService,
   Storage,
@@ -1148,6 +1148,17 @@ describe('loadCliConfig', () => {
     );
 
     expect(config.getShellDefaultTimeoutMs()).toBe(300000);
+  });
+
+  it('passes agents.builtin.exploreModel from settings to core config', async () => {
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(
+      { agents: { builtin: { exploreModel: 'fast' } } },
+      argv,
+    );
+
+    expect(config.getAgentsSettings().builtin?.exploreModel).toBe('fast');
   });
 
   it('should ignore blank settings fallback models', async () => {
@@ -2670,7 +2681,7 @@ describe('loadCliConfig model selection', () => {
       [],
     );
 
-    expect(config.getModel()).toBe(MAINLINE_CODER_MODEL);
+    expect(config.getModel()).toBe(DEFAULT_QWEN_MODEL);
   });
 
   it('always prefers model from argvs', async () => {

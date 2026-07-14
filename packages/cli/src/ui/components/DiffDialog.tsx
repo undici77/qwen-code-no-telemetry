@@ -6,7 +6,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
-import type { Hunk } from 'diff';
 import type {
   FileHistoryService,
   GitDiffResult,
@@ -23,6 +22,17 @@ import { useDiffData } from '../hooks/useDiffData.js';
 import { DiffRenderer } from './messages/DiffRenderer.js';
 import { sanitizeFilenameForDisplay } from '../utils/textUtils.js';
 import { t } from '../../i18n/index.js';
+
+/**
+ * Local type definition for diff package v7.x which doesn't export Hunk.
+ */
+interface LocalHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
 
 const MAX_VISIBLE_FILES = 8;
 
@@ -510,7 +520,7 @@ function FileDetail({
 }: {
   file: UnifiedFile;
   activeSource: Source;
-  currentHunks: Map<string, Hunk[]>;
+  currentHunks: Map<string, LocalHunk[]>;
   availableHeight: number;
   contentWidth: number;
 }): React.JSX.Element {
@@ -594,7 +604,7 @@ function useVisibleWindow(
 
 function currentToFiles(
   result: GitDiffResult | null,
-  hunks: Map<string, Hunk[]>,
+  hunks: Map<string, LocalHunk[]>,
 ): UnifiedFile[] {
   if (!result) return [];
   // `result.perFileStats` is already bounded by `fetchGitDiff` (MAX_FILES=50)
@@ -611,7 +621,7 @@ function currentToFiles(
 function perFileToUnified(
   path: string,
   s: PerFileStats,
-  hunks: Map<string, Hunk[]>,
+  hunks: Map<string, LocalHunk[]>,
 ): UnifiedFile {
   const fileHunks = hunks.get(path);
   // `s.truncated` from `parseGitNumstat` already means "untracked file

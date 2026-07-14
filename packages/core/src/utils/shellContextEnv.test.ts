@@ -8,7 +8,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getShellContextEnvVars } from './shellContextEnv.js';
 import { runWithAgentContext } from '../agents/runtime/agent-context.js';
 import { promptIdContext } from './promptIdContext.js';
-import { sessionIdContext } from './sessionIdContext.js';
+import {
+  sessionIdContext,
+  registerSessionProjectDir,
+  unregisterSessionProjectDir,
+} from './sessionIdContext.js';
 import {
   isShellTracePropagationEnabled,
   getTraceContext,
@@ -23,10 +27,13 @@ vi.mock('../telemetry/trace-context.js', () => ({
 
 describe('getShellContextEnvVars', () => {
   let originalSessionId: string | undefined;
+  let originalProjectDir: string | undefined;
 
   beforeEach(() => {
     originalSessionId = process.env['QWEN_CODE_SESSION_ID'];
     delete process.env['QWEN_CODE_SESSION_ID'];
+    originalProjectDir = process.env['QWEN_CODE_PROJECT_DIR'];
+    delete process.env['QWEN_CODE_PROJECT_DIR'];
   });
 
   afterEach(() => {
@@ -34,6 +41,11 @@ describe('getShellContextEnvVars', () => {
       process.env['QWEN_CODE_SESSION_ID'] = originalSessionId;
     } else {
       delete process.env['QWEN_CODE_SESSION_ID'];
+    }
+    if (originalProjectDir !== undefined) {
+      process.env['QWEN_CODE_PROJECT_DIR'] = originalProjectDir;
+    } else {
+      delete process.env['QWEN_CODE_PROJECT_DIR'];
     }
   });
 
@@ -74,6 +86,47 @@ describe('getShellContextEnvVars', () => {
       QWEN_CODE_SESSION_ID: 'sess-uuid',
       QWEN_CODE_AGENT_ID: 'agent-xyz',
       QWEN_CODE_PROMPT_ID: 'prompt-456',
+    });
+  });
+
+  describe('project dir is per-session, not per-process', () => {
+    it('hands each session its own project dir', () => {
+      // One daemon process, two sessions, two workspaces. A single process-global
+      // slot holds whichever booted first — and every later session would then
+      // hand its subprocesses another session's directory, where it would look
+      // for that session's transcripts and find none (or worse, find theirs).
+      registerSessionProjectDir('sess-A', '/proj/A');
+      registerSessionProjectDir('sess-B', '/proj/B');
+      process.env['QWEN_CODE_PROJECT_DIR'] = '/proj/A'; // the first to boot
+
+      const a = sessionIdContext.run('sess-A', () => getShellContextEnvVars());
+      const b = sessionIdContext.run('sess-B', () => getShellContextEnvVars());
+
+      expect(a['QWEN_CODE_PROJECT_DIR']).toBe('/proj/A');
+      expect(b['QWEN_CODE_PROJECT_DIR']).toBe('/proj/B'); // NOT A's
+    });
+
+    it('drops a session entry on unregister — no daemon leak', () => {
+      registerSessionProjectDir('sess-X', '/proj/X');
+      expect(
+        sessionIdContext.run('sess-X', () => getShellContextEnvVars())[
+          'QWEN_CODE_PROJECT_DIR'
+        ],
+      ).toBe('/proj/X');
+      unregisterSessionProjectDir('sess-X');
+      delete process.env['QWEN_CODE_PROJECT_DIR'];
+      expect(
+        sessionIdContext.run('sess-X', () => getShellContextEnvVars())[
+          'QWEN_CODE_PROJECT_DIR'
+        ],
+      ).toBeUndefined();
+    });
+
+    it('falls back to the env var for the single-session CLI', () => {
+      process.env['QWEN_CODE_PROJECT_DIR'] = '/proj/only';
+      expect(getShellContextEnvVars()['QWEN_CODE_PROJECT_DIR']).toBe(
+        '/proj/only',
+      );
     });
   });
 
