@@ -1,5 +1,13 @@
 # F2: Shared MCP Transport Pool — Design v2.2
 
+> **Historical decision record.** The original `1 daemon = 1 workspace`
+> premise is superseded by multi-workspace runtimes. The implemented pool still
+> has the same isolation boundary, but that boundary is now one
+> `WorkspaceRuntime`: sessions share within a runtime and never across
+> runtimes. See
+> [`daemon-multi-workspace-hardening.md`](./daemon-multi-workspace-hardening.md)
+> for the current ownership contract.
+>
 > Targets `daemon_mode_b_main` (per #4175 branching strategy). Replaces #4175 Wave 5 PR 23.
 > **Single-PR delivery** per maintainer's feature-cohesive batch guidance (2026-05-19).
 > Author: doudouOUC. Date: 2026-05-20. Revised: 2026-05-20 (v2.2 — implementation review fold-ins).
@@ -145,7 +153,7 @@ PR #4336 shipped F2 as 6 atomic commits + 6 fix commits over ~4 hours. Wenshao r
 
 **Non-goals (F2 scope)**
 
-- Cross-workspace pooling (1 daemon = 1 workspace invariant from PR #4113 stands)
+- Cross-workspace-runtime pooling (each runtime owns an independent pool)
 - Cross-daemon pooling (out of scope — multi-process orchestrator territory)
 - OAuth routing rework (F3 with `PermissionMediator`)
 - Pool persistence across daemon restart (in-memory only)

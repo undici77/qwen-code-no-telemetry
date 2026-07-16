@@ -16,7 +16,7 @@ import {
   statSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, isAbsolute, relative, resolve, dirname } from 'node:path';
+import { join, isAbsolute, relative, resolve } from 'node:path';
 import {
   skillArgsPath,
   writeSkillArgs,
@@ -103,9 +103,7 @@ describe('writeSkillArgs', () => {
     const target = join(dir, 'victim.txt');
     writeFileSync(target, 'precious');
     const linkPath = skillArgsPath('review');
-    // linkPath is relative to CWD (.qwen/tmp/s-<session>/...), so create the
-    // directory at the same relative location, not inside the temp dir.
-    mkdirSync(join(process.cwd(), dirname(linkPath)), { recursive: true });
+    mkdirSync(join(dir, '.qwen', 'tmp'), { recursive: true });
     symlinkSync(target, linkPath);
 
     expect(writeSkillArgs('review', 'attacker')).toBeNull();

@@ -162,9 +162,11 @@ export function registerDaemonGaugeCallbacks(
       description: 'Current number of active daemon sessions.',
       valueType: ValueType.INT,
     })
-    .addCallback((result: any) => {
+    .addCallback((_result: unknown) => {
       try {
-        result.observe(callbacks.sessionCount());
+        (_result as { observe: (v: number) => void }).observe(
+          callbacks.sessionCount(),
+        );
       } catch {
         /* no-op */
       }
@@ -175,9 +177,11 @@ export function registerDaemonGaugeCallbacks(
       description: 'Current number of active SSE connections.',
       valueType: ValueType.INT,
     })
-    .addCallback((result: any) => {
+    .addCallback((_result: unknown) => {
       try {
-        result.observe(callbacks.sseCount());
+        (_result as { observe: (v: number) => void }).observe(
+          callbacks.sseCount(),
+        );
       } catch {
         /* no-op */
       }
@@ -189,9 +193,11 @@ export function registerDaemonGaugeCallbacks(
       unit: 'bytes',
       valueType: ValueType.INT,
     })
-    .addCallback((result: any) => {
+    .addCallback((_result: unknown) => {
       try {
-        result.observe(callbacks.heapUsed());
+        (_result as { observe: (v: number) => void }).observe(
+          callbacks.heapUsed(),
+        );
       } catch {
         /* no-op */
       }
@@ -204,11 +210,15 @@ export function recordDaemonHttpRequest(
   durationMs: number,
   route: string,
   statusCode: number,
+  deferredRuntimePath?: 'started_on_request' | 'joined',
 ): void {
   if (!initialized) return;
   const statusClass = `${Math.floor(statusCode / 100)}xx`;
   httpRequestCounter?.add(1, { route, status_class: statusClass });
-  httpRequestDurationHistogram?.record(durationMs, { route });
+  httpRequestDurationHistogram?.record(durationMs, {
+    route,
+    runtime_path: deferredRuntimePath ?? 'none',
+  });
 }
 
 export function recordDaemonSessionLifecycle(

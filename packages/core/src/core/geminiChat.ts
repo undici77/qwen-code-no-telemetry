@@ -101,12 +101,28 @@ import { RETRYABLE_STREAM_TRANSPORT_CODES } from './stream-transport-retry.js';
 import {
   collectToolCallIdsFromHistory,
   normalizeModelToolCallIds,
+  reserveModelToolCallId,
 } from './toolCallIdUtils.js';
+import {
+  getToolCallPreparations,
+  setToolCallPreparations,
+} from './tool-call-preparation.js';
 import { InvalidStreamError } from './invalid-stream-error.js';
 
 export { InvalidStreamError };
 
 const debugLogger = createDebugLogger('QWEN_CODE_CHAT');
+
+function isToolCallPreparationOnly(response: GenerateContentResponse): boolean {
+  if (getToolCallPreparations(response).length === 0) return false;
+
+  const hasCandidateOutput = response.candidates?.some(
+    (candidate) =>
+      Boolean(candidate.finishReason) ||
+      (candidate.content?.parts?.length ?? 0) > 0,
+  );
+  return !hasCandidateOutput && !response.usageMetadata;
+}
 
 function syncFunctionCallsField(
   response: GenerateContentResponse,
@@ -1676,7 +1692,7 @@ export class GeminiChat {
     options?: TryCompressOptions,
   ): Promise<ChatCompressionInfo> {
     const service = new ChatCompressionService();
-    const { newHistory, info, summary } = await service.compress(this, {
+    const { newHistory, info } = await service.compress(this, {
       promptId,
       force,
       model,
@@ -1694,7 +1710,6 @@ export class GeminiChat {
     if (info.compressionStatus === CompressionStatus.COMPRESSED && newHistory) {
       if (!options?.deferChatCompressionRecord) {
         this.chatRecordingService?.recordChatCompression({
-          summary: summary ?? '',
           info,
           compressedHistory: newHistory,
         });
@@ -1788,7 +1803,6 @@ export class GeminiChat {
     };
 
     this.chatRecordingService?.recordChatCompression({
-      summary: '',
       info,
       compressedHistory: newHistory,
     });
@@ -2082,7 +2096,6 @@ export class GeminiChat {
         compressionInfo.compressionStatus === CompressionStatus.COMPRESSED
       ) {
         this.chatRecordingService?.recordChatCompression({
-          summary: '',
           info: compressionInfo,
           compressedHistory: this.getHistoryShallow(),
         });
@@ -2251,8 +2264,10 @@ export class GeminiChat {
 
             lastFinishReason = undefined;
             for await (const chunk of stream) {
-              streamYieldedChunk = true;
-              streamYieldedAnyChunk = true;
+              if (!isToolCallPreparationOnly(chunk)) {
+                streamYieldedChunk = true;
+                streamYieldedAnyChunk = true;
+              }
               const fr = chunk.candidates?.[0]?.finishReason;
               if (fr) lastFinishReason = fr;
               yield { type: StreamEventType.CHUNK, value: chunk };
@@ -2599,9 +2614,9 @@ export class GeminiChat {
               }
               return;
             } catch (error) {
+              attemptState.rollback();
               if (!(error instanceof InvalidStreamError)) throw error;
 
-              attemptState.rollback();
               const maxContinuationRetries =
                 error.type === 'PROTOCOL_TAG_LEAK'
                   ? INVALID_STREAM_RETRY_CONFIG.protocolTagLeakMaxRetries
@@ -3007,8 +3022,13 @@ export class GeminiChat {
                     fallbackRetryAuthType,
                     fallbackRetryErrorCodes,
                   )) {
-                    currentFallbackYieldedAnyChunk = true;
-                    fallbackStreamYieldedAnyChunk = true;
+                    const emittedUserVisibleOutput =
+                      event.type !== StreamEventType.CHUNK ||
+                      !isToolCallPreparationOnly(event.value);
+                    if (emittedUserVisibleOutput) {
+                      currentFallbackYieldedAnyChunk = true;
+                      fallbackStreamYieldedAnyChunk = true;
+                    }
                     yield event;
                   }
 
@@ -3565,6 +3585,7 @@ export class GeminiChat {
     const allModelParts: Part[] = [];
     const usedToolCallIds = collectToolCallIdsFromHistory(this.history);
     const rawToolCallIdsInCurrentTurn = new Set<string>();
+    const reservedToolCallIds = new Map<string, string>();
     let usageMetadata: GenerateContentResponseUsageMetadata | undefined;
     let coercedUsage:
       | {
@@ -3590,6 +3611,21 @@ export class GeminiChat {
 
     try {
       for await (const chunk of streamResponse) {
+        const preparations = getToolCallPreparations(chunk);
+        if (preparations.length > 0) {
+          setToolCallPreparations(
+            chunk,
+            preparations.map((preparation) => ({
+              ...preparation,
+              callId: reserveModelToolCallId(
+                preparation.callId,
+                usedToolCallIds,
+                reservedToolCallIds,
+              ),
+            })),
+          );
+        }
+
         // Use ||= to avoid later usage-only chunks (no candidates) overwriting
         // a finishReason that was already seen in an earlier chunk.
         hasFinishReason ||=
@@ -3618,6 +3654,7 @@ export class GeminiChat {
               content.parts,
               usedToolCallIds,
               rawToolCallIdsInCurrentTurn,
+              reservedToolCallIds,
             );
             syncFunctionCallsField(chunk, content.parts);
 

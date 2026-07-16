@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// No-op implementations for no-telemetry policy
+// All telemetry functions are replaced with empty stubs
+// Except: logApiResponse, logApiError, logToolCall forward to uiTelemetryService
+// (local-only EventEmitter, zero network — see NO_TELEMETRY_GUIDELINES.MD §11)
+
 import type { Config } from '../config/config.js';
 import {
   uiTelemetryService,
@@ -28,6 +33,7 @@ import type {
   ChatCompressionEvent,
   ContentRetryEvent,
   ContentRetryFailureEvent,
+  ProtocolTagSanitizedEvent,
   ApiRetryEvent,
   RipgrepFallbackEvent,
   ToolOutputTruncatedEvent,
@@ -58,20 +64,12 @@ import type {
   MemoryRecallEvent,
   HookCallEvent,
 } from './types.js';
-import { apiActivityTracker } from './api-activity-tracker.js';
-import { isInternalPromptId } from '../utils/internalPromptIds.js';
-import { recordTokenUsageFromApiResponseBestEffort } from '../services/tokenUsageService.js';
-import { isChatRecordingSuppressed } from '../utils/chat-recording-suppression-context.js';
-
-// No-op implementations for no-telemetry policy
-// All telemetry functions are replaced with empty stubs
 
 export function getCommonAttributes(_config: Config): Record<string, unknown> {
   return {};
 }
 
 function recordUiTelemetryEventToChat(config: Config, uiEvent: UiEvent): void {
-  if (isChatRecordingSuppressed()) return;
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
 }
 
@@ -88,10 +86,8 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
     'event.name': EVENT_TOOL_CALL,
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
-  if (!isInternalPromptId(event.prompt_id)) {
-    uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-    recordUiTelemetryEventToChat(config, uiEvent);
-  }
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  recordUiTelemetryEventToChat(config, uiEvent);
 }
 
 export function logHookCall(_config: Config, _event: HookCallEvent): void {}
@@ -113,7 +109,6 @@ export function logRipgrepFallback(
   _config: Config,
   _event: RipgrepFallbackEvent,
 ): void {}
-export function logApiRetry(_config: Config, _event: ApiRetryEvent): void {}
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {
   const uiEvent = {
@@ -122,12 +117,7 @@ export function logApiError(config: Config, event: ApiErrorEvent): void {
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  // Feed the daemon-status model-API-health charts: one model API error per
-  // failed attempt, drained per live model round by the ACP MessageEmitter.
-  apiActivityTracker.recordError();
-  if (!isInternalPromptId(event.prompt_id)) {
-    recordUiTelemetryEventToChat(config, uiEvent);
-  }
+  recordUiTelemetryEventToChat(config, uiEvent);
 }
 
 export function logApiCancel(_config: Config, _event: ApiCancelEvent): void {}
@@ -139,12 +129,7 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  if (!isInternalPromptId(event.prompt_id)) {
-    if (config.getUsageStatisticsEnabled()) {
-      recordTokenUsageFromApiResponseBestEffort(config, event);
-    }
-    recordUiTelemetryEventToChat(config, uiEvent);
-  }
+  recordUiTelemetryEventToChat(config, uiEvent);
 }
 
 export function logLoopDetected(
@@ -192,11 +177,15 @@ export function logContentRetry(
   _config: Config,
   _event: ContentRetryEvent,
 ): void {}
+export function logProtocolTagSanitized(
+  _config: Config,
+  _event: ProtocolTagSanitizedEvent,
+): void {}
 export function logContentRetryFailure(
   _config: Config,
   _event: ContentRetryFailureEvent,
 ): void {}
-
+export function logApiRetry(_config: Config, _event: ApiRetryEvent): void {}
 export function logSubagentExecution(
   _config: Config,
   _event: SubagentExecutionEvent,
@@ -247,7 +236,7 @@ export function logArenaSessionEnded(
   _event: ArenaSessionEndedEvent,
 ): void {}
 
-// ─── Workflow Log Functions (#4721) — no-op in no-telemetry fork ────────────
+// ─── Workflow Log Functions — no-op in no-telemetry fork ─────────────────────
 
 export function logWorkflowKeyword(
   _config: Config,

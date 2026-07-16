@@ -1728,7 +1728,7 @@ export function DaemonSessionProvider(props: DaemonSessionProviderProps) {
         }),
         createDetachedSession: (
           workspaceCwd?: string,
-          overrides?: Pick<CreateSessionRequest, 'approvalMode'>,
+          overrides?: Pick<CreateSessionRequest, 'approvalMode' | 'sourceType'>,
         ) => {
           const client =
             workspaceClientRef.current ??
@@ -1745,6 +1745,9 @@ export function DaemonSessionProvider(props: DaemonSessionProviderProps) {
               sessionRef.current?.workspaceCwd,
             ...(overrides?.approvalMode !== undefined
               ? { approvalMode: overrides.approvalMode }
+              : {}),
+            ...(overrides?.sourceType !== undefined
+              ? { sourceType: overrides.sourceType }
               : {}),
           };
           const requestClientId = clientId
@@ -2331,6 +2334,7 @@ function bumpWorkspaceEventSignals(
       case 'workspace.mcp.child_refused':
       case 'workspace.mcp.server_restarted':
       case 'workspace.mcp.server_restart_refused':
+      case 'workspace.mcp.server_changed':
         mcp += 1;
         break;
       case 'workspace.extensions.changed':
