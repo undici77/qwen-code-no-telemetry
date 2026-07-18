@@ -24,7 +24,6 @@ import { randomUUID } from 'node:crypto';
 import { type Server as HTTPServer } from 'node:http';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import type { z } from 'zod';
 import type { DiffManager } from './diff-manager.js';
 import { OpenFilesManager } from './open-files-manager.js';
 import { ACP_ERROR_CODES } from './constants/acpSchema.js';
@@ -437,11 +436,14 @@ const createMcpServer = (diffManager: DiffManager) => {
     'openDiff',
     {
       description:
-        '(IDE Tool) Open a diff view to create or modify a file. Returns a notification once the diff has been accepted or rejcted.',
+        '(IDE Tool) Open a diff view to create or modify a file. Returns a notification once the diff has been accepted or rejected.',
       inputSchema: OpenDiffRequestSchema.shape,
-    } as any,
-    async (params: any) => {
-      const { filePath, newContent } = params;
+    } as unknown,
+    async (params: unknown) => {
+      const { filePath, newContent } = params as {
+        filePath: string;
+        newContent?: string;
+      };
       // Minimal call site: only pass newContent; DiffManager reads old content itself
       await diffManager.showDiff(filePath, newContent);
       return { content: [] };
@@ -452,9 +454,12 @@ const createMcpServer = (diffManager: DiffManager) => {
     {
       description: '(IDE Tool) Close an open diff view for a specific file.',
       inputSchema: CloseDiffRequestSchema.shape,
-    } as any,
-    async (params: any) => {
-      const { filePath, suppressNotification } = params;
+    } as unknown,
+    async (params: unknown) => {
+      const { filePath, suppressNotification } = params as {
+        filePath: string;
+        suppressNotification?: boolean;
+      };
       const content = await diffManager.closeDiff(
         filePath,
         suppressNotification,

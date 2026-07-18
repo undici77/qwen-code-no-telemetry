@@ -35,7 +35,7 @@ export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
 export type MetricDefinitions = {
   [key: string]: {
-    attributes: Record<string, any>;
+    attributes: Record<string, unknown>;
   };
 };
 
@@ -87,13 +87,13 @@ export function initializeMetrics(_config: Config): void {}
 
 export function initializePerformanceMonitoring(_config: Config): void {}
 
-export function getMeter(): any {
+export function getMeter(): unknown {
   return undefined;
 }
 
 export function recordChatCompressionMetrics(
   _config: Config,
-  _attributes: any,
+  _attributes: unknown,
 ): void {}
 
 export function recordToolCallMetrics(
@@ -101,7 +101,7 @@ export function recordToolCallMetrics(
   _toolName: string,
   _success: boolean,
   _latencyMs: number,
-  _metadata?: any,
+  _metadata?: unknown,
 ): void {}
 
 export function recordApiRequest(
@@ -109,21 +109,21 @@ export function recordApiRequest(
   _model: string,
   _success: boolean,
   _latencyMs: number,
-  _metadata?: any,
+  _metadata?: unknown,
 ): void {}
 
 export function recordApiResponseMetrics(
   _config: Config,
   _model: string,
   _latencyMs: number,
-  _metadata?: any,
+  _metadata?: unknown,
 ): void {}
 
 export function recordApiErrorMetrics(
   _config: Config,
   _model: string,
   _errorType: string,
-  _metadata?: any,
+  _metadata?: unknown,
 ): void {}
 
 export function recordTokenUsageMetrics(
@@ -140,7 +140,7 @@ export function recordSessionStart(_config: Config): void {}
 export function recordFileOperationMetric(
   _config: Config,
   _operation: FileOperation,
-  _metadata?: any,
+  _metadata?: unknown,
 ): void {}
 
 export function recordInvalidChunk(_config: Config): void {}
@@ -225,9 +225,8 @@ export function recordTokenEfficiency(
 
 export function recordApiRequestBreakdown(
   _config: Config,
-  _model: string,
-  _phase: string,
   _durationMs: number,
+  _attributes: Record<string, string>,
 ): void {}
 
 export function recordPerformanceScore(_config: Config, _score: number): void {}

@@ -199,47 +199,65 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 ### The `loggers.ts` PARTIAL no-op rule
 
-`packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Three functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
+`packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Four functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
 
-| Function         | Must forward to                 | Privacy impact              |
-| ---------------- | ------------------------------- | --------------------------- |
-| `logApiResponse` | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
-| `logApiError`    | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
-| `logToolCall`    | `uiTelemetryService.addEvent()` | ✅ Zero — local memory only |
+| Function                | Must forward to                              | Privacy impact              |
+| ----------------------- | -------------------------------------------- | --------------------------- |
+| `logApiResponse`        | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
+| `logApiError`           | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
+| `logToolCall`           | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
+| `recordSkillInvocation` | `uiTelemetryService.recordSkillInvocation()` | ✅ Zero — local memory only |
 
-**These three functions are NOT a telemetry leak.** They do not send data anywhere. They update an in-memory counter that is displayed to the user on their own screen when the session ends. No-op-ing them is a correctness bug, not a privacy improvement.
+**These four functions are NOT a telemetry leak.** They do not send data anywhere. They update an in-memory counter that is displayed to the user on their own screen when the session ends. No-op-ing them is a correctness bug, not a privacy improvement.
 
 The correct implementation (copy exactly, do NOT make no-ops):
 
 ```typescript
 export function logApiResponse(config: Config, event: ApiResponseEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_API_RESPONSE as typeof EVENT_API_RESPONSE,
-  });
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_API_RESPONSE,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  recordUiTelemetryEventToChat(config, uiEvent);
 }
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_API_ERROR as typeof EVENT_API_ERROR,
-  });
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_API_ERROR,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  recordUiTelemetryEventToChat(config, uiEvent);
 }
 
 export function logToolCall(config: Config, event: ToolCallEvent): void {
-  const uiEvent = Object.assign(event, {
-    'event.name': EVENT_TOOL_CALL as typeof EVENT_TOOL_CALL,
-  });
-  uiTelemetryService.addEvent(uiEvent); // ✅ local EventEmitter only
-  config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent); // ✅ local file only
+  const uiEvent = {
+    ...event,
+    'event.name': EVENT_TOOL_CALL,
+    'event.timestamp': new Date().toISOString(),
+  } as UiEvent;
+  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  recordUiTelemetryEventToChat(config, uiEvent);
+}
+
+export function recordSkillInvocation(
+  config: Config,
+  event: { skillName: string; success: boolean },
+): void {
+  uiTelemetryService.recordSkillInvocation(
+    event.skillName,
+    event.success,
+    config.getSessionId(),
+  );
 }
 ```
 
 > 🔒 **Privacy proof for `getChatRecordingService()`** — writes to a local file (`~/.qwen/tmp/<session-id>.json`) for the `--resume` feature only. Verified: no network calls anywhere in `ChatRecordingService`. This is purely local session persistence.
 
-All other ~30 `log*` functions in `loggers.ts` MUST remain `(_config, _event): void {}` (complete no-ops) because they would otherwise route data to external OTel exporters, GCP, or analytics endpoints.
+All other ~29 `log*` functions in `loggers.ts` MUST remain `(_config, _event): void {}` (complete no-ops) because they would otherwise route data to external OTel exporters, GCP, or analytics endpoints.
 
 ### Verification checklist after every merge
 
@@ -249,7 +267,7 @@ Run this grep to confirm no external data paths snuck in:
 # Must print ZERO results (no real OTel packages)
 find node_modules -name "index.js" -path "*opentelemetry/api*" 2>/dev/null
 
-# Must show uiTelemetryService only for the 3 allowed functions
+# Must show uiTelemetryService only for the 4 allowed functions
 grep -n "uiTelemetryService\|fetch\|http\.request\|https\.request" \
   packages/core/src/telemetry/loggers.ts
 

@@ -39,12 +39,15 @@ import {
   truncateToolOutput,
   TOOL_OUTPUT_TRUNCATED_PREFIX,
 } from '../utils/truncation.js';
-import { ApprovalMode } from '../config/config.js';
-import { InputFormat } from '../output/types.js';
-import { logToolCall } from '../telemetry/loggers.js';
-import { ToolCallEvent } from '../telemetry/types.js';
-import { ToolErrorType } from '../tools/tool-error.js';
-import { ToolConfirmationOutcome, Kind } from '../tools/tools.js';
+import {
+  ToolConfirmationOutcome,
+  ApprovalMode,
+  logToolCall,
+  ToolErrorType,
+  ToolCallEvent,
+  InputFormat,
+  Kind,
+} from '../index.js';
 import type {
   FunctionResponse,
   FunctionResponsePart,
@@ -63,7 +66,6 @@ import { unescapePath, PATH_ARG_KEYS } from '../utils/paths.js';
 import type { MemoryPressureMonitor } from '../services/memoryPressureMonitor.js';
 import { CONCURRENCY_SAFE_KINDS, isShellProgressData } from '../tools/tools.js';
 import { isShellCommandReadOnly } from '../utils/shellReadOnlyChecker.js';
-import { stripShellWrapper } from '../utils/shell-utils.js';
 import { parsePositiveIntegerEnv } from '../utils/env.js';
 import {
   isAlreadyTruncated,
@@ -139,6 +141,11 @@ import {
 } from '../telemetry/index.js';
 import { safeJsonStringify } from '../utils/safeJsonStringify.js';
 import { acquireSleepInhibitor } from '../services/sleepInhibitor.js';
+import {
+  getRuntimeContentGenerator,
+  runWithRuntimeContentGenerator,
+  type RuntimeContentGeneratorView,
+} from '../agents/runtime/agent-context.js';
 
 const debugLogger = createDebugLogger('TOOL_SCHEDULER');
 
@@ -1194,14 +1201,13 @@ export function isToolCallConcurrencySafe(
   if (canonicalToolName(name) === ToolNames.AGENT) return true;
   // Shell commands: check if the command is read-only (e.g., git log, cat).
   // Uses the synchronous regex+shell-quote checker (not the async AST-based
-  // one) because partitioning runs synchronously. The sync checker covers
-  // the same command whitelist and is fail-closed — unknown commands remain
-  // sequential. The AST version is used separately for permission decisions.
+  // one) because partitioning runs synchronously. It is deliberately more
+  // conservative than the AST version used for permission decisions.
   if (kind === Kind.Execute) {
     const command = (args as { command?: string } | undefined)?.command;
     if (typeof command !== 'string') return false;
     try {
-      return isShellCommandReadOnly(stripShellWrapper(command));
+      return isShellCommandReadOnly(command);
     } catch {
       return false; // fail-closed
     }
@@ -1308,9 +1314,14 @@ export class CoreToolScheduler {
   // PostToolUse — reusing this id keeps the Pre/Post pair correlated instead
   // of orphaning two events. Cleared on terminal state via finalizeToolSpan.
   private readonly bouncedToolUseId = new Map<string, string>();
+  private readonly runtimeContentGeneratorViews = new Map<
+    string,
+    RuntimeContentGeneratorView
+  >();
   private requestQueue: Array<{
     request: ToolCallRequestInfo | ToolCallRequestInfo[];
     signal: AbortSignal;
+    runtimeView?: RuntimeContentGeneratorView;
     resolve: () => void;
     reject: (reason?: Error) => void;
   }> = [];
@@ -1603,6 +1614,7 @@ export class CoreToolScheduler {
     // defensive no-span path.
     this.bouncedAwaitingApproval.delete(callId);
     this.bouncedToolUseId.delete(callId);
+    this.runtimeContentGeneratorViews.delete(callId);
     const span = this.toolSpans.get(callId);
     if (!span) return;
     this.toolSpans.delete(callId);
@@ -1963,6 +1975,7 @@ export class CoreToolScheduler {
   schedule(
     request: ToolCallRequestInfo | ToolCallRequestInfo[],
     signal: AbortSignal,
+    runtimeView?: RuntimeContentGeneratorView,
   ): Promise<void> {
     if (this.isRunning() || this.isScheduling) {
       return new Promise((resolve, reject) => {
@@ -1982,6 +1995,7 @@ export class CoreToolScheduler {
         this.requestQueue.push({
           request,
           signal,
+          runtimeView,
           resolve: () => {
             signal.removeEventListener('abort', abortHandler);
             resolve();
@@ -1993,7 +2007,7 @@ export class CoreToolScheduler {
         });
       });
     }
-    return this._schedule(request, signal);
+    return this._schedule(request, signal, runtimeView);
   }
 
   /**
@@ -2035,7 +2049,24 @@ export class CoreToolScheduler {
   private async _schedule(
     request: ToolCallRequestInfo | ToolCallRequestInfo[],
     signal: AbortSignal,
+    runtimeView?: RuntimeContentGeneratorView,
   ): Promise<void> {
+    if (runtimeView) {
+      const items = Array.isArray(request) ? request : [request];
+      for (const item of items) {
+        this.runtimeContentGeneratorViews.set(item.callId, runtimeView);
+      }
+      try {
+        return await runWithRuntimeContentGenerator(runtimeView, () =>
+          this._schedule(request, signal),
+        );
+      } catch (error) {
+        for (const item of items) {
+          this.runtimeContentGeneratorViews.delete(item.callId);
+        }
+        throw error;
+      }
+    }
     this.isScheduling = true;
     try {
       if (this.isRunning()) {
@@ -2294,6 +2325,7 @@ export class CoreToolScheduler {
             pmForcedAsk,
             pmCtx,
             denyMessage,
+            requiresUserInteraction,
           } = flowResult;
 
           // ---- L5: Final decision based on permission + ApprovalMode ----
@@ -2412,7 +2444,10 @@ export class CoreToolScheduler {
           // Grep, LS, in-cwd Edit, …) short-circuit even in a denial-streak
           // fallback state — otherwise every trivially safe tool would
           // force manual approval until the user toggles modes.
-          if (shouldRunAutoModeForCall(approvalMode, canonicalName)) {
+          if (
+            !requiresUserInteraction &&
+            shouldRunAutoModeForCall(approvalMode, canonicalName)
+          ) {
             const denialState = this.config.getAutoModeDenialState();
             const fallback = shouldFallback(denialState);
             // `buildClassifierContents` retains only the most recent
@@ -2519,6 +2554,7 @@ export class CoreToolScheduler {
               confirmationPermission,
               approvalMode,
               canonicalName,
+              requiresUserInteraction,
             )
           ) {
             this.setToolCallOutcome(
@@ -2575,7 +2611,10 @@ export class CoreToolScheduler {
             }
 
             // AUTO_EDIT mode: auto-approve edit-like and info tools
-            if (isAutoEditApproved(approvalMode, confirmationDetails)) {
+            if (
+              !requiresUserInteraction &&
+              isAutoEditApproved(approvalMode, confirmationDetails)
+            ) {
               this.setToolCallOutcome(
                 reqInfo.callId,
                 ToolConfirmationOutcome.ProceedAlways,
@@ -2629,7 +2668,10 @@ export class CoreToolScheduler {
                 permissionMode,
               );
 
-              if (hookResult.hasDecision) {
+              if (
+                hookResult.hasDecision &&
+                (!hookResult.shouldAllow || !requiresUserInteraction)
+              ) {
                 if (hookResult.shouldAllow) {
                   // Hook granted permission - apply updated input if provided and proceed
                   if (
@@ -2748,7 +2790,9 @@ export class CoreToolScheduler {
               // When PM has an explicit 'ask' rule, 'always allow' would be
               // ineffective because ask takes priority over allow.
               // Hide the option so users aren't misled.
-              ...(pmForcedAsk ? { hideAlwaysAllow: true } : {}),
+              ...(pmForcedAsk || requiresUserInteraction
+                ? { hideAlwaysAllow: true }
+                : {}),
               onConfirm: (
                 outcome: ToolConfirmationOutcome,
                 payload?: ToolConfirmationPayload,
@@ -2877,6 +2921,18 @@ export class CoreToolScheduler {
     signal: AbortSignal,
     payload?: ToolConfirmationPayload,
   ): Promise<void> {
+    const runtimeView = this.runtimeContentGeneratorViews.get(callId);
+    if (runtimeView && getRuntimeContentGenerator() !== runtimeView) {
+      return runWithRuntimeContentGenerator(runtimeView, () =>
+        this.handleConfirmationResponse(
+          callId,
+          originalOnConfirm,
+          outcome,
+          signal,
+          payload,
+        ),
+      );
+    }
     const toolCall = this.toolCalls.find(
       (c) => c.request.callId === callId && c.status === 'awaiting_approval',
     );
@@ -3352,6 +3408,12 @@ export class CoreToolScheduler {
 
     const scheduledCall = toolCall;
     const { callId, name: toolName } = scheduledCall.request;
+    const runtimeView = this.runtimeContentGeneratorViews.get(callId);
+    if (runtimeView && getRuntimeContentGenerator() !== runtimeView) {
+      return runWithRuntimeContentGenerator(runtimeView, () =>
+        this.executeSingleToolCall(toolCall, signal),
+      );
+    }
 
     // The tool span is opened in `_schedule` so it covers validating →
     // awaiting_approval → executing in one span. Reuse it here. If it's
@@ -4652,6 +4714,7 @@ export class CoreToolScheduler {
         completedCalls = await this.applyBatchOutputBudget(completedCalls);
 
         for (const call of completedCalls) {
+          this.runtimeContentGeneratorViews.delete(call.request.callId);
           logToolCall(this.config, new ToolCallEvent(call));
         }
 
@@ -4669,7 +4732,7 @@ export class CoreToolScheduler {
           // Always drain the queue, even if completion callbacks throw.
           if (this.requestQueue.length > 0) {
             const next = this.requestQueue.shift()!;
-            this._schedule(next.request, next.signal)
+            this._schedule(next.request, next.signal, next.runtimeView)
               .then(next.resolve)
               .catch(next.reject);
           }
@@ -4894,7 +4957,12 @@ export class CoreToolScheduler {
           pendingTool.request.name,
           toolParams,
         );
-        const { finalPermission, pmForcedAsk, pmCtx } = flowResult;
+        const { finalPermission, pmForcedAsk, pmCtx, requiresUserInteraction } =
+          flowResult;
+
+        if (requiresUserInteraction) {
+          continue;
+        }
 
         const forceAutoReviewForAllow =
           this.config.getApprovalMode() === ApprovalMode.AUTO &&
