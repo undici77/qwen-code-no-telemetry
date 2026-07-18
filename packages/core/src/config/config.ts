@@ -956,7 +956,6 @@ export interface ConfigParameters {
   deferTelemetryInitialization?: boolean;
   outboundCorrelation?: OutboundCorrelationSettings;
   gitCoAuthor?: GitCoAuthorParam;
-  usageStatisticsEnabled?: boolean;
   /**
    * If true, disables the per-session FileReadCache short-circuit
    * (file_unchanged placeholder). Useful for sessions that may undergo
@@ -1721,7 +1720,6 @@ export class Config {
   private readonly telemetryInitializationDeferred: boolean;
   private readonly outboundCorrelationSettings: OutboundCorrelationSettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
-  private readonly usageStatisticsEnabled: boolean;
   private readonly fileReadCacheDisabled: boolean;
   private geminiClient!: GeminiClient;
   private baseLlmClient!: BaseLlmClient;
@@ -1974,10 +1972,9 @@ export class Config {
     };
     this.gitCoAuthor = {
       ...normalizeGitCoAuthor(params.gitCoAuthor),
-      name: 'Qwen-Coder',
-      email: 'qwen-coder@alibabacloud.com',
+      name: '',
+      email: '',
     };
-    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? false;
     this.fileReadCacheDisabled = params.fileReadCacheDisabled ?? false;
     this.outputLanguageFilePath = params.outputLanguageFilePath;
 

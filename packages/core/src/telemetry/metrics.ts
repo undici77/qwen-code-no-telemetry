@@ -5,6 +5,8 @@
  */
 
 import type { Config } from '../config/config.js';
+import type { Meter } from './dummy-otel.js';
+import { noopMeter } from './dummy-otel.js';
 
 // No-op implementations for no-telemetry policy
 // All metric recording functions are replaced with empty stubs
@@ -87,8 +89,8 @@ export function initializeMetrics(_config: Config): void {}
 
 export function initializePerformanceMonitoring(_config: Config): void {}
 
-export function getMeter(): unknown {
-  return undefined;
+export function getMeter(): Meter {
+  return noopMeter;
 }
 
 export function recordChatCompressionMetrics(

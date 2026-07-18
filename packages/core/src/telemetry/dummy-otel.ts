@@ -142,10 +142,33 @@ export type ReadableLogRecord = any;
 export type SpanExporter = any;
 export type ReadableSpan = any;
 export type Resource = any;
-export const resourceFromAttributes = (_attrs: Record<string, any>): Resource => ({} as Resource);
+export const resourceFromAttributes = (_attrs: Record<string, any>): Resource =>
+  ({}) as Resource;
 
 export type Counter = any;
 export type Histogram = any;
+export type Meter = any;
+export type ObservableGauge = any;
+
+export const noopMeter: Meter = {
+  createCounter: (_name: string, _options?: any): Counter => ({
+    add: (_value: number, _attributes?: any) => {},
+  }),
+  createHistogram: (_name: string, _options?: any): Histogram => ({
+    record: (_value: number, _attributes?: any) => {},
+  }),
+  createObservableGauge: (_name: string, _options?: any): ObservableGauge => ({
+    addCallback: (_callback: any) => {},
+  }),
+  createObservableUpDownCounter: (_name: string, _options?: any): any => ({
+    addCallback: (_callback: any) => {},
+  }),
+  createObservableCounter: (_name: string, _options?: any): any => ({
+    addCallback: (_callback: any) => {},
+  }),
+  addBatchObservableCallback: (_callback: any, _observables: any[]) => {},
+  removeBatchObservableCallback: (_callback: any, _observables: any[]) => {},
+};
 
 export const propagation = {
   inject: (_ctx: any, _carrier: any) => {},
