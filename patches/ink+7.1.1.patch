@@ -1,0 +1,126 @@
+diff --git a/node_modules/ink/build/frame-controller.d.ts b/node_modules/ink/build/frame-controller.d.ts
+new file mode 100644
+index 0000000..c886b31
+--- /dev/null
++++ b/node_modules/ink/build/frame-controller.d.ts
+@@ -0,0 +1,26 @@
++export type ScreenSelection = {
++    sx: number;
++    sy: number;
++    ex: number;
++    ey: number;
++};
++export type FrameCell = {
++    type: 'char';
++    value: string;
++    fullWidth: boolean;
++    styles: unknown[];
++};
++export type ReadonlyFrame = {
++    width: number;
++    height: number;
++    cells: ReadonlyArray<ReadonlyArray<FrameCell>>;
++};
++export type FrameController = {
++    getFrame(): ReadonlyFrame | null;
++    getSelection(): ScreenSelection | null;
++    setSelection(selection: ScreenSelection | null): void;
++    subscribe(listener: (frame: ReadonlyFrame) => void): () => void;
++    publishFrame(frame: ReadonlyFrame): void;
++};
++export declare const createFrameController: (requestRender: () => void) => FrameController;
++export declare const getFrameController: (stdout: NodeJS.WriteStream) => FrameController | undefined;
+diff --git a/node_modules/ink/build/frame-controller.js b/node_modules/ink/build/frame-controller.js
+new file mode 100644
+index 0000000..745a4ba
+--- /dev/null
++++ b/node_modules/ink/build/frame-controller.js
+@@ -0,0 +1,45 @@
++import instances from './instances.js';
++const sameSelection = (a, b) => {
++    if (a === b) {
++        return true;
++    }
++    if (!a || !b) {
++        return false;
++    }
++    return a.sx === b.sx && a.sy === b.sy && a.ex === b.ex && a.ey === b.ey;
++};
++// Creates the bidirectional bridge between the application and the renderer:
++// the app reads the latest composited frame (getFrame) and pushes a selection
++// (setSelection) that the renderer highlights before serialization. setSelection
++// deduplicates and schedules exactly one repaint through Ink's own throttle via
++// the requestRender callback, so it never mutates already-committed frame state.
++export const createFrameController = (requestRender) => {
++    let currentSelection = null;
++    let lastFrame = null;
++    const listeners = new Set();
++    return {
++        getFrame: () => lastFrame,
++        getSelection: () => currentSelection,
++        setSelection(selection) {
++            if (sameSelection(currentSelection, selection)) {
++                return;
++            }
++            currentSelection = selection;
++            requestRender();
++        },
++        subscribe(listener) {
++            listeners.add(listener);
++            return () => {
++                listeners.delete(listener);
++            };
++        },
++        publishFrame(frame) {
++            lastFrame = frame;
++            for (const listener of listeners) {
++                listener(frame);
++            }
++        },
++    };
++};
++export const getFrameController = (stdout) => instances.get(stdout)?.frameController;
++//# sourceMappingURL=frame-controller.js.map
+diff --git a/node_modules/ink/build/index.d.ts b/node_modules/ink/build/index.d.ts
+index 4319a0c..ef86cb0 100644
+--- a/node_modules/ink/build/index.d.ts
++++ b/node_modules/ink/build/index.d.ts
+@@ -41,3 +41,5 @@ export type { ElementMetrics } from './measure-element.js';
+ export type { DOMElement } from './dom.js';
+ export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
+ export type { KittyKeyboardOptions, KittyFlagName } from './kitty-keyboard.js';
++export { getFrameController } from './frame-controller.js';
++export type { FrameController, ReadonlyFrame, ScreenSelection, FrameCell, } from './frame-controller.js';
+diff --git a/node_modules/ink/build/index.js b/node_modules/ink/build/index.js
+index cc849f0..c625a83 100644
+--- a/node_modules/ink/build/index.js
++++ b/node_modules/ink/build/index.js
+@@ -21,4 +21,5 @@ export { default as useWindowSize } from './hooks/use-window-size.js';
+ export { default as useBoxMetrics } from './hooks/use-box-metrics.js';
+ export { default as measureElement } from './measure-element.js';
+ export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
++export { getFrameController } from './frame-controller.js';
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/node_modules/ink/build/output.d.ts b/node_modules/ink/build/output.d.ts
+index 0f4523f..1ceda6a 100644
+--- a/node_modules/ink/build/output.d.ts
++++ b/node_modules/ink/build/output.d.ts
+@@ -1,4 +1,5 @@
+ import { type OutputTransformer } from './render-node-to-output.js';
++import { type ScreenSelection, type FrameCell } from './frame-controller.js';
+ /**
+ "Virtual" output class
+ 
+@@ -27,9 +28,10 @@ export default class Output {
+     }): void;
+     clip(clip: Clip): void;
+     unclip(): void;
+-    get(): {
++    get(selection?: ScreenSelection | null): {
+         output: string;
+         height: number;
++        cells: FrameCell[][];
+     };
+ }
+ export {};
