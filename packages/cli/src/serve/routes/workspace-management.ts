@@ -5,11 +5,14 @@
  */
 
 import { readdir, stat } from 'node:fs/promises';
+import {
+  translateAndCheckAbsoluteWorkspacePath,
+  MAX_WORKSPACE_PATH_LENGTH,
+} from '@qwen-code/acp-bridge/workspacePaths';
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import type { Application, Request, Response } from 'express';
 import { isWithinRoot } from '@qwen-code/qwen-code-core';
-import { MAX_WORKSPACE_PATH_LENGTH } from '@qwen-code/acp-bridge/workspacePaths';
 import { writeStderrLine } from '../../utils/stdioHelpers.js';
 import { MAX_REGISTERED_WORKSPACES } from '../workspace-inputs.js';
 import type {
@@ -22,7 +25,9 @@ import {
   resolveManagedWorkspaceRuntimeByPathSelector,
 } from '../workspace-route-runtime.js';
 import {
+  normalizeWorkspaceDisplayName,
   workspaceRegistrationId,
+  WorkspaceDisplayNameValidationError,
   WorkspaceRegistrationStoreCommittedError,
   WorkspaceRegistrationStoreLimitError,
   type WorkspaceRegistrationStore,
@@ -92,12 +97,12 @@ export function registerWorkspaceManagementRoutes(
     getAcpHandle,
     runtimeRemoval,
   } = deps;
-  // Serialize runtime addition, persistence promotion/forget, and removal by
-  // canonical cwd so conflicting management mutations cannot cross their
-  // validation and persistence commit points concurrently.
+  // Serialize runtime addition, persistence promotion/forget, updates, and
+  // removal by canonical cwd so conflicting management mutations cannot cross
+  // their validation and persistence commit points concurrently.
   const inFlight = new Map<
     string,
-    'addition' | 'promotion' | 'removal' | 'forget'
+    'addition' | 'promotion' | 'removal' | 'forget' | 'update'
   >();
   let sealed = false;
   let activeOperations = 0;
@@ -117,7 +122,41 @@ export function registerWorkspaceManagementRoutes(
       code: 'daemon_shutting_down',
     });
   };
-
+  const attachRegistrationIds = (
+    runtime: WorkspaceRuntime,
+    registrationIds: readonly string[],
+  ): void => {
+    runtime.registrationIds ??= [];
+    for (const registrationId of registrationIds) {
+      if (!runtime.registrationIds.includes(registrationId)) {
+        runtime.registrationIds.push(registrationId);
+      }
+    }
+  };
+  const restorePersistedDisplayName = async (
+    runtime: WorkspaceRuntime,
+    canonical: string,
+  ): Promise<void> => {
+    const snapshot = await workspaceRegistrationStore!.read();
+    const storedWorkspace = snapshot.workspaces.find((stored) =>
+      process.platform === 'win32'
+        ? stored.toLowerCase() === canonical.toLowerCase()
+        : stored === canonical,
+    );
+    const storedDisplayName = storedWorkspace
+      ? snapshot.displayNames?.[workspaceRegistrationId(storedWorkspace)]
+      : undefined;
+    if (storedWorkspace) {
+      attachRegistrationIds(runtime, [
+        workspaceRegistrationId(storedWorkspace),
+      ]);
+    }
+    if (storedDisplayName === undefined) {
+      delete runtime.displayName;
+    } else {
+      runtime.displayName = storedDisplayName;
+    }
+  };
   // Read-only directory suggestions for the "Add workspace" flow. The
   // existing `GET /list` route resolves paths through a registered
   // workspace's filesystem boundary, so it cannot browse a path that is
@@ -211,6 +250,20 @@ export function registerWorkspaceManagementRoutes(
       const body = safeBody(req);
       const cwd = body['cwd'];
       const persist = body['persist'] ?? false;
+      const hasDisplayName = Object.hasOwn(body, 'displayName');
+      let displayName: string | undefined;
+      if (hasDisplayName) {
+        try {
+          displayName = normalizeWorkspaceDisplayName(body['displayName']);
+        } catch (err) {
+          if (!(err instanceof WorkspaceDisplayNameValidationError)) throw err;
+          res.status(400).json({
+            error: err.message,
+            code: 'invalid_display_name',
+          });
+          return;
+        }
+      }
       if (typeof cwd !== 'string' || cwd.trim().length === 0) {
         res.status(400).json({
           error: '`cwd` must be a non-empty string',
@@ -240,19 +293,24 @@ export function registerWorkspaceManagementRoutes(
         return;
       }
 
-      if (!isAbsolute(cwd)) {
+      // Bound the input before any filesystem work, matching the limit other
+      // workspace routes enforce (memory-amplification guard). Must run
+      // before the sandbox translation below — its existence probe is a
+      // filesystem call.
+      if (cwd.length > MAX_WORKSPACE_PATH_LENGTH) {
         res.status(400).json({
-          error: '`cwd` must be an absolute path',
+          error: `\`cwd\` exceeds the ${MAX_WORKSPACE_PATH_LENGTH}-character limit`,
           code: 'invalid_path',
         });
         return;
       }
 
-      // Bound the input before any filesystem work, matching the limit other
-      // workspace routes enforce (memory-amplification guard).
-      if (cwd.length > MAX_WORKSPACE_PATH_LENGTH) {
+      // #7139: the shared helper maps a Windows-shaped cwd to its container
+      // bind mount before the absolute-path check.
+      const sandboxCwd = translateAndCheckAbsoluteWorkspacePath(cwd);
+      if (sandboxCwd === null) {
         res.status(400).json({
-          error: `\`cwd\` exceeds the ${MAX_WORKSPACE_PATH_LENGTH}-character limit`,
+          error: '`cwd` must be an absolute path',
           code: 'invalid_path',
         });
         return;
@@ -265,7 +323,7 @@ export function registerWorkspaceManagementRoutes(
       // two distinct canonical strings and defeat the duplicate check.
       let canonical: string;
       try {
-        canonical = realpathSync.native(resolve(cwd));
+        canonical = realpathSync.native(resolve(sandboxCwd));
       } catch {
         res.status(400).json({
           error: 'Path does not exist or is not accessible',
@@ -357,7 +415,7 @@ export function registerWorkspaceManagementRoutes(
         operationStarted();
         try {
           const snapshot = await workspaceRegistrationStore!.read();
-          const alreadyPersisted = snapshot.workspaces.some(
+          const persistedWorkspaces = snapshot.workspaces.filter(
             (stored) =>
               existingRuntime.registrationIds?.includes(
                 workspaceRegistrationId(stored),
@@ -366,6 +424,7 @@ export function registerWorkspaceManagementRoutes(
                 ? stored.toLowerCase() === canonical.toLowerCase()
                 : stored === canonical),
           );
+          const alreadyPersisted = persistedWorkspaces.length > 0;
           if (
             !alreadyPersisted &&
             snapshot.workspaces.length >= MAX_REGISTERED_WORKSPACES - 1
@@ -376,23 +435,67 @@ export function registerWorkspaceManagementRoutes(
             });
             return;
           }
-          if (!alreadyPersisted) {
+          if (alreadyPersisted) {
+            attachRegistrationIds(
+              existingRuntime,
+              persistedWorkspaces.map(workspaceRegistrationId),
+            );
+            const storedDisplayName = persistedWorkspaces
+              .map(
+                (stored) =>
+                  snapshot.displayNames?.[workspaceRegistrationId(stored)],
+              )
+              .find((name) => name !== undefined);
+            if (storedDisplayName === undefined) {
+              delete existingRuntime.displayName;
+            } else {
+              existingRuntime.displayName = storedDisplayName;
+            }
+          } else {
+            let added = false;
             try {
-              await workspaceRegistrationStore!.add(canonical);
+              const persistedDisplayName = hasDisplayName
+                ? displayName
+                : existingRuntime.displayName;
+              added =
+                persistedDisplayName === undefined
+                  ? await workspaceRegistrationStore!.add(canonical)
+                  : await workspaceRegistrationStore!.add(
+                      canonical,
+                      persistedDisplayName,
+                    );
             } catch (err) {
               if (!(err instanceof WorkspaceRegistrationStoreCommittedError)) {
                 throw err;
               }
+              added = true;
               try {
                 writeStderrLine(`qwen serve: ${err.message}`);
               } catch {
                 // The registration is committed; diagnostics are best-effort.
               }
             }
+            if (added) {
+              attachRegistrationIds(existingRuntime, [
+                workspaceRegistrationId(canonical),
+              ]);
+            }
+            if (added && hasDisplayName) {
+              if (displayName === undefined) {
+                delete existingRuntime.displayName;
+              } else {
+                existingRuntime.displayName = displayName;
+              }
+            } else if (!added) {
+              await restorePersistedDisplayName(existingRuntime, canonical);
+            }
           }
           res.status(200).json({
             id: existingRuntime.workspaceId,
             cwd: existingRuntime.workspaceCwd,
+            ...(existingRuntime.displayName !== undefined
+              ? { displayName: existingRuntime.displayName }
+              : {}),
             primary: existingRuntime.primary,
             trusted: existingRuntime.trusted,
             persisted: true,
@@ -477,13 +580,21 @@ export function registerWorkspaceManagementRoutes(
       let persistenceFailed = false;
       try {
         const runtime = await createWorkspaceRuntime(canonical);
+        if (!persist && displayName !== undefined) {
+          runtime.displayName = displayName;
+        }
         let persistedRecordAdded = false;
         try {
           if (persist) {
             try {
               try {
                 persistedRecordAdded =
-                  await workspaceRegistrationStore!.add(canonical);
+                  displayName === undefined
+                    ? await workspaceRegistrationStore!.add(canonical)
+                    : await workspaceRegistrationStore!.add(
+                        canonical,
+                        displayName,
+                      );
               } catch (err) {
                 if (
                   !(err instanceof WorkspaceRegistrationStoreCommittedError)
@@ -496,6 +607,16 @@ export function registerWorkspaceManagementRoutes(
                 } catch {
                   // The registration is committed; diagnostics are best-effort.
                 }
+              }
+              if (persistedRecordAdded) {
+                attachRegistrationIds(runtime, [
+                  workspaceRegistrationId(canonical),
+                ]);
+                if (displayName !== undefined) {
+                  runtime.displayName = displayName;
+                }
+              } else {
+                await restorePersistedDisplayName(runtime, canonical);
               }
             } catch (err) {
               persistenceFailed = true;
@@ -550,6 +671,9 @@ export function registerWorkspaceManagementRoutes(
         res.status(201).json({
           id: runtime.workspaceId,
           cwd: runtime.workspaceCwd,
+          ...(runtime.displayName !== undefined
+            ? { displayName: runtime.displayName }
+            : {}),
           primary: runtime.primary,
           trusted: runtime.trusted,
           ...(persist ? { persisted: true } : {}),
@@ -629,6 +753,112 @@ export function registerWorkspaceManagementRoutes(
     });
     return undefined;
   };
+
+  app.patch(
+    '/workspaces/:workspace',
+    mutate({ strict: true }),
+    async (req: Request, res: Response) => {
+      const body = safeBody(req);
+      const unsupportedField = Object.keys(body).find(
+        (field) => field !== 'displayName',
+      );
+      if (unsupportedField) {
+        res.status(400).json({
+          error: `\`${unsupportedField}\` is not an updatable workspace field`,
+          code: 'unsupported_field',
+        });
+        return;
+      }
+      if (!Object.hasOwn(body, 'displayName')) {
+        res.status(400).json({
+          error: 'No updatable fields provided',
+          code: 'empty_patch',
+        });
+        return;
+      }
+      let displayName: string | undefined;
+      try {
+        displayName =
+          body['displayName'] === null
+            ? undefined
+            : normalizeWorkspaceDisplayName(body['displayName']);
+      } catch (err) {
+        if (!(err instanceof WorkspaceDisplayNameValidationError)) throw err;
+        res.status(400).json({
+          error: err.message,
+          code: 'invalid_display_name',
+        });
+        return;
+      }
+      if (sealed) {
+        sendSealed(res);
+        return;
+      }
+      const runtime = resolveManagedRuntime(req, res);
+      if (!runtime) return;
+      if (inFlight.has(runtime.workspaceCwd)) {
+        res.status(409).json({
+          error: 'Workspace registration is in progress',
+          code: 'workspace_registration_in_progress',
+        });
+        return;
+      }
+
+      inFlight.set(runtime.workspaceCwd, 'update');
+      operationStarted();
+      try {
+        if (
+          workspaceRegistrationStore &&
+          runtime.registrationIds !== undefined &&
+          runtime.registrationIds.length > 0
+        ) {
+          try {
+            await workspaceRegistrationStore.setDisplayNameByIds(
+              runtime.registrationIds,
+              displayName,
+            );
+          } catch (err) {
+            if (!(err instanceof WorkspaceRegistrationStoreCommittedError)) {
+              throw err;
+            }
+            try {
+              writeStderrLine(`qwen serve: ${err.message}`);
+            } catch {
+              // The update is committed; diagnostics are best-effort.
+            }
+          }
+        }
+        if (displayName === undefined) {
+          delete runtime.displayName;
+        } else {
+          runtime.displayName = displayName;
+        }
+        res.status(200).json({
+          id: runtime.workspaceId,
+          cwd: runtime.workspaceCwd,
+          ...(runtime.displayName !== undefined
+            ? { displayName: runtime.displayName }
+            : {}),
+          primary: runtime.primary,
+          trusted: runtime.trusted,
+          ...(runtimeRemoval ? { removable: runtime.removable === true } : {}),
+        });
+      } catch (err) {
+        writeStderrLine(
+          `qwen serve: failed to persist workspace display name: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        res.status(500).json({
+          error: 'Failed to persist workspace display name',
+          code: 'workspace_registration_store_error',
+        });
+      } finally {
+        inFlight.delete(runtime.workspaceCwd);
+        operationFinished();
+      }
+    },
+  );
 
   app.delete(
     '/workspaces/:workspace',
@@ -907,13 +1137,16 @@ export function registerWorkspaceManagementRoutes(
         schemaVersion: snapshot.schemaVersion,
         primaryWorkspace: snapshot.primaryWorkspace,
         entries: snapshot.workspaces.map((cwd) => {
+          const registrationId = workspaceRegistrationId(cwd);
           const runtime = workspaceRegistry.getByWorkspaceCwd(cwd);
           return {
-            id: workspaceRegistrationId(cwd),
+            id: registrationId,
             cwd,
+            ...(snapshot.displayNames?.[registrationId] !== undefined
+              ? { displayName: snapshot.displayNames[registrationId] }
+              : {}),
             active:
-              runtime !== undefined ||
-              registrationIsActive(workspaceRegistrationId(cwd)),
+              runtime !== undefined || registrationIsActive(registrationId),
             persisted: true,
           };
         }),
@@ -1031,6 +1264,11 @@ export function registerWorkspaceManagementRoutes(
             code: 'workspace_registration_not_found',
           });
           return;
+        }
+        if (runtime?.registrationIds) {
+          runtime.registrationIds = runtime.registrationIds.filter(
+            (id) => id !== registrationId,
+          );
         }
         res.json({
           removed: true,

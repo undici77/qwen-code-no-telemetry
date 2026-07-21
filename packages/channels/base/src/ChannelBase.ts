@@ -58,7 +58,13 @@ import {
   parseChannelMemoryIntent,
   type ChannelMemoryIntent,
 } from './channel-memory-intent.js';
-import { selectRelevantChannelMemory } from './channel-memory-recall.js';
+import {
+  CHANNEL_MEMORY_RECALL_MAX_ENTRIES,
+  createChannelMemoryRecallIndex,
+  selectRelevantChannelMemory,
+  selectRelevantChannelMemoryFromIndex,
+  type ChannelMemoryRecallIndex,
+} from './channel-memory-recall.js';
 
 /**
  * Max time /clear waits for a cancelled in-flight turn to wind down before
@@ -69,6 +75,7 @@ import { selectRelevantChannelMemory } from './channel-memory-recall.js';
  * later is already invalidated.
  */
 export const CLEAR_CANCEL_TIMEOUT_MS = 3000;
+const CHANNEL_MEMORY_RECALL_CACHE_MAX_TARGETS = 128;
 const GROUP_HISTORY_CONTEXT_MARKER =
   '[Chat messages since your last reply - for context]';
 const CURRENT_MESSAGE_MARKER = '[Current message - respond to this]';
@@ -152,11 +159,40 @@ interface ChannelMemoryReadToken {
   context?: string;
 }
 
+interface ChannelMemoryRecallCacheEntry {
+  revision: string;
+  index: ChannelMemoryRecallIndex;
+}
+
+export type ChannelMemoryRecallCacheStatus = 'hit' | 'miss' | 'bypass';
+export type ChannelMemoryRecallResult =
+  | 'selected'
+  | 'empty'
+  | 'stale'
+  | 'read_error'
+  | 'revision_unstable';
+
+export interface ChannelMemoryRecallObservation {
+  durationMs: number;
+  selectedCount: number;
+  cache: ChannelMemoryRecallCacheStatus;
+  result: ChannelMemoryRecallResult;
+}
+
+interface ChannelMemoryRecallSelection {
+  entries: ChannelMemoryEntry[];
+  cache: ChannelMemoryRecallCacheStatus;
+  result?: 'revision_unstable';
+}
+
 export interface ChannelBaseOptions {
   router?: SessionRouter;
   proxy?: string;
   channelMemory?: ChannelMemoryCallbacks;
   memoryIntentClassifier?: ChannelMemoryIntentClassifier;
+  channelMemoryRecallObserver?: (
+    observation: ChannelMemoryRecallObservation,
+  ) => void;
   /**
    * Set when a channel owns a supplied router and should consume bridge
    * events directly.
@@ -297,6 +333,9 @@ export abstract class ChannelBase {
   protected proxy?: string;
   private readonly channelMemory?: ChannelMemoryCallbacks;
   private readonly memoryIntentClassifier?: ChannelMemoryIntentClassifier;
+  private readonly channelMemoryRecallObserver?: (
+    observation: ChannelMemoryRecallObservation,
+  ) => void;
   private groupHistory: GroupHistoryStore;
   private readonly loopController?: ChannelLoopController;
   private readonly observedContacts?: ChannelBaseOptions['observedContacts'];
@@ -304,6 +343,10 @@ export abstract class ChannelBase {
   private instructedSessions: Set<string> = new Set();
   private unattendedMemorySessions: Set<string> = new Set();
   private channelMemoryReads = new Map<string, ChannelMemoryReadState>();
+  private channelMemoryRecallCache = new Map<
+    string,
+    ChannelMemoryRecallCacheEntry
+  >();
   private commands: Map<string, CommandHandler> = new Map();
   /** Per-session promise chain to serialize prompt + send (followup mode). */
   private sessionQueues: Map<string, Promise<void>> = new Map();
@@ -330,6 +373,18 @@ export abstract class ChannelBase {
   private readonly preflightedEnvelopes = new WeakSet<Envelope>();
   private readonly bridgeToolCallListener = (event: ToolCallEvent): void => {
     this.dispatchToolCall(event);
+  };
+  private readonly bridgeBackgroundResponseListener = (
+    sessionId: string,
+    text: string,
+  ): void => {
+    void this.dispatchBackgroundResponse(sessionId, text).catch(
+      (err: unknown) => {
+        process.stderr.write(
+          `[${this.name}] background response delivery failed for session ${sanitizeLogText(sessionId, 128)}: ${this.lifecycleError(err)}\n`,
+        );
+      },
+    );
   };
   private readonly bridgeSessionDiedListener = (
     event: SessionDiedEvent,
@@ -386,6 +441,25 @@ export abstract class ChannelBase {
       });
     }
     this.onToolCall(chatId, event);
+  }
+
+  async dispatchBackgroundResponse(
+    sessionId: string,
+    text: string,
+  ): Promise<void> {
+    const target = this.router.getTarget(sessionId);
+    if (
+      !target ||
+      target.channelName !== this.name ||
+      text.trim().length === 0
+    ) {
+      return;
+    }
+    if (this.supportsProactiveSend() && this.supportsProactiveTarget(target)) {
+      await this.pushProactive(target, text);
+      return;
+    }
+    await this.sendResponseMessage(target.chatId, text, sessionId);
   }
 
   async dispatchPermissionRequest(
@@ -487,6 +561,7 @@ export abstract class ChannelBase {
     this.memoryScope = Object.freeze(this.resolveMemoryScope(name, config));
     this.channelMemory = options?.channelMemory;
     this.memoryIntentClassifier = options?.memoryIntentClassifier;
+    this.channelMemoryRecallObserver = options?.channelMemoryRecallObserver;
     this.groupHistory = new GroupHistoryStore(
       options?.groupHistoryPath ??
         join(
@@ -774,6 +849,132 @@ export abstract class ChannelBase {
       this.channelMemoryReads.get(token.key) === token.state
     ) {
       this.channelMemoryReads.delete(token.key);
+    }
+  }
+
+  private getCachedChannelMemoryRecallIndex(
+    key: string,
+    revision: string,
+  ): ChannelMemoryRecallIndex | undefined {
+    const cached = this.channelMemoryRecallCache.get(key);
+    if (!cached || cached.revision !== revision) return undefined;
+    this.channelMemoryRecallCache.delete(key);
+    this.channelMemoryRecallCache.set(key, cached);
+    return cached.index;
+  }
+
+  private setCachedChannelMemoryRecallIndex(
+    key: string,
+    revision: string,
+    index: ChannelMemoryRecallIndex,
+  ): void {
+    this.channelMemoryRecallCache.delete(key);
+    this.channelMemoryRecallCache.set(key, { revision, index });
+    if (
+      this.channelMemoryRecallCache.size >
+      CHANNEL_MEMORY_RECALL_CACHE_MAX_TARGETS
+    ) {
+      const oldestKey = this.channelMemoryRecallCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.channelMemoryRecallCache.delete(oldestKey);
+      }
+    }
+  }
+
+  private async selectRelevantChannelMemory(
+    envelope: Envelope,
+    target: ChannelMemoryTarget,
+    read: ChannelMemoryReadToken,
+  ): Promise<ChannelMemoryRecallSelection> {
+    const message = envelope.text;
+    const channelMemory = this.channelMemory;
+    if (!channelMemory) return { entries: [], cache: 'bypass' };
+    if (!channelMemory.getChannelMemoryRevision) {
+      const entries = await channelMemory.listChannelMemoryEntries(target);
+      return {
+        entries: selectRelevantChannelMemory(message, entries),
+        cache: 'bypass',
+      };
+    }
+
+    let revision: string;
+    try {
+      revision = await channelMemory.getChannelMemoryRevision(target);
+    } catch {
+      const entries = await channelMemory.listChannelMemoryEntries(target);
+      return {
+        entries: selectRelevantChannelMemory(message, entries),
+        cache: 'bypass',
+      };
+    }
+
+    let latestEntries: ChannelMemoryEntry[] = [];
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const cached = this.getCachedChannelMemoryRecallIndex(read.key, revision);
+      if (cached) {
+        return {
+          entries: selectRelevantChannelMemoryFromIndex(message, cached),
+          cache: 'hit',
+        };
+      }
+
+      latestEntries = await channelMemory.listChannelMemoryEntries(target);
+      let verifiedRevision: string;
+      try {
+        verifiedRevision = await channelMemory.getChannelMemoryRevision(target);
+      } catch {
+        return {
+          entries: selectRelevantChannelMemory(message, latestEntries),
+          cache: 'bypass',
+        };
+      }
+      if (revision !== verifiedRevision) {
+        if (read.generation !== read.state.generation) {
+          return { entries: [], cache: 'miss' };
+        }
+        revision = verifiedRevision;
+        continue;
+      }
+
+      const index = createChannelMemoryRecallIndex(latestEntries);
+      if (read.generation === read.state.generation) {
+        this.setCachedChannelMemoryRecallIndex(read.key, revision, index);
+      }
+      return {
+        entries: selectRelevantChannelMemoryFromIndex(message, index),
+        cache: 'miss',
+      };
+    }
+    this.logChannelMemoryError(
+      'read',
+      envelope,
+      'recall revision unstable after retry',
+    );
+    return {
+      entries: selectRelevantChannelMemory(message, latestEntries),
+      cache: 'miss',
+      result: 'revision_unstable',
+    };
+  }
+
+  private observeChannelMemoryRecall(
+    startedAt: number,
+    cache: ChannelMemoryRecallCacheStatus,
+    result: ChannelMemoryRecallResult,
+    selectedCount: number,
+  ): void {
+    try {
+      this.channelMemoryRecallObserver?.({
+        durationMs: Math.max(0, performance.now() - startedAt),
+        selectedCount: Math.min(
+          CHANNEL_MEMORY_RECALL_MAX_ENTRIES,
+          Math.max(0, Math.trunc(selectedCount)),
+        ),
+        cache,
+        result,
+      });
+    } catch {
+      // Telemetry must never affect channel delivery.
     }
   }
 
@@ -1605,6 +1806,7 @@ export abstract class ChannelBase {
 
   private attachBridgeEvents(bridge: ChannelAgentBridge): void {
     bridge.on('toolCall', this.bridgeToolCallListener);
+    bridge.on('backgroundResponse', this.bridgeBackgroundResponseListener);
     bridge.on('sessionDied', this.bridgeSessionDiedListener);
     bridge.on('permissionRequest', this.bridgePermissionRequestListener);
     bridge.on('permissionResolved', this.bridgePermissionResolvedListener);
@@ -1612,6 +1814,7 @@ export abstract class ChannelBase {
 
   private detachBridgeEvents(bridge: ChannelAgentBridge): void {
     bridge.off('toolCall', this.bridgeToolCallListener);
+    bridge.off('backgroundResponse', this.bridgeBackgroundResponseListener);
     bridge.off('sessionDied', this.bridgeSessionDiedListener);
     bridge.off('permissionRequest', this.bridgePermissionRequestListener);
     bridge.off('permissionResolved', this.bridgePermissionResolvedListener);
@@ -2829,9 +3032,9 @@ export abstract class ChannelBase {
 
   private invalidateUnattendedMemory(envelope: Envelope): void {
     const target = this.channelMemoryTarget(envelope);
-    const activeRead = this.channelMemoryReads.get(
-      this.channelMemoryReadKey(target),
-    );
+    const readKey = this.channelMemoryReadKey(target);
+    this.channelMemoryRecallCache.delete(readKey);
+    const activeRead = this.channelMemoryReads.get(readKey);
     if (activeRead) {
       activeRead.generation += 1;
     }
@@ -4427,28 +4630,38 @@ export abstract class ChannelBase {
       ) {
         const memoryTarget = this.channelMemoryTarget(envelope);
         recallRead = this.beginChannelMemoryRead(memoryTarget);
+        const recallStartedAt = performance.now();
         try {
-          const entries = [
-            ...(await this.channelMemory.listChannelMemoryEntries(
-              memoryTarget,
-            )),
-          ];
-          const relevantEntries = selectRelevantChannelMemory(
-            envelope.text,
-            entries,
+          const selection = await this.selectRelevantChannelMemory(
+            envelope,
+            memoryTarget,
+            recallRead,
+          );
+          const stale = recallRead.generation !== recallRead.state.generation;
+          const relevantEntries = stale ? [] : selection.entries;
+          this.observeChannelMemoryRecall(
+            recallStartedAt,
+            selection.cache,
+            stale
+              ? 'stale'
+              : (selection.result ??
+                  (relevantEntries.length > 0 ? 'selected' : 'empty')),
+            relevantEntries.length,
           );
           if (relevantEntries.length > 0) {
             recallContext =
               this.formatRelevantChannelMemoryContext(relevantEntries);
           }
-        } catch (error) {
+        } catch {
+          this.observeChannelMemoryRecall(
+            recallStartedAt,
+            'bypass',
+            'read_error',
+            0,
+          );
           this.releaseChannelMemoryRead(recallRead);
           recallRead = undefined;
-          this.logChannelMemoryError(
-            'read',
-            envelope,
-            this.channelMemoryErrorMessage(error),
-          );
+          this.logChannelMemoryError('read', envelope, 'entry listing failed');
         }
       }
       if (this.dropQueuedTurnIfStale(sessionId, generation, envelope)) {

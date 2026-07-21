@@ -162,7 +162,6 @@ export {
 } from './metrics.js';
 
 export type {
-  // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
   ToolExecutionPhase,

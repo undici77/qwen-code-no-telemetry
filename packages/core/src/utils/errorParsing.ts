@@ -80,7 +80,9 @@ export function parseAndFormatApiError(
       return error.message;
     }
 
-    let text = `[API Error: ${error.message}]`;
+    const message =
+      error instanceof Error ? getErrorMessage(error) : error.message;
+    let text = `[API Error: ${message}]`;
     if (error.status === 429) {
       text += getRateLimitMessage(authType);
     }

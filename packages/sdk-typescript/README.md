@@ -57,7 +57,7 @@ Creates a new query session with the Qwen Code.
 | `cwd`                    | `string`                                       | `process.cwd()`  | The working directory for the query session. Determines the context in which file operations and commands are executed.                                                                                                                                                                                                                                                                                                                                                               |
 | `model`                  | `string`                                       | -                | The AI model to use (e.g., `'qwen-max'`, `'qwen-plus'`, `'qwen-turbo'`). Takes precedence over `OPENAI_MODEL` and `QWEN_MODEL` environment variables.                                                                                                                                                                                                                                                                                                                                 |
 | `pathToQwenExecutable`   | `string`                                       | Auto-detected    | Path to the Qwen Code executable. Supports multiple formats: `'qwen'` (native binary from PATH), `'/path/to/qwen'` (explicit path), `'/path/to/cli.js'` (Node.js bundle), `'node:/path/to/cli.js'` (force Node.js runtime), `'bun:/path/to/cli.js'` (force Bun runtime). If not provided, auto-detects from: `QWEN_CODE_CLI_PATH` env var, `~/.volta/bin/qwen`, `~/.npm-global/bin/qwen`, `/usr/local/bin/qwen`, `~/.local/bin/qwen`, `~/node_modules/.bin/qwen`, `~/.yarn/bin/qwen`. |
-| `permissionMode`         | `'default' \| 'plan' \| 'auto-edit' \| 'yolo'` | `'default'`      | Permission mode controlling tool execution approval. See [Permission Modes](#permission-modes) for details.                                                                                                                                                                                                                                                                                                                                                                           |
+| `permissionMode`         | `'default' \| 'plan' \| 'auto-edit' \| 'auto' \| 'yolo'` | `'default'`      | Permission mode controlling tool execution approval. See [Permission Modes](#permission-modes) for details.                                                                                                                                                                                                                                                                                                                                                                |
 | `canUseTool`             | `CanUseTool`                                   | -                | Custom permission handler for tool execution approval. Invoked when a tool requires confirmation. Must respond within 60 seconds or the request will be auto-denied. See [Custom Permission Handler](#custom-permission-handler).                                                                                                                                                                                                                                                     |
 | `env`                    | `Record<string, string>`                       | -                | Environment variables to pass to the Qwen Code process. Merged with the current process environment.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `systemPrompt`           | `string \| QuerySystemPromptPreset`            | -                | System prompt configuration for the main session. Use a string to fully override the built-in Qwen Code system prompt, or a preset object to keep the built-in prompt and append extra instructions.                                                                                                                                                                                                                                                                                  |
@@ -173,6 +173,29 @@ for await (const event of session.events()) {
 }
 ```
 
+### Offline daemon transcript projection
+
+The opt-in browser-safe transcript entry converts already-parsed append-only
+ChatRecord values into the same block model used by daemon clients. It does not
+read files, parse JSONL text, start a daemon, or access network or browser
+storage.
+
+```typescript
+import { projectChatRecordsToDaemonTranscript } from '@qwen-code/sdk/daemon/transcript';
+
+const projection = projectChatRecordsToDaemonTranscript(records);
+if (!projection.complete) {
+  console.warn(projection.diagnostics);
+}
+renderTranscript(projection.blocks);
+```
+
+Projection is synchronous and scans all records and message parts. `maxBlocks`
+limits retained output blocks, not computation. As a conservative browser
+guideline, project up to roughly 1,000 ordinary records on the main thread;
+move larger or unusually text-heavy inputs to a Web Worker and call the same
+entry there.
+
 ### Message Types
 
 The SDK provides type guards to identify different message types:
@@ -233,6 +256,7 @@ The SDK supports different permission modes for controlling tool execution:
 - **`default`**: Write tools are denied unless approved via `canUseTool` callback or in `allowedTools`. Read-only tools execute without confirmation.
 - **`plan`**: Blocks all write tools, instructing AI to present a plan first.
 - **`auto-edit`**: Auto-approve edit tools (`edit`, `write_file`, `notebook_edit`) while other tools require confirmation.
+- **`auto`**: Uses the built-in classifier to auto-approve safe tool calls and block risky ones, with manual-approval fallback after repeated policy blocks or classifier outages.
 - **`yolo`**: All tools execute automatically without confirmation.
 
 ### Permission Priority Chain
@@ -246,8 +270,9 @@ The first matching rule wins.
 3. `permissionMode: 'plan'` - Blocks all non-read-only tools
 4. `permissionMode: 'yolo'` - Auto-approves all tools
 5. `allowedTools` / `permissions.allow` - Auto-approves matching tools
-6. `canUseTool` callback - Custom approval logic (if provided, not called for allowed tools)
-7. Default behavior - Auto-deny in SDK mode (write tools require explicit approval)
+6. `permissionMode: 'auto'` - Classifier-mediated approval for remaining tools
+7. `canUseTool` callback - Custom approval logic (if provided, not called for allowed tools)
+8. Default behavior - Auto-deny in SDK mode (write tools require explicit approval)
 
 ## Examples
 

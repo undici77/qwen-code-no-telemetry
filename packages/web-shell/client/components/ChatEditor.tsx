@@ -131,6 +131,8 @@ interface ChatEditorProps {
   currentMode?: string;
   currentModel?: string;
   gitBranch?: string;
+  /** Whether the session is in a worktree (styles the git chip purple). */
+  gitWorktree?: boolean;
   /** Enriched working-tree summary (dirty / ahead-behind / stash / operation). */
   gitStatus?: DaemonWorkspaceGitStatus;
   /** Opens the working-tree Changes dialog; makes the git chip clickable. */
@@ -1145,6 +1147,7 @@ export const ChatEditor = memo(
       currentMode = 'default',
       currentModel = '',
       gitBranch,
+      gitWorktree,
       gitStatus,
       onOpenGitDiff,
       workspaceName,
@@ -1183,6 +1186,7 @@ export const ChatEditor = memo(
       renderComposerTag,
       renderComposerTagTooltip,
       onComposerTagClick,
+      parseUserMessageContent,
     } = useWebShellCustomization();
 
     const core = useComposerCore({
@@ -1210,6 +1214,7 @@ export const ChatEditor = memo(
       atProviders,
       atWorkspaceCwd,
       composerTagIcons,
+      parseUserMessageContent,
       renderComposerTag,
       renderComposerTagTooltip,
       onComposerTagClick,
@@ -1548,6 +1553,7 @@ export const ChatEditor = memo(
       searchInputRef,
       searchUiRef,
       closeSearch,
+      restoreSearchMatch,
       handleSearchKeyDown,
       handleSearchInput,
       handleSearchCompositionEnd,
@@ -1861,7 +1867,11 @@ export const ChatEditor = memo(
                         }`}
                         onMouseDown={(event) => {
                           event.preventDefault();
-                          core.replaceEditorText(match);
+                          if (restoreSearchMatch) {
+                            restoreSearchMatch(match);
+                          } else {
+                            core.replaceEditorText(match);
+                          }
                           closeSearch(false);
                         }}
                       >
@@ -2121,6 +2131,7 @@ export const ChatEditor = memo(
                       status={gitStatus}
                       compact={!showGitBranchLabel}
                       onOpenDiff={onOpenGitDiff}
+                      worktree={gitWorktree}
                     />
                   )}
                   {showModeAction && (
@@ -2446,6 +2457,7 @@ export const ChatEditor = memo(
                       branch={gitBranch}
                       status={gitStatus}
                       compact
+                      worktree={gitWorktree}
                     />
                   </span>
                   <span
@@ -2456,6 +2468,7 @@ export const ChatEditor = memo(
                       branch={gitBranch}
                       status={gitStatus}
                       compact={false}
+                      worktree={gitWorktree}
                     />
                   </span>
                 </>

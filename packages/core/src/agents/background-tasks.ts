@@ -26,6 +26,7 @@ import { createDebugLogger } from '../utils/debugLogger.js';
 import { parsePositiveIntegerEnv } from '../utils/env.js';
 import { escapeXml } from '../utils/xml.js';
 import { patchAgentMeta } from './agent-transcript.js';
+import { runOutsideAgentContext } from './runtime/agent-context.js';
 import {
   AgentEventType,
   type AgentApprovalRequestEvent,
@@ -51,6 +52,7 @@ export const BACKGROUND_AGENT_CONCURRENCY_ENV =
 
 function normalizeBackgroundApprovalOutcome(
   outcome: Parameters<BackgroundApproval['respond']>[0],
+  confirmationDetails: BackgroundApproval['confirmationDetails'],
 ): Parameters<BackgroundApproval['respond']>[0] {
   if (
     outcome === ToolConfirmationOutcome.ProceedAlways ||
@@ -59,7 +61,13 @@ function normalizeBackgroundApprovalOutcome(
     outcome === ToolConfirmationOutcome.ProceedAlwaysServer ||
     outcome === ToolConfirmationOutcome.ProceedAlwaysTool
   ) {
-    return ToolConfirmationOutcome.ProceedOnce;
+    if (
+      confirmationDetails.type === 'plan' &&
+      outcome === ToolConfirmationOutcome.ProceedAlways
+    ) {
+      return outcome;
+    }
+    return ToolConfirmationOutcome.Cancel;
   }
   return outcome;
 }
@@ -955,9 +963,13 @@ export class BackgroundTaskRegistry {
     );
     this.emitApprovalChange(entry);
     try {
+      const normalizedOutcome = normalizeBackgroundApprovalOutcome(
+        outcome,
+        approval.confirmationDetails,
+      );
       await approval.respond(
-        normalizeBackgroundApprovalOutcome(outcome),
-        payload,
+        normalizedOutcome,
+        normalizedOutcome === outcome ? payload : undefined,
       );
     } catch (error) {
       debugLogger.error(
@@ -1428,7 +1440,18 @@ export class BackgroundTaskRegistry {
     };
 
     try {
-      this.notificationCallback(displayLine, xmlParts.join('\n'), meta);
+      // The terminal transition (complete/fail/cancel) that reaches this
+      // point runs inside the finished agent's AsyncLocalStorage frame, and
+      // ALS context follows every async continuation the callback starts —
+      // including the React state update that drains the notification into
+      // a new conversation turn. Without exiting the frame here, that turn
+      // resolves Config.getModel() to the SUBAGENT's model and the main
+      // session's history can overflow its smaller context window (#7156).
+      // A notification is main-session-owned, so emit it with no agent
+      // frame at all.
+      runOutsideAgentContext(() =>
+        this.notificationCallback!(displayLine, xmlParts.join('\n'), meta),
+      );
     } catch (error) {
       debugLogger.error('Failed to emit background notification:', error);
     }
