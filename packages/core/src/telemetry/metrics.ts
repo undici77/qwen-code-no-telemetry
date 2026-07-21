@@ -252,3 +252,5 @@ export function isPerformanceMonitoringActive(): boolean {
 }
 
 export async function flushMetrics(): Promise<void> {}
+
+export function recordChannelMemoryRecallMetrics(_observation: unknown): void {}

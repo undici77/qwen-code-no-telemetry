@@ -6,6 +6,7 @@
 
 import { isApiError, isStructuredError } from './quotaErrorDetection.js';
 import { AuthType } from '../core/authTypes.js';
+import { getErrorMessage } from './errors.js';
 
 const RATE_LIMIT_MESSAGE_BY_AUTH = {
   [AuthType.USE_GEMINI]:

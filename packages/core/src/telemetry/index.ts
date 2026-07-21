@@ -159,6 +159,7 @@ export {
   recordMemoryExtractMetrics,
   recordMemoryDreamMetrics,
   recordMemoryRecallMetrics,
+  recordChannelMemoryRecallMetrics,
 } from './metrics.js';
 
 export type {

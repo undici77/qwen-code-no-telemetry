@@ -38,7 +38,6 @@ import {
   readLastJsonStringFieldSync,
   readLastJsonStringFieldsSync,
 } from '../utils/sessionStorageUtils.js';
-import { Storage } from '../config/storage.js';
 import { getUsageOutputTokenCountForPromptEstimate } from './tokenEstimation.js';
 import {
   isSessionArtifactRecord,

@@ -410,19 +410,8 @@ export function attachJsonlTranscriptWriter(
             ? { durationMs: response.durationMs }
             : {}),
         },
-      },
-    ];
-    append({
-      ...baseFields('tool_result'),
-      message: { role: 'user', parts },
-      toolCallResult: {
-        callId: event.callId,
-        status: event.success ? 'success' : 'error',
-        ...(event.durationMs !== undefined
-          ? { durationMs: event.durationMs }
-          : {}),
-      },
-    });
+      });
+    }
   };
 
   const recordUserMessage = (
