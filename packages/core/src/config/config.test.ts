@@ -5438,16 +5438,14 @@ describe('Server Config (config.ts)', () => {
       ]);
     });
 
-    it('registers web_search when enabled with a usable env-declared backend', async () => {
-      process.env['WEB_SEARCH_GATE_TEST_KEY'] = 'sk-test';
+    it('registers web_search when enabled with a SerpApi API key', async () => {
+      process.env['SERPAPI_API_KEY'] = 'sk-test';
       try {
         const config = new Config({
           ...baseParams,
           webSearch: {
             enabled: true,
-            model: 'qwen3.6-plus',
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            apiKeyEnv: 'WEB_SEARCH_GATE_TEST_KEY',
+            apiKey: 'sk-test',
           },
         });
         await config.initialize();
@@ -5465,7 +5463,7 @@ describe('Server Config (config.ts)', () => {
           config.getWarnings().filter((w) => w.includes('WebSearch')),
         ).toEqual([]);
       } finally {
-        delete process.env['WEB_SEARCH_GATE_TEST_KEY'];
+        delete process.env['SERPAPI_API_KEY'];
       }
     });
 
@@ -5488,7 +5486,7 @@ describe('Server Config (config.ts)', () => {
     });
 
     it('pushes a one-time notice when web_search is enabled but misconfigured', async () => {
-      // Enabled without a model: the tool must stay off with a diagnostic
+      // Enabled without an API key: the tool must stay off with a diagnostic
       // notice, pushed exactly once across registry rebuilds.
       const config = new Config({
         ...baseParams,
@@ -5508,7 +5506,7 @@ describe('Server Config (config.ts)', () => {
       const webSearchNotices = () =>
         config.getWarnings().filter((w) => w.includes('WebSearch'));
       expect(webSearchNotices()).toHaveLength(1);
-      expect(webSearchNotices()[0]).toContain('no search model');
+      expect(webSearchNotices()[0]).toContain('SERPAPI_API_KEY');
 
       // A registry rebuild must not duplicate the notice.
       await config.createToolRegistry(undefined, { skipDiscovery: true });

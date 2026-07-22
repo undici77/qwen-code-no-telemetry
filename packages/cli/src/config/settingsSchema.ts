@@ -2210,7 +2210,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: true,
         default: {},
         description:
-          'Settings for the built-in WebSearch tool (DashScope Responses API backend). Opt-in: requires enabled=true and a search model. Fully env-configurable for environments without settings.json: ENABLE_WEB_SEARCH, WEB_SEARCH_MODEL, WEB_SEARCH_BASE_URL, WEB_SEARCH_API_KEY (falls back to DASHSCOPE_API_KEY), WEB_SEARCH_EXTRACTOR. Note: baseUrl and API key are env-only (WEB_SEARCH_BASE_URL / WEB_SEARCH_API_KEY) and cannot be set in settings.json.',
+          'Settings for the built-in WebSearch tool (SerpApi backend). Opt-in: requires enabled=true and a SerpApi API key. The API key can be set here or via the SERPAPI_API_KEY environment variable. Additional options: engine (default: google), hl (language, default: en), gl (country, default: us).',
         showInDialog: false,
         properties: {
           enabled: {
@@ -2220,27 +2220,47 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: false,
             description:
-              'Enable the built-in web_search tool. Also requires tools.webSearch.model. Env override: ENABLE_WEB_SEARCH.',
+              'Enable the built-in web_search tool. Also requires a SerpApi API key (set tools.webSearch.apiKey or the SERPAPI_API_KEY env var). Env override: ENABLE_WEB_SEARCH.',
             showInDialog: true,
           },
-          model: {
+          apiKey: {
             type: 'string',
-            label: 'Search Model',
+            label: 'SerpApi API Key',
             category: 'Tools',
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Model selector for the search side request, resolved against modelProviders like fastModel ("modelId" or "authType:modelId"). Must resolve to a DashScope-compatible entry with an envKey. Recommended: qwen3.6-plus. Env override: WEB_SEARCH_MODEL.',
+              'SerpApi API key. Falls back to the SERPAPI_API_KEY environment variable when not set here. Get a key at https://serpapi.com/manage-api-key.',
             showInDialog: true,
           },
-          webExtractor: {
-            type: 'boolean',
-            label: 'Open Result Pages',
+          engine: {
+            type: 'string',
+            label: 'Search Engine',
             category: 'Tools',
             requiresRestart: true,
-            default: true,
+            default: 'google',
             description:
-              'Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.',
+              'Search engine to use. Supported: google, bing, baidu, yahoo, duckduckgo, yandex, etc. Default: google.',
+            showInDialog: true,
+          },
+          hl: {
+            type: 'string',
+            label: 'Language',
+            category: 'Tools',
+            requiresRestart: true,
+            default: 'en',
+            description:
+              'Language parameter (hl). Default: en. Examples: zh, ja, de, fr, es.',
+            showInDialog: true,
+          },
+          gl: {
+            type: 'string',
+            label: 'Country',
+            category: 'Tools',
+            requiresRestart: true,
+            default: 'us',
+            description:
+              'Country parameter (gl). Default: us. Examples: cn, jp, de, fr, uk.',
             showInDialog: true,
           },
         },

@@ -7,72 +7,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config/config.js';
 import { ToolErrorType } from './tool-error.js';
-import { WebSearchTool, evaluateWebSearchGate } from './web-search.js';
+import {
+  WebSearchTool,
+  evaluateWebSearchGate,
+  serpApiToMarkdown,
+} from './web-search.js';
 
-const mockCreate = vi.hoisted(() => vi.fn());
-const mockCtorOpts = vi.hoisted(() => ({ current: undefined as unknown }));
-
-vi.mock('openai', () => ({
-  default: class MockOpenAI {
-    responses = { create: mockCreate };
-    constructor(opts: unknown) {
-      mockCtorOpts.current = opts;
-    }
-  },
-}));
-
-const TEST_ENV_KEY = 'WEB_SEARCH_TEST_DS_KEY';
-const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-
-interface ConfigOverrides {
-  settings?: {
+function makeConfig(
+  overrides: {
     enabled?: boolean;
-    model?: string;
-    webExtractor?: boolean;
-    baseUrl?: string;
-    apiKeyEnv?: string;
-  };
-  models?: Array<{
-    id: string;
-    authType: string;
-    envKey?: string;
-    baseUrl?: string;
-    generationConfig?: { customHeaders?: Record<string, string> };
-  }>;
-}
-
-function makeConfig(overrides: ConfigOverrides = {}): Config {
-  const models = overrides.models ?? [
-    {
-      id: 'qwen3.6-plus',
-      authType: 'openai',
-      envKey: TEST_ENV_KEY,
-      baseUrl: DASHSCOPE_BASE_URL,
-    },
-  ];
+    apiKey?: string;
+    engine?: string;
+    hl?: string;
+    gl?: string;
+  } = {},
+): Config {
   return {
-    getWebSearchSettings: () =>
-      overrides.settings ?? { enabled: true, model: 'qwen3.6-plus' },
-    // The real Config disambiguates same-id entries by registry baseUrl;
-    // mirror that so multi-entry tests resolve the gate-selected entry, not
-    // the first (authType, id) match.
-    getAllConfiguredModels: () =>
-      models.map((m) => ({ ...m, registryBaseUrl: m.baseUrl })),
-    getResolvedModelConfig: (
-      authType: string,
-      id: string,
-      baseUrl?: string,
-    ) => {
-      const m = models.find(
-        (mm) =>
-          mm.authType === authType &&
-          mm.id === id &&
-          (baseUrl === undefined || mm.baseUrl === baseUrl),
-      );
-      return m
-        ? { ...m, generationConfig: m.generationConfig ?? {} }
-        : undefined;
-    },
+    getWebSearchSettings: () => ({
+      enabled: overrides.enabled ?? true,
+      apiKey: overrides.apiKey,
+      engine: overrides.engine,
+      hl: overrides.hl,
+      gl: overrides.gl,
+    }),
     getSessionId: () => 'session-1',
     getCliVersion: () => '0.0.0-test',
     getProxy: () => undefined,
@@ -82,415 +39,426 @@ function makeConfig(overrides: ConfigOverrides = {}): Config {
   } as unknown as Config;
 }
 
-function makeStream(events: Array<Record<string, unknown>>) {
-  return {
-    async *[Symbol.asyncIterator]() {
-      for (const event of events) {
-        yield event;
-      }
-    },
-  };
-}
-
-function completedEvents(
-  output: Array<Record<string, unknown>>,
-  usage?: Record<string, unknown>,
-  status = 'completed',
-): Array<Record<string, unknown>> {
-  return [
-    { type: 'response.created' },
-    ...output.map((item) => ({ type: 'response.output_item.done', item })),
-    {
-      type: 'response.completed',
-      response: { status, output, usage },
-    },
-  ];
-}
-
-const SEARCH_ITEM = {
-  type: 'web_search_call',
-  status: 'completed',
-  action: {
-    type: 'search',
-    query: 'test query',
-    queries: ['test query'],
-    sources: [
-      { type: 'url', url: 'https://example.com/a' },
-      { type: 'url', url: 'https://example.com/b' },
-    ],
+// Sample SerpApi JSON response for "coffee"
+const SAMPLE_SERPAPI_RESPONSE = {
+  search_metadata: {
+    id: 'test-id',
+    status: 'Success',
+    created_at: '2025-01-01T00:00:00Z',
+    processed_at: '2025-01-01T00:00:01Z',
+    total_time_taken: 1.2,
   },
+  search_parameters: {
+    engine: 'google',
+    q: 'coffee',
+    hl: 'en',
+    gl: 'us',
+  },
+  search_information: {
+    query_displayed: 'coffee',
+    total_results: 1_250_000_000,
+    time_taken_displayed: 0.85,
+  },
+  answer_box: {
+    answer: 'Coffee is a brewed drink prepared from roasted coffee beans.',
+    title: 'Coffee - Wikipedia',
+    link: 'https://en.wikipedia.org/wiki/Coffee',
+    source: { name: 'Wikipedia' },
+  },
+  knowledge_graph: {
+    title: 'Coffee',
+    type: 'Beverage',
+    description: 'Coffee is a beverage brewed from roasted coffee beans.',
+    attributes: {
+      Caffeine: 'Yes',
+      Origin: 'Ethiopia',
+      'Serving temperature': 'Hot or cold',
+    },
+    source: { name: 'Wikipedia', link: 'https://en.wikipedia.org/wiki/Coffee' },
+  },
+  organic_results: [
+    {
+      position: 1,
+      title: 'Coffee - Wikipedia',
+      link: 'https://en.wikipedia.org/wiki/Coffee',
+      displayed_link: 'en.wikipedia.org › wiki › Coffee',
+      snippet: 'Coffee is a brewed drink prepared from roasted coffee beans.',
+      sitelinks: {
+        expanded: [
+          {
+            title: 'History',
+            link: 'https://en.wikipedia.org/wiki/History_of_coffee',
+          },
+        ],
+      },
+    },
+    {
+      position: 2,
+      title: 'Starbucks Coffee Company',
+      link: 'https://www.starbucks.com/',
+      displayed_link: 'www.starbucks.com',
+      snippet:
+        'More than just great coffee. Explore the menu, sign up for Starbucks® Rewards, manage your gift card and more.',
+    },
+  ],
+  related_questions: [
+    {
+      question: 'Is coffee good for health?',
+      answer:
+        'Moderate coffee consumption is linked to several health benefits.',
+      source: {
+        name: 'Healthline',
+        link: 'https://www.healthline.com/nutrition/top-13-evidence-based-health-benefits-of-coffee',
+      },
+    },
+  ],
+  top_stories: [
+    {
+      title: 'New Study Shows Coffee May Improve Memory',
+      link: 'https://example.com/coffee-memory',
+      source: 'Science Daily',
+      date: '2 hours ago',
+      snippet:
+        'Researchers found that regular coffee consumption may help improve memory function.',
+    },
+  ],
 };
-
-const EXTRACTOR_ITEM = {
-  type: 'web_extractor_call',
-  status: 'completed',
-  urls: ['https://example.com/a'],
-  goal: 'verify facts',
-  output: 'page content',
-};
-
-const MESSAGE_ITEM = {
-  type: 'message',
-  status: 'completed',
-  content: [{ type: 'output_text', text: 'The answer is 42.' }],
-};
-
-async function runSearch(config: Config, query = 'test query') {
-  const tool = new WebSearchTool(config);
-  const invocation = tool.build({ query });
-  return invocation.execute(new AbortController().signal);
-}
-
-/**
- * Like runSearch, but for tests with fake timers active: starts the
- * invocation, then advances time past the no-search retry backoff so the
- * attempt loop can complete.
- */
-async function runSearchWithRetryTimers(config: Config, query = 'test query') {
-  const tool = new WebSearchTool(config);
-  const invocation = tool.build({ query });
-  const promise = invocation.execute(new AbortController().signal);
-  await vi.advanceTimersByTimeAsync(3000);
-  return promise;
-}
-
-beforeEach(() => {
-  process.env[TEST_ENV_KEY] = 'sk-test';
-  mockCreate.mockReset();
-});
-
-afterEach(() => {
-  delete process.env[TEST_ENV_KEY];
-  vi.useRealTimers();
-});
 
 describe('evaluateWebSearchGate', () => {
-  it('passes with a fully configured DashScope entry', () => {
+  beforeEach(() => {
+    process.env['SERPAPI_API_KEY'] = 'sk-test-env';
+  });
+
+  afterEach(() => {
+    delete process.env['SERPAPI_API_KEY'];
+  });
+
+  it('passes with a configured API key in settings', () => {
+    const gate = evaluateWebSearchGate(makeConfig({ apiKey: 'sk-settings' }));
+    expect(gate.ok).toBe(true);
+    if (gate.ok) {
+      expect(gate.backend.apiKey).toBe('sk-settings');
+      expect(gate.backend.engine).toBe('google');
+      expect(gate.backend.hl).toBe('en');
+      expect(gate.backend.gl).toBe('us');
+    }
+  });
+
+  it('falls back to SERPAPI_API_KEY env var when settings have no apiKey', () => {
     const gate = evaluateWebSearchGate(makeConfig());
     expect(gate.ok).toBe(true);
     if (gate.ok) {
-      expect(gate.backend).toEqual({
-        modelId: 'qwen3.6-plus',
-        apiKeyEnvKey: TEST_ENV_KEY,
-        baseUrl: DASHSCOPE_BASE_URL,
-        webExtractor: true,
-      });
+      expect(gate.backend.apiKey).toBe('sk-test-env');
     }
   });
 
-  it('honors webExtractor: false', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: { enabled: true, model: 'qwen3.6-plus', webExtractor: false },
-      }),
-    );
+  it('settings apiKey takes precedence over env var', () => {
+    const gate = evaluateWebSearchGate(makeConfig({ apiKey: 'sk-settings' }));
     expect(gate.ok).toBe(true);
     if (gate.ok) {
-      expect(gate.backend.webExtractor).toBe(false);
+      expect(gate.backend.apiKey).toBe('sk-settings');
     }
   });
 
-  it('rejects when no model is configured', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({ settings: { enabled: true } }),
-    );
+  it('rejects when web search is not enabled', () => {
+    const gate = evaluateWebSearchGate(makeConfig({ enabled: false }));
     expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('no search model');
+    if (!gate.ok) expect(gate.notice).toContain('not enabled');
   });
 
-  it('rejects a selector that matches no configured model', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({ settings: { enabled: true, model: 'qwen3.9-mega' } }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('does not match any model');
-  });
-
-  it('rejects a Qwen OAuth entry', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: { enabled: true, model: 'qwen3.6-plus' },
-        models: [{ id: 'qwen3.6-plus', authType: 'qwen-oauth' }],
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('OAuth');
-  });
-
-  it('rejects a non-DashScope endpoint', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        models: [
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: 'https://api.openai.com/v1',
-          },
-        ],
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('non-DashScope');
-  });
-
-  it('rejects a plain-http DashScope host, naming HTTPS as the fix', () => {
-    // The side request carries a bearer API key; the https-only guard must
-    // reject a DashScope hostname served over plaintext HTTP — and the
-    // notice must blame the protocol, not the provider.
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        models: [
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: 'http://dashscope.aliyuncs.com/compatible-mode/v1',
-          },
-        ],
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) {
-      expect(gate.notice).toContain('https://');
-      expect(gate.notice).not.toContain('non-DashScope');
-    }
-  });
-
-  it('rejects an entry without envKey', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        models: [
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            baseUrl: DASHSCOPE_BASE_URL,
-          },
-        ],
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('envKey');
-  });
-
-  it('rejects when the key env var is unset', () => {
-    delete process.env[TEST_ENV_KEY];
+  it('rejects when no API key is available', () => {
+    delete process.env['SERPAPI_API_KEY'];
     const gate = evaluateWebSearchGate(makeConfig());
     expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain(TEST_ENV_KEY);
+    if (!gate.ok) expect(gate.notice).toContain('SERPAPI_API_KEY');
   });
 
-  it('rejects a whitespace-only key env var as unset', () => {
-    process.env[TEST_ENV_KEY] = '   ';
-    const gate = evaluateWebSearchGate(makeConfig());
+  it('rejects a whitespace-only apiKey in settings', () => {
+    delete process.env['SERPAPI_API_KEY'];
+    const gate = evaluateWebSearchGate(makeConfig({ apiKey: '   ' }));
     expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain(TEST_ENV_KEY);
   });
 
-  it('prefers a usable entry when several modelProviders entries share the model id', () => {
+  it('honors custom engine, hl, and gl', () => {
     const gate = evaluateWebSearchGate(
       makeConfig({
-        models: [
-          // Force-sorted-first OAuth entry and a non-DashScope twin must not
-          // shadow the usable DashScope entry with the same id.
-          { id: 'qwen3.6-plus', authType: 'qwen-oauth' },
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: 'https://api.openai.com/v1',
-          },
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: DASHSCOPE_BASE_URL,
-          },
-        ],
-      }),
-    );
-    expect(gate.ok).toBe(true);
-    if (gate.ok) expect(gate.backend.baseUrl).toBe(DASHSCOPE_BASE_URL);
-  });
-
-  it('accepts an env-declared backend without any modelProviders entry', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'qwen3.6-plus',
-          baseUrl: DASHSCOPE_BASE_URL,
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-        models: [],
+        apiKey: 'sk-test',
+        engine: 'bing',
+        hl: 'zh',
+        gl: 'cn',
       }),
     );
     expect(gate.ok).toBe(true);
     if (gate.ok) {
-      expect(gate.backend).toEqual({
-        modelId: 'qwen3.6-plus',
-        apiKeyEnvKey: TEST_ENV_KEY,
-        baseUrl: DASHSCOPE_BASE_URL,
-        webExtractor: true,
-      });
+      expect(gate.backend.engine).toBe('bing');
+      expect(gate.backend.hl).toBe('zh');
+      expect(gate.backend.gl).toBe('cn');
     }
-  });
-
-  it('env-declared backend takes precedence over modelProviders resolution', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'qwen3.6-plus',
-          baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-        // A conflicting modelProviders entry must be ignored in env mode.
-      }),
-    );
-    expect(gate.ok).toBe(true);
-    if (gate.ok) {
-      expect(gate.backend.baseUrl).toBe(
-        'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-      );
-    }
-  });
-
-  it('rejects a non-DashScope env-declared base URL', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'qwen3.6-plus',
-          baseUrl: 'https://api.openai.com/v1',
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('WEB_SEARCH_BASE_URL');
-  });
-
-  it('strips an authType prefix from the selector on the env-declared path', () => {
-    // A selector written for the modelProviders path ("openai:<id>", as our
-    // own OAuth notice suggests) must not be sent verbatim to DashScope when
-    // WEB_SEARCH_BASE_URL overrides the backend.
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'openai:qwen3.6-plus',
-          baseUrl: DASHSCOPE_BASE_URL,
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-      }),
-    );
-    expect(gate.ok).toBe(true);
-    if (gate.ok) expect(gate.backend.modelId).toBe('qwen3.6-plus');
-  });
-
-  it('rejects a plain-http env-declared base URL, naming HTTPS as the fix', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'qwen3.6-plus',
-          baseUrl: 'http://dashscope.aliyuncs.com/compatible-mode/v1',
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) {
-      expect(gate.notice).toContain('https://');
-      expect(gate.notice).not.toContain('not a DashScope-compatible');
-    }
-  });
-
-  it('rejects an env-declared backend whose key variable is unset', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'qwen3.6-plus',
-          baseUrl: DASHSCOPE_BASE_URL,
-          apiKeyEnv: 'WS_E2E_UNSET_KEY_VAR',
-        },
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('WS_E2E_UNSET_KEY_VAR');
-  });
-
-  it('rejects an env-declared backend when the selector cannot be resolved', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        settings: {
-          enabled: true,
-          model: 'fast',
-          baseUrl: DASHSCOPE_BASE_URL,
-          apiKeyEnv: TEST_ENV_KEY,
-        },
-      }),
-    );
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.notice).toContain('could not be resolved');
-  });
-
-  it('accepts the US regional and Token Plan MaaS endpoints', () => {
-    for (const baseUrl of [
-      'https://dashscope-us.aliyuncs.com/compatible-mode/v1',
-      'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
-    ]) {
-      const gate = evaluateWebSearchGate(
-        makeConfig({
-          models: [
-            {
-              id: 'qwen3.6-plus',
-              authType: 'openai',
-              envKey: TEST_ENV_KEY,
-              baseUrl,
-            },
-          ],
-        }),
-      );
-      expect(gate.ok).toBe(true);
-    }
-  });
-
-  it('accepts internal Alibaba gateway hosts', () => {
-    const gate = evaluateWebSearchGate(
-      makeConfig({
-        models: [
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: 'https://gw.some-team.alibaba-inc.com/v1',
-          },
-        ],
-      }),
-    );
-    expect(gate.ok).toBe(true);
   });
 });
 
-describe('WebSearchTool confirmation', () => {
-  it('asks by default, shows the query, and offers the standard always-allow rule', async () => {
-    const tool = new WebSearchTool(makeConfig());
-    const invocation = tool.build({ query: 'test query' });
-    expect(await invocation.getDefaultPermission()).toBe('ask');
-    const details = await invocation.getConfirmationDetails(
-      new AbortController().signal,
+describe('serpApiToMarkdown', () => {
+  it('produces a header with query, engine, language, country, and result count', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Web Search Results');
+    expect(md).toContain('"coffee"');
+    expect(md).toContain('google');
+    expect(md).toContain('en');
+    expect(md).toContain('us');
+    expect(md).toContain('1,250,000,000');
+  });
+
+  it('includes the answer box section', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Answer Box');
+    expect(md).toContain(
+      'Coffee is a brewed drink prepared from roasted coffee beans.',
     );
-    expect(details && details.type).toBe('info');
-    if (details && details.type === 'info') {
-      expect(details.prompt).toContain('test query');
-      expect(details.hideAlwaysAllow).toBeUndefined();
-      // Tool-level rule (queries are free text, no narrower scope exists),
-      // consistent with the other tools' persistent-allow behavior.
-      expect(details.permissionRules).toEqual(['WebSearch']);
-    }
+    expect(md).toContain(
+      '[Coffee - Wikipedia](https://en.wikipedia.org/wiki/Coffee)',
+    );
+  });
+
+  it('includes the knowledge graph section', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Knowledge Graph');
+    expect(md).toContain('Coffee');
+    expect(md).toContain('Beverage');
+    expect(md).toContain('Caffeine');
+    expect(md).toContain('Ethiopia');
+  });
+
+  it('includes organic results with position, title, link, and snippet', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Organic Results');
+    expect(md).toContain(
+      '1. [Coffee - Wikipedia](https://en.wikipedia.org/wiki/Coffee)',
+    );
+    expect(md).toContain('en.wikipedia.org › wiki › Coffee');
+    expect(md).toContain(
+      'Coffee is a brewed drink prepared from roasted coffee beans.',
+    );
+    expect(md).toContain(
+      '2. [Starbucks Coffee Company](https://www.starbucks.com/)',
+    );
+  });
+
+  it('includes sitelinks in organic results', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain(
+      '[History](https://en.wikipedia.org/wiki/History_of_coffee)',
+    );
+  });
+
+  it('includes related questions', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Related Questions');
+    expect(md).toContain('Is coffee good for health?');
+    expect(md).toContain('Moderate coffee consumption');
+  });
+
+  it('includes top stories', () => {
+    const md = serpApiToMarkdown(SAMPLE_SERPAPI_RESPONSE, 'coffee');
+    expect(md).toContain('Top Stories');
+    expect(md).toContain('New Study Shows Coffee May Improve Memory');
+    expect(md).toContain('Science Daily');
+    expect(md).toContain('2 hours ago');
+  });
+
+  it('returns error section when response has an error field', () => {
+    const md = serpApiToMarkdown({ error: 'Invalid API key' }, 'test');
+    expect(md).toContain('API Error');
+    expect(md).toContain('Invalid API key');
+  });
+
+  it('shows no results message when response has no data sections', () => {
+    const md = serpApiToMarkdown(
+      { search_parameters: { q: 'nothing' } },
+      'nothing',
+    );
+    expect(md).toContain('No results found');
+  });
+
+  it('handles answer_box as an array', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'test' },
+        answer_box: [
+          {
+            answer: 'First answer',
+            title: 'Source 1',
+            link: 'https://example.com/1',
+          },
+          {
+            answer: 'Second answer',
+            title: 'Source 2',
+            link: 'https://example.com/2',
+          },
+        ],
+      },
+      'test',
+    );
+    expect(md).toContain('First answer');
+    expect(md).toContain('Second answer');
+  });
+
+  it('includes shopping results when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'laptop' },
+        shopping_results: [
+          {
+            title: 'Laptop Pro',
+            price: '$1,299',
+            link: 'https://example.com/laptop',
+            rating: 4.5,
+            reviews: 123,
+          },
+        ],
+      },
+      'laptop',
+    );
+    expect(md).toContain('Shopping Results');
+    expect(md).toContain('Laptop Pro');
+    expect(md).toContain('$1,299');
+    expect(md).toContain('4.5');
+  });
+
+  it('includes local results when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'pizza near me' },
+        local_results: [
+          {
+            title: 'Pizza Place',
+            rating: 4.2,
+            reviews: 200,
+            address: '123 Main St',
+            phone: '555-0100',
+          },
+        ],
+      },
+      'pizza near me',
+    );
+    expect(md).toContain('Local Results');
+    expect(md).toContain('Pizza Place');
+    expect(md).toContain('123 Main St');
+    expect(md).toContain('555-0100');
+  });
+
+  it('includes job results when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'software engineer jobs' },
+        jobs: [
+          {
+            title: 'Software Engineer',
+            company_name: 'Tech Co',
+            location: 'San Francisco, CA',
+            description: 'Build great software.',
+          },
+        ],
+      },
+      'software engineer jobs',
+    );
+    expect(md).toContain('Jobs');
+    expect(md).toContain('Software Engineer');
+    expect(md).toContain('Tech Co');
+  });
+
+  it('includes recipe results when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'chocolate cake recipe' },
+        recipes_results: [
+          {
+            title: 'Best Chocolate Cake',
+            link: 'https://example.com/cake',
+            rating: 4.8,
+            reviews: 500,
+            ingredients: ['flour', 'sugar', 'cocoa'],
+          },
+        ],
+      },
+      'chocolate cake recipe',
+    );
+    expect(md).toContain('Recipes');
+    expect(md).toContain('Best Chocolate Cake');
+    expect(md).toContain('flour, sugar, cocoa');
+  });
+
+  it('includes sports results as JSON when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'nfl scores' },
+        sports_results: { game: 'Team A vs Team B', score: '24-21' },
+      },
+      'nfl scores',
+    );
+    expect(md).toContain('Sports Results');
+    expect(md).toContain('Team A vs Team B');
+  });
+
+  it('includes inline images when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'sunset' },
+        inline_images: [
+          {
+            title: 'Beautiful Sunset',
+            link: 'https://example.com/sunset',
+            source: 'Pexels',
+            original: 'https://example.com/sunset.jpg',
+          },
+        ],
+      },
+      'sunset',
+    );
+    expect(md).toContain('Images');
+    expect(md).toContain('Beautiful Sunset');
+    expect(md).toContain('![Image](https://example.com/sunset.jpg)');
+  });
+
+  it('includes inline videos when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'tutorial' },
+        inline_videos: [
+          {
+            title: 'How to Code',
+            link: 'https://example.com/video',
+            source: 'YouTube',
+            channel: 'CodeChannel',
+            duration: '10:30',
+          },
+        ],
+      },
+      'tutorial',
+    );
+    expect(md).toContain('Videos');
+    expect(md).toContain('How to Code');
+    expect(md).toContain('CodeChannel');
+    expect(md).toContain('10:30');
+  });
+
+  it('includes Twitter results when present', () => {
+    const md = serpApiToMarkdown(
+      {
+        search_parameters: { q: 'news' },
+        twitter_results: [
+          {
+            author: 'NewsBot',
+            tweet: 'Breaking news!',
+            date: '1 hour ago',
+            link: 'https://x.com/newsbot/status/1',
+          },
+        ],
+      },
+      'news',
+    );
+    expect(md).toContain('Twitter / X Results');
+    expect(md).toContain('NewsBot');
+    expect(md).toContain('Breaking news!');
   });
 });
 
@@ -508,605 +476,213 @@ describe('WebSearchTool validation', () => {
   });
 });
 
+describe('WebSearchTool confirmation', () => {
+  it('asks by default and shows the query', async () => {
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test query' });
+    expect(await invocation.getDefaultPermission()).toBe('ask');
+    const details = await invocation.getConfirmationDetails(
+      new AbortController().signal,
+    );
+    expect(details && details.type).toBe('info');
+    if (details && details.type === 'info') {
+      expect(details.prompt).toContain('test query');
+      expect(details.permissionRules).toEqual(['WebSearch']);
+    }
+  });
+});
+
 describe('WebSearchTool execute', () => {
-  it('returns a structured result with answer, opened pages, candidates, queries, citation policy, and safety footer', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([SEARCH_ITEM, EXTRACTOR_ITEM, MESSAGE_ITEM], {
-          x_tools: { web_search: { count: 1 }, web_extractor: { count: 1 } },
-        }),
-      ),
-    );
+  const mockFetch = vi.fn();
 
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('Web search results for query: "test query"');
-    expect(content).toContain('The answer is 42.');
-    expect(content).toContain('Opened evidence pages');
-    expect(content).toContain('https://example.com/a');
-    expect(content).toContain('Additional search candidates');
-    expect(content).toContain('https://example.com/b');
-    expect(content).toContain('Queries executed: test query');
-    expect(content).toContain('Citation policy:');
-    expect(content).toContain('[Safety:');
-    // Opened page must not be repeated in the candidates section.
-    const candidatesSection = content.slice(
-      content.indexOf('Additional search candidates'),
-    );
-    expect(candidatesSection).not.toContain('https://example.com/a');
-    expect(result.returnDisplay).toMatch(/^Did 1 search in \d+(\.\d+)?s$/);
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch);
+    process.env['SERPAPI_API_KEY'] = 'sk-test';
+    mockFetch.mockReset();
   });
 
-  it('passes instructions, store:false, and both tools to the backend', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([SEARCH_ITEM, MESSAGE_ITEM])),
-    );
-    await runSearch(makeConfig());
-    const params = mockCreate.mock.calls[0][0];
-    expect(params.store).toBe(false);
-    expect(params.stream).toBe(true);
-    expect(params.instructions).toContain('untrusted');
-    expect(params.input).toBe('Perform a web search for the query: test query');
-    expect(params.tools).toEqual([
-      { type: 'web_search' },
-      { type: 'web_extractor' },
-    ]);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env['SERPAPI_API_KEY'];
   });
 
-  it('omits web_extractor when disabled', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([SEARCH_ITEM, MESSAGE_ITEM])),
-    );
-    await runSearch(
-      makeConfig({
-        settings: { enabled: true, model: 'qwen3.6-plus', webExtractor: false },
-      }),
-    );
-    expect(mockCreate.mock.calls[0][0].tools).toEqual([{ type: 'web_search' }]);
-  });
-
-  it('merges the resolved entry customHeaders into the search client headers', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([SEARCH_ITEM, MESSAGE_ITEM])),
-    );
-    await runSearch(
-      makeConfig({
-        models: [
-          {
-            id: 'qwen3.6-plus',
-            authType: 'openai',
-            envKey: TEST_ENV_KEY,
-            baseUrl: DASHSCOPE_BASE_URL,
-            generationConfig: { customHeaders: { 'X-Gateway-Route': 'ds' } },
-          },
-        ],
-      }),
-    );
-    const opts = mockCtorOpts.current as {
-      defaultHeaders: Record<string, string>;
-    };
-    expect(opts.defaultHeaders['X-Gateway-Route']).toBe('ds');
-    expect(opts.defaultHeaders['User-Agent']).toContain('QwenCode/');
-  });
-
-  it('truncates an oversized answer while preserving source URLs and the safety footer', async () => {
-    const bigText = 'x'.repeat(150_000);
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([
-          SEARCH_ITEM,
-          EXTRACTOR_ITEM,
-          {
-            type: 'message',
-            status: 'completed',
-            content: [{ type: 'output_text', text: bigText }],
-          },
-        ]),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    const content = result.llmContent as string;
-    expect(content).toContain('answer truncated to fit');
-    // The citation evidence must survive — only the answer text shrinks.
-    expect(content).toContain('Opened evidence pages');
-    expect(content).toContain('https://example.com/a');
-    expect(content).toContain('https://example.com/b');
-    expect(content).toContain('Queries executed: test query');
-    expect(content).toContain('[Safety:');
-    expect(content.length).toBeLessThan(102_000);
-  });
-
-  it('does not split a surrogate pair at the truncation boundary', async () => {
-    // 60k emoji = 120k UTF-16 code units of non-BMP text; both the answer
-    // shrink and the backstop slice must land on a character boundary or the
-    // result embeds a lone surrogate that breaks the next request's
-    // serialization.
-    const bigText = '😀'.repeat(60_000);
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([
-          SEARCH_ITEM,
-          EXTRACTOR_ITEM,
-          {
-            type: 'message',
-            status: 'completed',
-            content: [{ type: 'output_text', text: bigText }],
-          },
-        ]),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    const content = result.llmContent as string;
-    expect(content).toContain('answer truncated to fit');
-    // No high surrogate without its low surrogate anywhere in the payload.
-    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(content)).toBe(false);
-  });
-
-  it('salvages extracted page content as the answer when the stream dies before narration', async () => {
-    mockCreate.mockResolvedValueOnce({
-      async *[Symbol.asyncIterator]() {
-        yield { type: 'response.created' };
-        yield { type: 'response.output_item.done', item: SEARCH_ITEM };
-        yield { type: 'response.output_item.done', item: EXTRACTOR_ITEM };
-        throw new Error('stream reset');
-      },
+  it('returns a structured Markdown result from a successful search', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => SAMPLE_SERPAPI_RESPONSE,
     });
-    const result = await runSearch(makeConfig());
+
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'coffee' });
+    const result = await invocation.execute(new AbortController().signal);
+
     expect(result.error).toBeUndefined();
     const content = result.llmContent as string;
-    expect(content).toContain('[Partial result:');
-    // EXTRACTOR_ITEM's output/goal back-fill the missing narration.
-    expect(content).toContain('page content');
-    expect(content).toContain('verify facts');
+    expect(content).toContain('Web Search Results');
+    expect(content).toContain('"coffee"');
+    expect(content).toContain('Answer Box');
+    expect(content).toContain('Organic Results');
+    expect(content).toContain(
+      '1. [Coffee - Wikipedia](https://en.wikipedia.org/wiki/Coffee)',
+    );
+    expect(content).toContain('Knowledge Graph');
+    expect(result.returnDisplay).toContain('2 results');
   });
 
-  it('caps candidate URLs and notes the omission', async () => {
-    const manySources = Array.from({ length: 40 }, (_, i) => ({
-      type: 'url',
-      url: `https://example.com/${i}`,
-    }));
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([
-          {
-            ...SEARCH_ITEM,
-            action: { ...SEARCH_ITEM.action, sources: manySources },
-          },
-          MESSAGE_ITEM,
-        ]),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    const content = result.llmContent as string;
-    expect(content).toContain('15 more candidate URL(s) omitted');
-  });
-
-  it('caps opened URLs and notes the omission', async () => {
-    const manyOpened = Array.from(
-      { length: 30 },
-      (_, i) => `https://example.com/opened/${i}`,
-    );
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([
-          SEARCH_ITEM,
-          {
-            type: 'web_extractor_call',
-            status: 'completed',
-            urls: manyOpened,
-            output: 'content',
-          },
-          MESSAGE_ITEM,
-        ]),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    const content = result.llmContent as string;
-    expect(content).toContain('Opened evidence pages');
-    expect(content).toContain('https://example.com/opened/24');
-    expect(content).not.toContain('https://example.com/opened/25');
-    expect(content).toContain('5 more opened page(s) omitted');
-  });
-
-  it('maps HTTP 429 to WEB_SEARCH_RATE_LIMITED', async () => {
-    mockCreate.mockRejectedValueOnce(
-      Object.assign(new Error('Too many requests'), { status: 429 }),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_RATE_LIMITED);
-  });
-
-  it('maps HTTP 400 (unsupported model) to WEB_SEARCH_BACKEND_FAILED with the server message', async () => {
-    mockCreate.mockRejectedValueOnce(
-      Object.assign(new Error("Unsupported model: 'qwen2.5-7b-instruct'."), {
-        status: 400,
-      }),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-    expect(result.error?.message).toContain('Unsupported model');
-  });
-
-  it('maps a pre-stream transport failure to WEB_SEARCH_BACKEND_FAILED', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('ENOTFOUND'));
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-  });
-
-  it('retries once when no search was performed, then errors with NO_SEARCH_PERFORMED', async () => {
-    vi.useFakeTimers();
-    mockCreate.mockResolvedValue(makeStream(completedEvents([MESSAGE_ITEM])));
-    const result = await runSearchWithRetryTimers(makeConfig());
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(result.error?.type).toBe(
-      ToolErrorType.WEB_SEARCH_NO_SEARCH_PERFORMED,
-    );
-  });
-
-  it('succeeds on the retry after an initial no-search response', async () => {
-    vi.useFakeTimers();
-    mockCreate
-      .mockResolvedValueOnce(makeStream(completedEvents([MESSAGE_ITEM])))
-      .mockResolvedValueOnce(
-        makeStream(completedEvents([SEARCH_ITEM, MESSAGE_ITEM])),
-      );
-    const result = await runSearchWithRetryTimers(makeConfig());
-    expect(result.error).toBeUndefined();
-    expect(result.llmContent as string).toContain('The answer is 42.');
-  });
-
-  it('does not count a failed search call — retries then reports NO_SEARCH_PERFORMED', async () => {
-    vi.useFakeTimers();
-    const failedSearch = {
-      type: 'web_search_call',
-      status: 'failed',
-      action: {
-        type: 'search',
-        queries: ['test query'],
-        sources: [{ type: 'url', url: 'https://example.com/failed' }],
-      },
-    };
-    mockCreate.mockResolvedValue(
-      makeStream(completedEvents([failedSearch, MESSAGE_ITEM])),
-    );
-    const result = await runSearchWithRetryTimers(makeConfig());
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(result.error?.type).toBe(
-      ToolErrorType.WEB_SEARCH_NO_SEARCH_PERFORMED,
-    );
-  });
-
-  it('ignores a failed search call alongside a completed one', async () => {
-    const failedSearch = {
-      type: 'web_search_call',
-      status: 'failed',
-      action: {
-        type: 'search',
-        queries: ['bad query'],
-        sources: [{ type: 'url', url: 'https://example.com/failed' }],
-      },
-    };
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([failedSearch, SEARCH_ITEM, MESSAGE_ITEM])),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).not.toContain('https://example.com/failed');
-    expect(content).not.toContain('bad query');
-    expect(result.returnDisplay).toMatch(/^Did 1 search in/);
-  });
-
-  it('keeps a failed extractor attempt in the candidate tier, not opened evidence', async () => {
-    const failedExtractor = {
-      type: 'web_extractor_call',
-      status: 'failed',
-      urls: ['https://example.com/a'],
-    };
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([SEARCH_ITEM, failedExtractor, MESSAGE_ITEM])),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).not.toContain('Opened evidence pages');
-    const candidatesSection = content.slice(
-      content.indexOf('Additional search candidates'),
-    );
-    expect(candidatesSection).toContain('https://example.com/a');
-  });
-
-  it('returns NO_RESULTS with the safety footer when the search yields nothing', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([
-          {
-            type: 'web_search_call',
-            status: 'completed',
-            action: { type: 'search', queries: ['test query'], sources: [] },
-          },
-        ]),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_NO_RESULTS);
-    expect(result.llmContent as string).toContain('[Safety:');
-  });
-
-  it('surfaces a typeless in-stream error event (HTTP 200 + event:error) with the server message', async () => {
-    // DashScope shape captured by live probe: no `type`, no `error` wrapper.
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        {
-          code: 'InvalidParameter',
-          message: "Unsupported model: 'qwen2.5-7b-instruct'.",
-          request_id: 'req-1',
-        },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-    expect(result.error?.message).toContain('InvalidParameter');
-    expect(result.error?.message).toContain('Unsupported model');
-  });
-
-  it('maps an in-stream Throttling error to WEB_SEARCH_RATE_LIMITED', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { code: 'Throttling.RateQuota', message: 'Requests throttled.' },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_RATE_LIMITED);
-  });
-
-  it('salvages streamed results when an in-stream error follows an executed search', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        { type: 'response.output_item.done', item: SEARCH_ITEM },
-        { code: 'Throttling.RateQuota', message: 'Requests throttled.' },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    // The search executed (and billed) before the error — its sources must
-    // surface as a partial result, matching the transport-error path.
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('Partial result');
-    expect(content).toContain('https://example.com/a');
-  });
-
-  it('salvages streamed results when the backend reports the request as failed', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        { type: 'response.output_item.done', item: SEARCH_ITEM },
-        { type: 'response.failed', response: { status: 'failed', output: [] } },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    // The search executed (and billed) before the backend gave up — its
-    // sources must surface as a partial result, same as the in-stream-error
-    // and transport-error paths.
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('Partial result');
-    expect(content).toContain('https://example.com/a');
-  });
-
-  it('handles a response.failed terminal event', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        {
-          type: 'response.failed',
-          response: { status: 'failed', output: [] },
-        },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-  });
-
-  it('maps a terminal failed status to WEB_SEARCH_BACKEND_FAILED', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(completedEvents([], undefined, 'failed')),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-  });
-
-  it('handles a response.cancelled terminal event with no prior search', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        {
-          type: 'response.cancelled',
-          response: { status: 'cancelled', output: [] },
-        },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-  });
-
-  it('salvages streamed results when the backend cancels after an executed search', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        { type: 'response.output_item.done', item: SEARCH_ITEM },
-        {
-          type: 'response.cancelled',
-          response: { status: 'cancelled', output: [] },
-        },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('Partial result');
-    expect(content).toContain('https://example.com/a');
-  });
-
-  it('labels an incomplete response as partial', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream(
-        completedEvents([SEARCH_ITEM, MESSAGE_ITEM], undefined, 'incomplete'),
-      ),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    expect(result.llmContent as string).toContain('[Partial result:');
-    expect(result.returnDisplay).toContain('(partial result)');
-  });
-
-  it('falls back to streamed items when the terminal event omits output', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        { type: 'response.output_item.done', item: SEARCH_ITEM },
-        { type: 'response.output_item.done', item: MESSAGE_ITEM },
-        { type: 'response.completed', response: { status: 'completed' } },
-      ]),
-    );
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('The answer is 42.');
-    expect(content).toContain('https://example.com/a');
-    expect(result.returnDisplay).toMatch(/^Did 1 search in/);
-  });
-
-  it('does not report an incomplete response as partial success when no search ran', async () => {
-    vi.useFakeTimers();
-    mockCreate.mockResolvedValue(
-      makeStream(completedEvents([MESSAGE_ITEM], undefined, 'incomplete')),
-    );
-    const result = await runSearchWithRetryTimers(makeConfig());
-    expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(result.error?.type).toBe(
-      ToolErrorType.WEB_SEARCH_NO_SEARCH_PERFORMED,
-    );
-  });
-
-  it('returns a labeled partial result when the stream dies mid-flight', async () => {
-    mockCreate.mockResolvedValueOnce({
-      async *[Symbol.asyncIterator]() {
-        yield { type: 'response.created' };
-        yield { type: 'response.output_item.done', item: SEARCH_ITEM };
-        yield { type: 'response.output_text.delta', delta: 'partial answer' };
-        throw new Error('stream reset');
-      },
+  it('passes the correct SerpApi URL parameters', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => SAMPLE_SERPAPI_RESPONSE,
     });
-    const result = await runSearch(makeConfig());
-    expect(result.error).toBeUndefined();
-    const content = result.llmContent as string;
-    expect(content).toContain('[Partial result:');
-    expect(content).toContain('partial answer');
-  });
 
-  it('does not salvage a mid-stream partial that contains no executed search', async () => {
-    mockCreate.mockResolvedValueOnce({
-      async *[Symbol.asyncIterator]() {
-        yield { type: 'response.created' };
-        yield { type: 'response.output_text.delta', delta: 'unaudited text' };
-        throw new Error('stream reset');
-      },
-    });
-    const result = await runSearch(makeConfig());
-    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-    expect(result.llmContent as string).not.toContain('unaudited text');
-  });
-
-  it('streams progress updates', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        {
-          type: 'response.output_item.added',
-          item: {
-            type: 'web_search_call',
-            action: { queries: ['test query'] },
-          },
-        },
-        { type: 'response.output_item.done', item: SEARCH_ITEM },
-        { type: 'response.output_item.done', item: MESSAGE_ITEM },
-        {
-          type: 'response.completed',
-          response: {
-            status: 'completed',
-            output: [SEARCH_ITEM, MESSAGE_ITEM],
-          },
-        },
-      ]),
-    );
     const tool = new WebSearchTool(makeConfig());
     const invocation = tool.build({ query: 'test query' });
-    const updates: string[] = [];
-    await invocation.execute(new AbortController().signal, (output) => {
-      if (typeof output === 'string') updates.push(output);
-    });
-    expect(updates).toContain('Searching: test query');
-    expect(updates).toContain('Found 2 sources');
+    await invocation.execute(new AbortController().signal);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('https://serpapi.com/search');
+    expect(url).toContain('q=test+query');
+    expect(url).toContain('engine=google');
+    expect(url).toContain('hl=en');
+    expect(url).toContain('gl=us');
+    expect(url).toContain('api_key=sk-test');
   });
 
-  it('does not report sources for a failed web_search_call', async () => {
-    mockCreate.mockResolvedValueOnce(
-      makeStream([
-        { type: 'response.created' },
-        {
-          type: 'response.output_item.done',
-          item: {
-            type: 'web_search_call',
-            status: 'failed',
-            action: {
-              queries: ['test query'],
-              sources: [{ type: 'url', url: 'https://example.com/x' }],
-            },
-          },
-        },
-        {
-          type: 'response.output_item.done',
-          item: SEARCH_ITEM,
-        },
-        { type: 'response.output_item.done', item: MESSAGE_ITEM },
-        {
-          type: 'response.completed',
-          response: {
-            status: 'completed',
-            output: [SEARCH_ITEM, MESSAGE_ITEM],
-          },
-        },
-      ]),
-    );
+  it('returns an error on HTTP 429 (rate limited)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: 'Rate limit exceeded' }),
+    });
+
     const tool = new WebSearchTool(makeConfig());
-    const invocation = tool.build({ query: 'test query' });
-    const updates: string[] = [];
-    await invocation.execute(new AbortController().signal, (output) => {
-      if (typeof output === 'string') updates.push(output);
-    });
-    // The failed item's sources must not produce a progress update; only
-    // the completed SEARCH_ITEM (2 sources) should.
-    expect(updates.filter((u) => u.startsWith('Found'))).toEqual([
-      'Found 2 sources',
-    ]);
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_RATE_LIMITED);
+    expect(result.error?.message).toContain('rate limited');
   });
 
-  it('fails closed when the gate breaks at execute time', async () => {
-    delete process.env[TEST_ENV_KEY];
-    const result = await runSearch(makeConfig());
+  it('returns an error on HTTP 400', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Invalid parameter' }),
+    });
+
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
     expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
-    expect(mockCreate).not.toHaveBeenCalled();
+    expect(result.error?.message).toContain('Invalid parameter');
   });
 
-  it('embeds the current month and year in the schema description', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 6, 21));
+  it('returns an error when SerpApi returns an error field', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ error: 'Invalid API key' }),
+    });
+
     const tool = new WebSearchTool(makeConfig());
-    const schema = tool.schema;
-    expect(schema.description).toContain('July 2026');
-    vi.useRealTimers();
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
+    expect(result.error?.message).toContain('Invalid API key');
+  });
+
+  it('returns an error when the gate check fails at runtime', async () => {
+    delete process.env['SERPAPI_API_KEY'];
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
+    expect(result.error?.message).toContain('SERPAPI_API_KEY');
+  });
+
+  it('returns an error on network failure', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('ENOTFOUND serpapi.com'));
+
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
+    expect(result.error?.message).toContain('ENOTFOUND');
+  });
+
+  it('returns an error on non-JSON response', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      text: async () => '<html>Bad Gateway</html>',
+      json: async () => {
+        throw new Error('not JSON');
+      },
+    });
+
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error?.type).toBe(ToolErrorType.WEB_SEARCH_BACKEND_FAILED);
+    expect(result.llmContent).toContain('non-JSON');
+  });
+
+  it('respects custom engine, hl, and gl from settings', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => SAMPLE_SERPAPI_RESPONSE,
+    });
+
+    const tool = new WebSearchTool(
+      makeConfig({
+        apiKey: 'sk-test',
+        engine: 'bing',
+        hl: 'zh',
+        gl: 'cn',
+      }),
+    );
+    const invocation = tool.build({ query: 'test' });
+    await invocation.execute(new AbortController().signal);
+
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('engine=bing');
+    expect(url).toContain('hl=zh');
+    expect(url).toContain('gl=cn');
+  });
+
+  it('truncates output that exceeds MAX_RESULT_SIZE_CHARS', async () => {
+    const hugeResponse = {
+      search_parameters: { q: 'test' },
+      organic_results: Array.from({ length: 1000 }, (_, i) => ({
+        position: i + 1,
+        title: 'x'.repeat(500),
+        link: `https://example.com/${i}`,
+        snippet: 'y'.repeat(500),
+      })),
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => hugeResponse,
+    });
+
+    const tool = new WebSearchTool(makeConfig());
+    const invocation = tool.build({ query: 'test' });
+    const result = await invocation.execute(new AbortController().signal);
+
+    expect(result.error).toBeUndefined();
+    const content = result.llmContent as string;
+    expect(content.length).toBeLessThanOrEqual(102_000);
+    expect(content).toContain('truncated');
   });
 });

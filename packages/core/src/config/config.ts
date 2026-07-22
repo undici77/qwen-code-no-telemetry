@@ -1191,13 +1191,9 @@ export interface ConfigParameters {
    */
   fastModel?: string;
   /**
-   * Built-in WebSearch tool settings (`tools.webSearch` / ENABLE_WEB_SEARCH +
-   * WEB_SEARCH_MODEL env overrides). The tool registers only when `enabled`
-   * is true and `model` resolves to a DashScope-compatible modelProviders
-   * entry carrying a direct API key — or, for environments that cannot write
-   * settings.json, when an env-declared backend is supplied (`baseUrl` from
-   * WEB_SEARCH_BASE_URL, `apiKeyEnv` naming the key variable), which takes
-   * precedence over modelProviders resolution.
+   * Built-in WebSearch tool settings (SerpApi backend). The tool registers
+   * only when `enabled` is true and a SerpApi API key is available (from
+   * `apiKey` here or the SERPAPI_API_KEY env var).
    */
   webSearch?: WebSearchSettings;
   /**
@@ -6887,9 +6883,9 @@ export class Config {
       return new WebFetchTool(this);
     });
     // WebSearch is opt-in: it registers only when explicitly enabled AND the
-    // configured search model resolves to a usable DashScope entry. A failed
-    // gate surfaces a one-time startup notice instead of a silently missing
-    // tool. Nothing is imported unless the feature is enabled.
+    // SerpApi API key is available (from settings or SERPAPI_API_KEY env). A
+    // failed gate surfaces a one-time startup notice instead of a silently
+    // missing tool. Nothing is imported unless the feature is enabled.
     if (this.webSearchSettings?.enabled) {
       const { evaluateWebSearchGate } = await import('../tools/web-search.js');
       const gate = evaluateWebSearchGate(this);

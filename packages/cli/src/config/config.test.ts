@@ -1706,18 +1706,18 @@ describe('loadCliConfig', () => {
 
     it('passes tools.webSearch through from settings', async () => {
       const config = await loadWithSettings({
-        tools: { webSearch: { enabled: true, model: 'qwen3.6-plus' } },
+        tools: { webSearch: { enabled: true, apiKey: 'sk-test' } },
       });
       expect(config.getWebSearchSettings()).toEqual({
         enabled: true,
-        model: 'qwen3.6-plus',
+        apiKey: 'sk-test',
       });
     });
 
     it('lets ENABLE_WEB_SEARCH override the settings flag', async () => {
       vi.stubEnv('ENABLE_WEB_SEARCH', 'false');
       const config = await loadWithSettings({
-        tools: { webSearch: { enabled: true, model: 'qwen3.6-plus' } },
+        tools: { webSearch: { enabled: true, apiKey: 'sk-test' } },
       });
       expect(config.getWebSearchSettings()?.enabled).toBe(false);
     });
@@ -1725,67 +1725,37 @@ describe('loadCliConfig', () => {
     it('treats a set-but-empty ENABLE_WEB_SEARCH as unset', async () => {
       vi.stubEnv('ENABLE_WEB_SEARCH', '');
       const config = await loadWithSettings({
-        tools: { webSearch: { enabled: true, model: 'qwen3.6-plus' } },
+        tools: { webSearch: { enabled: true, apiKey: 'sk-test' } },
       });
       expect(config.getWebSearchSettings()?.enabled).toBe(true);
     });
 
-    it('lets WEB_SEARCH_MODEL and WEB_SEARCH_EXTRACTOR override settings', async () => {
-      vi.stubEnv('WEB_SEARCH_MODEL', 'env-model');
-      vi.stubEnv('WEB_SEARCH_EXTRACTOR', 'false');
+    it('passes engine, hl, and gl through from settings', async () => {
       const config = await loadWithSettings({
         tools: {
-          webSearch: { enabled: true, model: 'settings-model' },
+          webSearch: {
+            enabled: true,
+            apiKey: 'sk-test',
+            engine: 'bing',
+            hl: 'zh',
+            gl: 'cn',
+          },
         },
       });
       expect(config.getWebSearchSettings()).toEqual({
         enabled: true,
-        model: 'env-model',
-        webExtractor: false,
+        apiKey: 'sk-test',
+        engine: 'bing',
+        hl: 'zh',
+        gl: 'cn',
       });
-    });
-
-    it('resolves WEB_SEARCH_BASE_URL with the DASHSCOPE_API_KEY fallback', async () => {
-      vi.stubEnv(
-        'WEB_SEARCH_BASE_URL',
-        'https://dashscope.aliyuncs.com/api/v2',
-      );
-      const config = await loadWithSettings({});
-      expect(config.getWebSearchSettings()).toEqual({
-        baseUrl: 'https://dashscope.aliyuncs.com/api/v2',
-        apiKeyEnv: 'DASHSCOPE_API_KEY',
-      });
-    });
-
-    it('selects WEB_SEARCH_API_KEY when it is non-empty', async () => {
-      vi.stubEnv(
-        'WEB_SEARCH_BASE_URL',
-        'https://dashscope.aliyuncs.com/api/v2',
-      );
-      vi.stubEnv('WEB_SEARCH_API_KEY', 'sk-live');
-      const config = await loadWithSettings({});
-      expect(config.getWebSearchSettings()?.apiKeyEnv).toBe(
-        'WEB_SEARCH_API_KEY',
-      );
-    });
-
-    it('treats a whitespace-only WEB_SEARCH_API_KEY as unset', async () => {
-      vi.stubEnv(
-        'WEB_SEARCH_BASE_URL',
-        'https://dashscope.aliyuncs.com/api/v2',
-      );
-      vi.stubEnv('WEB_SEARCH_API_KEY', '   ');
-      const config = await loadWithSettings({});
-      expect(config.getWebSearchSettings()?.apiKeyEnv).toBe(
-        'DASHSCOPE_API_KEY',
-      );
     });
 
     it('disables web search in safe mode', async () => {
       process.argv = ['node', 'script.js', '--safe-mode'];
       const argv = await parseArguments();
       const config = await loadCliConfig(
-        { tools: { webSearch: { enabled: true, model: 'qwen3.6-plus' } } },
+        { tools: { webSearch: { enabled: true, apiKey: 'sk-test' } } },
         argv,
       );
       expect(config.getWebSearchSettings()).toBeUndefined();
@@ -1795,7 +1765,7 @@ describe('loadCliConfig', () => {
       process.argv = ['node', 'script.js', '--bare'];
       const argv = await parseArguments();
       const config = await loadCliConfig(
-        { tools: { webSearch: { enabled: true, model: 'qwen3.6-plus' } } },
+        { tools: { webSearch: { enabled: true, apiKey: 'sk-test' } } },
         argv,
       );
       expect(config.getWebSearchSettings()).toBeUndefined();
