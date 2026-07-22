@@ -2,74 +2,61 @@
 
 Qwen Code provides web search two ways:
 
-1. **Built-in `web_search` tool** (opt-in) — backed by the DashScope Responses API server-side search. Works with a standard Bailian (DashScope) API key; no extra provider or MCP setup.
-2. **MCP (Model Context Protocol) integrations** — connect any external search service (Tavily, GLM, and others). Use this when you don't have a DashScope key.
+1. **Built-in `web_search` tool** (opt-in) — backed by [SerpApi](https://serpapi.com), a universal search engine API. Works with a SerpApi API key (free tier: 250 queries/month). No extra provider or MCP setup needed.
+2. **MCP (Model Context Protocol) integrations** — connect any external search service (Tavily, GLM, and others). Use this when you need a different provider or exceed SerpApi's free quota.
 
 ## Built-in `web_search` (opt-in)
 
-The built-in tool issues a self-contained search request to a small auxiliary model with DashScope's server-side `web_search` (and `web_extractor`) tools, and returns the narrated findings plus source URLs. It never activates implicitly — two settings are required:
+The built-in tool fetches structured results from SerpApi and returns them as Markdown with sections for organic results, knowledge graph, answer box, related questions, top stories, shopping, jobs, local results, recipes, sports, images, videos, and Twitter/X. It never activates implicitly — two settings are required:
 
 ```json
 {
-  "modelProviders": {
-    "openai": [
-      {
-        "id": "qwen3.6-plus",
-        "envKey": "DASHSCOPE_API_KEY",
-        "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1"
-      }
-    ]
-  },
   "tools": {
     "webSearch": {
       "enabled": true,
-      "model": "qwen3.6-plus"
+      "apiKey": "YOUR_SERPAPI_KEY"
     }
   }
 }
 ```
 
-| Setting                        | Env override           | Meaning                                                                                                                                                          |
-| ------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tools.webSearch.enabled`      | `ENABLE_WEB_SEARCH`    | Opt-in flag. Required.                                                                                                                                           |
-| `tools.webSearch.model`        | `WEB_SEARCH_MODEL`     | Search model selector, resolved against `modelProviders` like `fastModel` (`modelId` or `authType:modelId`). Required — no default. Recommended: `qwen3.6-plus`. |
-| `tools.webSearch.webExtractor` | `WEB_SEARCH_EXTRACTOR` | Let the search agent open result pages for better-grounded answers (default `true`; billed separately by DashScope).                                             |
+| Setting                   | Env override        | Meaning                                                                                                              |
+| ------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `tools.webSearch.enabled` | `ENABLE_WEB_SEARCH` | Opt-in flag. Required.                                                                                               |
+| `tools.webSearch.apiKey`  | `SERPAPI_API_KEY`   | SerpApi API key. Get one at https://serpapi.com/manage-api-key. Free tier: 250 queries/month.                        |
+| `tools.webSearch.engine`  | —                   | Search engine to use. Supported: `google`, `bing`, `baidu`, `yahoo`, `duckduckgo`, `yandex`, etc. Default: `google`. |
+| `tools.webSearch.hl`      | —                   | Language parameter (hl). Default: `en`. Examples: `zh`, `ja`, `de`, `fr`, `es`.                                      |
+| `tools.webSearch.gl`      | —                   | Country parameter (gl). Default: `us`. Examples: `cn`, `jp`, `de`, `fr`, `uk`.                                       |
 
 ### Env-only configuration (no settings.json)
 
 For environments where you cannot write a settings file (locked-down containers, CI
 with env injection only), the tool can be configured entirely through environment
-variables — no `modelProviders` entry needed:
+variables:
 
 ```bash
 export ENABLE_WEB_SEARCH=true
-export WEB_SEARCH_MODEL=qwen3.6-plus
-export WEB_SEARCH_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-export DASHSCOPE_API_KEY=sk-...        # or set WEB_SEARCH_API_KEY instead
+export SERPAPI_API_KEY=YOUR_KEY_HERE
 ```
 
-`WEB_SEARCH_BASE_URL` mirrors a `modelProviders` entry's `baseUrl` and must be a
-DashScope-compatible endpoint; when it is set, it takes precedence over
-`modelProviders` resolution and `WEB_SEARCH_MODEL` is used as the plain DashScope
-model id. The API key is read from `WEB_SEARCH_API_KEY` if set, otherwise from
-`DASHSCOPE_API_KEY`. Misconfiguration still surfaces as a startup notice.
+Misconfiguration still surfaces as a startup notice.
 
 Notes:
 
-- The selector must resolve to a DashScope-compatible `modelProviders` entry carrying a direct API key via `envKey`. Your main model can be any provider — only the search side request needs a DashScope entry. Qwen OAuth cannot back the tool.
-- If enabled but misconfigured, the tool stays off and a startup notice explains which condition failed.
-- Searches bill your DashScope key (`usage.x_tools` counts). The tool asks for confirmation by default; approving with "always allow" persists a standard `WebSearch` permission rule, like other tools.
-- There is no client-side model allowlist; a model the Responses endpoint does not serve fails loudly on first use.
+- The tool asks for confirmation by default; approving with "always allow" persists a standard `WebSearch` permission rule, like other tools.
+- If enabled but misconfigured (no API key), the tool stays off and a startup notice explains the failure.
+- SerpApi's free tier includes 250 queries per month — sufficient for personal use. For higher volumes, see [SerpApi pricing](https://serpapi.com/pricing).
+- The `engine`, `hl`, and `gl` parameters are optional and default to `google`, `en`, `us` respectively.
 
 ## MCP alternatives
 
-If you don't have a DashScope key, web search is available by connecting an external MCP server — see the services below.
+If you don't have a SerpApi key, or need a different provider, web search is available by connecting an external MCP server — see the services below.
 
-## ⚠️ Historical Breaking Change: original built-in `web_search` removed
+## ⚠️ Historical Breaking Changes
 
-> **Affected versions:** `V0.0.7+` through the last release with the original multi-provider built-in web search.
+### Original built-in `web_search` removed (V0.0.7+)
 
-The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provider) and its configuration were **removed**. The new opt-in built-in tool above is a different implementation with different configuration. If you were using any of the following, migrate either to the new built-in tool (DashScope) or to MCP:
+The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provider) and its configuration were **removed**. The new opt-in built-in tool above is a different implementation with different configuration. If you were using any of the following, migrate either to the new built-in tool (SerpApi) or to MCP:
 
 | Removed                                                                | What to do                                                        |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -80,101 +67,39 @@ The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provi
 | `GLM_API_KEY` for web search                                           | Use the [GLM WebSearch Prime MCP](#glm-websearch-prime-zhipuai)   |
 | `--tavily-api-key` / `--glm-api-key` / `--dashscope-api-key` CLI flags | Configure via `mcpServers` in `settings.json`                     |
 
-### Migration Examples
+### Built-in `web_search` backend changed from DashScope to SerpApi (V0.20.0+)
 
-**Before (Tavily via built-in tool):**
+The built-in `web_search` tool was migrated from the DashScope Responses API backend to [SerpApi](https://serpapi.com). The configuration schema changed:
+
+| Old setting                    | New setting               | Notes                                                 |
+| ------------------------------ | ------------------------- | ----------------------------------------------------- |
+| `tools.webSearch.enabled`      | `tools.webSearch.enabled` | Same                                                  |
+| `tools.webSearch.model`        | `tools.webSearch.apiKey`  | Now requires a SerpApi API key                        |
+| `tools.webSearch.webExtractor` | —                         | Removed — SerpApi returns structured results directly |
+| `tools.webSearch.baseUrl`      | —                         | Removed — no longer needed                            |
+| `tools.webSearch.apiKeyEnv`    | —                         | Removed                                               |
+| —                              | `tools.webSearch.engine`  | New — search engine (google, bing, baidu, etc.)       |
+| —                              | `tools.webSearch.hl`      | New — language parameter                              |
+| —                              | `tools.webSearch.gl`      | New — country parameter                               |
+
+**Migration:** Replace your old `webSearch` config with the new schema:
 
 ```json
 {
-  "webSearch": {
-    "provider": [{ "type": "tavily", "apiKey": "tvly-xxx" }],
-    "default": "tavily"
-  }
-}
-```
-
-**After (Tavily via MCP):**
-
-```json
-{
-  "mcpServers": {
-    "tavily": {
-      "httpUrl": "https://mcp.tavily.com/mcp/?tavilyApiKey=tvly-xxx"
+  "tools": {
+    "webSearch": {
+      "enabled": true,
+      "apiKey": "YOUR_SERPAPI_KEY"
     }
   }
 }
 ```
 
----
-
-**Before (DashScope via built-in tool):**
-
-```json
-{
-  "webSearch": {
-    "provider": [{ "type": "dashscope", "apiKey": "sk-xxx" }],
-    "default": "dashscope"
-  }
-}
-```
-
-**After (Alibaba Cloud Bailian WebSearch via MCP):**
-
-```json
-{
-  "mcpServers": {
-    "WebSearch": {
-      "httpUrl": "https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp",
-      "headers": {
-        "Authorization": "Bearer sk-xxx"
-      }
-    }
-  }
-}
-```
+Get a free SerpApi key at https://serpapi.com/manage-api-key (250 queries/month on the free tier).
 
 ---
 
 ## Supported MCP Web Search Services
-
-### Alibaba Cloud Bailian WebSearch
-
-The official web search MCP service provided by Alibaba Cloud Bailian platform, powered by DashScope. If you have a DashScope key, prefer the built-in `web_search` tool above — it uses a stronger search path than this MCP service.
-
-- **MCP Marketplace:** https://bailian.console.aliyun.com/cn-beijing?tab=mcp#/mcp-market/detail/WebSearch
-- **Cost:** Paid (billed via Alibaba Cloud DashScope)
-- **Get API Key:** https://help.aliyun.com/zh/model-studio/get-api-key
-- **Best for:** Chinese-language queries, access to Chinese web content, integration with the Alibaba Cloud ecosystem
-
-#### Setup
-
-**Method 1: CLI command**
-
-```bash
-qwen mcp add WebSearch \
-  -t http \
-  "https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp" \
-  -H "Authorization: Bearer ${DASHSCOPE_API_KEY}"
-```
-
-**Method 2: `settings.json`**
-
-```json
-{
-  "mcpServers": {
-    "WebSearch": {
-      "httpUrl": "https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp",
-      "headers": {
-        "Authorization": "Bearer ${DASHSCOPE_API_KEY}"
-      }
-    }
-  }
-}
-```
-
-Replace `${DASHSCOPE_API_KEY}` with your actual API key, or set it as an environment variable so Qwen Code picks it up automatically.
-
----
 
 ### Tavily WebSearch
 
