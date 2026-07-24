@@ -14,7 +14,6 @@ import type {
 } from '@google/genai';
 import type { Config } from '../config/config.js';
 import { AuthType } from './authTypes.js';
-import { LoggingContentGenerator } from './loggingContentGenerator/index.js';
 import type {
   ConfigSource,
   ConfigSourceKind,

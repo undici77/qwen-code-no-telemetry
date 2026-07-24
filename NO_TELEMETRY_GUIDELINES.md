@@ -15,6 +15,27 @@ This document defines the privacy policy, technical architecture, and maintenanc
 
 ---
 
+## 1.5. MANDATORY: WebSearch/SerpApi Patch (Non-Negotiable)
+
+The built-in `web_search` tool **MUST** remain backed by [SerpApi](https://serpapi.com), NOT by DashScope/Google/GLM/Tavily or any other upstream provider. This is a **mandatory, non-removable patch** that applies to every merge and every release.
+
+**Why**: The upstream WebSearch tool historically used DashScope Responses API, which routes through external servers and violates the no-telemetry policy. SerpApi is a neutral, privacy-respecting search aggregator with a free tier (250 queries/month) and no identity leakage.
+
+**Rule**: On every merge from `main`, if upstream modifies, replaces, or removes the SerpApi-backed `web_search` implementation, **the SerpApi patch MUST be restored**. The implementation lives in `packages/core/src/tools/web-search.ts`. The configuration schema is in `packages/core/src/config/settingsSchema.ts`. The docs are in `docs/developers/tools/web-search.md`.
+
+**Verification checklist after every merge**:
+```bash
+# Must reference SerpApi, NOT DashScope/Google/GLM/Tavily as the backend
+grep -n "SerpApi\|serpapi\|SERPAPI" packages/core/src/tools/web-search.ts | head -5
+# Must NOT contain upstream DashScope Responses API references
+grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
+# Must return zero lines (no DashScope in web-search.ts)
+```
+
+**Conflict resolution priority**: If upstream WebSearch code conflicts with the SerpApi patch, **always resolve in favor of SerpApi**. Document the resolution in the commit message.
+
+---
+
 ## 2. Maintenance Strategy: MERGE + FIX CONFLICTS
 
 This branch must remain aligned with upstream `main`.
@@ -62,6 +83,12 @@ Every successful merge REQUIRES:
     # Must return zero lines
     ```
 9.  **TEST SUITE ALIGNMENT**: Ensure that obsolete OpenTelemetry test suites (`packages/core/src/telemetry/*.test.ts` except `uiTelemetry.test.ts`) are excluded in `packages/core/vitest.config.ts`, as they cannot compile/resolve without the removed `@opentelemetry` dependencies.
+10. **WEBSEARCH/SERPAPI CHECK** ⚠️ See Section 1.5: Verify the built-in `web_search` tool still uses SerpApi backend and NOT DashScope/Google/GLM/Tavily:
+    ```bash
+    grep -n "SerpApi\|serpapi\|SERPAPI" packages/core/src/tools/web-search.ts | head -5
+    grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
+    # Second command must return zero lines
+    ```
 
 ---
 
@@ -106,6 +133,7 @@ When merging from `main`, conflicts may arise. Use this priority order:
 | `@opentelemetry/*` in dependencies | **HIGHEST** | Remove immediately, no exceptions                         |
 | Metrics/analytics/tracking code    | **HIGHEST** | Replace with no-op stubs                                  |
 | Installation ID generation         | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000` |
+| WebSearch/SerpApi patch            | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily. |
 | Specialized `README.md` content    | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.         |
 | Version string in `package.json`   | **MEDIUM**  | Match upstream (without `-no-telemetry`)                  |
 | UI display version                 | **LOW**     | Keep `-no-telemetry` suffix for clarity                   |

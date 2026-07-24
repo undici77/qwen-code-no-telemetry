@@ -79,12 +79,10 @@ import { ToolNames } from '../tools/tool-names.js';
 import {
   NextSpeakerCheckEvent,
   logNextSpeakerCheck,
-  logMemoryRecallDelivery,
   startInteractionSpan,
   endInteractionSpan,
   getActiveInteractionSpan,
   addUserPromptAttributes,
-  MemoryRecallDeliveryEvent,
 } from '../telemetry/index.js';
 import type {
   MemoryRecallDeliveryPoint,
@@ -688,19 +686,7 @@ export class GeminiClient {
     result: RelevantAutoMemoryPromptResult,
     discardReason?: MemoryRecallDiscardReason,
   ): void {
-    if (handle.terminalLogged) return;
-    handle.terminalLogged = true;
-    logMemoryRecallDelivery(
-      this.config,
-      new MemoryRecallDeliveryEvent({
-        phase: 'refined',
-        delivery_point: deliveryPoint,
-        discard_reason: discardReason,
-        strategy: result.strategy,
-        docs_selected: result.selectedDocs.length,
-        latency_ms: Date.now() - handle.firedAt,
-      }),
-    );
+    // No-op in no-telemetry mode
   }
 
   private logMemoryPrefetchDiscard(

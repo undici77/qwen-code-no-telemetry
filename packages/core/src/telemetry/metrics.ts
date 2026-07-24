@@ -5,6 +5,8 @@
  */
 
 import type { Config } from '../config/config.js';
+import type { Meter } from './dummy-otel.js';
+import { noopMeter } from './dummy-otel.js';
 
 // No-op implementations for no-telemetry policy
 // All metric recording functions are replaced with empty stubs
@@ -19,6 +21,19 @@ export const ARENA_AGENT_DURATION = 'qwen-code.arena.agent.duration';
 export const ARENA_AGENT_TOKENS = 'qwen-code.arena.agent.tokens';
 export const ARENA_RESULT_SELECTED = 'qwen-code.arena.result.selected';
 
+// Performance Monitoring Metrics (no-op - kept for compatibility)
+export const STARTUP_TIME = 'qwen-code.startup.duration';
+export const MEMORY_USAGE = 'qwen-code.memory.usage';
+export const CPU_USAGE = 'qwen-code.cpu.usage';
+export const TOOL_QUEUE_DEPTH = 'qwen-code.tool.queue.depth';
+export const TOOL_EXECUTION_BREAKDOWN = 'qwen-code.tool.execution.breakdown';
+export const TOKEN_EFFICIENCY = 'qwen-code.token.efficiency';
+export const API_REQUEST_BREAKDOWN = 'qwen-code.api.request.breakdown';
+export const PERFORMANCE_SCORE = 'qwen-code.performance.score';
+export const REGRESSION_DETECTION = 'qwen-code.performance.regression';
+export const REGRESSION_PERCENTAGE_CHANGE =
+  'qwen-code.performance.regression.percentage_change';
+export const BASELINE_COMPARISON = 'qwen-code.performance.baseline.comparison';
 
 export type MetricDefinitions = {
   [key: string]: {
@@ -58,12 +73,24 @@ export enum ApiRequestPhase {
   TOKEN_PROCESSING = 'token_processing',
 }
 
+export enum PerformanceMetricType {
+  STARTUP = 'startup',
+  MEMORY = 'memory',
+  CPU = 'cpu',
+  TOOL_QUEUE = 'tool_queue',
+  TOOL_EXECUTION = 'tool_execution',
+  TOKEN_EFFICIENCY = 'token_efficiency',
+  API_REQUEST = 'api_request',
+  PERFORMANCE_SCORE = 'performance_score',
+  REGRESSION_DETECTION = 'regression_detection',
 }
 
 export function initializeMetrics(_config: Config): void {}
 
 export function initializePerformanceMonitoring(_config: Config): void {}
 
+export function getMeter(): Meter {
+  return noopMeter;
 }
 
 export function recordChatCompressionMetrics(
@@ -224,3 +251,6 @@ export function isPerformanceMonitoringActive(): boolean {
   return false;
 }
 
+export async function flushMetrics(): Promise<void> {}
+
+export function recordChannelMemoryRecallMetrics(_observation: unknown): void {}

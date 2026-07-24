@@ -978,6 +978,7 @@ export interface ConfigParameters {
    */
   deferTelemetryInitialization?: boolean;
   outboundCorrelation?: OutboundCorrelationSettings;
+  usageStatisticsEnabled?: boolean;
   gitCoAuthor?: GitCoAuthorParam;
   /**
    * If true, disables the per-session FileReadCache short-circuit
@@ -1760,6 +1761,7 @@ export class Config {
   private readonly showResponseTokensPerSecond: boolean;
   private readonly telemetrySettings: ResolvedTelemetrySettings;
   private readonly telemetryInitializationDeferred: boolean;
+  private readonly usageStatisticsEnabled: boolean;
   private readonly outboundCorrelationSettings: OutboundCorrelationSettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
   private readonly fileReadCacheDisabled: boolean;
@@ -2014,6 +2016,7 @@ export class Config {
     };
     this.telemetryInitializationDeferred =
       params.deferTelemetryInitialization ?? false;
+    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? false;
     this.outboundCorrelationSettings = {
       propagateTraceContext:
         params.outboundCorrelation?.propagateTraceContext ?? false,

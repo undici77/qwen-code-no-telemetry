@@ -86,6 +86,8 @@ This keeps the application codebase aligned with upstream while ensuring zero ex
 
 > ⚠️ **`@opentelemetry/api` runtime import rule**: TypeScript `tsconfig.json` `paths` entries only apply to type-checking and esbuild bundling — NOT to Node.js runtime resolution of compiled `.js` files. Every source `.ts` file that imports from `@opentelemetry/api` (or any removed `@opentelemetry/*` package) must use a **relative import to `dummy-otel.js`** instead (e.g., `from '../telemetry/dummy-otel.js'`). Failing to do this causes `ERR_MODULE_NOT_FOUND` crashes in `npm start` mode. See `NO_TELEMETRY_GUIDELINES.md §12` for details and verification commands.
 
+> ⚠️ **MANDATORY: WebSearch/SerpApi patch**: The built-in `web_search` tool **MUST** remain backed by SerpApi, NOT DashScope/Google/GLM/Tavily. This is a non-removable patch that applies to every merge and release. On every merge, if upstream modifies the WebSearch tool, **restore the SerpApi implementation** in `packages/core/src/tools/web-search.ts`. Verification: `grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts` must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §1.5`.
+
 ---
 
 ### Versioning Strategy

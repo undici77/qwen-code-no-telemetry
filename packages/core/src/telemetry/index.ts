@@ -62,7 +62,6 @@ export {
   logMemoryExtract,
   logMemoryDream,
   logMemoryRecall,
-  logMemoryRecallDelivery,
 } from './loggers.js';
 export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
 export {
@@ -162,7 +161,6 @@ export {
   recordMemoryDreamMetrics,
   recordMemoryRecallMetrics,
   recordChannelMemoryRecallMetrics,
-  recordMemoryRecallDeliveryMetrics,
 } from './metrics.js';
 
 export type {

@@ -2735,9 +2735,8 @@ export async function runAcpAgent(
         }
         initializeRequestId = undefined;
         if ('result' in message) {
-          void initializeTelemetry(config).then(() => {
-            registerAcpEventLoopLagGauge(() => eventLoopMonitor.snapshot());
-          });
+          initializeTelemetry(config);
+          registerAcpEventLoopLagGauge(() => eventLoopMonitor.snapshot());
         }
       },
     });
