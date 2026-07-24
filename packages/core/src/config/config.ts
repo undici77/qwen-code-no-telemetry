@@ -1761,6 +1761,7 @@ export class Config {
   private readonly showResponseTokensPerSecond: boolean;
   private readonly telemetrySettings: ResolvedTelemetrySettings;
   private readonly telemetryInitializationDeferred: boolean;
+  // @ts-expect-error — only accessed via getUsageStatisticsEnabled() getter
   private readonly usageStatisticsEnabled: boolean;
   private readonly outboundCorrelationSettings: OutboundCorrelationSettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
