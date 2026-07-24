@@ -62,6 +62,7 @@ export {
   logMemoryExtract,
   logMemoryDream,
   logMemoryRecall,
+  logMemoryRecallDelivery,
 } from './loggers.js';
 export type { SlashCommandEvent, ChatCompressionEvent } from './types.js';
 export {
@@ -91,6 +92,7 @@ export {
   MemoryExtractEvent,
   MemoryDreamEvent,
   MemoryRecallEvent,
+  MemoryRecallDeliveryEvent,
 } from './types.js';
 export { makeSlashCommandEvent, makeChatCompressionEvent } from './types.js';
 export type {
@@ -160,9 +162,11 @@ export {
   recordMemoryDreamMetrics,
   recordMemoryRecallMetrics,
   recordChannelMemoryRecallMetrics,
+  recordMemoryRecallDeliveryMetrics,
 } from './metrics.js';
 
 export type {
+  // Performance monitoring types
   PerformanceMetricType,
   MemoryMetricType,
   ToolExecutionPhase,
@@ -195,6 +199,7 @@ export {
 } from './session-tracing.js';
 export type {
   StartInteractionOptions,
+  StartLLMRequestSpanOptions,
   EndInteractionOptions,
   InteractionSpanResultStatus,
   LLMRequestMetadata,

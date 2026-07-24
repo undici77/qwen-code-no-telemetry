@@ -31,6 +31,7 @@ import {
   StrictMissingModelIdError,
 } from '../models/modelConfigErrors.js';
 import { PROVIDER_SOURCED_FIELDS } from '../models/constants.js';
+import { preloadRuntimeFetchModule } from '../utils/runtimeFetchOptions.js';
 import type { ReasoningEffort } from './reasoning-effort.js';
 
 /**
@@ -348,6 +349,66 @@ function getModuleNotFoundError(
   return undefined;
 }
 
+function wrapProviderLoadError(error: unknown, authType: AuthType): unknown {
+  const moduleNotFoundError = getModuleNotFoundError(error);
+  if (!moduleNotFoundError) {
+    return error;
+  }
+
+  return new Error(
+    `Qwen Code was updated in the background and needs to be restarted.\n` +
+      `Please exit and restart Qwen Code to use the '${authType}' provider.`,
+    { cause: moduleNotFoundError },
+  );
+}
+
+class LazyContentGenerator implements ContentGenerator {
+  private generatorPromise?: Promise<ContentGenerator>;
+
+  constructor(
+    private readonly loader: () => Promise<ContentGenerator>,
+    private readonly summarizedThinking: boolean,
+  ) {}
+
+  private getGenerator(): Promise<ContentGenerator> {
+    this.generatorPromise ??= this.loader();
+    return this.generatorPromise;
+  }
+
+  async generateContent(
+    request: GenerateContentParameters,
+    userPromptId: string,
+  ): Promise<GenerateContentResponse> {
+    return (await this.getGenerator()).generateContent(request, userPromptId);
+  }
+
+  async generateContentStream(
+    request: GenerateContentParameters,
+    userPromptId: string,
+  ): Promise<AsyncGenerator<GenerateContentResponse>> {
+    return (await this.getGenerator()).generateContentStream(
+      request,
+      userPromptId,
+    );
+  }
+
+  async countTokens(
+    request: CountTokensParameters,
+  ): Promise<CountTokensResponse> {
+    return (await this.getGenerator()).countTokens(request);
+  }
+
+  async embedContent(
+    request: EmbedContentParameters,
+  ): Promise<EmbedContentResponse> {
+    return (await this.getGenerator()).embedContent(request);
+  }
+
+  useSummarizedThinking(): boolean {
+    return this.summarizedThinking;
+  }
+}
+
 export async function createContentGenerator(
   generatorConfig: ContentGeneratorConfig,
   config: Config,
@@ -363,20 +424,24 @@ export async function createContentGenerator(
     throw new Error('ContentGeneratorConfig must have an authType');
   }
 
-  let baseGenerator: ContentGenerator;
+  // Provider constructors below synchronously build undici-backed fetch
+  // options; load undici here so it stays out of the eager startup closure
+  // (issue #7264).
+  await preloadRuntimeFetchModule();
+
+  let loadBaseGenerator: () => Promise<ContentGenerator>;
 
   try {
     if (authType === AuthType.USE_OPENAI) {
-      const { createOpenAIContentGenerator } = await import(
-        './openaiContentGenerator/index.js'
-      );
-      baseGenerator = createOpenAIContentGenerator(generatorConfig, config);
+      loadBaseGenerator = async () => {
+        const { createOpenAIContentGenerator } = await import(
+          './openaiContentGenerator/index.js'
+        );
+        return createOpenAIContentGenerator(generatorConfig, config);
+      };
     } else if (authType === AuthType.QWEN_OAUTH) {
       const { getQwenOAuthClient: getQwenOauthClient } = await import(
         '../qwen/qwenOAuth2.js'
-      );
-      const { QwenContentGenerator } = await import(
-        '../qwen/qwenContentGenerator.js'
       );
 
       try {
@@ -384,11 +449,12 @@ export async function createContentGenerator(
           config,
           isInitialAuth ? { requireCachedCredentials: true } : undefined,
         );
-        baseGenerator = new QwenContentGenerator(
-          qwenClient,
-          generatorConfig,
-          config,
-        );
+        loadBaseGenerator = async () => {
+          const { QwenContentGenerator } = await import(
+            '../qwen/qwenContentGenerator.js'
+          );
+          return new QwenContentGenerator(qwenClient, generatorConfig, config);
+        };
       } catch (error) {
         if (getModuleNotFoundError(error)) {
           throw error;
@@ -396,34 +462,47 @@ export async function createContentGenerator(
         throw new Error(error instanceof Error ? error.message : String(error));
       }
     } else if (authType === AuthType.USE_ANTHROPIC) {
-      const { createAnthropicContentGenerator } = await import(
-        './anthropicContentGenerator/index.js'
-      );
-      baseGenerator = createAnthropicContentGenerator(generatorConfig, config);
+      loadBaseGenerator = async () => {
+        const { createAnthropicContentGenerator } = await import(
+          './anthropicContentGenerator/index.js'
+        );
+        return createAnthropicContentGenerator(generatorConfig, config);
+      };
     } else if (
       authType === AuthType.USE_GEMINI ||
       authType === AuthType.USE_VERTEX_AI
     ) {
-      const { createGeminiContentGenerator } = await import(
-        './geminiContentGenerator/index.js'
-      );
-      baseGenerator = createGeminiContentGenerator(generatorConfig, config);
+      loadBaseGenerator = async () => {
+        const { createGeminiContentGenerator } = await import(
+          './geminiContentGenerator/index.js'
+        );
+        return createGeminiContentGenerator(generatorConfig, config);
+      };
     } else {
       throw new Error(
         `Error creating contentGenerator: Unsupported authType: ${authType}`,
       );
     }
   } catch (error) {
-    const moduleNotFoundError = getModuleNotFoundError(error);
-    if (moduleNotFoundError) {
-      throw new Error(
-        `Qwen Code was updated in the background and needs to be restarted.\n` +
-          `Please exit and restart Qwen Code to use the '${authType}' provider.`,
-        { cause: moduleNotFoundError },
-      );
-    }
-    throw error;
+    throw wrapProviderLoadError(error, authType);
   }
 
-  return new LoggingContentGenerator(baseGenerator, config, generatorConfig);
+  return new LazyContentGenerator(
+    async () => {
+      try {
+        const [baseGenerator, { LoggingContentGenerator }] = await Promise.all([
+          loadBaseGenerator(),
+          import('./loggingContentGenerator/index.js'),
+        ]);
+        return new LoggingContentGenerator(
+          baseGenerator,
+          config,
+          generatorConfig,
+        );
+      } catch (error) {
+        throw wrapProviderLoadError(error, authType);
+      }
+    },
+    authType === AuthType.USE_GEMINI || authType === AuthType.USE_VERTEX_AI,
+  );
 }
