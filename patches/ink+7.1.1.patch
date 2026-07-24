@@ -1,9 +1,28 @@
+diff --git a/node_modules/ink/build/components/Text.d.ts b/node_modules/ink/build/components/Text.d.ts
+index 1d7bf6b..29401a6 100644
+--- a/node_modules/ink/build/components/Text.d.ts
++++ b/node_modules/ink/build/components/Text.d.ts
+@@ -47,9 +47,13 @@ export type Props = {
+     This property tells Ink to wrap or truncate text if its width is larger than the container. If `wrap` is passed (the default), Ink will wrap text and split it into multiple lines. If `hard` is passed, Ink will fill each line to the full column width, breaking words as necessary. If `truncate-*` is passed, Ink will truncate text instead, resulting in one line of text with the rest cut off.
+     */
+     readonly wrap?: Styles['textWrap'];
++    readonly selectable?: boolean;
++    readonly selectionFlow?: string;
++    readonly selectionBreakAfter?: 'soft' | 'hard';
++    readonly selectionJoiner?: string;
+     readonly children?: ReactNode;
+ };
+ /**
+ This component can display text and change its style to make it bold, underlined, italic, or strikethrough.
+ */
+-export default function Text({ color, backgroundColor, dimColor, bold, italic, underline, strikethrough, inverse, wrap, children, 'aria-label': ariaLabel, 'aria-hidden': ariaHidden, }: Props): React.JSX.Element | null;
++export default function Text({ color, backgroundColor, dimColor, bold, italic, underline, strikethrough, inverse, wrap, selectable, selectionFlow, selectionBreakAfter, selectionJoiner, children, 'aria-label': ariaLabel, 'aria-hidden': ariaHidden, }: Props): React.JSX.Element | null;
 diff --git a/node_modules/ink/build/frame-controller.d.ts b/node_modules/ink/build/frame-controller.d.ts
 new file mode 100644
-index 0000000..c886b31
+index 0000000..1bd8c53
 --- /dev/null
 +++ b/node_modules/ink/build/frame-controller.d.ts
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,37 @@
 +export type ScreenSelection = {
 +    sx: number;
 +    sy: number;
@@ -15,11 +34,22 @@ index 0000000..c886b31
 +    value: string;
 +    fullWidth: boolean;
 +    styles: unknown[];
++    selectable?: boolean;
++    boundaries?: Array<FrameBoundary | null>;
++    flowId?: number | null;
++};
++
++export type FrameBoundary = {
++    kind: 'soft' | 'hard';
++    joiner: string;
++    selectable: boolean;
++    flowId: number;
 +};
 +export type ReadonlyFrame = {
 +    width: number;
 +    height: number;
 +    cells: ReadonlyArray<ReadonlyArray<FrameCell>>;
++    boundaries: Array<Array<FrameBoundary | null>>;
 +};
 +export type FrameController = {
 +    getFrame(): ReadonlyFrame | null;
@@ -82,7 +112,7 @@ index 0000000..745a4ba
 +export const getFrameController = (stdout) => instances.get(stdout)?.frameController;
 +//# sourceMappingURL=frame-controller.js.map
 diff --git a/node_modules/ink/build/index.d.ts b/node_modules/ink/build/index.d.ts
-index 4319a0c..ef86cb0 100644
+index 4319a0c..4165461 100644
 --- a/node_modules/ink/build/index.d.ts
 +++ b/node_modules/ink/build/index.d.ts
 @@ -41,3 +41,5 @@ export type { ElementMetrics } from './measure-element.js';
@@ -90,9 +120,9 @@ index 4319a0c..ef86cb0 100644
  export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
  export type { KittyKeyboardOptions, KittyFlagName } from './kitty-keyboard.js';
 +export { getFrameController } from './frame-controller.js';
-+export type { FrameController, ReadonlyFrame, ScreenSelection, FrameCell, } from './frame-controller.js';
++export type { FrameController, ReadonlyFrame, ScreenSelection, FrameCell, FrameBoundary, } from './frame-controller.js';
 diff --git a/node_modules/ink/build/index.js b/node_modules/ink/build/index.js
-index cc849f0..c625a83 100644
+index cc849f0..25d6b33 100644
 --- a/node_modules/ink/build/index.js
 +++ b/node_modules/ink/build/index.js
 @@ -21,4 +21,5 @@ export { default as useWindowSize } from './hooks/use-window-size.js';
