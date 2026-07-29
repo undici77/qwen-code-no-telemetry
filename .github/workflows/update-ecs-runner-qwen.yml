@@ -51,17 +51,20 @@ jobs:
           VERSION: '${{ steps.version.outputs.version }}'
         run: |-
           set -euo pipefail
-          # Always use sudo so the package lands in /usr/local (the system-wide
-          # global prefix that every user's PATH resolves first).  Without sudo
-          # the runner user (github-runner) installs into its own home directory
-          # which is shadowed by the older root-installed binary in /usr/local/bin.
-          sudo npm install -g "@qwen-code/qwen-code@${VERSION}"
+          # The runner service resolves the system-wide qwen binary. Do not
+          # carry a runner user's custom npm prefix into the sudo install.
+          (
+            cd "${RUNNER_TEMP:?}"
+            sudo env -u NPM_CONFIG_PREFIX npm install -g --registry=https://registry.npmjs.org "@qwen-code/qwen-code@${VERSION}"
+          )
 
       - name: 'Verify version'
         env:
           VERSION: '${{ steps.version.outputs.version }}'
         run: |-
           set -euo pipefail
-          actual="$(qwen --version)"
+          qwen_path="$(command -v qwen)"
+          actual="$("${qwen_path}" --version)"
+          echo "qwen path: ${qwen_path}"
           echo "qwen version: ${actual}"
           test "${actual}" = "${VERSION}"

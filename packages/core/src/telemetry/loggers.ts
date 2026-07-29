@@ -36,6 +36,7 @@ import type {
   ProtocolTagSanitizedEvent,
   ApiRetryEvent,
   RipgrepFallbackEvent,
+  RipgrepRuntimeRecoveryEvent,
   ToolOutputTruncatedEvent,
   ExtensionDisableEvent,
   ExtensionEnableEvent,
@@ -108,6 +109,11 @@ export function logFlashFallback(
 export function logRipgrepFallback(
   _config: Config,
   _event: RipgrepFallbackEvent,
+): void {}
+
+export function logRipgrepRuntimeRecovery(
+  _config: Config,
+  _event: RipgrepRuntimeRecoveryEvent,
 ): void {}
 
 export function logApiError(config: Config, event: ApiErrorEvent): void {

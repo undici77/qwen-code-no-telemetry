@@ -1134,6 +1134,25 @@ Another paragraph.
       expect(output).not.toContain('$\\alpha$');
     });
 
+    it('renders escaped dollars in table prose and keeps code spans verbatim', () => {
+      const text = `
+| Formula | Literal | Code | Mixed |
+|---------|---------|------|-------|
+| $x$ | \\$xy$ | \`\`a \`$zz$\` b\`\` | $x + \\$5$ |
+`.replace(/\n/g, eol);
+      const { lastFrame } = renderWithProviders(
+        <MarkdownDisplay {...baseProps} text={text} />,
+      );
+      const output = stripAnsi(lastFrame() ?? '');
+
+      expect(output).toContain('│ x');
+      expect(output).toContain('$xy$');
+      expect(output).not.toContain('\\$xy$');
+      expect(output).toContain('a `$zz$` b');
+      expect(output).toContain('x + $5');
+      expect(output).not.toContain('$x$');
+    });
+
     it('keeps pipes inside markdown table math spans in the same cell', () => {
       const text = `
 | Expression | Meaning |

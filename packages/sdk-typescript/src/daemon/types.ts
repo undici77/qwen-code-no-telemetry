@@ -217,6 +217,106 @@ export interface DaemonGitCommitDetail {
   hiddenCount?: number;
 }
 
+/** A single branch entry in the branch listing. */
+export interface DaemonGitBranchInfo {
+  name: string;
+  isHead: boolean;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  /** Unix epoch seconds of the branch tip commit. */
+  commitDate: number;
+  commitSubject: string;
+}
+
+/** A single tag entry in the branch listing. */
+export interface DaemonGitTagInfo {
+  name: string;
+  /** Unix epoch seconds. */
+  date: number;
+  subject: string;
+}
+
+/** Response from `GET /workspaces/:workspace/git/branches`. */
+export interface DaemonGitBranchesResult {
+  v: 1;
+  workspaceCwd: string;
+  available: boolean;
+  local: DaemonGitBranchInfo[];
+  remote: DaemonGitBranchInfo[];
+  tags: DaemonGitTagInfo[];
+  recent: string[];
+  head: string;
+  detached: boolean;
+}
+
+/** Response from `POST /workspaces/:workspace/git/checkout`. */
+export interface DaemonGitCheckoutResult {
+  branch: string;
+  detached: boolean;
+}
+
+/** Response from `POST /workspaces/:workspace/git/push`. */
+export interface DaemonGitPushResult {
+  success: boolean;
+  output: string;
+}
+
+/** Response from `POST /workspaces/:workspace/git/pull`. */
+export interface DaemonGitPullResult {
+  success: boolean;
+  output: string;
+}
+
+/** Response from `POST /workspaces/:workspace/git/commit`. */
+export interface DaemonGitCommitResult {
+  sha: string;
+  subject: string;
+}
+
+/** Review decision for an open pull request, lowercased from GitHub's enum. */
+export type DaemonGitHubPullRequestReviewDecision =
+  | 'approved'
+  | 'changes_requested'
+  | 'review_required';
+
+/** Aggregated CI rollup state for an open pull request. */
+export type DaemonGitHubPullRequestChecks =
+  | 'passing'
+  | 'failing'
+  | 'pending'
+  | 'none';
+
+/** A single open pull request in the list. */
+export interface DaemonGitHubPullRequest {
+  number: number;
+  title: string;
+  url: string;
+  /** Author login, or empty when the account was deleted. */
+  author: string;
+  headRefName: string;
+  state: 'open' | 'draft';
+  reviewDecision: DaemonGitHubPullRequestReviewDecision | null;
+  checks: DaemonGitHubPullRequestChecks;
+  /** Unix timestamp in seconds. */
+  updatedAt: number;
+}
+
+/** Response from `GET /workspaces/:workspace/github/prs`. */
+export interface DaemonGitHubPullRequestList {
+  v: 1;
+  workspaceCwd: string;
+  /** `false` when the workspace is not a git repository. */
+  available: boolean;
+  pullRequests: DaemonGitHubPullRequest[];
+}
+
+/** Response from `POST /workspaces/:workspace/github/prs/create`. */
+export interface DaemonGitHubPullRequestCreateResult {
+  url: string;
+  number: number | null;
+}
+
 /** Capabilities envelope returned from `GET /capabilities`. */
 export interface DaemonCapabilities {
   v: 1;
@@ -519,6 +619,8 @@ export interface DaemonStatusReport {
     sessionIdleTimeoutMs: number;
     acpConnectionCap: number | null;
     compactedReplayMaxBytes: number;
+    maxJournalEvents: number;
+    maxJournalBytes: number;
   };
   capabilities: {
     protocolVersions: DaemonProtocolVersions;
@@ -696,6 +798,18 @@ export interface DaemonRestoredSession extends DaemonSession {
   liveJournal?: DaemonEvent[];
   /** True when older persisted records precede this load replay page. */
   historyHasMore?: boolean;
+  /**
+   * Fallback pagination anchor: the oldest `qwen.session.recordId` in
+   * the last persisted transcript page the daemon could read when the replay
+   * snapshot's `history_truncated` marker carries none. Live sessions
+   * whose in-flight turn pushed the journal past its cap before any
+   * turn boundary fired have no recordId-bearing `session_update` in
+   * the retained window, so the marker ships without an anchor; the
+   * daemon backfills this field from the transcript so clients can
+   * still page backward via `beforeRecordId`. Absent when no anchor
+   * was needed or none could be read.
+   */
+  historyAnchorRecordId?: string;
   /** Event bus watermark — used as initial SSE cursor. */
   lastEventId?: number;
   /**
@@ -1376,6 +1490,8 @@ export interface DaemonWorkspaceSkillStatus extends DaemonStatusCell {
   description: string;
   level: DaemonSkillLevel;
   modelInvocable: boolean;
+  disabledReason?: 'hard' | 'default' | 'inactive_extension';
+  lockedScope?: 'system' | 'user' | 'systemDefaults';
   userInvocable?: false;
   installedPath?: string;
   argumentHint?: string;
@@ -2054,6 +2170,7 @@ export interface DaemonSessionMonitorTaskStatus {
   exitCode?: number;
   error?: string;
   ownerAgentId?: string;
+  toolUseId?: string;
 }
 
 export type DaemonSessionTaskStatus =
@@ -2433,6 +2550,42 @@ export interface DaemonWorkspaceTrustStatus {
   requiresDaemonRestartForChanges: true;
 }
 
+export type DaemonWorkspaceTrustReconciliationState =
+  | 'stable'
+  | 'applying'
+  | 'failed';
+
+export interface DaemonWorkspaceTrustStatusV2 {
+  v: 2;
+  workspaceCwd: string;
+  folderTrustEnabled: boolean;
+  configured: {
+    state: DaemonWorkspaceTrustState | 'error';
+    source: DaemonWorkspaceTrustSource;
+    explicitTrustLevel: DaemonWorkspaceTrustLevel | null;
+  };
+  effective:
+    | { state: 'trusted'; trusted: true }
+    | { state: 'untrusted'; trusted: false }
+    | { state: 'unavailable'; trusted: null };
+  reconciliation: {
+    state: DaemonWorkspaceTrustReconciliationState;
+    revision: string;
+    appliedRevision: string | null;
+    error?: {
+      code:
+        | 'trust_policy_invalid'
+        | 'trust_policy_unreadable'
+        | 'runtime_rebuild_failed';
+    };
+  };
+  requiresDaemonRestartForChanges: false;
+}
+
+export type DaemonWorkspaceTrustStatusResponse =
+  | DaemonWorkspaceTrustStatus
+  | DaemonWorkspaceTrustStatusV2;
+
 export type DaemonWorkspaceTrustDesiredState = 'trusted' | 'untrusted';
 
 export interface DaemonWorkspaceTrustChangeRequest {
@@ -2747,6 +2900,103 @@ export interface DaemonChannelWorkerStartErrorResponse {
 export interface DaemonChannelReloadResult {
   reloaded: boolean;
   worker: DaemonChannelWorkerSnapshot;
+}
+
+export type DaemonChannelConfigFieldKind =
+  | 'string'
+  | 'secret'
+  | 'boolean'
+  | 'number'
+  | 'enum';
+
+export interface DaemonChannelConfigFieldDescriptor {
+  key: string;
+  label: string;
+  kind: DaemonChannelConfigFieldKind;
+  required?: boolean;
+  envResolvable?: boolean;
+  options?: ReadonlyArray<{ value: string; label: string }>;
+  description?: string;
+}
+
+export interface DaemonChannelTypeDescriptor {
+  type: string;
+  displayName: string;
+  manageable: boolean;
+  fields: readonly DaemonChannelConfigFieldDescriptor[];
+}
+
+export type DaemonChannelTypeCatalog = DaemonChannelTypeDescriptor[];
+
+export interface DaemonChannelRuntimeState {
+  state: 'stopped' | 'starting' | 'connected' | 'partial' | 'error';
+  lastError?: string;
+}
+
+export interface DaemonChannelSecretState {
+  present: boolean;
+  source?: 'literal' | 'environment';
+}
+
+export interface DaemonChannelInstanceSnapshot {
+  name: string;
+  config: Record<string, unknown>;
+  secrets: Record<string, DaemonChannelSecretState>;
+  startsWithServe: boolean;
+  runtime: DaemonChannelRuntimeState;
+}
+
+export interface DaemonChannelsSnapshot {
+  revision: string;
+  instances: Record<string, DaemonChannelInstanceSnapshot>;
+}
+
+export type DaemonChannelSecretUpdate =
+  | { operation: 'preserve' }
+  | { operation: 'replace'; value: string }
+  | { operation: 'clear' };
+
+export interface DaemonRevisionRequest {
+  expectedRevision: string;
+}
+
+export interface DaemonChannelUpsertRequest extends DaemonRevisionRequest {
+  config: Record<string, unknown> & { type: string };
+  secrets?: Record<string, DaemonChannelSecretUpdate>;
+}
+
+export interface DaemonChannelStartupRequest extends DaemonRevisionRequest {
+  enabled: boolean;
+}
+
+export interface DaemonChannelMutationResult {
+  snapshot: DaemonChannelsSnapshot;
+  instance: DaemonChannelInstanceSnapshot;
+}
+
+export interface DaemonChannelPairingRequest {
+  senderId: string;
+  senderName: string;
+  code: string;
+  createdAt: number;
+}
+
+export interface DaemonChannelPairingRequestsSnapshot {
+  requests: DaemonChannelPairingRequest[];
+}
+
+export interface DaemonChannelPairingApprovalRequest {
+  code: string;
+}
+
+export interface DaemonChannelPairingApprovalResult
+  extends DaemonChannelPairingRequestsSnapshot {
+  approved: DaemonChannelPairingRequest;
+}
+
+export interface DaemonChannelManagementOptions {
+  clientId?: string;
+  timeoutMs?: number;
 }
 
 export type DaemonMcpRestartResult =

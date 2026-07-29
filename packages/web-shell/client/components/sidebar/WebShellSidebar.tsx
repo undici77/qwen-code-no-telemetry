@@ -50,6 +50,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PlusIcon,
+  RadioTowerIcon,
   SearchIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -98,6 +99,7 @@ const SIDEBAR_WIDTH_STORAGE_KEY = 'qwen-code-web-shell-sidebar-width';
 const SIDEBAR_DEFAULT_WIDTH = 260;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 420;
+const SIDEBAR_MAX_WIDTH_WINDOW_RATIO = 0.5;
 const SIDEBAR_FOOTER_COMPACT_WIDTH = 344;
 const SIDEBAR_FOOTER_TIGHT_WIDTH = 250;
 const SIDEBAR_DRAG_VISUAL_MIN_WIDTH = 200;
@@ -147,6 +149,7 @@ export interface WebShellSidebarLockedWorkspace {
 export type WebShellSidebarPrimaryNavItem =
   | 'newTask'
   | 'plugins'
+  | 'channels'
   | 'scheduledTasks'
   | 'goals';
 
@@ -177,6 +180,7 @@ const DEFAULT_FOOTER_ITEMS: readonly WebShellSidebarFooterItem[] = [
 const DEFAULT_PRIMARY_NAV_ITEMS: readonly WebShellSidebarPrimaryNavItem[] = [
   'newTask',
   'plugins',
+  'channels',
   'scheduledTasks',
   'goals',
 ];
@@ -269,6 +273,7 @@ interface WebShellSidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
   onOpenSettings: () => void;
   onOpenPlugins: () => void;
+  onOpenChannels: () => void;
   onOpenDaemonStatus: () => void;
   onOpenScheduledTasks: () => void;
   onOpenGoals: () => void;
@@ -304,6 +309,7 @@ interface WebShellSidebarProps {
    * trusted workspace's folder header, where a live git chip fires it on click.
    */
   onOpenGitDiff?: (workspaceCwd: string) => void;
+  onOpenCommit?: (workspaceCwd: string) => void;
   /**
    * Opens the shared App-owned Add Workspace dialog. Omit this callback when
    * registration is unavailable; locked workspaces hide the action separately.
@@ -410,13 +416,25 @@ function getGroupColorStyle(
   return color.startsWith('#') ? { backgroundColor: color } : undefined;
 }
 
+// The cap scales with the window so wide displays can reveal full session
+// names, but never exceeds half the window so the sidebar cannot crush the
+// main content area. SIDEBAR_MAX_WIDTH is the floor, preserving the old
+// fixed cap on small windows.
+function getSidebarMaxWidth(): number {
+  if (typeof window === 'undefined') return SIDEBAR_MAX_WIDTH;
+  return Math.max(
+    SIDEBAR_MAX_WIDTH,
+    Math.floor(window.innerWidth * SIDEBAR_MAX_WIDTH_WINDOW_RATIO),
+  );
+}
+
 function clampSidebarWidth(width: number): number {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
+  return Math.min(getSidebarMaxWidth(), Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
 function clampSidebarVisualWidth(width: number): number {
   return Math.min(
-    SIDEBAR_MAX_WIDTH,
+    getSidebarMaxWidth(),
     Math.max(SIDEBAR_DRAG_VISUAL_MIN_WIDTH, width),
   );
 }
@@ -485,6 +503,7 @@ export function WebShellSidebar({
   onCollapsedChange,
   onOpenSettings,
   onOpenPlugins,
+  onOpenChannels,
   onOpenDaemonStatus,
   onOpenScheduledTasks,
   onOpenGoals,
@@ -503,6 +522,7 @@ export function WebShellSidebar({
   selectedWorkspaceCwd,
   onSelectWorkspace,
   onOpenGitDiff,
+  onOpenCommit,
   onOpenAddWorkspace,
   workspaces: providedWorkspaces,
   lockedWorkspaceCwd,
@@ -856,6 +876,16 @@ export function WebShellSidebar({
       (scope.kind === 'locked' && workspaceQualifiedRestCoreEnabled),
     [workspaceQualifiedRestCoreEnabled],
   );
+  // Organization (pin/group) is safe for any trusted workspace — not just
+  // locked ones — because it only mutates display metadata, never executes
+  // code or touches the filesystem.
+  const canUseOrganizationActions = useCallback(
+    (scope: SessionWorkspaceScope) => {
+      if (scope.kind === 'unknown' || scope.kind === 'untrusted') return false;
+      return scope.kind === 'primary' || workspaceQualifiedRestCoreEnabled;
+    },
+    [workspaceQualifiedRestCoreEnabled],
+  );
   const isActiveSessionReadOnly = useCallback(
     (session: DaemonSessionSummary) =>
       !isMutableSessionScope(resolveSessionWorkspaceScope(session)),
@@ -865,7 +895,7 @@ export function WebShellSidebar({
     (session: DaemonSessionSummary) => {
       const scope = resolveSessionWorkspaceScope(session);
       if (scope.kind === 'primary') return workspaceActions;
-      if (scope.kind === 'locked') {
+      if (scope.kind === 'locked' || scope.kind === 'restricted') {
         return workspace.client.workspaceByCwd(scope.cwd);
       }
       return undefined;
@@ -913,9 +943,9 @@ export function WebShellSidebar({
     (session: DaemonSessionSummary, item: 'pin' | 'group') =>
       organizationEnabled &&
       sessionActionItems.has(item) &&
-      canUseWorkspaceQualifiedActions(resolveSessionWorkspaceScope(session)),
+      canUseOrganizationActions(resolveSessionWorkspaceScope(session)),
     [
-      canUseWorkspaceQualifiedActions,
+      canUseOrganizationActions,
       organizationEnabled,
       resolveSessionWorkspaceScope,
       sessionActionItems,
@@ -933,9 +963,9 @@ export function WebShellSidebar({
     (workspaceCwd?: string) =>
       organizationEnabled &&
       sessionActionItems.has('group') &&
-      canUseWorkspaceQualifiedActions(resolveWorkspaceScope(workspaceCwd)),
+      canUseOrganizationActions(resolveWorkspaceScope(workspaceCwd)),
     [
-      canUseWorkspaceQualifiedActions,
+      canUseOrganizationActions,
       organizationEnabled,
       resolveWorkspaceScope,
       sessionActionItems,
@@ -1332,6 +1362,16 @@ export function WebShellSidebar({
     },
     [],
   );
+
+  // The max width derives from window size, so re-clamp when the window
+  // shrinks below a previously stored wider sidebar.
+  useEffect(() => {
+    function handleWindowResize() {
+      setSidebarWidth((current) => clampSidebarWidth(current));
+    }
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, []);
 
   useEffect(() => {
     if (collapsed) {
@@ -2011,7 +2051,7 @@ export function WebShellSidebar({
         const groupActions =
           scope.kind === 'primary'
             ? workspaceActions
-            : scope.kind === 'locked'
+            : scope.kind === 'locked' || scope.kind === 'restricted'
               ? workspace.client.workspaceByCwd(scope.cwd)
               : undefined;
         if (!groupActions) return;
@@ -2127,7 +2167,7 @@ export function WebShellSidebar({
     const groupActions =
       scope.kind === 'primary'
         ? workspaceActions
-        : scope.kind === 'locked'
+        : scope.kind === 'locked' || scope.kind === 'restricted'
           ? workspace.client.workspaceByCwd(scope.cwd)
           : undefined;
     if (!groupActions) {
@@ -3072,7 +3112,7 @@ export function WebShellSidebar({
                         )}
                       </div>
                     )}
-                    {!readOnly && (
+                    {(!readOnly || showPin) && (
                       <div
                         className={styles.sessionActions}
                         onClick={(event) => event.stopPropagation()}
@@ -3980,6 +4020,20 @@ export function WebShellSidebar({
               {!collapsed && <span>{t('sidebar.plugins')}</span>}
             </button>
           )}
+          {primaryNavItems.has('channels') && (
+            <button
+              className={styles.pluginButton}
+              type="button"
+              title={t('sidebar.channels')}
+              aria-label={t('sidebar.channels')}
+              onClick={onOpenChannels}
+            >
+              <span className={styles.navIcon}>
+                <RadioTowerIcon size={16} strokeWidth={1.2} />
+              </span>
+              {!collapsed && <span>{t('sidebar.channels')}</span>}
+            </button>
+          )}
           {primaryNavItems.has('scheduledTasks') && (
             <button
               className={styles.pluginButton}
@@ -4137,6 +4191,7 @@ export function WebShellSidebar({
                             groupActionsDisabled={groupBusy}
                             excludePinned
                             onOpenGitDiff={onOpenGitDiff}
+                            onOpenCommit={onOpenCommit}
                             formatTime={(iso) => formatRelativeTime(iso, t)}
                             searchQuery={searchQuery}
                             expanded={ws.primary ? projectExpanded : undefined}
