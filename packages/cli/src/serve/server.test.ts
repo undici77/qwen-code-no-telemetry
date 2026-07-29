@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import request from 'supertest';
-import { trace, type Span } from '@opentelemetry/api';
+import { trace, type Span } from '../../../core/src/telemetry/dummy-otel.js';
 import {
   createServeApp,
   computeKeepaliveIntervalMs,

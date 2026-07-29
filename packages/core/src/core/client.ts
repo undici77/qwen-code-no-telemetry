@@ -90,6 +90,7 @@ import { ToolNames } from '../tools/tool-names.js';
 import {
   NextSpeakerCheckEvent,
   logNextSpeakerCheck,
+  logMemoryRecallDelivery,
   startInteractionSpan,
   endInteractionSpan,
   getActiveInteractionSpan,
@@ -99,6 +100,7 @@ import type {
   MemoryRecallDeliveryPoint,
   MemoryRecallDiscardReason,
 } from '../telemetry/types.js';
+import { MemoryRecallDeliveryEvent } from '../telemetry/types.js';
 import { uiTelemetryService } from '../telemetry/uiTelemetry.js';
 
 // Forked agent cache
@@ -769,12 +771,24 @@ export class GeminiClient {
    * operators can diagnose missing-memory scenarios.
    */
   private logMemoryPrefetchDelivery(
-    _handle: MemoryPrefetchHandle,
-    _deliveryPoint: MemoryRecallDeliveryPoint,
-    _result: RelevantAutoMemoryPromptResult,
-    _discardReason?: MemoryRecallDiscardReason,
+    handle: MemoryPrefetchHandle,
+    deliveryPoint: MemoryRecallDeliveryPoint,
+    result: RelevantAutoMemoryPromptResult,
+    discardReason?: MemoryRecallDiscardReason,
   ): void {
-    // No-op in no-telemetry mode
+    if (handle.terminalLogged) return;
+    handle.terminalLogged = true;
+    logMemoryRecallDelivery(
+      this.config,
+      new MemoryRecallDeliveryEvent({
+        phase: 'refined',
+        delivery_point: deliveryPoint,
+        discard_reason: discardReason,
+        strategy: result.strategy,
+        docs_selected: result.selectedDocs.length,
+        latency_ms: Date.now() - handle.firedAt,
+      }),
+    );
   }
 
   private logMemoryPrefetchDiscard(

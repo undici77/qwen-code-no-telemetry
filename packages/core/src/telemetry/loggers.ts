@@ -63,6 +63,7 @@ import type {
   MemoryExtractEvent,
   MemoryDreamEvent,
   MemoryRecallEvent,
+  MemoryRecallDeliveryEvent,
   HookCallEvent,
 } from './types.js';
 
@@ -266,6 +267,10 @@ export function logMemoryDream(
 export function logMemoryRecall(
   _config: Config,
   _event: MemoryRecallEvent,
+): void {}
+export function logMemoryRecallDelivery(
+  _config: Config,
+  _event: MemoryRecallDeliveryEvent,
 ): void {}
 export function logPromptSuggestion(_config: Config, _event: unknown): void {}
 export function logSpeculation(_config: Config, _event: unknown): void {}

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * @license
  * Copyright 2026 Qwen Team
@@ -11,7 +12,7 @@ import {
   type Attributes,
   type Context,
   type Span,
-} from '@opentelemetry/api';
+} from './dummy-otel.js';
 import {
   extractAnthropicContent,
   extractGeminiContent,
@@ -354,15 +355,15 @@ function disabledFallbackContext(parent: Context): Context {
   // shadowing key operations so a failed setValue cannot expose an ancestor
   // observer to this exchange.
   const fallback = Object.create(parent) as Context;
-  fallback.getValue = (key) => {
-    if (key === requestObserverKey) return DISABLED_OBSERVER;
+  fallback.getValue = (_key: any) => {
+    if (_key === requestObserverKey) return DISABLED_OBSERVER;
     try {
-      return parent.getValue(key);
+      return parent.getValue(_key);
     } catch {
       return undefined;
     }
   };
-  fallback.setValue = (key, value) => {
+  fallback.setValue = (key: any, value: any) => {
     if (key === requestObserverKey) return fallback;
     try {
       return disabledFallbackContext(parent.setValue(key, value));
@@ -370,10 +371,10 @@ function disabledFallbackContext(parent: Context): Context {
       return fallback;
     }
   };
-  fallback.deleteValue = (key) => {
-    if (key === requestObserverKey) return fallback;
+  fallback.deleteValue = (_key: any) => {
+    if (_key === requestObserverKey) return fallback;
     try {
-      return disabledFallbackContext(parent.deleteValue(key));
+      return disabledFallbackContext(parent.deleteValue(_key));
     } catch {
       return fallback;
     }
