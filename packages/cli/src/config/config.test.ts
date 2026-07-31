@@ -1073,12 +1073,12 @@ describe('loadCliConfig', () => {
 
   describe('usage statistics', () => {
     it.each<[string, string | undefined, boolean | undefined, boolean]>([
-      ['defaults to enabled', undefined, undefined, true],
+      ['defaults to disabled (no-telemetry)', undefined, undefined, false],
       ['uses a disabled setting', undefined, false, false],
-      ['lets true override a disabled setting', 'true', false, true],
-      ['lets 1 override a disabled setting', '1', false, true],
-      ['lets false override an enabled setting', 'false', true, false],
-      ['lets 0 override an enabled setting', '0', true, false],
+      ['env override disabled in no-telemetry', 'true', false, false],
+      ['env override disabled in no-telemetry', '1', false, false],
+      ['env override disabled in no-telemetry', 'false', true, false],
+      ['env override disabled in no-telemetry', '0', true, false],
     ])('%s', async (_name, envValue, settingValue, expected) => {
       vi.stubEnv('QWEN_USAGE_STATISTICS_ENABLED', envValue);
       process.argv = ['node', 'script.js'];
