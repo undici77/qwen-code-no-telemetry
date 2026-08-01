@@ -1329,7 +1329,8 @@ export async function discoverTools(
 ): Promise<DiscoveredMCPTool[]> {
   try {
     const { mcpToTool } = await import('@google/genai');
-    const mcpCallableTool = mcpToTool(mcpClient, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mcpCallableTool = mcpToTool(mcpClient as any, {
       timeout: mcpServerConfig.timeout ?? MCP_DEFAULT_TIMEOUT_MSEC,
     });
     const tool = await retryWithBackoff(
