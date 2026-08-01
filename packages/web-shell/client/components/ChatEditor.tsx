@@ -128,6 +128,7 @@ interface ChatEditorProps {
   cancelArmed?: boolean;
   disabled?: boolean;
   placeholderText?: string;
+  animatePlaceholder?: boolean;
   commands: CommandInfo[];
   skills?: SkillInfo[];
   slashCommandCategoryOrder?: CommandDisplayCategoryOrder;
@@ -772,6 +773,7 @@ function ToolbarPopover({
               className={`${styles.dropdownItem} ${
                 item.id === activeId ? styles.dropdownItemActive : ''
               }`}
+              title={item.label}
               onClick={() => {
                 selectionRef.current = true;
                 onSelect(item.id);
@@ -1147,6 +1149,7 @@ export const ChatEditor = memo(
       cancelArmed = false,
       disabled = false,
       placeholderText = 'Type a message...',
+      animatePlaceholder = true,
       commands,
       skills = [],
       slashCommandCategoryOrder,
@@ -1284,6 +1287,7 @@ export const ChatEditor = memo(
     const hasSlashMenu = Boolean(slashMenu);
     const hasAtMenu = Boolean(atMenu);
     const showTypewriterPlaceholder =
+      animatePlaceholder &&
       !disabled &&
       Boolean(placeholderText) &&
       !core.hasInput() &&
@@ -2257,7 +2261,8 @@ export const ChatEditor = memo(
                               core.closeAtMenu();
                               setQuickActionsOpen(false);
                             }}
-                            aria-label={t('model.select')}
+                            aria-label={`${t('model.select')}: ${modelLabel}`}
+                            title={modelLabel}
                           >
                             <span className={styles.toolBtnModelIcon}>
                               <ModelIcon />

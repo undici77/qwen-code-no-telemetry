@@ -10,6 +10,7 @@
 // (local-only EventEmitter, zero network — see NO_TELEMETRY_GUIDELINES.MD §11)
 
 import type { Config } from '../config/config.js';
+import { ToolErrorType } from '../tools/tool-error.js';
 import {
   uiTelemetryService,
   EVENT_TOOL_CALL,
@@ -82,9 +83,28 @@ export function logStartSession(
 export function logUserPrompt(_config: Config, _event: UserPromptEvent): void {}
 export function logUserRetry(_config: Config, _event: UserRetryEvent): void {}
 
-export function logToolCall(config: Config, event: ToolCallEvent): void {
-  const uiEvent = {
+function normalizeToolCallEvent(event: ToolCallEvent): ToolCallEvent {
+  const isError = event.status === 'error';
+  return {
     ...event,
+    function_name:
+      event.function_name.trim().length > 0
+        ? event.function_name
+        : 'unknown_tool',
+    success: event.status === 'success',
+    error: isError ? event.error : undefined,
+    error_type: isError
+      ? event.error_type?.trim()
+        ? event.error_type
+        : ToolErrorType.UNKNOWN
+      : undefined,
+  };
+}
+
+export function logToolCall(config: Config, event: ToolCallEvent): void {
+  const normalizedEvent = normalizeToolCallEvent(event);
+  const uiEvent = {
+    ...normalizedEvent,
     'event.name': EVENT_TOOL_CALL,
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;

@@ -6,11 +6,12 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import mock from 'mock-fs';
+import * as path from 'node:path';
 import { LspConfigLoader } from './LspConfigLoader.js';
 import type { Extension } from '../extension/extensionManager.js';
 
 describe('LspConfigLoader config-driven behavior', () => {
-  const workspaceRoot = '/mock-workspace';
+  const workspaceRoot = '/workspace';
 
   afterEach(() => {
     mock.restore();
@@ -172,7 +173,7 @@ describe('LspConfigLoader config-driven behavior', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toContain(
-        `Invalid LSP server config in ${workspaceRoot}/.lsp.json: typescript`,
+        `Invalid LSP server config in ${path.join('/workspace', '.lsp.json')}: typescript`,
       );
     }
   });
@@ -260,7 +261,7 @@ describe('LspConfigLoader config-driven behavior', () => {
 });
 
 describe('LspConfigLoader extension configs', () => {
-  const workspaceRoot = '/mock-workspace';
+  const workspaceRoot = '/workspace';
   const extensionPath = '/extensions/ts-plugin';
 
   afterEach(() => {

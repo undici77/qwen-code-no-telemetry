@@ -2145,19 +2145,22 @@ describe('WorkspaceFileSystem - multi-root workspaces', () => {
     expect(hits).toHaveLength(3);
   });
 
-  it('returns healthy root glob results when one workspace root fails', async () => {
-    await fsp.writeFile(path.join(h.workspace, 'primary.ts'), '');
-    await fsp.chmod(h.secondWorkspace, 0o000);
-    try {
-      await expect(h.fs.glob('*.ts')).resolves.toEqual([
-        path.join(h.workspace, 'primary.ts'),
-      ]);
-    } finally {
-      await fsp.chmod(h.secondWorkspace, 0o700);
-    }
-  });
+  it.skipIf(process.platform === 'win32')(
+    'returns healthy root glob results when one workspace root fails',
+    async () => {
+      await fsp.writeFile(path.join(h.workspace, 'primary.ts'), '');
+      await fsp.chmod(h.secondWorkspace, 0o000);
+      try {
+        await expect(h.fs.glob('*.ts')).resolves.toEqual([
+          path.join(h.workspace, 'primary.ts'),
+        ]);
+      } finally {
+        await fsp.chmod(h.secondWorkspace, 0o700);
+      }
+    },
+  );
 
-  it.skipIf(process.getuid?.() === 0)(
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     'throws AggregateError when every workspace root glob fails',
     async () => {
       await fsp.chmod(h.workspace, 0o000);

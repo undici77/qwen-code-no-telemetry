@@ -7,18 +7,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
 import { executeToolCall } from './nonInteractiveToolExecutor.js';
+import type {
+  ToolRegistry,
+  ToolCallRequestInfo,
+  ToolResult,
+  Config,
+  RuntimeContentGeneratorView,
+} from '../index.js';
 import {
   DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD,
-  ApprovalMode,
-} from '../config/config.js';
-import {
   ToolErrorType,
-} from '../tools/tool-error.js';
-import type { Config } from '../config/config.js';
-import type { ToolRegistry } from '../tools/tool-registry.js';
-import type { ToolCallRequestInfo } from './turn.js';
-import type { ToolResult } from '../tools/tools.js';
+  ApprovalMode,
+  getRuntimeContentGenerator,
+} from '../index.js';
 import type { Part } from '@google/genai';
 import { MockTool } from '../test-utils/mock-tool.js';
 
@@ -162,6 +164,38 @@ describe('executeToolCall', () => {
       expect.objectContaining({ callId: deferredRequest.callId }),
     );
     expect(recordToolResult).not.toHaveBeenCalled();
+  });
+
+  it('runs the tool with the requested runtime content generator', async () => {
+    const request: ToolCallRequestInfo = {
+      callId: 'runtime-call',
+      name: 'testTool',
+      args: {},
+      isClientInitiated: false,
+      prompt_id: 'runtime-prompt',
+    };
+    const runtimeView = {
+      contentGenerator: {},
+      contentGeneratorConfig: {
+        model: 'vision-agent',
+        authType: 'openai',
+      },
+    } as unknown as RuntimeContentGeneratorView;
+    let observedRuntime: RuntimeContentGeneratorView | undefined;
+    vi.mocked(mockToolRegistry.getTool).mockReturnValue(mockTool);
+    executeFn.mockImplementation(() => {
+      observedRuntime = getRuntimeContentGenerator();
+      return Promise.resolve({
+        llmContent: 'done',
+        returnDisplay: 'done',
+      });
+    });
+
+    await executeToolCall(mockConfig, request, abortController.signal, {
+      runtimeView,
+    });
+
+    expect(observedRuntime).toBe(runtimeView);
   });
 
   it('should return an error if tool is not found', async () => {

@@ -98,6 +98,8 @@ import { InputFormat, OutputFormat } from '../output/types.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
 import { ResourceRegistry } from '../resources/resource-registry.js';
 import { SkillManager } from '../skills/skill-manager.js';
+import { maybeRunAutoSkillCurator } from '../skills/skill-curator.js';
+import type { SkillLevel } from '../skills/types.js';
 import { PermissionManager } from '../permissions/permission-manager.js';
 import {
   type AutoModeDenialState,
@@ -165,6 +167,7 @@ import {
   type GoalTurnHost,
 } from '../goals/goal-runtime.js';
 import { createGoalVerifier } from '../goals/goal-verifier.js';
+import type { ToolInvocationGuard } from '../core/tool-invocation-guard.js';
 
 // Utils
 import { shouldAttemptBrowserLaunch } from '../utils/browser.js';
@@ -960,6 +963,12 @@ export interface ConfigParameters {
    * Names returned must be lower-cased; consumers compare case-insensitively.
    */
   disabledSkillNamesProvider?: () => ReadonlySet<string>;
+  terminalImageRenderSupportProvider?: () => Promise<TerminalImageRenderSupport>;
+  /**
+   * Skill discovery levels that should not be loaded. Sourced from
+   * `settings.skills.disabledLevels`.
+   */
+  disabledSkillLevels?: readonly SkillLevel[];
   /**
    * Additional directories to scan for skills (SKILL.md files).
    * Sourced from `settings.skills.directories`. Paths are raw
@@ -1003,6 +1012,11 @@ export interface ConfigParameters {
     /** Settings consumed by the AUTO approval mode classifier. */
     autoMode?: AutoModeSettings;
   };
+  /**
+   * Optional host policy evaluated with final tool arguments immediately
+   * before execution. A configured guard fails closed.
+   */
+  toolInvocationGuard?: ToolInvocationGuard;
   toolDiscoveryCommand?: string;
   toolCallCommand?: string;
   mcpServerCommand?: string;
@@ -1279,6 +1293,12 @@ export interface ConfigParameters {
    */
   visionModel?: string;
   /**
+   * Dedicated model for chat compression (auto-compaction). Falls back to
+   * the main model. Corresponds to the `compactionModel` setting
+   * (configurable via `/model --compaction`).
+   */
+  compactionModel?: string;
+  /**
    * Per-attempt timeout in milliseconds for the vision bridge transcription
    * call. Unset → built-in 30s. Corresponds to the `visionBridgeTimeoutMs`
    * setting; useful for slow or proxied vision endpoints.
@@ -1345,6 +1365,10 @@ export interface ConfigParameters {
   /** Lifecycle handle for an external settings file watcher. Stopped during shutdown. */
   settingsWatcher?: { stopWatching(): void };
 }
+
+export type TerminalImageRenderSupport =
+  | { available: true }
+  | { available: false; reason: string };
 
 export interface ImageGenerationConfig {
   model: string;
@@ -1662,12 +1686,26 @@ export type SubSessionSpawner = (
 
 class SessionWriterShutdownError extends SessionWriterUnavailableError {}
 
+function containsErrorByIdentity(error: unknown, candidate: unknown): boolean {
+  return (
+    error === candidate ||
+    (error instanceof Error &&
+      error.cause instanceof AggregateError &&
+      error.cause.errors.includes(candidate))
+  );
+}
+
 export class Config {
   private sessionId: string;
+  private sessionSourceType?: string;
+  private sessionSourceId?: string;
   private sessionData?: ResumedSessionData;
   private readonly sessionRuntimeBaseDir: string;
   private sessionProjectDirRegistered = false;
   private pendingSessionWriterLease?: SessionWriterLease;
+  private pendingSessionWriterRelease:
+    | { lease: SessionWriterLease; promise: Promise<void> }
+    | undefined;
   private sessionWriterReclaimPolicy: 'local' | 'never' = 'local';
   private sessionWriterTakeoverPolicy: 'never' | 'certified' = 'never';
   private sessionWriterShutdownRequested = false;
@@ -1720,6 +1758,7 @@ export class Config {
   private extensionManager!: ExtensionManager;
   private skillManager: SkillManager | null = null;
   private permissionManager: PermissionManager | null = null;
+  private readonly toolInvocationGuard: ToolInvocationGuard | undefined;
   private modelInvocableCommandsProvider:
     | (() => ReadonlyArray<{ name: string; description: string }>)
     | null = null;
@@ -1759,6 +1798,10 @@ export class Config {
   private readonly disabledSkillNamesProvider:
     | (() => ReadonlySet<string>)
     | null;
+  private readonly terminalImageRenderSupportProvider:
+    | (() => Promise<TerminalImageRenderSupport>)
+    | null;
+  private readonly disabledSkillLevels: ReadonlySet<SkillLevel>;
   private readonly customSkillDirs: readonly string[];
   //   `disabledTools` is set at construction
   // time but can be re-synced by the daemon mutation surface
@@ -2006,6 +2049,7 @@ export class Config {
   private readonly webSearchSettings?: WebSearchSettings;
   private webSearchNoticeEmitted = false;
   private visionModel?: string;
+  private compactionModel?: string;
   private imageModel?: string;
   private readonly visionBridgeTimeoutMs: number | undefined;
   private readonly modelFallbacks: string[];
@@ -2073,6 +2117,9 @@ export class Config {
       ...(params.disabledSlashCommands ?? []),
     ]);
     this.disabledSkillNamesProvider = params.disabledSkillNamesProvider ?? null;
+    this.terminalImageRenderSupportProvider =
+      params.terminalImageRenderSupportProvider ?? null;
+    this.disabledSkillLevels = new Set(params.disabledSkillLevels ?? []);
     this.customSkillDirs = Object.freeze([...(params.customSkillDirs ?? [])]);
     this.disabledTools = new Set(params.disabledTools ?? []);
     this.visibleTools = new Set(
@@ -2086,6 +2133,7 @@ export class Config {
     this.permissionsAsk = params.permissions?.ask || [];
     this.permissionsDeny = params.permissions?.deny || [];
     this.permissionsAutoMode = params.permissions?.autoMode ?? {};
+    this.toolInvocationGuard = params.toolInvocationGuard;
     this.toolDiscoveryCommand = params.toolDiscoveryCommand;
     this.toolCallCommand = params.toolCallCommand;
     this.mcpServerCommand = params.mcpServerCommand;
@@ -2450,6 +2498,7 @@ export class Config {
     this.fastModel = params.fastModel || undefined;
     this.webSearchSettings = params.webSearch;
     this.visionModel = params.visionModel || undefined;
+    this.compactionModel = params.compactionModel || undefined;
     this.imageModel = params.imageModel || undefined;
     // Guard: nothing validates settings.json on the load path, so this is the
     // only real gate. `AbortSignal.timeout()` requires an integer in
@@ -2524,6 +2573,9 @@ export class Config {
       try {
         await this.closeSessionWriter();
       } catch (closeError) {
+        if (containsErrorByIdentity(error, closeError)) {
+          throw error;
+        }
         throw new SessionWriterUnavailableError({
           cause: new AggregateError(
             [error, closeError],
@@ -2824,6 +2876,22 @@ export class Config {
     this.subagentManager = new SubagentManager(this);
     recordStartupEvent('config_initialize_skills_start');
     if (!options?.skipSkillManager) {
+      if (this.getAutoSkillEnabled() && this.isTrustedFolder()) {
+        try {
+          const curatorResult = await maybeRunAutoSkillCurator(
+            this.getProjectRoot(),
+          );
+          if (curatorResult.status === 'ran') {
+            this.debugLogger.debug(
+              `Auto-skill curator checked ${curatorResult.result.checked} skill(s) and archived ${curatorResult.result.archived.length}.`,
+            );
+          }
+        } catch (error) {
+          this.debugLogger.warn(
+            `Auto-skill curator skipped: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       this.skillManager = new SkillManager(this);
       if (this.getBareMode() || this.isSafeMode()) {
         await this.skillManager.refreshCache();
@@ -3042,6 +3110,9 @@ export class Config {
         onOwnershipAcquired: (acquiredLease) => {
           lease = acquiredLease;
           this.pendingSessionWriterLease = acquiredLease;
+          if (this.sessionWriterShutdownRequested) {
+            this.startPendingSessionWriterRelease(acquiredLease);
+          }
         },
       });
       if (this.sessionWriterShutdownRequested) {
@@ -3088,12 +3159,19 @@ export class Config {
       }
       try {
         const ownedLease = lease ?? this.pendingSessionWriterLease;
-        await ownedLease?.release();
+        await this.startPendingSessionWriterRelease(ownedLease);
         if (
           this.pendingSessionWriterLease === ownedLease &&
           (ownedLease?.isReleased ?? true)
         ) {
           this.pendingSessionWriterLease = undefined;
+        }
+        if (
+          this.sessionWriterShutdownRequested &&
+          failure instanceof SessionWriterLostError &&
+          ownedLease?.isReleased
+        ) {
+          failure = new SessionWriterShutdownError();
         }
       } catch (releaseError) {
         if (
@@ -3101,7 +3179,7 @@ export class Config {
           (lease ?? this.pendingSessionWriterLease)?.isReleased
         ) {
           this.pendingSessionWriterLease = undefined;
-        } else {
+        } else if (!containsErrorByIdentity(failure, releaseError)) {
           failure = new SessionWriterUnavailableError({
             cause: new AggregateError(
               [failure, releaseError],
@@ -3636,6 +3714,19 @@ export class Config {
     return this.sessionId;
   }
 
+  setSessionSource(sourceType: string, sourceId?: string): void {
+    this.sessionSourceType = sourceType;
+    this.sessionSourceId = sourceId;
+  }
+
+  getSessionSourceType(): string | undefined {
+    return this.sessionSourceType;
+  }
+
+  getSessionSourceId(): string | undefined {
+    return this.sessionSourceId;
+  }
+
   /**
    * Returns warnings generated during configuration resolution.
    * These warnings are collected from model configuration resolution
@@ -3930,7 +4021,10 @@ export class Config {
     if (
       !available.some(
         (model) =>
-          model.id === selector.modelId && !model.voiceOnly && !model.imageOnly,
+          model.id === selector.modelId &&
+          !model.voiceOnly &&
+          !model.imageOnly &&
+          !model.visionOnly,
       )
     ) {
       return undefined;
@@ -3990,6 +4084,70 @@ export class Config {
    */
   setVisionModel(model: string | undefined): void {
     this.visionModel = model || undefined;
+  }
+
+  /**
+   * Resolve the compaction model for chat compression (auto-compaction).
+   * Priority: compactionModel (if set) → main model.
+   */
+  getCompactionModel(): string | undefined {
+    const selector = this.resolveCompactionModelSelector();
+    if (selector) {
+      const available = selector.authType
+        ? this.getAllConfiguredModels([selector.authType])
+        : this.getAllConfiguredModels();
+      if (
+        !available.some(
+          (m) =>
+            m.id === selector.modelId &&
+            !m.fastOnly &&
+            !m.voiceOnly &&
+            !m.imageOnly &&
+            !m.visionOnly,
+        )
+      ) {
+        return undefined;
+      }
+      const rawSelector = resolveModelId(this.compactionModel);
+      return rawSelector?.authType
+        ? `${rawSelector.authType}:${selector.modelId}`
+        : selector.modelId;
+    }
+    return this.getModel();
+  }
+
+  private resolveCompactionModelSelector() {
+    if (!this.compactionModel) return undefined;
+    try {
+      const rawSelector = resolveModelId(this.compactionModel);
+      if (!rawSelector) return undefined;
+      if (rawSelector.authType) return rawSelector;
+
+      const currentAuthType = this.getContentGeneratorConfig()?.authType;
+      if (!currentAuthType) {
+        this.debugLogger.debug(
+          'No active auth type; skipping bare compaction model resolution',
+        );
+        return undefined;
+      }
+
+      return resolveModelId(this.compactionModel, {
+        currentAuthType,
+        getAvailableModels: () =>
+          this.getAllConfiguredModels([currentAuthType]),
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Update the compaction model at runtime (e.g. `/model --compaction <model>`).
+   * Pass undefined or an empty string to clear the override and fall back to
+   * the main model.
+   */
+  setCompactionModel(model: string | undefined): void {
+    this.compactionModel = model || undefined;
   }
 
   /**
@@ -4274,6 +4432,9 @@ export class Config {
         config.enableCacheControl;
       this.contentGeneratorConfig.forceGlobalCacheScope =
         config.forceGlobalCacheScope;
+      this.contentGeneratorConfig.cacheRetention = config.cacheRetention;
+      this.contentGeneratorConfig.cacheRetentionByBlock =
+        config.cacheRetentionByBlock;
       this.contentGeneratorConfig.splitToolMedia = config.splitToolMedia;
       this.contentGeneratorConfig.toolResultContentFormat =
         config.toolResultContentFormat;
@@ -4300,6 +4461,14 @@ export class Config {
       if ('forceGlobalCacheScope' in sources) {
         this.contentGeneratorConfigSources['forceGlobalCacheScope'] =
           sources['forceGlobalCacheScope'];
+      }
+      if ('cacheRetention' in sources) {
+        this.contentGeneratorConfigSources['cacheRetention'] =
+          sources['cacheRetention'];
+      }
+      if ('cacheRetentionByBlock' in sources) {
+        this.contentGeneratorConfigSources['cacheRetentionByBlock'] =
+          sources['cacheRetentionByBlock'];
       }
       if ('contextWindowSize' in sources) {
         this.contentGeneratorConfigSources['contextWindowSize'] =
@@ -4944,6 +5113,14 @@ export class Config {
    */
   getDisabledSkillNames(): ReadonlySet<string> {
     return this.disabledSkillNamesProvider?.() ?? EMPTY_DISABLED_SKILL_NAMES;
+  }
+
+  /**
+   * Returns skill discovery levels excluded through
+   * `settings.skills.disabledLevels`.
+   */
+  getDisabledSkillLevels(): ReadonlySet<SkillLevel> {
+    return this.disabledSkillLevels;
   }
 
   /**
@@ -6970,6 +7147,15 @@ export class Config {
     return this.interactive;
   }
 
+  async getTerminalImageRenderSupport(): Promise<TerminalImageRenderSupport> {
+    return this.terminalImageRenderSupportProvider
+      ? this.terminalImageRenderSupportProvider()
+      : {
+          available: false,
+          reason: 'No terminal image renderer is configured.',
+        };
+  }
+
   getUseRipgrep(): boolean {
     return this.useRipgrep;
   }
@@ -7283,14 +7469,16 @@ export class Config {
     this.chatRecordingService?.beginClose({
       handoff: this.sessionWriterHandoffRequested,
     });
+    this.startPendingSessionWriterRelease();
     this.sessionWriterClosePromise ??= this.closeSessionWriterOnce();
     return this.sessionWriterClosePromise;
   }
 
   private async closeSessionWriterOnce(): Promise<void> {
     const failures: unknown[] = [];
+    const activation = this.sessionWriterActivationPromise;
     try {
-      await this.sessionWriterActivationPromise;
+      await activation;
     } catch (error) {
       if (!(error instanceof SessionWriterShutdownError)) {
         failures.push(error);
@@ -7303,10 +7491,12 @@ export class Config {
     } catch (error) {
       failures.push(error);
     }
-    const pendingLease = this.pendingSessionWriterLease;
+    const pendingLease = activation
+      ? undefined
+      : this.pendingSessionWriterLease;
     if (pendingLease) {
       try {
-        await pendingLease.release();
+        await this.startPendingSessionWriterRelease(pendingLease);
         if (
           this.pendingSessionWriterLease === pendingLease &&
           pendingLease.isReleased
@@ -7329,6 +7519,18 @@ export class Config {
     if (failures.length > 1) {
       throw new AggregateError(failures, 'Session writer shutdown failed');
     }
+  }
+
+  private startPendingSessionWriterRelease(
+    lease = this.pendingSessionWriterLease,
+  ): Promise<void> | undefined {
+    if (!lease) return undefined;
+    const existing = this.pendingSessionWriterRelease;
+    if (existing?.lease === lease) return existing.promise;
+    const promise = lease.release();
+    this.pendingSessionWriterRelease = { lease, promise };
+    void promise.catch(() => undefined);
+    return promise;
   }
 
   getSessionRuntimeBaseDir(): string {
@@ -7571,6 +7773,10 @@ export class Config {
 
   getPermissionManager(): PermissionManager | null {
     return this.permissionManager;
+  }
+
+  getToolInvocationGuard(): ToolInvocationGuard | undefined {
+    return this.toolInvocationGuard;
   }
 
   /**
@@ -7861,6 +8067,17 @@ export class Config {
       const { WebFetchTool } = await import('../tools/web-fetch.js');
       return new WebFetchTool(this);
     });
+    if (
+      resolveInteractionMode(this) === 'interactive' &&
+      !this.sdkMode &&
+      !this.getScreenReader() &&
+      !options?.forSubAgent
+    ) {
+      await registerLazy(ToolNames.DISPLAY_IMAGE, async () => {
+        const { DisplayImageTool } = await import('../tools/display-image.js');
+        return new DisplayImageTool(this);
+      });
+    }
     // WebSearch is opt-in: it registers only when explicitly enabled AND the
     // SerpApi API key is available (from settings or SERPAPI_API_KEY env). A
     // failed gate surfaces a one-time startup notice instead of a silently

@@ -295,12 +295,32 @@ describe('Permission Control (E2E)', () => {
     it('should pass abort signal to canUseTool callback', async () => {
       let receivedSignal: AbortSignal | undefined = undefined;
 
+      // Drive the turn with a fake model that deterministically requests a
+      // write_file call. In default mode write_file requires permission, so
+      // canUseTool always fires — a real model may answer in text and never
+      // invoke the callback, which is the flake this guards against.
+      const fakeServer = await startFakeOpenAIServer(({ requestIndex }) => {
+        if (requestIndex === 0) {
+          return {
+            toolCalls: [
+              fakeToolCall('write_file', {
+                file_path: `${testDir}/signal.txt`,
+                content: 'signal test',
+              }),
+            ],
+          };
+        }
+        return { content: 'Done.' };
+      }, FAKE_SERVER_OPTIONS);
+
       const q = query({
         prompt: 'Create a file named signal.txt',
         options: {
           ...SHARED_TEST_OPTIONS,
+          ...fakeModelOptions(fakeServer.baseUrl),
           permissionMode: 'default',
           cwd: testDir,
+          coreTools: ['write_file'],
           canUseTool: async (toolName, input, options) => {
             receivedSignal = options?.signal;
             return {
@@ -320,6 +340,7 @@ describe('Permission Control (E2E)', () => {
         expect(receivedSignal).toBeInstanceOf(AbortSignal);
       } finally {
         await q.close();
+        await fakeServer.close();
       }
     });
 
@@ -566,7 +587,7 @@ describe('Permission Control (E2E)', () => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error('Timeout waiting for first response')),
-              15000,
+              TEST_TIMEOUT,
             ),
           ),
         ]);
@@ -582,7 +603,7 @@ describe('Permission Control (E2E)', () => {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error('Timeout waiting for second response')),
-              10000,
+              TEST_TIMEOUT,
             ),
           ),
         ]);
@@ -619,7 +640,7 @@ describe('Permission Control (E2E)', () => {
       );
 
       await new Promise((resolve) => setTimeout(resolve, 8000));
-    }, 10_000);
+    }, 15_000);
   });
 
   describe('canUseTool and setPermissionMode integration', () => {
