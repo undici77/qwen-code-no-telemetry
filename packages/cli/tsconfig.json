@@ -16,6 +16,9 @@
       "@qwen-code/acp-bridge/transcriptReplay": [
         "../acp-bridge/src/transcript-replay.ts"
       ],
+      "@qwen-code/acp-bridge/daemonMemoryBudget": [
+        "../acp-bridge/src/daemon-memory-budget.ts"
+      ],
       "@qwen-code/acp-bridge/*": ["../acp-bridge/src/*"],
       "@qwen-code/audio-capture": ["../audio-capture/src/index.ts"],
       "@qwen-code/audio-capture/*": ["../audio-capture/src/*"],
@@ -103,7 +106,26 @@
     "src/ui/themes/theme.test.ts",
     "src/validateNonInterActiveAuth.test.ts",
     "src/services/prompt-processors/shellProcessor.test.ts",
-    "src/commands/extensions/examples/**"
+    "src/commands/extensions/examples/**",
+    // Selection source files use ink Frame types not in published ink
+    "src/ui/selection/screen-buffer.ts",
+    "src/ui/selection/selection-span.ts",
+    "src/ui/selection/selection-state.ts",
+    "src/ui/selection/selection-text.ts",
+    "src/ui/selection/use-text-selection.tsx",
+    "src/ui/selection/selection-coords.ts",
+    "src/ui/selection/selection-coords.test.ts",
+    "src/ui/selection/screen-buffer.test.tsx",
+    "src/ui/selection/selection-span.test.ts",
+    "src/ui/selection/selection-text.test.ts",
+    "src/ui/selection/use-text-selection.test.tsx",
+    "src/ui/components/AnsiOutput.test.tsx",
+    "src/ui/components/MainContent.test.tsx",
+    "src/ui/components/messages/DiffRenderer.test.tsx",
+    "src/ui/components/messages/ToolMessage.test.tsx",
+    "src/ui/components/shared/MaxSizedBox.test.tsx",
+    "src/ui/utils/CodeColorizer.semantic.test.tsx",
+    "src/ui/utils/MarkdownDisplay.test.tsx"
   ],
   "references": [
     { "path": "../core" },

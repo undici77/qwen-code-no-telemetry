@@ -194,35 +194,19 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   // region maxHeight backstop) Yoga compresses the rows and stacks several at
   // the same Y, leaving only every Nth line visible (#6809). flexShrink={0}
   // keeps rows full-height and sequential under a clamped ancestor.
-  const visibleLines = visibleStyledText.map((line, index) => {
-    const metadata = lineMetadata.get(line)!;
-    return (
+  const visibleLines = visibleStyledText.map((line, index) => (
       <Box key={index} flexShrink={0}>
         {line.length > 0 ? (
           line.map((segment, segIndex) => (
-            <Text
-              key={segIndex}
-              {...segment.props}
-              selectionFlow={metadata.flowKey}
-              selectionBreakAfter={metadata.breakAfter}
-              selectionJoiner={metadata.joiner}
-            >
+            <Text key={segIndex} {...segment.props}>
               {segment.text}
             </Text>
           ))
         ) : (
-          <Text
-            selectable={false}
-            selectionFlow={metadata.flowKey}
-            selectionBreakAfter={metadata.breakAfter}
-            selectionJoiner={metadata.joiner}
-          >
-            {' '}
-          </Text>
+          <Text key={0}> </Text>
         )}
       </Box>
-    );
-  });
+    ));
 
   return (
     <Box flexDirection="column" width={maxWidth} flexShrink={0}>

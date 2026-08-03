@@ -849,14 +849,10 @@ function VirtualizedList<T>(
           // the viewport never reflows (which would force a per-item
           // re-measure + visible jitter).
           if (!scrollbarThumbActive) {
-            return (
-              <Text key={i} selectable={false}>
-                {' '}
-              </Text>
-            );
+            return <Text key={i}> </Text>;
           }
           return (
-            <Text key={i} dimColor={!inThumb} selectable={false}>
+            <Text key={i} dimColor={!inThumb}>
               {inThumb ? '█' : '│'}
             </Text>
           );

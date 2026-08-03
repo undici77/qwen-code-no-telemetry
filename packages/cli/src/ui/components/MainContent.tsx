@@ -27,7 +27,6 @@ import {
   SCROLL_TO_ITEM_END,
   type ScrollableListRef,
 } from './shared/ScrollableList.js';
-import { TextSelectionController } from '../selection/use-text-selection.js';
 
 // Limit Gemini messages to a very high number of lines to mitigate performance
 // issues in the worst case if we somehow get an enormous response from Gemini.
@@ -437,20 +436,6 @@ export const MainContent = () => {
           isStaticItem={virtualIsStaticItem}
           containerHeight={scrollContainerHeight}
           showScrollbar={showScrollbar}
-        />
-        <TextSelectionController
-          isActive={!uiState.dialogsVisible}
-          getViewportRect={() => scrollRef.current?.getViewportRect() ?? null}
-          getScrollState={() =>
-            scrollRef.current?.getScrollState() ?? {
-              scrollTop: 0,
-              scrollHeight: 0,
-              innerHeight: 0,
-            }
-          }
-          hitTestScrollbar={(location: { col: number; row: number }) =>
-            scrollRef.current?.hitTestScrollbar(location) ?? false
-          }
         />
         <ShowMoreLines constrainHeight={uiState.constrainHeight} />
       </OverflowProvider>

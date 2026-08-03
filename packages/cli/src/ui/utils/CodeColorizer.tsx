@@ -295,7 +295,7 @@ export function colorizeCode(
           return (
             <Box key={index}>
               {showLineNumbers && (
-                <Text color={activeTheme.colors.Gray} selectable={false}>
+                <Text color={activeTheme.colors.Gray}>
                   {`${String(
                     index + firstLineNumber + hiddenLinesCount,
                   ).padStart(padWidth, ' ')} `}
@@ -327,7 +327,7 @@ export function colorizeCode(
         {lines.map((line, index) => (
           <Box key={index}>
             {showLineNumbers && (
-              <Text color={activeTheme.defaultColor} selectable={false}>
+              <Text color={activeTheme.defaultColor}>
                 {`${String(index + firstLineNumber).padStart(padWidth, ' ')} `}
               </Text>
             )}
