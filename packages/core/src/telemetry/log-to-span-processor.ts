@@ -1,7 +1,6 @@
 // No-op implementation for no-telemetry policy — all telemetry logic neutralized.
 // See NO_TELEMETRY_GUIDELINES.MD for the privacy policy.
 
- 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**

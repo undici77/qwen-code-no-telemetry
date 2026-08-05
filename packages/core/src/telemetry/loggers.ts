@@ -10,13 +10,14 @@
 // (local-only EventEmitter, zero network — see NO_TELEMETRY_GUIDELINES.MD §11)
 
 import type { Config } from '../config/config.js';
+import { isInternalPromptId } from '../utils/internalPromptIds.js';
 import { ToolErrorType } from '../tools/tool-error.js';
 import {
-  uiTelemetryService,
-  EVENT_TOOL_CALL,
   EVENT_API_ERROR,
   EVENT_API_RESPONSE,
-} from './uiTelemetry.js';
+  EVENT_TOOL_CALL,
+} from './constants.js';
+import { uiTelemetryService } from './uiTelemetry.js';
 import type { UiEvent } from './uiTelemetry.js';
 import type {
   ApiErrorEvent,
@@ -76,30 +77,51 @@ function recordUiTelemetryEventToChat(config: Config, uiEvent: UiEvent): void {
   config.getChatRecordingService()?.recordUiTelemetryEvent(uiEvent);
 }
 
+type NormalizedToolCallEvent = ToolCallEvent & {
+  execution_status: NonNullable<ToolCallEvent['execution_status']>;
+};
+
+/**
+ * Normalizes a tool call event for telemetry sinks. Error fields are
+ * deleted (not set to undefined) on success so downstream consumers
+ * see key-absent rather than key-present-with-undefined.
+ */
+export function normalizeToolCallEvent(
+  event: ToolCallEvent,
+): NormalizedToolCallEvent {
+  const functionName = event.function_name ?? '';
+  const normalized: NormalizedToolCallEvent = {
+    ...event,
+    function_name:
+      functionName.trim().length > 0 ? functionName : 'unknown_tool',
+    success: event.status === 'success',
+    execution_status: event.execution_status ?? 'unknown',
+  };
+
+  if (event.status === 'error') {
+    normalized.error_type = event.error_type?.trim() || ToolErrorType.UNKNOWN;
+  } else {
+    delete normalized.error;
+    delete normalized.error_type;
+  }
+
+  return normalized;
+}
+
+function runToolTelemetrySink(sink: () => void): void {
+  try {
+    sink();
+  } catch (_e) {
+    // best-effort: swallow telemetry errors
+  }
+}
+
 export function logStartSession(
   _config: Config,
   _event: StartSessionEvent,
 ): void {}
 export function logUserPrompt(_config: Config, _event: UserPromptEvent): void {}
 export function logUserRetry(_config: Config, _event: UserRetryEvent): void {}
-
-function normalizeToolCallEvent(event: ToolCallEvent): ToolCallEvent {
-  const isError = event.status === 'error';
-  return {
-    ...event,
-    function_name:
-      event.function_name.trim().length > 0
-        ? event.function_name
-        : 'unknown_tool',
-    success: event.status === 'success',
-    error: isError ? event.error : undefined,
-    error_type: isError
-      ? event.error_type?.trim()
-        ? event.error_type
-        : ToolErrorType.UNKNOWN
-      : undefined,
-  };
-}
 
 export function logToolCall(config: Config, event: ToolCallEvent): void {
   const normalizedEvent = normalizeToolCallEvent(event);
@@ -108,8 +130,14 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
     'event.name': EVENT_TOOL_CALL,
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
-  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  recordUiTelemetryEventToChat(config, uiEvent);
+  runToolTelemetrySink(() => {
+    uiTelemetryService.addEvent(uiEvent, config.getSessionId());
+  });
+  runToolTelemetrySink(() => {
+    if (!isInternalPromptId(normalizedEvent.prompt_id)) {
+      recordUiTelemetryEventToChat(config, uiEvent);
+    }
+  });
 }
 
 export function logHookCall(_config: Config, _event: HookCallEvent): void {}

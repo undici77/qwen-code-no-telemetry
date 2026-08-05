@@ -114,6 +114,11 @@ export function recordApiRequest(
   _metadata?: unknown,
 ): void {}
 
+export function recordToolExecutionMetrics(
+  _config: Config,
+  _attributes: unknown,
+): void {}
+
 export function recordApiResponseMetrics(
   _config: Config,
   _model: string,
