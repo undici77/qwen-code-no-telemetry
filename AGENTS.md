@@ -88,6 +88,8 @@ This keeps the application codebase aligned with upstream while ensuring zero ex
 
 > ⚠️ **MANDATORY: WebSearch/SerpApi patch**: The built-in `web_search` tool **MUST** remain backed by SerpApi, NOT DashScope/Google/GLM/Tavily. This is a non-removable patch that applies to every merge and release. On every merge, if upstream modifies the WebSearch tool, **restore the SerpApi implementation** in `packages/core/src/tools/web-search.ts`. Verification: `grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts` must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §1.5`.
 
+> ⚠️ **MANDATORY: Vision-bridge image concurrency patch**: The vision bridge (`packages/core/src/services/visionBridge/vision-bridge-service.ts`) **MUST NEVER** reject an image because of a per-turn image count. It throttles concurrent bridge calls to `VISION_BRIDGE_MAX_IMAGES` (4) in flight at once and **queues** the rest — every valid image is eventually converted, none are dropped. This is a non-removable patch. On every merge, if upstream reintroduces a per-turn rejection cap (a `WeakMap`/counter that fails images past N), **replace it with the concurrency gate** (`tryAcquireBridgeSlotSync` / `waitForBridgeSlot` / `releaseBridgeSlot`). Verification: `grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts` must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §1.6`.
+
 ---
 
 ### Versioning Strategy

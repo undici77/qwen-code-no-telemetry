@@ -1163,6 +1163,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'anthropic:text-primary',
         agentCapable: true,
+        authType: AuthType.USE_ANTHROPIC,
       });
     });
 
@@ -1181,6 +1182,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1197,6 +1199,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1224,6 +1227,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'anthropic:vl-shared',
         baseUrl: 'https://api.anthropic.com',
+        authType: AuthType.USE_ANTHROPIC,
       });
     });
 
@@ -1249,6 +1253,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:qwen3.7-plus',
         baseUrl: 'https://token-plan.example.com/v1',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1281,6 +1286,7 @@ describe('Server Config (config.ts)', () => {
           id: 'openai:vision-agent',
           baseUrl,
           agentCapable: true,
+          authType: AuthType.USE_OPENAI,
         });
       },
     );
@@ -1313,6 +1319,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1332,6 +1339,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1353,6 +1361,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining("'\\0https://example.com/v1'"),
@@ -1383,6 +1392,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
 
@@ -1406,12 +1416,14 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'anthropic:vl-anthropic',
         baseUrl: 'https://api.anthropic.com',
+        authType: AuthType.USE_ANTHROPIC,
       });
       // Cleared with '' — JSDoc promises a fall back to auto-select.
       config.setVisionModel('');
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
       // undefined clears too.
       config.setVisionModel('vl-anthropic');
@@ -1419,6 +1431,7 @@ describe('Server Config (config.ts)', () => {
       expect(config.getDefaultVisionBridgeModel()).toEqual({
         id: 'openai:vl-same-provider',
         baseUrl: 'https://primary.example.com',
+        authType: AuthType.USE_OPENAI,
       });
     });
   });

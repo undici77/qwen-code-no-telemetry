@@ -23,6 +23,10 @@ export const IMAGE_CAPABILITY = Object.freeze({
   autoHandlesWrongModel: true,
   /** Current per-image inline base64 payload cap, in bytes. */
   maxBytes: VISION_BRIDGE_MAX_IMAGE_BASE64_BYTES,
-  /** Current max images processed per turn. */
+  /**
+   * Current max images the bridge will send to the vision model
+   * concurrently. Not a per-turn total — every image is eventually
+   * converted, just throttled to this many in-flight calls at once.
+   */
   maxImagesPerTurn: VISION_BRIDGE_MAX_IMAGES,
 });

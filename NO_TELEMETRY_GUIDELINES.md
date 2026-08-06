@@ -24,6 +24,7 @@ The built-in `web_search` tool **MUST** remain backed by [SerpApi](https://serpa
 **Rule**: On every merge from `main`, if upstream modifies, replaces, or removes the SerpApi-backed `web_search` implementation, **the SerpApi patch MUST be restored**. The implementation lives in `packages/core/src/tools/web-search.ts`. The configuration schema is in `packages/core/src/config/settingsSchema.ts`. The docs are in `docs/developers/tools/web-search.md`.
 
 **Verification checklist after every merge**:
+
 ```bash
 # Must reference SerpApi, NOT DashScope/Google/GLM/Tavily as the backend
 grep -n "SerpApi\|serpapi\|SERPAPI" packages/core/src/tools/web-search.ts | head -5
@@ -33,6 +34,27 @@ grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
 ```
 
 **Conflict resolution priority**: If upstream WebSearch code conflicts with the SerpApi patch, **always resolve in favor of SerpApi**. Document the resolution in the commit message.
+
+---
+
+## 1.6. MANDATORY: Vision-Bridge Image Concurrency Patch (Non-Negotiable)
+
+The vision bridge (`packages/core/src/services/visionBridge/vision-bridge-service.ts`) **MUST NEVER** permanently reject an image because of how many images were requested in one turn. It **MUST** only throttle how many bridge calls run _concurrently_ (capped at `VISION_BRIDGE_MAX_IMAGES`, currently 4), queuing the rest until a slot frees up. Every valid image is eventually converted — none are dropped.
+
+**Why**: Upstream/legacy code tracked a per-turn `WeakMap` (`turnImageCounts`) and permanently failed any image past the 4th in a turn with `"image conversion budget was exhausted"`. With a text-only primary model + local vision-bridge model, asking about e.g. 9 images in one turn silently dropped 5 of them — the primary model was told those images were "unavailable," even though the bridge model could process them fine. This is a **user-data-loss bug**, not a resource-safety feature: a real per-image-count cap discards user data for no technical reason. The correct safety mechanism is a **concurrency gate**, not a **rejection cap** — it protects a shared local model server from being hit by too many simultaneous requests without ever losing an image.
+
+**Rule**: On every merge from `main`, if upstream reintroduces a per-turn/per-image-count rejection cap in the vision bridge (a `WeakMap`/counter that fails images past some N), **replace it with the concurrency-gate pattern** (`tryAcquireBridgeSlotSync` / `waitForBridgeSlot` / `releaseBridgeSlot` in `vision-bridge-service.ts`). Never accept a design where the Nth+1 image in a turn returns `status: 'failed'` due to volume alone.
+
+**Verification checklist after every merge**:
+
+```bash
+# Must return zero lines — no rejection cap tracking has crept back in
+grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
+# Must reference the concurrency gate
+grep -n "tryAcquireBridgeSlotSync\|waitForBridgeSlot\|releaseBridgeSlot" packages/core/src/services/visionBridge/vision-bridge-service.ts | head -5
+```
+
+**Conflict resolution priority**: If upstream vision-bridge code conflicts with this patch, **always resolve in favor of the concurrency gate** (throttle, never reject on count). Document the resolution in the commit message.
 
 ---
 
@@ -89,6 +111,11 @@ Every successful merge REQUIRES:
     grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
     # Second command must return zero lines
     ```
+11. **VISION-BRIDGE CONCURRENCY CHECK** ⚠️ See Section 1.6: Verify the vision bridge throttles concurrency instead of rejecting images past a per-turn count:
+    ```bash
+    grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
+    # Must return zero lines
+    ```
 
 ---
 
@@ -128,15 +155,16 @@ The `-no-telemetry` suffix is always the same — never change it.
 
 When merging from `main`, conflicts may arise. Use this priority order:
 
-| Conflict Type                      | Priority    | Action                                                    |
-| ---------------------------------- | ----------- | --------------------------------------------------------- |
-| `@opentelemetry/*` in dependencies | **HIGHEST** | Remove immediately, no exceptions                         |
-| Metrics/analytics/tracking code    | **HIGHEST** | Replace with no-op stubs                                  |
-| Installation ID generation         | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000` |
-| WebSearch/SerpApi patch            | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily. |
-| Specialized `README.md` content    | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.         |
-| Version string in `package.json`   | **MEDIUM**  | Match upstream (without `-no-telemetry`)                  |
-| UI display version                 | **LOW**     | Keep `-no-telemetry` suffix for clarity                   |
+| Conflict Type                         | Priority    | Action                                                                                        |
+| ------------------------------------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                             |
+| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                      |
+| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                     |
+| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily.        |
+| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count. |
+| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                             |
+| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                      |
+| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                       |
 
 ### Golden Rule:
 

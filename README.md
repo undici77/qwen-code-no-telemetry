@@ -17,6 +17,7 @@ No data is sent to external servers during usage.
 
 - **No Telemetry**: All OpenTelemetry dependencies removed. `InstallationManager` returns a static ID, all loggers are no-ops.
 - **WebSearch Tool**: Migrated from DashScope Responses API to [SerpApi](https://serpapi.com) (free tier: 250 queries/month). See [docs/developers/tools/web-search.md](docs/developers/tools/web-search.md) for details.
+- **Vision Bridge**: Images are never dropped — the bridge throttles to 4 concurrent conversions instead of rejecting anything past the 4th image in a turn.
 
 ---
 

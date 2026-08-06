@@ -4340,6 +4340,7 @@ export class Config {
         baseUrl: parsedSetting.baseUrl ?? match.baseUrl,
       }),
       ...(agentCapable && { agentCapable: true }),
+      ...(match.authType && { authType: match.authType }),
     };
   }
 

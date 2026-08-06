@@ -164,42 +164,55 @@ describe('runVisionBridge', () => {
     expect(sent).not.toContain('x'.repeat(2001)); // but capped at 2000 chars
   });
 
-  it('shares the four-image budget across bridge calls in one turn', async () => {
-    mockSideQuery.mockResolvedValue({ text: 'desc' });
-    const turnSignal = signal();
-
-    const first = await runVisionBridge({
-      config,
-      parts: [image('ONE'), image('TWO'), image('THREE')],
-      signal: turnSignal,
-    });
-    const second = await runVisionBridge({
-      config,
-      parts: [image('FOUR', 'four.png'), image('FIVE', 'five.png')],
-      signal: turnSignal,
-    });
-    const exhausted = await runVisionBridge({
-      config,
-      parts: [image('SIX')],
-      signal: turnSignal,
-    });
-
-    expect(first).toMatchObject({ convertedCount: 3, omittedCount: 0 });
-    expect(second).toMatchObject({ convertedCount: 1, omittedCount: 1 });
-    expect(exhausted).toMatchObject({
-      status: 'failed',
-      convertedCount: 0,
-      omittedCount: 1,
-    });
-    expect(textOf(exhausted.parts)).toMatch(/budget was exhausted/i);
-    expect(mockSideQuery).toHaveBeenCalledTimes(2);
-    const secondRequest = JSON.stringify(
-      mockSideQuery.mock.calls[1][1].contents,
+  it('throttles concurrent bridge calls to four in flight, but converts every image', async () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const pendingResolves: Array<() => void> = [];
+    mockSideQuery.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          pendingResolves.push(() => {
+            inFlight -= 1;
+            resolve({ text: 'desc' });
+          });
+        }),
     );
-    expect(secondRequest).toContain('FOUR');
-    expect(secondRequest).not.toContain('FIVE');
-    expect(secondRequest).toContain('four.png');
-    expect(secondRequest).not.toContain('five.png');
+
+    const turnSignal = signal();
+    // Six separate tool-call results, each with one image, all racing in the
+    // same turn — mirrors N parallel `read_file` results being bridged at once.
+    const resultsPromise = Promise.all(
+      Array.from({ length: 6 }, (_, i) =>
+        runVisionBridge({
+          config,
+          parts: [image(`IMG${i}`)],
+          signal: turnSignal,
+        }),
+      ),
+    );
+
+    await flush();
+    // Never more than four bridge calls in flight at once...
+    expect(maxInFlight).toBe(4);
+    expect(mockSideQuery).toHaveBeenCalledTimes(4);
+
+    // ...but resolving them frees slots for the rest — nothing is dropped.
+    while (pendingResolves.length > 0) {
+      pendingResolves.shift()!();
+      await flush();
+    }
+
+    const results = await resultsPromise;
+    expect(results).toHaveLength(6);
+    for (const result of results) {
+      expect(result.status).toBe('ok');
+      expect(result.convertedCount).toBe(1);
+      expect(result.omittedCount).toBe(0);
+    }
+    expect(mockSideQuery).toHaveBeenCalledTimes(6);
   });
 
   it('reports the bridge model endpoint host for cross-provider egress clarity', async () => {
@@ -443,7 +456,7 @@ describe('runVisionBridge', () => {
     expect(joined).not.toContain('reason forever');
   });
 
-  it('caps each bridge call at four images and reports the omitted count', async () => {
+  it('converts every image in a single call, with no count ceiling', async () => {
     mockSideQuery.mockResolvedValue({ text: 'desc' });
     const result = await runVisionBridge({
       config,
@@ -457,13 +470,12 @@ describe('runVisionBridge', () => {
       ],
       signal: signal(),
     });
-    expect(result.convertedCount).toBe(4);
-    expect(result.omittedCount).toBe(1); // 5 detected − 4 converted
-    expect(textOf(result.parts)).toContain('1 image(s) omitted');
+    expect(result.convertedCount).toBe(5);
+    expect(result.omittedCount).toBe(0);
     const sent = JSON.stringify(mockSideQuery.mock.calls[0][1].contents);
     expect(sent).toContain('FIRST');
     expect(sent).toContain('FOURTH');
-    expect(sent).not.toContain('FIFTH');
+    expect(sent).toContain('FIFTH');
   });
 
   it('strips interleaved <think> blocks without eating answer text between them', async () => {
@@ -497,7 +509,7 @@ describe('runVisionBridge', () => {
     expect(joined).not.toContain('</think>');
   });
 
-  it('counts both invalid and capped images in the omitted total', async () => {
+  it('omits only images that are actually unusable, not ones over some count', async () => {
     mockSideQuery.mockResolvedValue({ text: 'desc' });
     const oversized = image('a'.repeat(10 * 1024 * 1024));
 
@@ -515,8 +527,8 @@ describe('runVisionBridge', () => {
       signal: signal(),
     });
 
-    expect(result.convertedCount).toBe(4);
-    expect(result.omittedCount).toBe(2); // one oversized + one over the cap
+    expect(result.convertedCount).toBe(5);
+    expect(result.omittedCount).toBe(1); // only the oversized one
   });
 
   it('fails without calling the model when none is available', async () => {
@@ -705,6 +717,61 @@ describe('runVisionBridge', () => {
         signal: signal(),
       });
       expect(timeoutSpy).toHaveBeenCalledWith(120_000);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
+  it('falls back to the bridge model provider config timeout when visionBridgeTimeoutMs is unset', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    mockSideQuery.mockResolvedValue({ text: 'desc' });
+    const getResolvedModelConfig = vi.fn().mockReturnValue({
+      generationConfig: { timeout: 300_000 },
+    });
+    try {
+      await runVisionBridge({
+        config: {
+          getDefaultVisionBridgeModel: () => ({
+            id: 'openai:Ornith-1.0-35B-MLX-oQ8',
+            authType: 'openai',
+          }),
+          getResolvedModelConfig,
+        } as unknown as Config,
+        parts: ['look', image()],
+        signal: signal(),
+      });
+      // No visionBridgeTimeoutMs set — the provider's own configured timeout
+      // (e.g. for a slow local model) wins over the 30s built-in default.
+      expect(timeoutSpy).toHaveBeenCalledWith(300_000);
+      expect(getResolvedModelConfig).toHaveBeenCalledWith(
+        'openai',
+        'Ornith-1.0-35B-MLX-oQ8',
+        undefined,
+      );
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
+  it('prefers an explicit visionBridgeTimeoutMs over the provider config timeout', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    mockSideQuery.mockResolvedValue({ text: 'desc' });
+    try {
+      await runVisionBridge({
+        config: {
+          getDefaultVisionBridgeModel: () => ({
+            id: 'openai:Ornith-1.0-35B-MLX-oQ8',
+            authType: 'openai',
+          }),
+          getVisionBridgeTimeoutMs: () => 45_000,
+          getResolvedModelConfig: () => ({
+            generationConfig: { timeout: 300_000 },
+          }),
+        } as unknown as Config,
+        parts: ['look', image()],
+        signal: signal(),
+      });
+      expect(timeoutSpy).toHaveBeenCalledWith(45_000);
     } finally {
       timeoutSpy.mockRestore();
     }
@@ -976,7 +1043,11 @@ describe('selectVisionBridgeModel (same-provider only)', () => {
     // dashscope endpoint and must win.
     expect(
       selectVisionBridgeModel('qwen-text-max', models, { baseUrl: dashscope }),
-    ).toEqual({ id: 'openai:qwen3.7-plus', baseUrl: dashscope });
+    ).toEqual({
+      id: 'openai:qwen3.7-plus',
+      baseUrl: dashscope,
+      authType: 'openai',
+    });
   });
 
   it('never reaches across providers: undefined when the only vision model is on a different endpoint', () => {
@@ -1053,6 +1124,7 @@ describe('selectVisionBridgeModel (same-provider only)', () => {
       id: 'openai:vision-agent',
       baseUrl: dashscope,
       agentCapable: true,
+      authType: 'openai',
     });
     expect(getFullTurnVisionModelSelector(picked!)).toBe(
       `openai:vision-agent\0${dashscope}\0`,
@@ -1139,7 +1211,11 @@ describe('selectVisionBridgeModel (same-provider only)', () => {
         { authType: 'openai', baseUrl: dashscope },
       );
 
-      expect(picked).toEqual({ id: expectedId, baseUrl: dashscope });
+      expect(picked).toEqual({
+        id: expectedId,
+        baseUrl: dashscope,
+        authType: reversed ? 'anthropic' : 'openai',
+      });
     },
   );
 });

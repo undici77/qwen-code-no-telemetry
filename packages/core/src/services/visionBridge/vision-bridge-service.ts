@@ -6,6 +6,7 @@
 
 import type { Content, Part, PartListUnion } from '@google/genai';
 import type { Config } from '../../config/config.js';
+import type { AuthType } from '../../core/authTypes.js';
 import type { InputModalities } from '../../core/contentGenerator.js';
 import { defaultModalities } from '../../core/modalityDefaults.js';
 import { createDebugLogger } from '../../utils/debugLogger.js';
@@ -19,9 +20,6 @@ import {
 import { VISION_BRIDGE_MAX_IMAGES } from './vision-bridge-constants.js';
 
 const debugLogger = createDebugLogger('VISION_BRIDGE');
-// Tool calls in one turn share an AbortSignal. Reserve synchronously before
-// the side query so concurrent tool results cannot each reset the turn cap.
-const turnImageCounts = new WeakMap<AbortSignal, number>();
 const BRIDGE_MAX_OUTPUT_TOKENS = 2048;
 const VISION_BRIDGE_TIMEOUT_MS = 30_000;
 // One retry on timeout, with a fresh timeout budget per attempt: a transient
@@ -48,6 +46,13 @@ export interface VisionBridgeModelSelection {
   id: string;
   baseUrl?: string;
   agentCapable?: true;
+  /**
+   * AuthType the selected model belongs to, when known. Used to look up the
+   * model's own configured `generationConfig.timeout` as the vision-bridge
+   * timeout default, so a provider explicitly configured for slow inference
+   * (e.g. a local model) isn't cut off by the bridge's shorter fallback.
+   */
+  authType?: string;
 }
 
 /**
@@ -87,6 +92,7 @@ function toSelection(model: VisionModelCandidate): VisionBridgeModelSelection {
     id: getQualifiedVisionModelId(model),
     ...(model.baseUrl && { baseUrl: model.baseUrl }),
     ...(agentCapable && { agentCapable: true }),
+    ...(model.authType && { authType: model.authType }),
   };
 }
 
@@ -365,6 +371,56 @@ function buildPdfSourceGuidance(
   return `${rendered} Additional pages may exist from page ${continuation.firstPage}${requestedEnd}; if continuation is needed, call read_file on the original PDF with a later page range.`;
 }
 
+// The vision-bridge model is usually a single shared local/remote instance.
+// Letting every parallel tool call's image fire a simultaneous request can
+// overload it (contention, timeouts, or the server serializing badly). Queue
+// instead of failing: every valid image is still converted, just never more
+// than VISION_BRIDGE_MAX_IMAGES calls in flight against the bridge model at
+// once, process-wide. Waiters that are still queued when the turn aborts are
+// released immediately rather than left waiting.
+let bridgeSlotsAvailable = VISION_BRIDGE_MAX_IMAGES;
+const bridgeWaiters: Array<() => void> = [];
+
+function releaseBridgeSlot(): void {
+  bridgeSlotsAvailable += 1;
+  const next = bridgeWaiters.shift();
+  if (next) next();
+}
+
+/**
+ * Synchronous fast path: grab a free slot immediately if one exists. Kept
+ * separate from {@link waitForBridgeSlot} so the common, uncontended case
+ * never forces an `await` (and its microtask-queue delay) onto callers before
+ * they reach the actual side query — timing other code (and tests) relies on.
+ */
+function tryAcquireBridgeSlotSync(): (() => void) | undefined {
+  if (bridgeSlotsAvailable > 0) {
+    bridgeSlotsAvailable -= 1;
+    return releaseBridgeSlot;
+  }
+  return undefined;
+}
+
+function waitForBridgeSlot(
+  signal: AbortSignal,
+): Promise<(() => void) | undefined> {
+  if (signal.aborted) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      const index = bridgeWaiters.indexOf(grantSlot);
+      if (index !== -1) bridgeWaiters.splice(index, 1);
+      resolve(undefined);
+    };
+    const grantSlot = () => {
+      signal.removeEventListener('abort', onAbort);
+      bridgeSlotsAvailable -= 1;
+      resolve(releaseBridgeSlot);
+    };
+    bridgeWaiters.push(grantSlot);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /** Host of a base URL, for egress disclosure. Undefined when absent/unparsable. */
 function hostOf(baseUrl?: string): string | undefined {
   if (!baseUrl) return undefined;
@@ -509,12 +565,11 @@ export async function runVisionBridge(params: {
     };
   }
 
-  // Keep only valid images, then apply the per-turn cap. Anything dropped is
-  // reported as a single omitted count.
-  const validImages = imageParts.filter(isUsableImagePart);
-  const usedImages = turnImageCounts.get(signal) ?? 0;
-  const remainingImages = Math.max(0, VISION_BRIDGE_MAX_IMAGES - usedImages);
-  const toConvert = validImages.slice(0, remainingImages);
+  // Keep only valid images (readable, within the per-image size limit).
+  // Anything dropped is reported as a single omitted count. Every valid image
+  // is eventually converted — see the concurrency gate below for how the
+  // number in flight at once is bounded instead.
+  const toConvert = imageParts.filter(isUsableImagePart);
   const omittedCount = imageParts.length - toConvert.length;
   const intent = (intentText ?? collectText(nonImageParts)).slice(
     0,
@@ -536,19 +591,90 @@ export async function runVisionBridge(params: {
   }
   const modelEndpoint = hostOf(baseUrl);
   if (toConvert.length === 0) {
-    return failure(
-      validImages.length > 0
-        ? 'image conversion budget was exhausted'
-        : 'no usable image could be read',
-      parts,
-      omittedCount,
-      { modelId, ...(modelEndpoint && { modelEndpoint }) },
-    );
+    return failure('no usable image could be read', parts, omittedCount, {
+      modelId,
+      ...(modelEndpoint && { modelEndpoint }),
+    });
   }
-  turnImageCounts.set(signal, usedImages + toConvert.length);
 
-  const timeoutMs =
-    config.getVisionBridgeTimeoutMs?.() ?? VISION_BRIDGE_TIMEOUT_MS;
+  // When `visionBridgeTimeoutMs` isn't explicitly set, fall back to the
+  // bridge model's own configured `generationConfig.timeout` rather than the
+  // hardcoded default — a provider deliberately configured with a long
+  // timeout for slow inference (e.g. a local model) shouldn't be cut off
+  // early by an unrelated, shorter bridge-specific fallback.
+  const providerTimeoutMs = selection.authType
+    ? config.getResolvedModelConfig?.(
+        selection.authType as AuthType,
+        displayVisionModelId(modelId),
+        baseUrl,
+      )?.generationConfig?.timeout
+    : undefined;
+
+  // Wait for a free slot rather than failing outright — the bridge model is
+  // usually one shared local/remote instance, so this bounds how many of this
+  // turn's images are in flight against it at once without ever dropping one.
+  const releaseSlot =
+    tryAcquireBridgeSlotSync() ?? (await waitForBridgeSlot(signal));
+  if (!releaseSlot) {
+    debugLogger.debug(`conversion cancelled via ${modelId} while queued`);
+    return {
+      applied: false,
+      status: 'skipped',
+      convertedCount: 0,
+      omittedCount,
+      modelId,
+      ...(modelEndpoint && { modelEndpoint }),
+    };
+  }
+
+  try {
+    return await runBridgeAttempts({
+      config,
+      parts,
+      signal,
+      toConvert,
+      omittedCount,
+      intent,
+      resolvedSourceContext,
+      modelId,
+      modelForApi,
+      modelEndpoint,
+      timeoutMs:
+        config.getVisionBridgeTimeoutMs?.() ??
+        providerTimeoutMs ??
+        VISION_BRIDGE_TIMEOUT_MS,
+    });
+  } finally {
+    releaseSlot();
+  }
+}
+
+async function runBridgeAttempts(params: {
+  config: Config;
+  parts: PartListUnion;
+  signal: AbortSignal;
+  toConvert: Part[];
+  omittedCount: number;
+  intent: string;
+  resolvedSourceContext?: VisionBridgePdfSourceContext;
+  modelId: string;
+  modelForApi: string;
+  modelEndpoint?: string;
+  timeoutMs: number;
+}): Promise<VisionBridgeResult> {
+  const {
+    config,
+    parts,
+    signal,
+    toConvert,
+    omittedCount,
+    intent,
+    resolvedSourceContext,
+    modelId,
+    modelForApi,
+    modelEndpoint,
+    timeoutMs,
+  } = params;
   const requestContents: Content[] = [
     {
       role: 'user',
