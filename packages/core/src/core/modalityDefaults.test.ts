@@ -278,6 +278,17 @@ describe('defaultModalities', () => {
     });
   });
 
+  describe('Ornith', () => {
+    it('returns image for Ornith-1.0-35B-MLX-oQ8', () => {
+      expect(defaultModalities('Ornith-1.0-35B-MLX-oQ8').image).toBe(true);
+    });
+
+    it('matches case-insensitively', () => {
+      expect(defaultModalities('ornith-1.0-base').image).toBe(true);
+      expect(defaultModalities('ORNITH-v2').image).toBe(true);
+    });
+  });
+
   describe('unknown models', () => {
     it('returns text-only for unrecognized models', () => {
       expect(defaultModalities('some-random-model-xyz')).toEqual({});

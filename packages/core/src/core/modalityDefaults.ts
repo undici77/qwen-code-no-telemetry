@@ -94,6 +94,12 @@ const MODALITY_PATTERNS: Array<[RegExp, InputModalities]> = [
   [/^doubao-seed/, { image: true }],
   [/^doubao-.*(vision|vl)/, { image: true }],
   [/^doubao/, {}],
+
+  // -------------------
+  // Ornith — local MLX quant variants (e.g. Ornith-1.0-35B-MLX-oQ8) support
+  // image input; the name carries no VL/visual token so we match the family.
+  // -------------------
+  [/^ornith/i, { image: true }],
 ];
 
 /**
