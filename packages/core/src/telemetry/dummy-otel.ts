@@ -180,9 +180,26 @@ export function isSpanContextValid(_ctx?: any): boolean {
   return false;
 }
 
+// Log record types
+export type LogRecord = Record<string, any>;
 export type LogAttributes = Attributes;
+
+// Logs API (no-op)
 export const logs = {
   getLogger: (_name?: string, _version?: string): any => ({
     emit: (_logRecord: any) => {},
+  }),
+};
+
+// Metrics API (no-op)
+export const metrics = {
+  getMeter: (_name?: string, _version?: string, _options?: any): Meter =>
+    noopMeter,
+  createMeter: (_name?: string, _version?: string, _options?: any): Meter =>
+    noopMeter,
+  setGlobalMeterProvider: (_provider: any) => {},
+  getGlobalMeterProvider: (): any => ({
+    getMeter: (_name?: string, _version?: string, _options?: any): Meter =>
+      noopMeter,
   }),
 };

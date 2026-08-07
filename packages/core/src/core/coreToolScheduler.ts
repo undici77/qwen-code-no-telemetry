@@ -145,7 +145,6 @@ import {
   shouldUsePlanOnlyReminderInSubagentContext,
 } from '../agents/runtime/subagent-plan-tool-policy.js';
 import { safeSetStatus } from '../telemetry/tracer.js';
-import { SpanStatusCode, type Span } from '../telemetry/dummy-otel.js';
 import {
   TOOL_FAILURE_KIND_ATTRIBUTE,
   TOOL_FAILURE_KIND_BACKGROUND_AGENT_DENIED,
@@ -161,6 +160,7 @@ import {
   TOOL_FAILURE_KIND_TOOL_ERROR,
   TOOL_FAILURE_KIND_TOOL_EXCEPTION,
 } from '../telemetry/constants.js';
+import { SpanStatusCode, type Span } from '../telemetry/dummy-otel.js';
 import {
   startToolSpan,
   endToolSpan,
