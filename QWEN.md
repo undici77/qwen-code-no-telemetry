@@ -1,6 +1,6 @@
 ## Qwen Added Memories
 
-- **Version Rule**: `package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update: **Dockerfile** (`ARG QWEN_REF="v[version]-no-telemetry"`), **install.sh** (all example version references), **README.md** (install script URLs and original README link). The `-no-telemetry` suffix is always the same — never change it.
+- **Version Rule**: `package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update: **Dockerfile** (`ARG QWEN_REF="v[version]-no-telemetry"`), **install.sh** (all example version references), **install.ps1** (all example version references, Windows counterpart of install.sh), **README.md** (install script URLs and original README link). The `-no-telemetry` suffix is always the same — never change it.
 
 - **Single-Merge Strategy**: To produce a single release commit while keeping `main` aligned:
   1. `git reset --hard [LAST_TAG]`

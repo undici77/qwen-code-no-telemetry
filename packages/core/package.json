@@ -109,6 +109,7 @@
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.5.10",
     "@types/yauzl": "^2.9.1",
+    "mock-fs": "^5.5.0",
     "msw": "^2.3.4",
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.3.3",

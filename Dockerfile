@@ -6,6 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3 \
   make \
   g++ \
+  gcc \
+  cmake \
+  ninja-build \
+  pkg-config \
+  gdb \
   git \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
@@ -63,8 +68,12 @@ RUN mkdir -p /usr/local/share/npm-global
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
-# Build and install qwen-code directly from GitHub
+# Build and install qwen-code directly from GitHub.
+# patch-package (required by the package's postinstall script, e.g. for
+# ink+7.1.1.patch) must be on PATH before the global install, since the
+# postinstall runs in a fresh context where node_modules/.bin isn't on PATH.
 RUN cd /tmp \
+    && npm install -g patch-package --no-audit --no-fund \
     && npm pack "${REPO_URL}#${QWEN_REF}" \
     && npm install -g /tmp/qwen-code-*.tgz \
     && npm cache clean --force \

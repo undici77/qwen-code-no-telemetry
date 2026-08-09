@@ -122,11 +122,12 @@ When merging from `main`, conflicts may arise due to:
 
 `package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update:
 
-| File         | What to Update                                                      |
-| ------------ | ------------------------------------------------------------------- |
-| `Dockerfile` | `ARG QWEN_REF="v[version]-no-telemetry"`                            |
-| `install.sh` | All example version references and usage docs                       |
-| `README.md`  | Install script URLs/examples AND the "original README" link version |
+| File          | What to Update                                                                      |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `Dockerfile`  | `ARG QWEN_REF="v[version]-no-telemetry"`                                            |
+| `install.sh`  | All example version references and usage docs                                       |
+| `install.ps1` | All example version references and usage docs (Windows counterpart of `install.sh`) |
+| `README.md`   | Install script URLs/examples AND the "original README" link version                 |
 
 The `-no-telemetry` suffix is always the same — never change it.
 
@@ -162,7 +163,7 @@ The `-no-telemetry` suffix is always the same — never change it.
 ├── integration-tests/           # End-to-end integration tests
 ├── scripts/                     # Build, test, and development utilities
 ├── eslint-rules/                # Custom ESLint rules
-├── build.sh / install.sh        # Installation scripts
+├── build.sh / install.sh        # Installation scripts (install.ps1 is the Windows counterpart)
 ├── Dockerfile                   # Sandbox container definition
 └── Makefile                     # Convenience make targets
 ```

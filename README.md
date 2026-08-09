@@ -48,7 +48,18 @@ curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.
     | bash -s v0.21.8-no-telemetry
 ```
 
-### Option 2 — Docker
+### Option 2 — Windows (PowerShell, no admin required)
+
+Installs a portable Node.js and Qwen Code under `%LOCALAPPDATA%` — no admin
+rights needed. Requires [Git for Windows](https://git-scm.com/download/win)
+(npm needs `git.exe` on PATH to fetch the package from GitHub).
+
+```powershell
+iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.21.8-no-telemetry/install.ps1 -OutFile install.ps1
+.\install.ps1 v0.21.8-no-telemetry
+```
+
+### Option 3 — Docker
 
 **Build the image:**
 

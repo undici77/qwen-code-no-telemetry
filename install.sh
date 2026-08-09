@@ -25,7 +25,7 @@ set -o pipefail
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 NVM_VERSION="v0.40.3"
-NODE_VERSION="20"
+NODE_VERSION="22"
 NPM_PREFIX="${HOME}/.npm-global"   # npm global prefix — stays in $HOME
 NVM_DIR="${HOME}/.nvm"             # NVM install dir   — stays in $HOME
 
@@ -130,7 +130,7 @@ install_nodejs() {
     if command_exists node; then
         local maj
         maj=$(node --version | sed 's/v//' | cut -d. -f1)
-        if [[ "${maj}" =~ ^[0-9]+$ ]] && [[ "${maj}" -ge 20 ]]; then
+        if [[ "${maj}" =~ ^[0-9]+$ ]] && [[ "${maj}" -ge "${NODE_VERSION}" ]]; then
             echo "✓ Node.js $(node --version) already installed"
         else
             echo "⚠ Node.js $(node --version) too old — installing v${NODE_VERSION}"
@@ -209,6 +209,18 @@ install_qwen_code() {
     echo "Installing globally into ${NPM_PREFIX}..."
     # Uninstall first to ensure version switches (downgrades) work correctly
     npm uninstall -g @qwen-code/qwen-code 2>/dev/null || true
+
+    # Ensure patch-package is available in PATH for the package's postinstall script.
+    # The package uses patch-package to apply local patches (e.g. ink+7.1.1.patch).
+    # When installing from a tgz, the postinstall runs in a fresh context where
+    # node_modules/.bin is not on PATH, so patch-package must be installed globally.
+    if ! command_exists patch-package; then
+        echo "  Installing patch-package globally (required by postinstall)..."
+        npm install -g patch-package --no-audit --no-fund \
+            || { echo "✗ Failed to install patch-package"; exit 1; }
+        echo "  ✓ patch-package installed"
+    fi
+
     ( cd "${work_dir}" && npm install -g "./${tgz}" ) \
         || { echo "✗ Global install failed"; exit 1; }
     echo "✓ Installed successfully"
