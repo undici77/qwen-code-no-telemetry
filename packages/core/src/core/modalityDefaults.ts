@@ -54,6 +54,9 @@ const MODALITY_PATTERNS: Array<[RegExp, InputModalities]> = [
 
   // Qwen coder / text models: text-only
   [/^qwen3-coder-/, {}],
+  // Qwen3.x local / Ollama size variants (e.g. qwen3.5-9b, qwen3.6-27b) —
+  // image + video
+  [/^qwen3\.\d+-\d+b/, { image: true, video: true }],
   // Qwen3.6-35B-A3B (local quant variants) — image + video
   [/^qwen3\.6-35b/, { image: true, video: true }],
   [/^qwen/, {}],

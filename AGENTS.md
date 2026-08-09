@@ -63,6 +63,7 @@ approve.**
 - `npm start` - Start the Qwen Code CLI from source
 - `npm run dev` - Development mode (watch for changes)
 - `npm run preflight` - Full check: clean → install → format → lint → build → typecheck → test
+- `bash local-install.sh` - Build from current source and install globally into `$HOME/.npm-global` (timeout: 600s)
 
 ## Key Characteristics
 

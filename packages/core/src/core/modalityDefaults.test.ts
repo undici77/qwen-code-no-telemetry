@@ -174,6 +174,22 @@ describe('defaultModalities', () => {
       expect(m.audio).toBeUndefined();
     });
 
+    it('returns image + video for qwen3.5-9b', () => {
+      const m = defaultModalities('qwen3.5-9b');
+      expect(m.image).toBe(true);
+      expect(m.video).toBe(true);
+      expect(m.pdf).toBeUndefined();
+      expect(m.audio).toBeUndefined();
+    });
+
+    it('returns image + video for qwen3.6-27b (provider-prefixed)', () => {
+      const m = defaultModalities('openai/qwen3.6-27b');
+      expect(m.image).toBe(true);
+      expect(m.video).toBe(true);
+      expect(m.pdf).toBeUndefined();
+      expect(m.audio).toBeUndefined();
+    });
+
     it('returns text-only for qwen-turbo', () => {
       expect(defaultModalities('qwen-turbo')).toEqual({});
     });
