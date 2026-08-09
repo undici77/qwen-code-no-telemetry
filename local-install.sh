@@ -220,6 +220,18 @@ install_qwen_code() {
     echo "Installing globally into ${NPM_PREFIX}..."
     # Uninstall first to ensure version switches (downgrades) work correctly
     npm uninstall -g @qwen-code/qwen-code 2>/dev/null || true
+
+    # Ensure patch-package is available in PATH for the package's postinstall script.
+    # The package uses patch-package to apply local patches (e.g. ink+7.1.1.patch).
+    # When installing from a tgz, the postinstall runs in a fresh context where
+    # node_modules/.bin is not on PATH, so patch-package must be installed globally.
+    if ! command_exists patch-package; then
+        echo "  Installing patch-package globally (required by postinstall)..."
+        npm install -g patch-package --prefix "${NPM_PREFIX}" --no-audit --no-fund \
+            || { echo "✗ Failed to install patch-package"; exit 1; }
+        echo "  ✓ patch-package installed"
+    fi
+
     ( cd "${work_dir}" && npm install -g "./${tgz}" --no-audit --no-fund ) \
         || { echo "✗ Global install failed"; exit 1; }
     echo "✓ Installed successfully"
