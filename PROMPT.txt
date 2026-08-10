@@ -1,6 +1,9 @@
 Please, considering @NO_TELEMETRY_GUIDELINES.MD
-  - Fix conflicts if necessary
-  - Project Compile
-  - Project Pass all test
-  - NO-Telemetry Policy is full and complete respected (double check)
-  - When finished, commit in current branch and create v0.18.0-no-telemetry branch
+      - Fix conflicts if necessary
+      - Project Compile
+      - Project Pass all test
+      - NO-Telemetry Policy is full and complete respected (double check)
+      - When finished, commit in current branch and create v0.21.9-no-telemetry branch
+
+  BE VERY CAREFUL IN MERGING AND FOLLOW MY INSTRACTION! DO NOT LOOP, and DO NOT ALLUCINATE!
+  Rememeber fo fix also @Dockerfile @install.sh @install.ps1 and @README.md

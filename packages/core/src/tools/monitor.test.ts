@@ -134,7 +134,7 @@ vi.mock('../utils/shell-utils.js', async (importOriginal) => {
 const mockIsShellCommandReadOnlyAST = vi.hoisted(() => vi.fn());
 const mockExtractCommandRules = vi.hoisted(() => vi.fn());
 vi.mock('../utils/shellAstParser.js', () => ({
-  isShellCommandReadOnlyAST: mockIsShellCommandReadOnlyAST,
+  isShellCommandReadOnlyASTInDirectory: mockIsShellCommandReadOnlyAST,
   extractCommandRules: mockExtractCommandRules,
 }));
 
@@ -678,10 +678,14 @@ describe('MonitorTool', () => {
       const signal = new AbortController().signal;
       const result = await invocation.execute(signal);
 
-      expect(mockSpawn).toHaveBeenCalledExactlyOnceWith('/bin/bash', ['-c', 'tail -f /var/log/app.log'], expect.objectContaining({
+      expect(mockSpawn).toHaveBeenCalledExactlyOnceWith(
+        '/bin/bash',
+        ['-c', 'tail -f /var/log/app.log'],
+        expect.objectContaining({
           cwd: '/test/dir',
           detached: true,
-        }));
+        }),
+      );
       expect(result.llmContent).toContain('Monitor started');
       expect(result.llmContent).toContain('mon_');
       expect(result.returnDisplay).toContain('watch app logs');
