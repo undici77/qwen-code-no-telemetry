@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.21.9](https://github.com/QwenLM/qwen-code/blob/v0.21.9/README.md).
+> [original README at v0.21.10](https://github.com/QwenLM/qwen-code/blob/v0.21.10/README.md).
 
 ---
 
@@ -52,8 +52,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.21.9-no-telemetry/install.sh \
-    | bash -s v0.21.9-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.21.10-no-telemetry/install.sh \
+    | bash -s v0.21.10-no-telemetry
 ```
 
 ### Option 2 — Windows (PowerShell, no admin required)
@@ -63,8 +63,8 @@ rights needed. Requires [Git for Windows](https://git-scm.com/download/win)
 (npm needs `git.exe` on PATH to fetch the package from GitHub).
 
 ```powershell
-iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.21.9-no-telemetry/install.ps1 -OutFile install.ps1
-.\install.ps1 v0.21.9-no-telemetry
+iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.21.10-no-telemetry/install.ps1 -OutFile install.ps1
+.\install.ps1 v0.21.10-no-telemetry
 ```
 
 ### Option 3 — Docker
@@ -88,4 +88,4 @@ docker run -it \
 
 ---
 
-For full documentation on features, configuration, and usage, please refer to the [original README at v0.21.9](https://github.com/QwenLM/qwen-code/blob/v0.21.9/README.md).
+For full documentation on features, configuration, and usage, please refer to the [original README at v0.21.10](https://github.com/QwenLM/qwen-code/blob/v0.21.10/README.md).
