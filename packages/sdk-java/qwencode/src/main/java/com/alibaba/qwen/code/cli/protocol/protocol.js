@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export var AuthProviderType;
 (function (AuthProviderType) {
     AuthProviderType["DYNAMIC_DISCOVERY"] = "dynamic_discovery";

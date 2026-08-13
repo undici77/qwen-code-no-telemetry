@@ -16,3 +16,14 @@ export declare class SseFramingError extends Error {
     constructor(message: string);
 }
 export declare function parseSseStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<DaemonEvent>;
+/**
+ * Walk `buf` and pull off every complete frame (either `\n\n` or
+ * `\r\n\r\n` separator). Returns the frames + the unconsumed tail.
+ *
+ * Exported so other SSE readers (e.g. the ACP transport's raw JSON-RPC frame
+ * parser) reuse this CRLF-aware boundary scan instead of reimplementing it.
+ */
+export declare function consumeFrames(buf: string): {
+    frames: string[];
+    tail: string;
+};

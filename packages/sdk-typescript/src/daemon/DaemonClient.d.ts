@@ -3,8 +3,11 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { DaemonAuthFlow } from './DaemonAuthFlow.js';
-import type { DaemonAgentMutationResult, DaemonAuthProviderId, DaemonAuthProviderCatalog, DaemonAuthProviderInstallRequest, DaemonAuthProviderInstallResult, DaemonAuthStatusSnapshot, DaemonCapabilities, DaemonCreateAgentRequest, DaemonGeneratedAgentContent, DaemonDeviceFlowStartResult, DaemonDeviceFlowState, DaemonEvent, DaemonSessionContextStatus, DaemonSessionContextUsageStatus, BranchSessionRequest, DaemonBranchedSession, DaemonRestoredSession, DaemonSession, DaemonSessionSummary, DaemonSessionSupportedCommandsStatus, DaemonSessionStatsStatus, DaemonSessionTaskStatus, DaemonSessionTasksStatus, DaemonUpdateAgentRequest, DaemonWorkspaceFile, DaemonWorkspaceFileBytes, DaemonWorkspaceFileEditRequest, DaemonWorkspaceFileEditResult, DaemonWorkspaceFileWriteRequest, DaemonWorkspaceFileWriteResult, DaemonWorkspaceAgentDetail, DaemonWorkspaceAgentsStatus, DaemonWorkspaceEnvStatus, DaemonWorkspaceMcpStatus, DaemonWorkspaceMcpToolsStatus, DaemonWorkspaceMemoryStatus, DaemonWorkspacePreflightStatus, DaemonWorkspaceProvidersStatus, DaemonWorkspaceSkillsStatus, DaemonWorkspaceToolsStatus, DaemonWriteMemoryRequest, DaemonWriteMemoryResult, HeartbeatResult, PermissionResponse, PromptContentBlock, PromptResult, SetModelResult, SetSessionLanguageResult, SessionMetadataResult, DaemonApprovalMode, DaemonApprovalModeResult, DaemonInitWorkspaceResult, DaemonMcpRestartResult, DaemonReloadResponse, DaemonMcpManageAction, DaemonMcpManageResult, DaemonSessionBtwResult, DaemonSessionRecapResult, DaemonShellCommandResult, DaemonRuntimeMcpAddRequest, DaemonRuntimeMcpAddResult, DaemonRuntimeMcpRemoveResult, DaemonToolToggleResult, DaemonRewindSnapshotInfo, DaemonRewindResult, DaemonSessionHooksStatus, DaemonWorkspaceExtensionsStatus, DaemonWorkspaceHooksStatus, DaemonWorkspaceSettingsStatus, DaemonSettingUpdateResult } from './types.js';
+import { DaemonAuthFlow } from './DaemonAuthFlow.js';
+import { DaemonHttpError } from './DaemonHttpError.js';
+import type { DaemonSseConnectReason, DaemonTransport } from './DaemonTransport.js';
+export type { DaemonSseConnectReason } from './DaemonTransport.js';
+import type { DaemonAgentMutationResult, DaemonAuthProviderId, DaemonAuthProviderCatalog, DaemonAuthProviderInstallRequest, DaemonAuthProviderInstallResult, DaemonAuthStatusSnapshot, DaemonCapabilities, DaemonCreateAgentRequest, DaemonArchiveSessionsResult, DaemonWorkspaceGenerationEvent, DaemonGeneratedAgentContent, DaemonDeviceFlowStartResult, DaemonDeviceFlowState, DaemonEvent, DaemonSessionContextStatus, DaemonSessionContextUsageStatus, DaemonSessionConfigOptionResult, BranchSessionRequest, DaemonBranchedSession, DaemonSideTaskSession, DaemonForkSessionResult, DaemonRestoredSession, DaemonSession, DaemonSessionArchiveState, DaemonSessionExportFormat, DaemonSessionExportResult, DaemonSessionTranscriptPage, DaemonSessionTranscriptPageOptions, SideTaskSessionRequest, DaemonSubagentSessionResolution, DaemonSessionGroup, DaemonSessionGroupCatalog, DaemonSessionGroupInput, DaemonSessionGroupUpdate, DaemonSessionLspStatus, DaemonSessionListPage, DaemonSessionListPageOptions, DaemonWorkspaceSessionInfo, DaemonSessionOrganizationResult, DaemonSessionOrganizationUpdate, DaemonSessionSummary, DaemonSessionSupportedCommandsStatus, DaemonSessionStatsStatus, DaemonUsageDashboard, DaemonUsageRange, DaemonStatusReport, DaemonStatusReportDetail, DaemonSessionTaskStatus, DaemonSessionTasksStatus, DaemonUpdateAgentRequest, DaemonWorkspaceFile, DaemonWorkspaceFileBytes, DaemonWorkspaceFileEditRequest, DaemonWorkspaceFileEditResult, DaemonWorkspaceFileUploadRequest, DaemonWorkspaceFileUploadResult, DaemonWorkspaceFileWriteRequest, DaemonWorkspaceFileWriteResult, DaemonWorkspaceAgentDetail, DaemonWorkspaceAgentsStatus, DaemonWorkspaceEnvStatus, DaemonWorkspaceGitStatus, DaemonWorkspaceGitDiff, DaemonWorkspaceGitDiffHunks, DaemonGitLog, DaemonGitCommitDetail, DaemonGitBranchesResult, DaemonGitCheckoutResult, DaemonGitPushResult, DaemonGitPullResult, DaemonGitCommitResult, DaemonGitHubPullRequestList, DaemonGitHubPullRequestCreateResult, DaemonWorkspaceMcpStatus, DaemonWorkspaceMcpInitializeResult, DaemonWorkspaceMcpReloadOptions, DaemonWorkspaceMcpToolsStatus, DaemonWorkspaceMcpResourcesStatus, DaemonWorkspaceMemoryStatus, DaemonWorkspacePreflightStatus, DaemonWorkspaceProvidersStatus, DaemonWorkspaceAcpStatusResult, DaemonWorkspaceAcpPreheatResult, DaemonWorkspaceSkillsStatus, DaemonWorkspaceToolsStatus, DaemonWriteMemoryRequest, DaemonWriteMemoryResult, DaemonWorkspaceMemoryDreamOptions, DaemonWorkspaceMemoryDreamTask, DaemonWorkspaceMemoryForgetOptions, DaemonWorkspaceMemoryForgetTask, DaemonWorkspaceMemoryRememberOptions, DaemonWorkspaceMemoryRememberTask, DaemonWorkspaceCapability, DaemonWorkspaceRemovalResult, DaemonWorkspaceUpdate, HeartbeatResult, PermissionResponse, PromptContentBlock, PromptResult, SetModelResult, SetSessionLanguageResult, SessionMetadataResult, DaemonApprovalMode, DaemonApprovalModeResult, DaemonGithubSetupRequest, DaemonGithubSetupResult, DaemonInitWorkspaceResult, DaemonMcpRestartResult, DaemonReloadResponse, DaemonChannelDelivery, DaemonChannelNotifyRequest, DaemonChannelNotifyResult, DaemonChannelReloadResult, DaemonChannelManagementOptions, DaemonChannelMutationResult, DaemonChannelPairingApprovalRequest, DaemonChannelPairingApprovalResult, DaemonChannelPairingApprovalsSnapshot, DaemonChannelPairingRequestsSnapshot, DaemonChannelPairingRevocationRequest, DaemonChannelPairingRevocationResult, DaemonChannelsSnapshot, DaemonChannelStartupRequest, DaemonChannelTypeCatalog, DaemonChannelUpsertRequest, DaemonRevisionRequest, DaemonChannelControlState, DaemonChannelSelection, DaemonChannelSetResult, DaemonChannelStopResult, DaemonMcpManageAction, DaemonMcpManageResult, DaemonSessionBtwResult, DaemonSessionGenerationEvent, DaemonMidTurnMessageResult, DaemonMidTurnMessagesResult, DaemonRemoveMidTurnMessageResult, DaemonPendingPromptsResult, DaemonRemovePendingPromptResult, DaemonSessionRecapResult, DaemonShellCommandResult, DaemonRuntimeMcpAddRequest, DaemonRuntimeMcpAddResult, DaemonRuntimeMcpRemoveResult, DaemonToolToggleResult, DaemonSkillBatchToggleResult, DaemonSkillToggleResult, DaemonSkillInstallRequest, DaemonSkillMutationResult, DaemonSkillScope, DaemonSessionArtifactInput, DaemonSessionArtifactMutationResult, DaemonSessionArtifactsEnvelope, DaemonRewindSnapshotInfo, DaemonRewindResult, ForkSessionRequest, DaemonSessionHooksStatus, DaemonWorkspaceExtensionsStatus, ExtensionMutationResponse, ExtensionInstallRequest, ExtensionArchiveInstallRequest, ExtensionManagementInstallRequest, ExtensionActivationState, ExtensionCatalog, ExtensionInstallResponse, ExtensionInteractionResponse, ExtensionInteractionResponseResult, ExtensionActiveOperations, ExtensionOperationStatus, ExtensionScopeRequest, ExtensionRefreshResponse, ExtensionUpdateCheckResponse, WorkspaceExtensionProjection, DaemonWorkspaceHooksStatus, DaemonPermissionRuleType, DaemonPermissionScope, DaemonWorkspaceSettingsStatus, DaemonWorkspacePermissionsStatus, DaemonSettingUpdateResult, DaemonModelDeleteRequest, DaemonModelDeleteResult, DaemonVoiceAudioInput, DaemonWorkspaceVoiceStatus, DaemonWorkspaceVoiceTranscribeOptions, DaemonWorkspaceVoiceTranscriptionResult, DaemonWorkspaceVoiceUpdate, DaemonLiveMuteUpdate, DaemonLiveSetupStatus, DaemonLiveSetupUpdate, DaemonLiveStatus, DaemonWorkspaceTrustChangeRequest, DaemonWorkspaceTrustChangeResult, DaemonWorkspaceTrustStatus, DaemonWorkspaceTrustStatusV2, DaemonUnarchiveSessionsResult } from './types.js';
 /**
  * SDK-side HTTP client for the `qwen serve` daemon. Sibling to
  * `ProcessTransport`: ProcessTransport drives a stdio child running
@@ -43,32 +46,63 @@ export interface DaemonClientOptions {
      * Defaults to 30s. Set to `0` or `Infinity` to disable.
      */
     fetchTimeoutMs?: number;
+    /**
+     * Per-session cap on local `prompt()` calls that have been admitted but
+     * not completed. For 202 daemons the slot is held until the temporary
+     * SSE wait finishes. Defaults to 5. Set to `0` or `Infinity` to
+     * disable; `null` is accepted for direct
+     * `/capabilities.limits` passthrough.
+     */
+    maxPendingPromptsPerSession?: number | null;
+    /**
+     * Pluggable transport. When omitted, a `RestSseTransport` is created
+     * automatically — this preserves the existing REST+SSE behavior with
+     * zero caller-side changes. Pass an `AcpWsTransport` or
+     * `AcpHttpTransport` to use JSON-RPC over WebSocket or HTTP. Rewind APIs
+     * intentionally use direct REST even when an ACP transport is configured so
+     * owner routing and strict mutation authentication remain authoritative.
+     */
+    transport?: DaemonTransport;
 }
+export declare function normalizePendingPromptLimit(value: number | null | undefined): number;
+export { DaemonHttpError } from './DaemonHttpError.js';
 /**
- * Thrown for any non-2xx daemon response. `status` and `body` are surfaced
- * so callers can branch on the standard daemon HTTP semantics (404 missing
- * session, 401 bad token, 400 malformed body, 500 agent failure).
+ * SDK-side representation of the daemon's `prompt_queue_full` condition.
+ * Mirrors the bridge-side `PromptQueueFullError` wire data.
  */
-export declare class DaemonHttpError extends Error {
-    readonly status: number;
-    readonly body: unknown;
-    constructor(status: number, body: unknown, message: string);
+export declare class DaemonPendingPromptLimitError extends Error {
+    readonly sessionId: string;
+    readonly limit: number;
+    readonly pendingCount: number;
+    constructor(sessionId: string, limit: number, pendingCount: number);
+}
+export declare class DaemonSessionIdProtocolError extends Error {
+    readonly requestedSessionId: string;
+    readonly actualSessionId: string;
+    constructor(requestedSessionId: string, actualSessionId: string);
 }
 export interface DaemonTurnError extends DaemonHttpError {
     _daemonTurnError: true;
 }
+export declare const EXTENSION_ARCHIVE_UPLOAD_TIMEOUT_MS = 120000;
 export declare function isDaemonTurnError(error: unknown): error is DaemonTurnError;
 export interface CreateSessionRequest {
     /**
-     * Workspace path the daemon must be bound to. When
+     * Workspace path the daemon must have registered. When
      * omitted, the SDK sends no `cwd` field and the daemon route falls
-     * back to its boot-time `boundWorkspace`. Pass `caps.workspaceCwd`
-     * to be explicit, or omit it for the daemon-knows-best path. A
-     * non-empty `workspaceCwd` that doesn't canonicalize to the
-     * daemon's bound path yields a `400 workspace_mismatch`
-     * `DaemonHttpError`.
+     * back to its primary workspace. Pass `caps.workspaceCwd` to be
+     * explicit, pass a trusted `caps.workspaces[].cwd` when
+     * `multi_workspace_sessions` is advertised, or omit it for the
+     * daemon-knows-best path. A non-empty `workspaceCwd` that doesn't
+     * canonicalize to a registered workspace yields a
+     * `400 workspace_mismatch` `DaemonHttpError`.
      */
     workspaceCwd?: string;
+    /**
+     * UUID v1-v5 to assign to a new thread session. This is creation, not an
+     * idempotent attach; use load/resume after an ambiguous response.
+     */
+    sessionId?: string;
     modelServiceId?: string;
     /**
      * Per-request session-scope override. The production daemon defaults
@@ -86,16 +120,51 @@ export interface CreateSessionRequest {
      * `caps.features.session_scope_override` before sending.
      */
     sessionScope?: 'single' | 'thread';
+    approvalMode?: string;
+    /** Immutable creator attribution stored with a newly created session. */
+    sourceType?: string;
+    /** Optional source-specific identifier. Requires `sourceType`. */
+    sourceId?: string;
+    /**
+     * Create the session in an isolated git worktree. The daemon creates
+     * a worktree under `<repoRoot>/.qwen/worktrees/<slug>` and relocates
+     * the session's working directory into it. Pass `{}` for an
+     * auto-generated slug, or `{ slug: 'my-task' }` for a named one.
+     * Requires the workspace to be a git repository. Worktree sessions
+     * are always created with `sessionScope: 'thread'`.
+     */
+    worktree?: {
+        slug?: string;
+    };
+    /**
+     * Create a new git branch and check it out before starting the
+     * session. The session runs in the same working directory but on
+     * the new branch. Mutually exclusive with `worktree`. Branch
+     * sessions are always created with `sessionScope: 'thread'`.
+     */
+    branch?: {
+        name: string;
+    };
 }
 export interface RestoreSessionRequest {
     /**
-     * Workspace path the daemon must be bound to. Omit to let the daemon use
-     * its advertised bound workspace, mirroring `createOrAttachSession`.
+     * Workspace path the daemon must have registered. Omit to let the daemon use
+     * its advertised primary workspace, mirroring `createOrAttachSession`.
      */
     workspaceCwd?: string;
+    approvalMode?: string;
+    /** Latest persisted records to include in the initial load replay. */
+    historyPageSize?: number;
+    /**
+     * Client-side deadline for this restore request. `0` disables the client
+     * timer and relies on the daemon's own restore deadline.
+     */
+    timeoutMs?: number;
 }
 export interface PromptRequest {
     prompt: PromptContentBlock[];
+    /** Deliver the successful final answer directly through a channel worker. */
+    delivery?: DaemonChannelDelivery;
     /** Optional ACP _meta passthrough. */
     _meta?: Record<string, unknown> | null;
     /**
@@ -121,10 +190,33 @@ export interface PromptRequest {
 export interface NonBlockingPromptAccepted {
     promptId: string;
     lastEventId: number;
+    /**
+     * Epoch token of the bus that produced `lastEventId`. Clients that seed
+     * an SSE resume cursor from this envelope should pass it back via
+     * {@link SubscribeOptions.epoch} so a daemon restart in between is
+     * detected (`state_resync_required` reason `epoch_reset`). Absent on
+     * older daemons.
+     */
+    eventEpoch?: string;
 }
 export interface SubscribeOptions {
     /** Resume from after this event id (`Last-Event-ID` header). */
     lastEventId?: number;
+    /**
+     * Epoch token of the bus that produced {@link lastEventId}, learned from
+     * a load/resume response (`eventEpoch`), a 202 prompt envelope, or a
+     * previous subscription's `X-Qwen-Event-Epoch` response header. Sent
+     * alongside `Last-Event-ID`; a daemon whose bus epoch differs forces a
+     * resync instead of guessing from event-id arithmetic. Ignored without
+     * {@link lastEventId}; old daemons ignore the header entirely.
+     */
+    epoch?: string;
+    /**
+     * Receives the daemon's current bus epoch when the subscription learns
+     * it from the `X-Qwen-Event-Epoch` response header. Persist it and pass
+     * it back via {@link epoch} on reconnect.
+     */
+    onEpoch?: (epoch: string) => void;
     /** Aborts the subscription cleanly. */
     signal?: AbortSignal;
     /**
@@ -139,12 +231,33 @@ export interface SubscribeOptions {
      * frames don't trip the warn / eviction path on the first publish.
      */
     maxQueued?: number;
+    /** Client identity forwarded on REST/SSE subscriptions. */
+    clientId?: string;
+    /** Diagnostic-only reason for opening this REST/SSE connection. */
+    sseConnectReason?: DaemonSseConnectReason;
+    /** Diagnostic-only predecessor of this REST/SSE connection. */
+    previousSseStreamId?: string;
+    /**
+     * Called after a REST/SSE handshake is accepted. The id is undefined when
+     * an older daemon or intermediary omits a valid stream-id response header.
+     */
+    onSseStreamAccepted?: (streamId: string | undefined) => void;
 }
 export declare class DaemonClient {
     private readonly baseUrl;
     private readonly token;
     private readonly _fetch;
     private readonly fetchTimeoutMs;
+    private readonly hasExplicitFetchTimeout;
+    private cachedSessionRestoreTimeoutMs;
+    private readonly promptLimit;
+    private readonly promptCounts;
+    /**
+     * Pluggable transport layer. Defaults to `RestSseTransport` when
+     * no explicit transport is supplied — preserving the pre-abstraction
+     * REST+SSE behavior with zero breaking changes.
+     */
+    readonly transport: DaemonTransport;
     private _authFlow?;
     /**
      * High-level auth helper. Wraps the four
@@ -153,6 +266,9 @@ export declare class DaemonClient {
      */
     get auth(): DaemonAuthFlow;
     constructor(opts: DaemonClientOptions);
+    get maxPendingPromptsPerSession(): number;
+    /** @internal */
+    reservePromptSlot(sessionId: string, limit?: number): () => void;
     /**
      * Wrap a fetch call with the per-client `fetchTimeoutMs`. If the caller
      * passes their own `signal`, both signals abort the request via
@@ -164,21 +280,123 @@ export declare class DaemonClient {
     private fetchWithTimeout;
     private headers;
     private failOnError;
+    private jsonRequest;
+    /** @internal */
+    workspaceJsonRequest<T>(workspaceSelector: string, path: string, label: string, opts?: {
+        method?: string;
+        body?: unknown;
+        clientId?: string;
+        timeoutMs?: number;
+        mode?: 'transport' | 'rest';
+        signal?: AbortSignal;
+    }): Promise<T>;
+    /** @internal */
+    sessionExportRequest(path: string, label: string, opts?: {
+        format?: DaemonSessionExportFormat;
+        clientId?: string;
+    }): Promise<DaemonSessionExportResult>;
+    /** @internal */
+    workspaceNoContentRequest(workspaceSelector: string, path: string, label: string, opts?: {
+        method?: string;
+        clientId?: string;
+        timeoutMs?: number;
+        okNotFoundCode?: string;
+    }): Promise<void>;
+    workspaceById(workspaceId: string): WorkspaceDaemonClient;
+    workspaceByCwd(workspaceCwd: string): WorkspaceDaemonClient;
     health(): Promise<{
         status: string;
     }>;
     capabilities(): Promise<DaemonCapabilities>;
+    /**
+     * Send text directly through the primary workspace's channel worker.
+     * This does not create or prompt an Agent session. Pre-flight the
+     * `channel_delivery` capability before calling across mixed daemon versions.
+     * A successful capability check does not guarantee worker liveness; callers
+     * must treat 503 `channel_worker_unavailable` as an expected outcome.
+     */
+    notify(req: DaemonChannelNotifyRequest, opts?: {
+        timeoutMs?: number;
+    }): Promise<DaemonChannelNotifyResult>;
+    requireCapability(capability: string): Promise<void>;
+    /**
+     * Consolidated daemon status report (`GET /daemon/status`). The default
+     * `summary` detail reads cheap in-memory counters; `full` adds per-session,
+     * ACP-connection, auth, and workspace diagnostics sections.
+     */
+    daemonStatus(detail?: DaemonStatusReportDetail): Promise<DaemonStatusReport>;
+    /**
+     * Aggregate local token-usage dashboard (`GET /usage/dashboard`): the
+     * selected range's flattened totals plus a trailing per-day heatmap, read
+     * from the durable local usage history (global, cross-project). `range`
+     * scopes the summary (default `today`); `heatmapDays` sets the heatmap
+     * window (default ~6 months, server-clamped to 1..366).
+     */
+    usageDashboard(opts?: {
+        range?: DaemonUsageRange;
+        heatmapDays?: number;
+    }): Promise<DaemonUsageDashboard>;
     workspaceMcp(): Promise<DaemonWorkspaceMcpStatus>;
+    initializeWorkspaceMcp(): Promise<DaemonWorkspaceMcpInitializeResult>;
+    reloadWorkspaceMcp(options?: DaemonWorkspaceMcpReloadOptions): Promise<DaemonWorkspaceMcpInitializeResult>;
+    workspaceGit(opts?: {
+        wait?: boolean;
+    }): Promise<DaemonWorkspaceGitStatus>;
+    workspaceGitDiff(): Promise<DaemonWorkspaceGitDiff>;
+    workspaceGitDiffFile(path: string, oldPath?: string): Promise<DaemonWorkspaceGitDiffHunks>;
+    workspaceGitLog(limit?: number, skip?: number, range?: string): Promise<DaemonGitLog>;
+    workspaceGitCommitDetail(sha: string): Promise<DaemonGitCommitDetail>;
+    workspaceGitBranches(): Promise<DaemonGitBranchesResult>;
+    workspaceGitCheckout(ref: string): Promise<DaemonGitCheckoutResult>;
+    workspaceGitCreateBranch(name: string, startPoint?: string): Promise<DaemonGitCheckoutResult>;
+    workspaceGitPush(opts?: {
+        setUpstream?: boolean;
+        force?: boolean;
+    }): Promise<DaemonGitPushResult>;
+    workspaceGitPull(opts?: {
+        rebase?: boolean;
+        fetchOnly?: boolean;
+    }): Promise<DaemonGitPullResult>;
+    workspaceGitCommit(message: string, opts?: {
+        all?: boolean;
+    }): Promise<DaemonGitCommitResult>;
     workspaceMcpTools(serverName: string): Promise<DaemonWorkspaceMcpToolsStatus>;
+    workspaceMcpResources(serverName: string): Promise<DaemonWorkspaceMcpResourcesStatus>;
     workspaceSkills(): Promise<DaemonWorkspaceSkillsStatus>;
+    workspaceAcpPreheat(timeoutMs?: number): Promise<DaemonWorkspaceAcpPreheatResult>;
+    workspaceAcpStatus(): Promise<DaemonWorkspaceAcpStatusResult>;
     workspaceProviders(): Promise<DaemonWorkspaceProvidersStatus>;
     workspaceHooks(): Promise<DaemonWorkspaceHooksStatus>;
     sessionHooks(sessionId: string): Promise<DaemonSessionHooksStatus>;
     workspaceExtensions(): Promise<DaemonWorkspaceExtensionsStatus>;
+    installExtension(params: ExtensionInstallRequest, clientId?: string): Promise<ExtensionInstallResponse>;
+    installExtensionArchive(params: ExtensionArchiveInstallRequest, clientId?: string): Promise<ExtensionInstallResponse>;
+    extensionOperationStatus(operationId: string): Promise<ExtensionOperationStatus>;
+    activeExtensionOperations(): Promise<ExtensionActiveOperations>;
+    respondToExtensionInteraction(operationId: string, interactionId: string, response: ExtensionInteractionResponse, clientId?: string): Promise<ExtensionInteractionResponseResult>;
+    checkExtensionUpdates(clientId?: string): Promise<ExtensionUpdateCheckResponse>;
+    refreshExtensions(clientId?: string): Promise<ExtensionRefreshResponse>;
+    enableExtension(name: string, params: ExtensionScopeRequest, clientId?: string): Promise<ExtensionMutationResponse>;
+    disableExtension(name: string, params: ExtensionScopeRequest, clientId?: string): Promise<ExtensionMutationResponse>;
+    updateExtension(name: string, clientId?: string): Promise<ExtensionMutationResponse>;
+    uninstallExtension(name: string, clientId?: string): Promise<ExtensionMutationResponse>;
+    extensionCatalog(): Promise<ExtensionCatalog>;
+    installUserExtension(params: ExtensionManagementInstallRequest, clientId?: string): Promise<ExtensionInstallResponse>;
+    checkUserExtensionUpdates(clientId?: string): Promise<ExtensionInstallResponse>;
+    updateUserExtension(extensionId: string, clientId?: string): Promise<ExtensionMutationResponse>;
+    uninstallUserExtension(extensionId: string, clientId?: string): Promise<ExtensionMutationResponse | undefined>;
+    setExtensionDefaultActivation(extensionId: string, state: ExtensionActivationState, clientId?: string): Promise<ExtensionMutationResponse>;
+    extensionOperation(operationId: string, signal?: AbortSignal): Promise<ExtensionOperationStatus>;
+    waitForExtensionOperation(handle: ExtensionInstallResponse, options?: {
+        pollIntervalMs?: number;
+        timeoutMs?: number;
+        signal?: AbortSignal;
+    }): Promise<ExtensionOperationStatus>;
     readWorkspaceFile(filePath: string, opts?: {
         maxBytes?: number;
         line?: number;
         limit?: number;
+        cursor?: string;
     }, clientId?: string): Promise<DaemonWorkspaceFile>;
     readWorkspaceFileBytes(filePath: string, opts?: {
         offset?: number;
@@ -186,9 +404,31 @@ export declare class DaemonClient {
     }, clientId?: string): Promise<DaemonWorkspaceFileBytes>;
     fileStat(filePath: string): Promise<unknown>;
     dirList(dirPath: string): Promise<unknown>;
+    /**
+     * Directory-name suggestions for an absolute path prefix, for flows that
+     * pick a path outside any registered workspace (e.g. "Add workspace").
+     */
+    workspacePathSuggestions(prefix: string): Promise<unknown>;
+    workspaceDirectoryPicker(): Promise<unknown>;
     glob(pattern: string): Promise<unknown>;
     writeWorkspaceFile(req: DaemonWorkspaceFileWriteRequest, clientId?: string): Promise<DaemonWorkspaceFileWriteResult>;
     editWorkspaceFile(req: DaemonWorkspaceFileEditRequest, clientId?: string): Promise<DaemonWorkspaceFileEditResult>;
+    /**
+     * Upload binary bytes to the workspace. Shared raw-POST core used by both
+     * the legacy-primary `uploadWorkspaceFile` and the workspace-qualified
+     * variant, parameterized by URL path + route label. Keeps auth headers,
+     * timeout/abort composition, progress transport, and `DaemonHttpError`
+     * construction in one place.
+     *
+     * Uses `XMLHttpRequest` when `req.onProgress` is provided (`fetch` exposes
+     * no upload progress); plain `fetch` otherwise. Progress is browser-only:
+     * requesting it where `XMLHttpRequest` is unavailable fails before sending.
+     *
+     * @internal
+     */
+    uploadFileToPath(uploadPath: string, label: string, req: DaemonWorkspaceFileUploadRequest, clientId?: string): Promise<DaemonWorkspaceFileUploadResult>;
+    private uploadWithProgress;
+    uploadWorkspaceFile(req: DaemonWorkspaceFileUploadRequest, clientId?: string): Promise<DaemonWorkspaceFileUploadResult>;
     /**
      * Fetch the daemon's `QWEN.md` / `AGENTS.md` snapshot. Read-only;
      * pre-flight `caps.features.workspace_memory` before calling
@@ -212,6 +452,23 @@ export declare class DaemonClient {
      * without the capability return 404.
      */
     writeWorkspaceMemory(req: DaemonWriteMemoryRequest, clientId?: string): Promise<DaemonWriteMemoryResult>;
+    /**
+     * Queue a hidden managed-memory remember task for the daemon's bound
+     * workspace. This does not require an existing session; callers should
+     * poll `getWorkspaceMemoryRememberTask()` until the task is terminal.
+     */
+    rememberWorkspaceMemory(content: string, opts?: DaemonWorkspaceMemoryRememberOptions): Promise<DaemonWorkspaceMemoryRememberTask>;
+    getWorkspaceMemoryRememberTask(taskId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspaceMemoryRememberTask>;
+    forgetWorkspaceMemory(query: string, opts?: DaemonWorkspaceMemoryForgetOptions): Promise<DaemonWorkspaceMemoryForgetTask>;
+    getWorkspaceMemoryForgetTask(taskId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspaceMemoryForgetTask>;
+    dreamWorkspaceMemory(opts?: DaemonWorkspaceMemoryDreamOptions): Promise<DaemonWorkspaceMemoryDreamTask>;
+    getWorkspaceMemoryDreamTask(taskId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspaceMemoryDreamTask>;
     listWorkspaceAgents(): Promise<DaemonWorkspaceAgentsStatus>;
     /**
      * Create a project- or user-level subagent. 409 `agent_already_exists`
@@ -220,7 +477,14 @@ export declare class DaemonClient {
      */
     createWorkspaceAgent(req: DaemonCreateAgentRequest, clientId?: string): Promise<DaemonAgentMutationResult>;
     generateWorkspaceAgent(description: string, clientId?: string): Promise<DaemonGeneratedAgentContent>;
-    getWorkspaceAgent(agentType: string): Promise<DaemonWorkspaceAgentDetail>;
+    private generateContentEvents;
+    generateWorkspaceContent(prompt: string, opts?: {
+        signal?: AbortSignal;
+        clientId?: string;
+    }): AsyncGenerator<DaemonWorkspaceGenerationEvent>;
+    getWorkspaceAgent(agentType: string, opts?: {
+        scope?: 'workspace' | 'global';
+    }): Promise<DaemonWorkspaceAgentDetail>;
     /**
      * Update a project- or user-level subagent definition. Built-in /
      * extension / session-level agents are read-only and return 403
@@ -249,19 +513,49 @@ export declare class DaemonClient {
     workspaceTools(): Promise<DaemonWorkspaceToolsStatus>;
     createOrAttachSession(req: CreateSessionRequest, clientId?: string): Promise<DaemonSession>;
     /**
-     * Enumerate live sessions in the given workspace. Used by session-picker
-     * UIs. Returns an empty list (not 404) when the workspace has no sessions.
+     * Enumerate the session catalog for a workspace. Used by session-picker UIs.
+     * Returns an empty list (not 404) when the workspace has no sessions.
      */
-    listWorkspaceSessions(workspaceCwd: string): Promise<DaemonSessionSummary[]>;
+    listWorkspaceSessions(workspaceCwd: string, options?: {
+        pageSize?: number;
+        archiveState?: DaemonSessionArchiveState;
+        parentSessionId?: string;
+        sourceType?: string;
+        sourceId?: string;
+    }): Promise<DaemonSessionSummary[]>;
+    listWorkspaceSessionsPage(workspaceCwd: string, options?: DaemonSessionListPageOptions): Promise<DaemonSessionListPage>;
+    listSessionGroups(workspaceCwd: string): Promise<DaemonSessionGroupCatalog>;
+    createSessionGroup(workspaceCwd: string, input: DaemonSessionGroupInput): Promise<DaemonSessionGroup>;
+    updateSessionGroup(workspaceCwd: string, groupId: string, update: DaemonSessionGroupUpdate): Promise<DaemonSessionGroup>;
+    deleteSessionGroup(workspaceCwd: string, groupId: string): Promise<{
+        deleted: boolean;
+    }>;
+    updateSessionOrganization(sessionId: string, update: DaemonSessionOrganizationUpdate, clientId?: string): Promise<DaemonSessionOrganizationResult>;
     loadSession(sessionId: string, req?: RestoreSessionRequest, clientId?: string): Promise<DaemonRestoredSession>;
+    exportSession(sessionId: string, opts?: {
+        format?: DaemonSessionExportFormat;
+        clientId?: string;
+    }): Promise<DaemonSessionExportResult>;
+    getSessionTranscriptPage(sessionId: string, opts?: DaemonSessionTranscriptPageOptions): Promise<DaemonSessionTranscriptPage>;
+    resolveSubagentSession(sessionId: string, subagentRef: string, clientId?: string): Promise<DaemonSubagentSessionResolution>;
+    cancelSubagentSession(sessionId: string, subagentRef: string, clientId?: string): Promise<{
+        cancelled: boolean;
+    }>;
     resumeSession(sessionId: string, req?: RestoreSessionRequest, clientId?: string): Promise<DaemonRestoredSession>;
     branchSession(sessionId: string, req?: BranchSessionRequest, clientId?: string): Promise<DaemonBranchedSession>;
+    createSideTaskSession(sessionId: string, req?: SideTaskSessionRequest, clientId?: string): Promise<DaemonSideTaskSession>;
+    forkSession(sessionId: string, req: ForkSessionRequest, clientId?: string): Promise<DaemonForkSessionResult>;
     sessionContext(sessionId: string, clientId?: string): Promise<DaemonSessionContextStatus>;
+    /**
+     * Read the current in-memory runtime status for one live daemon session.
+     */
+    sessionStatus(sessionId: string, clientId?: string): Promise<DaemonSessionSummary>;
     sessionContextUsage(sessionId: string, opts?: {
         detail?: boolean;
     }, clientId?: string): Promise<DaemonSessionContextUsageStatus>;
     sessionSupportedCommands(sessionId: string, clientId?: string): Promise<DaemonSessionSupportedCommandsStatus>;
     sessionTasks(sessionId: string, clientId?: string): Promise<DaemonSessionTasksStatus>;
+    sessionLspStatus(sessionId: string, clientId?: string): Promise<DaemonSessionLspStatus>;
     sessionTaskCancel(sessionId: string, taskId: string, kind: DaemonSessionTaskStatus['kind'], clientId?: string): Promise<{
         cancelled: boolean;
     }>;
@@ -278,6 +572,7 @@ export declare class DaemonClient {
      * differs in the URL suffix and the route name reported on errors.
      */
     private restoreSession;
+    private resolveRestoreTimeoutMs;
     /**
      * Change the approval mode of a live session.
      * The daemon applies the change in the ACP child's per-session
@@ -302,6 +597,7 @@ export declare class DaemonClient {
     }>;
     rewindSession(sessionId: string, promptId: string, opts?: {
         clientId?: string;
+        rewindFiles?: boolean;
     }): Promise<DaemonRewindResult>;
     /**
      * Generate a one-sentence "where did I leave off"
@@ -333,10 +629,58 @@ export declare class DaemonClient {
         signal?: AbortSignal;
         clientId?: string;
     }): Promise<DaemonSessionRecapResult>;
+    generateSessionContent(sessionId: string, prompt: string, opts?: {
+        signal?: AbortSignal;
+        clientId?: string;
+    }): AsyncGenerator<DaemonSessionGenerationEvent>;
     btwSession(sessionId: string, question: string, opts?: {
         signal?: AbortSignal;
         clientId?: string;
     }): Promise<DaemonSessionBtwResult>;
+    /**
+     * Queue a user message typed while the session's turn is still running. The
+     * ACP child drains it between tool batches so the model sees it before the
+     * turn ends. Every accepted request is daemon-owned; a caller-supplied id
+     * makes ambiguous retries idempotent.
+     */
+    enqueueMidTurnMessage(sessionId: string, message: string, opts?: {
+        signal?: AbortSignal;
+        clientId?: string;
+        messageId?: string;
+    }): Promise<DaemonMidTurnMessageResult>;
+    removeMidTurnMessage(sessionId: string, messageId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonRemoveMidTurnMessageResult>;
+    /**
+     * Fetch the mid-turn reconciliation snapshot for a session: messages still
+     * waiting in the daemon queue plus bounded terminal id rings.
+     * Callers reconcile against this
+     * instead of resending accepted messages at the idle boundary. Only available
+     * when the daemon advertises `session_mid_turn_message_query` — older
+     * daemons answer 404 and callers keep the legacy behavior.
+     */
+    getMidTurnMessages(sessionId: string, opts?: {
+        clientId?: string;
+        signal?: AbortSignal;
+    }): Promise<DaemonMidTurnMessagesResult>;
+    /**
+     * List prompts in the daemon's per-session pending queue. Includes the
+     * currently running prompt (`state: 'running'`) and any FIFO-waiting
+     * prompts (`state: 'queued'`). Returns an empty array when no prompts
+     * are pending.
+     */
+    getPendingPrompts(sessionId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonPendingPromptsResult>;
+    /**
+     * Remove a specific prompt from the daemon's pending queue. For queued
+     * prompts this aborts them so the FIFO skips dispatch; for the running
+     * prompt this triggers a cancel. Returns `{ removed: false }` when the
+     * promptId is not found.
+     */
+    removePendingPrompt(sessionId: string, promptId: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonRemovePendingPromptResult>;
     /**
      * Execute a direct daemon-side shell command for a session. The daemon must
      * be started with direct session shell enabled and bearer auth configured;
@@ -366,12 +710,100 @@ export declare class DaemonClient {
     setWorkspaceToolEnabled(toolName: string, enabled: boolean, opts?: {
         clientId?: string;
     }): Promise<DaemonToolToggleResult>;
+    /**
+     * Toggle a user-invocable skill in workspace `skills.disabled` settings.
+     * Active ACP sessions refresh their skill validation and command lists before
+     * the response returns; `activation` reports deferred or partial refreshes.
+     *
+     * Pre-flight `caps.features.includes('workspace_skill_toggle')` before calling.
+     */
+    setWorkspaceSkillEnabled(skillName: string, enabled: boolean, opts?: {
+        clientId?: string;
+    }): Promise<DaemonSkillToggleResult>;
+    /**
+     * Toggle up to 100 user-invocable skills and return every target outcome.
+     *
+     * Pre-flight
+     * `caps.features.includes('workspace_skill_batch_toggle')` before calling.
+     */
+    setWorkspaceSkillsEnabled(skillNames: readonly string[], enabled: boolean, opts?: {
+        clientId?: string;
+    }): Promise<DaemonSkillBatchToggleResult>;
+    installWorkspaceSkill(request: DaemonSkillInstallRequest): Promise<DaemonSkillMutationResult>;
+    deleteWorkspaceSkill(skillName: string, scope: DaemonSkillScope): Promise<DaemonSkillMutationResult>;
     workspaceSettings(opts?: {
         clientId?: string;
     }): Promise<DaemonWorkspaceSettingsStatus>;
-    setWorkspaceSetting(scope: 'workspace', key: string, value: unknown, opts?: {
+    setWorkspaceSetting(scope: 'workspace' | 'user', key: string, value: unknown, opts?: {
         clientId?: string;
+        mcpServerMutation?: {
+            operation: 'set' | 'remove';
+            name: string;
+        };
     }): Promise<DaemonSettingUpdateResult>;
+    deleteModel(target: DaemonModelDeleteRequest, opts?: {
+        clientId?: string;
+    }): Promise<DaemonModelDeleteResult>;
+    workspaceVoice(clientId?: string): Promise<DaemonWorkspaceVoiceStatus>;
+    setWorkspaceVoice(update: DaemonWorkspaceVoiceUpdate, clientId?: string): Promise<DaemonWorkspaceVoiceStatus>;
+    transcribeWorkspaceVoice(audio: DaemonVoiceAudioInput, opts: DaemonWorkspaceVoiceTranscribeOptions): Promise<DaemonWorkspaceVoiceTranscriptionResult>;
+    liveStatus(clientId?: string): Promise<DaemonLiveStatus>;
+    liveSetupStatus(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    updateLiveSetup(update: DaemonLiveSetupUpdate, clientId?: string): Promise<DaemonLiveSetupStatus>;
+    retryLiveHostInstall(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    launchLiveHost(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    startLive(mode?: 'resume' | 'new', clientId?: string): Promise<DaemonLiveStatus>;
+    stopLive(clientId?: string): Promise<DaemonLiveStatus>;
+    setLiveMute(update: DaemonLiveMuteUpdate, clientId?: string): Promise<DaemonLiveStatus>;
+    setLiveShortcut(shortcut: string, clientId?: string): Promise<DaemonLiveStatus>;
+    /** @internal */
+    workspaceVoiceTranscriptionRequest(workspaceSelector: string, audio: DaemonVoiceAudioInput, opts: DaemonWorkspaceVoiceTranscribeOptions): Promise<DaemonWorkspaceVoiceTranscriptionResult>;
+    private voiceTranscriptionRequest;
+    workspaceTrust(opts?: {
+        clientId?: string;
+        statusVersion?: 1;
+    }): Promise<DaemonWorkspaceTrustStatus>;
+    workspaceTrust(opts: {
+        clientId?: string;
+        statusVersion: 2;
+    }): Promise<DaemonWorkspaceTrustStatus | DaemonWorkspaceTrustStatusV2>;
+    requestWorkspaceTrustChange(request: DaemonWorkspaceTrustChangeRequest, clientId?: string): Promise<DaemonWorkspaceTrustChangeResult>;
+    workspacePermissions(opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
+    /**
+     * Replace one permission rule list.
+     *
+     * `capabilities.features` including `workspace_permissions` means the
+     * daemon exposes the permissions surface. A write still needs a live ACP
+     * session so the active child can receive the update; without one the
+     * daemon rejects the request with `permission_session_required`.
+     */
+    setWorkspacePermissionRules(scope: DaemonPermissionScope, ruleType: DaemonPermissionRuleType, rules: readonly string[], opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
+    /**
+     * Convenience helper that appends a single rule to the specified scope/type
+     * list. Performs a non-atomic read-modify-write: GETs the current rules,
+     * appends the new rule locally, then POSTs the full replacement list.
+     *
+     * @remarks Not safe for concurrent use — a concurrent modification between
+     * the GET and POST will be silently overwritten (lost-update / TOCTOU).
+     */
+    addWorkspacePermissionRule(scope: DaemonPermissionScope, ruleType: DaemonPermissionRuleType, rule: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
+    /**
+     * Convenience helper that removes a single rule from the specified scope/type
+     * list. Performs a non-atomic read-modify-write: GETs the current rules,
+     * removes the rule locally, then POSTs the full replacement list.
+     *
+     * @remarks Not safe for concurrent use — a concurrent modification between
+     * the GET and POST will be silently overwritten (lost-update / TOCTOU).
+     */
+    removeWorkspacePermissionRule(scope: DaemonPermissionScope, ruleType: DaemonPermissionRuleType, rule: string, opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
     /**
      * Restart a configured MCP server through the ACP child's
      * `McpClientManager`. The daemon pre-checks the live budget
@@ -388,16 +820,55 @@ export declare class DaemonClient {
      * `timeoutMs` when their threat model needs a tighter cap, or `0`
      * to disable the timeout entirely.
      *
+     * `entryIndex` targets one pooled entry by index. Use `'*'` to
+     * restart all entries for a pooled server.
+     *
      * Pre-flight `caps.features.workspace_mcp_restart` before calling.
      */
     restartMcpServer(serverName: string, opts?: {
         clientId?: string;
+        entryIndex?: number | '*';
         timeoutMs?: number;
     }): Promise<DaemonMcpRestartResult>;
     reload(opts?: {
         clientId?: string;
         timeoutMs?: number;
     }): Promise<DaemonReloadResponse>;
+    /**
+     * Reload the daemon-managed channel worker: the daemon stops and relaunches
+     * it so it re-reads settings.json (channels / proxy / per-channel model).
+     * Requires an enabled runtime selection; otherwise the route responds 409.
+     * Pre-flight the dynamic `channel_reload` capability.
+     */
+    reloadChannelWorker(opts?: {
+        clientId?: string;
+        timeoutMs?: number;
+    }): Promise<DaemonChannelReloadResult>;
+    getChannelWorkerControl(opts?: {
+        clientId?: string;
+        timeoutMs?: number;
+    }): Promise<DaemonChannelControlState>;
+    setChannelWorkerSelection(selection: DaemonChannelSelection, opts?: {
+        clientId?: string;
+        timeoutMs?: number;
+    }): Promise<DaemonChannelSetResult>;
+    stopChannelWorker(opts?: {
+        clientId?: string;
+        timeoutMs?: number;
+    }): Promise<DaemonChannelStopResult>;
+    workspaceChannelTypes(opts?: DaemonChannelManagementOptions): Promise<DaemonChannelTypeCatalog>;
+    workspaceChannels(opts?: DaemonChannelManagementOptions): Promise<DaemonChannelsSnapshot>;
+    upsertWorkspaceChannel(name: string, request: DaemonChannelUpsertRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    deleteWorkspaceChannel(name: string, request: DaemonRevisionRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    setWorkspaceChannelStartup(name: string, request: DaemonChannelStartupRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    startWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    stopWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    restartWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    workspaceChannelPairingRequests(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingRequestsSnapshot>;
+    approveWorkspaceChannelPairing(name: string, request: DaemonChannelPairingApprovalRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingApprovalResult>;
+    workspaceChannelPairingApprovals(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingApprovalsSnapshot>;
+    revokeWorkspaceChannelPairingApproval(name: string, request: DaemonChannelPairingRevocationRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingRevocationResult>;
+    private workspaceChannelAction;
     manageMcpServer(serverName: string, action: DaemonMcpManageAction, opts?: {
         clientId?: string;
         timeoutMs?: number;
@@ -443,12 +914,14 @@ export declare class DaemonClient {
         force?: boolean;
         clientId?: string;
     }): Promise<DaemonInitWorkspaceResult>;
+    setupGithub(params: DaemonGithubSetupRequest, clientId?: string): Promise<DaemonGithubSetupResult>;
     /**
      * Switch the active model for a session. Backed by ACP's currently-unstable
      * `unstable_setSessionModel`; the daemon also publishes a `model_switched`
      * event so cross-client UIs can update.
      */
     setSessionModel(sessionId: string, modelId: string, clientId?: string): Promise<SetModelResult>;
+    setSessionConfigOption(sessionId: string, configId: 'reasoning_effort', value: string, clientId?: string): Promise<DaemonSessionConfigOptionResult>;
     setSessionLanguage(sessionId: string, language: string, opts?: {
         syncOutputLanguage?: boolean;
         clientId?: string;
@@ -478,6 +951,10 @@ export declare class DaemonClient {
      * the temporary 202 fallback.
      *
      * Falls back to `prompt()` for legacy 200 daemons.
+     *
+     * Note: this method does not enforce the local pending-prompt cap.
+     * Callers that need early-fail behavior should use {@link prompt} or
+     * reserve a slot before calling this method.
      */
     promptNonBlocking(sessionId: string, req: PromptRequest, signal?: AbortSignal, clientId?: string): Promise<NonBlockingPromptAccepted | PromptResult>;
     private _awaitTurnComplete;
@@ -510,6 +987,7 @@ export declare class DaemonClient {
      * callers: both 204 (closed) and 404 (already gone) resolve successfully.
      */
     closeSession(sessionId: string, clientId?: string): Promise<void>;
+    detachSession(sessionId: string, clientId?: string): Promise<void>;
     deleteSessionsData(sessionIds: string[], clientId?: string): Promise<{
         removed: string[];
         notFound: string[];
@@ -518,6 +996,8 @@ export declare class DaemonClient {
             error: string;
         }>;
     }>;
+    archiveSessionsData(sessionIds: string[], clientId?: string): Promise<DaemonArchiveSessionsResult>;
+    unarchiveSessionsData(sessionIds: string[], clientId?: string): Promise<DaemonUnarchiveSessionsResult>;
     /**
      * Start an OAuth device-flow login for the given provider. The daemon
      * polls the IdP in the background and emits typed `auth_device_flow_*`
@@ -550,6 +1030,35 @@ export declare class DaemonClient {
     }): Promise<DaemonAuthStatusSnapshot>;
     getAuthProviders(): Promise<DaemonAuthProviderCatalog>;
     installAuthProvider(req: DaemonAuthProviderInstallRequest): Promise<DaemonAuthProviderInstallResult>;
+    addWorkspace(cwd: string, options?: {
+        persist?: boolean;
+        displayName?: string;
+    }): Promise<{
+        id: string;
+        cwd: string;
+        displayName?: string;
+        primary: boolean;
+        trusted: boolean;
+        persisted?: boolean;
+    }>;
+    updateWorkspace(workspaceSelector: string, update: DaemonWorkspaceUpdate): Promise<DaemonWorkspaceCapability>;
+    /** Requests a process-local workspace in a daemon-managed empty directory. */
+    addScratchWorkspace(): Promise<{
+        id: string;
+        cwd: string;
+        primary: boolean;
+        trusted: boolean;
+        persisted: false;
+    }>;
+    /**
+     * Release transport resources (WS close, etc.). Idempotent.
+     * After `dispose()`, further calls to `fetch` / `subscribeEvents`
+     * on the underlying transport throw `DaemonTransportClosedError`.
+     */
+    dispose(): void;
+    listSessionArtifacts(sessionId: string, clientId?: string): Promise<DaemonSessionArtifactsEnvelope>;
+    addSessionArtifact(sessionId: string, artifact: DaemonSessionArtifactInput, clientId?: string): Promise<DaemonSessionArtifactMutationResult>;
+    removeSessionArtifact(sessionId: string, artifactId: string, clientId?: string): Promise<DaemonSessionArtifactMutationResult>;
     /**
      * Patch mutable session metadata and return the effective stored metadata
      * reported by the daemon.
@@ -557,6 +1066,216 @@ export declare class DaemonClient {
     updateSessionMetadata(sessionId: string, metadata: {
         displayName?: string;
     }, clientId?: string): Promise<SessionMetadataResult>;
+}
+export declare class WorkspaceDaemonClient {
+    private readonly client;
+    private readonly workspaceSelector;
+    constructor(client: DaemonClient, workspaceSelector: string);
+    workspaceMcp(): Promise<DaemonWorkspaceMcpStatus>;
+    /**
+     * Send text directly through this exact workspace's channel worker.
+     * A successful capability pre-flight does not guarantee worker liveness;
+     * callers must treat 503 `channel_worker_unavailable` as an expected outcome.
+     */
+    notify(req: DaemonChannelNotifyRequest, opts?: {
+        timeoutMs?: number;
+    }): Promise<DaemonChannelNotifyResult>;
+    workspaceChannelTypes(opts?: DaemonChannelManagementOptions): Promise<DaemonChannelTypeCatalog>;
+    workspaceChannels(opts?: DaemonChannelManagementOptions): Promise<DaemonChannelsSnapshot>;
+    upsertWorkspaceChannel(name: string, request: DaemonChannelUpsertRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    deleteWorkspaceChannel(name: string, request: DaemonRevisionRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    setWorkspaceChannelStartup(name: string, request: DaemonChannelStartupRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    startWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    stopWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    restartWorkspaceChannel(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelMutationResult>;
+    workspaceChannelPairingRequests(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingRequestsSnapshot>;
+    approveWorkspaceChannelPairing(name: string, request: DaemonChannelPairingApprovalRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingApprovalResult>;
+    workspaceChannelPairingApprovals(name: string, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingApprovalsSnapshot>;
+    revokeWorkspaceChannelPairingApproval(name: string, request: DaemonChannelPairingRevocationRequest, opts?: DaemonChannelManagementOptions): Promise<DaemonChannelPairingRevocationResult>;
+    private channelAction;
+    private channelRequest;
+    initializeWorkspaceMcp(): Promise<DaemonWorkspaceMcpInitializeResult>;
+    reloadWorkspaceMcp(options?: DaemonWorkspaceMcpReloadOptions): Promise<DaemonWorkspaceMcpInitializeResult>;
+    workspaceVoice(clientId?: string): Promise<DaemonWorkspaceVoiceStatus>;
+    setWorkspaceVoice(update: DaemonWorkspaceVoiceUpdate, clientId?: string): Promise<DaemonWorkspaceVoiceStatus>;
+    transcribeWorkspaceVoice(audio: DaemonVoiceAudioInput, opts: DaemonWorkspaceVoiceTranscribeOptions): Promise<DaemonWorkspaceVoiceTranscriptionResult>;
+    liveStatus(clientId?: string): Promise<DaemonLiveStatus>;
+    liveSetupStatus(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    updateLiveSetup(update: DaemonLiveSetupUpdate, clientId?: string): Promise<DaemonLiveSetupStatus>;
+    retryLiveHostInstall(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    launchLiveHost(clientId?: string): Promise<DaemonLiveSetupStatus>;
+    startLive(mode?: 'resume' | 'new', clientId?: string): Promise<DaemonLiveStatus>;
+    stopLive(clientId?: string): Promise<DaemonLiveStatus>;
+    setLiveMute(update: DaemonLiveMuteUpdate, clientId?: string): Promise<DaemonLiveStatus>;
+    setLiveShortcut(shortcut: string, clientId?: string): Promise<DaemonLiveStatus>;
+    workspaceGit(opts?: {
+        cwd?: string;
+        wait?: boolean;
+    }): Promise<DaemonWorkspaceGitStatus>;
+    workspaceGitDiff(cwd?: string): Promise<DaemonWorkspaceGitDiff>;
+    workspaceGitDiffFile(path: string, oldPath?: string, cwd?: string): Promise<DaemonWorkspaceGitDiffHunks>;
+    workspaceGitLog(limit?: number, skip?: number, cwd?: string, range?: string): Promise<DaemonGitLog>;
+    workspaceGitCommitDetail(sha: string, cwd?: string): Promise<DaemonGitCommitDetail>;
+    workspaceGitBranches(cwd?: string): Promise<DaemonGitBranchesResult>;
+    workspaceGitCheckout(ref: string, cwd?: string): Promise<DaemonGitCheckoutResult>;
+    workspaceGitCreateBranch(name: string, startPoint?: string, cwd?: string): Promise<DaemonGitCheckoutResult>;
+    workspaceGitPush(opts?: {
+        setUpstream?: boolean;
+        force?: boolean;
+    }, cwd?: string): Promise<DaemonGitPushResult>;
+    workspaceGitPull(opts?: {
+        rebase?: boolean;
+        fetchOnly?: boolean;
+    }, cwd?: string): Promise<DaemonGitPullResult>;
+    workspaceGitCommit(message: string, opts?: {
+        all?: boolean;
+    }, cwd?: string): Promise<DaemonGitCommitResult>;
+    workspaceGitHubPullRequests(): Promise<DaemonGitHubPullRequestList>;
+    workspaceGitHubCreatePullRequest(opts: {
+        title: string;
+        body?: string;
+        base?: string;
+        head?: string;
+    }, cwd?: string): Promise<DaemonGitHubPullRequestCreateResult>;
+    workspaceGitHubDefaultBranch(): Promise<{
+        branch: string;
+    }>;
+    workspaceSkills(): Promise<DaemonWorkspaceSkillsStatus>;
+    workspaceProviders(): Promise<DaemonWorkspaceProvidersStatus>;
+    workspaceHooks(): Promise<DaemonWorkspaceHooksStatus>;
+    workspaceEnv(): Promise<DaemonWorkspaceEnvStatus>;
+    workspacePreflight(): Promise<DaemonWorkspacePreflightStatus>;
+    workspaceTools(): Promise<DaemonWorkspaceToolsStatus>;
+    workspaceMemory(): Promise<DaemonWorkspaceMemoryStatus>;
+    remove(options?: {
+        force?: boolean;
+        timeoutMs?: number;
+    }): Promise<DaemonWorkspaceRemovalResult>;
+    writeWorkspaceMemory(req: Omit<DaemonWriteMemoryRequest, 'scope'> & {
+        scope?: 'workspace';
+    }, clientId?: string): Promise<DaemonWriteMemoryResult>;
+    listWorkspaceAgents(): Promise<DaemonWorkspaceAgentsStatus>;
+    createWorkspaceAgent(req: Omit<DaemonCreateAgentRequest, 'scope'> & {
+        scope?: 'workspace' | 'project';
+    }, clientId?: string): Promise<DaemonAgentMutationResult>;
+    getWorkspaceAgent(agentType: string): Promise<DaemonWorkspaceAgentDetail>;
+    updateWorkspaceAgent(agentType: string, req: DaemonUpdateAgentRequest, opts?: {
+        scope?: 'workspace' | 'project';
+        clientId?: string;
+    }): Promise<DaemonAgentMutationResult>;
+    deleteWorkspaceAgent(agentType: string, opts?: {
+        scope?: 'workspace' | 'project';
+        clientId?: string;
+    }): Promise<void>;
+    listWorkspaceSessionsPage(options?: DaemonSessionListPageOptions): Promise<DaemonSessionListPage>;
+    listWorkspaceSessions(options?: DaemonSessionListPageOptions): Promise<DaemonSessionSummary[]>;
+    getWorkspaceSessionInfo(): Promise<DaemonWorkspaceSessionInfo>;
+    /**
+     * Read one page from an active persisted session transcript in this
+     * workspace.
+     * The daemon performs replay locally without attaching to the session or
+     * starting ACP. This method always uses native REST transport.
+     */
+    getSessionTranscriptPage(sessionId: string, opts?: DaemonSessionTranscriptPageOptions): Promise<DaemonSessionTranscriptPage>;
+    /** Export an active persisted session from this registered workspace. */
+    exportSession(sessionId: string, opts?: {
+        format?: DaemonSessionExportFormat;
+        clientId?: string;
+    }): Promise<DaemonSessionExportResult>;
+    /** Export an archived persisted session from this registered workspace. */
+    exportArchivedSession(sessionId: string, opts?: {
+        format?: DaemonSessionExportFormat;
+        clientId?: string;
+    }): Promise<DaemonSessionExportResult>;
+    listSessionGroups(): Promise<DaemonSessionGroupCatalog>;
+    createSessionGroup(input: DaemonSessionGroupInput): Promise<DaemonSessionGroup>;
+    updateSessionGroup(groupId: string, update: DaemonSessionGroupUpdate): Promise<DaemonSessionGroup>;
+    deleteSessionGroup(groupId: string): Promise<{
+        deleted: boolean;
+    }>;
+    updateSessionOrganization(sessionId: string, update: DaemonSessionOrganizationUpdate, clientId?: string): Promise<DaemonSessionOrganizationResult>;
+    deleteSessionsData(sessionIds: string[], clientId?: string): Promise<{
+        removed: string[];
+        notFound: string[];
+        errors: Array<{
+            sessionId: string;
+            error: string;
+        }>;
+    }>;
+    archiveSessionsData(sessionIds: string[], clientId?: string): Promise<DaemonArchiveSessionsResult>;
+    unarchiveSessionsData(sessionIds: string[], clientId?: string): Promise<DaemonUnarchiveSessionsResult>;
+    readWorkspaceFile(filePath: string, opts?: {
+        maxBytes?: number;
+        line?: number;
+        limit?: number;
+        cursor?: string;
+    }, clientId?: string): Promise<DaemonWorkspaceFile>;
+    readWorkspaceFileBytes(filePath: string, opts?: {
+        offset?: number;
+        maxBytes?: number;
+    }, clientId?: string): Promise<DaemonWorkspaceFileBytes>;
+    fileStat(filePath: string): Promise<unknown>;
+    dirList(dirPath: string): Promise<unknown>;
+    glob(pattern: string, opts?: {
+        maxResults?: number;
+        signal?: AbortSignal;
+    }): Promise<unknown>;
+    writeWorkspaceFile(req: DaemonWorkspaceFileWriteRequest, clientId?: string): Promise<DaemonWorkspaceFileWriteResult>;
+    editWorkspaceFile(req: DaemonWorkspaceFileEditRequest, clientId?: string): Promise<DaemonWorkspaceFileEditResult>;
+    uploadWorkspaceFile(req: DaemonWorkspaceFileUploadRequest, clientId?: string): Promise<DaemonWorkspaceFileUploadResult>;
+    workspaceSettings(opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspaceSettingsStatus>;
+    setWorkspaceSetting(scope: 'workspace', key: string, value: unknown, opts?: {
+        clientId?: string;
+        mcpServerMutation?: {
+            operation: 'set' | 'remove';
+            name: string;
+        };
+    }): Promise<DaemonSettingUpdateResult>;
+    workspaceTrust(opts?: {
+        clientId?: string;
+        statusVersion?: 1;
+    }): Promise<DaemonWorkspaceTrustStatus>;
+    workspaceTrust(opts: {
+        clientId?: string;
+        statusVersion: 2;
+    }): Promise<DaemonWorkspaceTrustStatus | DaemonWorkspaceTrustStatusV2>;
+    requestWorkspaceTrustChange(request: DaemonWorkspaceTrustChangeRequest, clientId?: string): Promise<DaemonWorkspaceTrustChangeResult>;
+    workspacePermissions(opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
+    setWorkspacePermissionRules(ruleType: DaemonPermissionRuleType, rules: readonly string[], opts?: {
+        clientId?: string;
+    }): Promise<DaemonWorkspacePermissionsStatus>;
+    setWorkspaceToolEnabled(toolName: string, enabled: boolean, opts?: {
+        clientId?: string;
+    }): Promise<DaemonToolToggleResult>;
+    setWorkspaceSkillEnabled(skillName: string, enabled: boolean, opts?: {
+        clientId?: string;
+    }): Promise<DaemonSkillToggleResult>;
+    setWorkspaceSkillsEnabled(skillNames: readonly string[], enabled: boolean, opts?: {
+        clientId?: string;
+    }): Promise<DaemonSkillBatchToggleResult>;
+    restartMcpServer(serverName: string, opts?: {
+        clientId?: string;
+        entryIndex?: number | '*';
+        timeoutMs?: number;
+    }): Promise<DaemonMcpRestartResult>;
+    reload(opts?: {
+        clientId?: string;
+        timeoutMs?: number;
+    }): Promise<DaemonReloadResponse>;
+    initWorkspace(opts?: {
+        force?: boolean;
+        clientId?: string;
+    }): Promise<DaemonInitWorkspaceResult>;
+    workspaceExtensions(): Promise<WorkspaceExtensionProjection>;
+    setExtensionActivation(extensionId: string, state: ExtensionActivationState, clientId?: string): Promise<ExtensionMutationResponse>;
+    clearExtensionActivation(extensionId: string, clientId?: string): Promise<ExtensionMutationResponse>;
+    refreshExtensionRuntime(clientId?: string): Promise<ExtensionMutationResponse>;
+    private get;
+    private post;
 }
 /**
  * `AbortSignal.timeout` is in every Node version this package supports

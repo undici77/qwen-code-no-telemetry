@@ -6,6 +6,20 @@
 import type { DaemonEvent } from '../types.js';
 import type { DaemonUiEvent, NormalizeDaemonEventOptions } from './types.js';
 export declare function normalizeDaemonEvent(event: DaemonEvent, opts?: NormalizeDaemonEventOptions): DaemonUiEvent[];
+/**
+ * Extract daemon-authoritative timestamp from envelope. Looks at known
+ * candidate locations in order:
+ *
+ *   1. `event.serverTimestamp` — top-level, preferred when daemon adds it
+ *   2. `event._meta.serverTimestamp` — Anthropic-style metadata convention
+ *   3. nested `serverTimestamp` metadata
+ *   4. `timestamp` on direct transcript-page or nested ACP updates
+ *
+ * Returns undefined when none of them are present or all are non-finite.
+ * Forward-compat: SDK reads whichever location the daemon eventually emits
+ * without requiring a coordinated SDK release.
+ */
+export declare function extractServerTimestamp(event: DaemonEvent): number | undefined;
 export declare function getSessionUpdatePayload(value: unknown): Record<string, unknown> | undefined;
 /**
  * Known closed-set of `DaemonAuthDeviceFlowErrorKind` values, exported as

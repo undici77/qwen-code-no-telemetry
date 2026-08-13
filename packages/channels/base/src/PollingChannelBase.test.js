@@ -1,0 +1,170 @@
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { PollingChannelBase } from './PollingChannelBase.js';
+const testHome = mkdtempSync(join(tmpdir(), 'poll-test-'));
+vi.mock('./paths.js', () => ({
+    getGlobalQwenDir: () => testHome,
+}));
+afterAll(() => {
+    rmSync(testHome, { recursive: true, force: true });
+});
+function makeConfig() {
+    return {
+        type: 'test',
+        token: 'x',
+        senderPolicy: 'open',
+        allowedUsers: [],
+        sessionScope: 'user',
+        cwd: '/tmp',
+        groupPolicy: 'open',
+        dmPolicy: 'open',
+        groups: { '*': {} },
+    };
+}
+function makeBridge() {
+    return {
+        newSession: vi.fn().mockResolvedValue('s1'),
+        loadSession: vi.fn(),
+        prompt: vi.fn().mockResolvedValue('ok'),
+        cancelSession: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        emit: vi.fn(),
+    };
+}
+class TestPoller extends PollingChannelBase {
+    pollCount = 0;
+    shouldThrow = false;
+    createInitialCursor() {
+        return { ts: '2026-01-01T00:00:00.000Z', count: 0 };
+    }
+    get pollInterval() {
+        return 10;
+    }
+    async pollOnce() {
+        this.pollCount++;
+        if (this.shouldThrow)
+            throw new Error('poll failed');
+        this.cursor.count++;
+        this.cursor.ts = new Date().toISOString();
+    }
+    async connect() {
+        this.startPollLoop();
+    }
+    disconnect() {
+        this.stopPollLoop();
+    }
+    async sendMessage() { }
+}
+function cursorFile(name) {
+    const encoded = name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const hash = createHash('sha256').update(name).digest('hex').slice(0, 16);
+    return join(testHome, 'channels', `${encoded}-${hash}-poll-cursor.json`);
+}
+describe('PollingChannelBase', () => {
+    beforeEach(() => {
+        mkdirSync(join(testHome, 'channels'), { recursive: true });
+    });
+    it('initializes with default cursor when no file exists', () => {
+        const poller = new TestPoller('fresh', makeConfig(), makeBridge());
+        expect(poller.cursor).toEqual({ ts: '2026-01-01T00:00:00.000Z', count: 0 });
+    });
+    it('loads cursor from disk', () => {
+        writeFileSync(cursorFile('saved'), JSON.stringify({ ts: '2026-06-01T00:00:00.000Z', count: 5 }), 'utf-8');
+        const poller = new TestPoller('saved', makeConfig(), makeBridge());
+        expect(poller.cursor).toEqual({ ts: '2026-06-01T00:00:00.000Z', count: 5 });
+    });
+    it('falls back to initial cursor on corrupt file', () => {
+        writeFileSync(cursorFile('corrupt'), 'not json{{{', 'utf-8');
+        const poller = new TestPoller('corrupt', makeConfig(), makeBridge());
+        expect(poller.cursor).toEqual({ ts: '2026-01-01T00:00:00.000Z', count: 0 });
+    });
+    it('saveCursor persists JSON to disk', () => {
+        const poller = new TestPoller('persist', makeConfig(), makeBridge());
+        poller.cursor = { ts: '2026-07-01T00:00:00.000Z', count: 42 };
+        poller.saveCursor();
+        const raw = readFileSync(cursorFile('persist'), 'utf-8');
+        expect(JSON.parse(raw)).toEqual({
+            ts: '2026-07-01T00:00:00.000Z',
+            count: 42,
+        });
+    });
+    it('poll loop calls pollOnce and saves cursor', async () => {
+        const poller = new TestPoller('loop', makeConfig(), makeBridge());
+        poller.connect();
+        await vi.waitFor(() => {
+            expect(poller.pollCount).toBeGreaterThanOrEqual(1);
+        });
+        poller.disconnect();
+        expect(poller.cursor.count).toBeGreaterThanOrEqual(1);
+    });
+    it('stopPollLoop stops the loop', async () => {
+        const poller = new TestPoller('stop', makeConfig(), makeBridge());
+        poller.connect();
+        await vi.waitFor(() => {
+            expect(poller.pollCount).toBeGreaterThanOrEqual(1);
+        });
+        poller.disconnect();
+        const countAtStop = poller.pollCount;
+        await new Promise((r) => setTimeout(r, 50));
+        expect(poller.pollCount).toBe(countAtStop);
+    });
+    it('backs off on poll error', async () => {
+        const poller = new TestPoller('backoff', makeConfig(), makeBridge());
+        poller.shouldThrow = true;
+        const stderrSpy = vi
+            .spyOn(process.stderr, 'write')
+            .mockImplementation(() => true);
+        poller.connect();
+        await vi.waitFor(() => {
+            expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('backing off'));
+        });
+        poller.disconnect();
+        stderrSpy.mockRestore();
+    });
+    it('uses configured pollInterval from config', () => {
+        const poller = new TestPoller('interval', { ...makeConfig(), pollInterval: 30_000 }, makeBridge());
+        const base = Object.getOwnPropertyDescriptor(PollingChannelBase.prototype, 'pollInterval').get;
+        expect(base.call(poller)).toBe(30_000);
+    });
+    it('defaults to 60000 when pollInterval not configured', () => {
+        const poller = new TestPoller('default-interval', makeConfig(), makeBridge());
+        const base = Object.getOwnPropertyDescriptor(PollingChannelBase.prototype, 'pollInterval').get;
+        expect(base.call(poller)).toBe(60_000);
+    });
+    it('keeps cursor filename within filesystem limits for long names', () => {
+        const longName = 'a'.repeat(300);
+        const poller = new TestPoller(longName, makeConfig(), makeBridge());
+        poller.saveCursor();
+        const expectedHash = createHash('sha256')
+            .update(longName)
+            .digest('hex')
+            .slice(0, 16);
+        const files = readdirSync(join(testHome, 'channels'));
+        const cursorFile = files.find((f) => f.includes(expectedHash));
+        expect(cursorFile).toBeDefined();
+        expect(cursorFile.length).toBeLessThanOrEqual(255);
+    });
+    it('produces distinct cursor files for names sharing a long prefix', () => {
+        const prefix = 'x'.repeat(250);
+        const p1 = new TestPoller(`${prefix}-alpha`, makeConfig(), makeBridge());
+        const p2 = new TestPoller(`${prefix}-beta`, makeConfig(), makeBridge());
+        p1.saveCursor();
+        p2.saveCursor();
+        const files = readdirSync(join(testHome, 'channels')).filter((f) => f.endsWith('-poll-cursor.json'));
+        const h1 = createHash('sha256')
+            .update(`${prefix}-alpha`)
+            .digest('hex')
+            .slice(0, 16);
+        const h2 = createHash('sha256')
+            .update(`${prefix}-beta`)
+            .digest('hex')
+            .slice(0, 16);
+        expect(files.some((f) => f.includes(h1))).toBe(true);
+        expect(files.some((f) => f.includes(h2))).toBe(true);
+    });
+});
+//# sourceMappingURL=PollingChannelBase.test.js.map

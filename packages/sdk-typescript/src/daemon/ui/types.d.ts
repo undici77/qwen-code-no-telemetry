@@ -3,9 +3,9 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { DaemonAuthDeviceFlowSdkErrorKind, DaemonAuthProviderId, DaemonEvent, DaemonErrorKind, PermissionResponse } from '../types.js';
+import type { DaemonAuthDeviceFlowSdkErrorKind, DaemonAuthProviderId, DaemonEvent, DaemonErrorKind, DaemonSessionArtifactChange, PermissionResponse } from '../types.js';
 export declare const DAEMON_PLAN_TOOL_CALL_ID = "daemon-plan";
-export type DaemonUiEventType = 'user.text.delta' | 'user.image.delta' | 'user.shell.command' | 'assistant.text.delta' | 'assistant.done' | 'thought.text.delta' | 'tool.update' | 'shell.output' | 'user.shell.output' | 'permission.request' | 'permission.resolved' | 'model.changed' | 'status' | 'error' | 'debug' | 'session.metadata.changed' | 'session.approval_mode.changed' | 'session.available_commands' | 'session.state_resync_required' | 'session.replay_complete' | 'prompt.cancelled' | 'followup.suggestion' | 'workspace.memory.changed' | 'workspace.agent.changed' | 'workspace.tool.toggled' | 'workspace.settings.changed' | 'workspace.initialized' | 'workspace.mcp.budget_warning' | 'workspace.mcp.child_refused' | 'workspace.mcp.server_restarted' | 'workspace.mcp.server_restart_refused' | 'auth.device_flow.started' | 'auth.device_flow.throttled' | 'auth.device_flow.authorized' | 'auth.device_flow.failed' | 'auth.device_flow.cancelled';
+export type DaemonUiEventType = 'user.text.delta' | 'user.image.delta' | 'user.shell.command' | 'assistant.text.delta' | 'assistant.done' | 'assistant.usage' | 'thought.text.delta' | 'tool.update' | 'shell.output' | 'user.shell.output' | 'permission.request' | 'permission.resolved' | 'model.changed' | 'status' | 'error' | 'debug' | 'session.metadata.changed' | 'session.artifact.changed' | 'session.approval_mode.changed' | 'session.available_commands' | 'session.state_resync_required' | 'session.replay_complete' | 'session.rewound' | 'session.branched' | 'prompt.cancelled' | 'followup.suggestion' | 'workspace.memory.changed' | 'workspace.agent.changed' | 'workspace.tool.toggled' | 'workspace.settings.changed' | 'workspace.trust.change.requested' | 'workspace.initialized' | 'workspace.github.setup.completed' | 'workspace.mcp.budget_warning' | 'workspace.mcp.child_refused' | 'workspace.mcp.server_restarted' | 'workspace.mcp.server_restart_refused' | 'workspace.mcp.server_changed' | 'workspace.extensions.changed' | 'auth.device_flow.started' | 'auth.device_flow.throttled' | 'auth.device_flow.authorized' | 'auth.device_flow.failed' | 'auth.device_flow.cancelled';
 export interface DaemonUiEventBase {
     type: DaemonUiEventType;
     /**
@@ -25,6 +25,8 @@ export interface DaemonUiEventBase {
      * the SDK reads the field whether the daemon emits it today or not.
      */
     serverTimestamp?: number;
+    /** Ordered persisted ChatRecord identities that contributed to this event. */
+    sourceRecordIds?: readonly string[];
     originatorClientId?: string;
     rawEvent?: DaemonEvent;
 }
@@ -32,6 +34,27 @@ export interface DaemonUiTextEvent extends DaemonUiEventBase {
     type: 'user.text.delta' | 'assistant.text.delta' | 'thought.text.delta';
     text: string;
     parentToolCallId?: string;
+    meta?: DaemonTextDeltaMeta;
+}
+export interface DaemonInputReference {
+    id: string;
+    kind?: string;
+    label?: string;
+    value?: string;
+    serialized?: string;
+    removable?: boolean;
+}
+export interface DaemonInputReferenceAnnotation {
+    type: 'reference';
+    start: number;
+    end: number;
+    text: string;
+    reference: DaemonInputReference;
+}
+export type DaemonInputAnnotation = DaemonInputReferenceAnnotation;
+export interface DaemonTextDeltaMeta extends Record<string, unknown> {
+    qwenDiscreteMessage?: boolean;
+    inputAnnotations?: DaemonInputAnnotation[];
 }
 export interface DaemonUiUserImageEvent extends DaemonUiEventBase {
     type: 'user.image.delta';
@@ -46,6 +69,33 @@ export interface DaemonUiUserShellCommandEvent extends DaemonUiEventBase {
 export interface DaemonUiAssistantDoneEvent extends DaemonUiEventBase {
     type: 'assistant.done';
     reason?: string;
+}
+/**
+ * Token usage the agent reports for one model round, carried on the daemon's
+ * `agent_message_chunk._meta.usage`. A turn issues one of these per model call,
+ * so a turn's total is the sum of its rounds. Sub-agent (delegated) usage is
+ * included in the spawning turn because it is part of that turn's real cost.
+ */
+export interface DaemonTurnUsage {
+    inputTokens: number;
+    outputTokens: number;
+    /**
+     * Cached-read tokens for the round — a subset of `inputTokens` (already
+     * counted in it, not additive). Absent when the round reported none.
+     */
+    cachedTokens?: number;
+}
+/**
+ * Per-round token usage. Emitted from `agent_message_chunk` frames that carry
+ * `_meta.usage` (their text is empty, so they surface no assistant text). The
+ * reducer folds the counts onto the round's active assistant block; renderers
+ * sum a turn's blocks for a per-turn total.
+ */
+export interface DaemonUiAssistantUsageEvent extends DaemonUiEventBase {
+    type: 'assistant.usage';
+    usage: DaemonTurnUsage;
+    /** Set when the usage belongs to a sub-agent round; folded into the parent turn total. */
+    parentToolCallId?: string;
 }
 /**
  * Where a tool originated. Closed enum so UI dispatch (icon, MCP server
@@ -143,9 +193,38 @@ export interface DaemonUiModelChangedEvent extends DaemonUiEventBase {
     type: 'model.changed';
     modelId: string;
 }
+/**
+ * Why the normalizer produced a `debug` projection instead of a typed event.
+ *
+ * `unrecognized_*` means the daemon sent a frame this normalizer has no case
+ * for — expected whenever the daemon runs ahead of the client, and the payload
+ * is developer diagnostics rather than conversation content. `malformed_*`
+ * means a frame the normalizer *does* know arrived with an unusable payload,
+ * which signals an actual defect.
+ *
+ * Renderers should branch on this instead of pattern-matching the debug text:
+ * client-dispatched debug events (e.g. Web Shell's model-switch summary) carry
+ * no `debugReason` at all and must keep rendering.
+ */
+export declare const DAEMON_UI_DEBUG_REASONS: readonly ["unrecognized_event", "unrecognized_session_update", "malformed_payload"];
+export type DaemonUiDebugReason = (typeof DAEMON_UI_DEBUG_REASONS)[number];
 export interface DaemonUiStatusEvent extends DaemonUiEventBase {
     type: 'status' | 'debug';
     text: string;
+    source?: string;
+    data?: unknown;
+    /**
+     * Set only on normalizer-produced `debug` events. Absent on `status` events
+     * and on debug events dispatched by clients themselves.
+     */
+    debugReason?: DaemonUiDebugReason;
+    /**
+     * Client-dispatch opt-out: `false` inserts the status block without
+     * finalizing the active assistant/thought block, so read-only command
+     * output dispatched mid-turn does not split a streaming answer or orphan
+     * its usage frames. Daemon-emitted events leave this unset.
+     */
+    clearActiveText?: boolean;
 }
 export interface DaemonUiErrorEvent extends DaemonUiEventBase {
     type: 'error';
@@ -166,6 +245,11 @@ export interface DaemonUiSessionMetadataChangedEvent extends DaemonUiEventBase {
     type: 'session.metadata.changed';
     sessionId: string;
     displayName?: string;
+}
+export interface DaemonUiSessionArtifactChangedEvent extends DaemonUiEventBase {
+    type: 'session.artifact.changed';
+    sessionId: string;
+    change: DaemonSessionArtifactChange;
 }
 export interface DaemonUiSessionApprovalModeChangedEvent extends DaemonUiEventBase {
     type: 'session.approval_mode.changed';
@@ -246,12 +330,27 @@ export interface DaemonUiReplayCompleteEvent extends DaemonUiEventBase {
     /** Highest event id delivered in the replay, when any frames replayed. */
     lastReplayedEventId?: number;
 }
+export interface DaemonUiSessionRewoundEvent extends DaemonUiEventBase {
+    type: 'session.rewound';
+    sessionId?: string;
+    promptId: string;
+    targetTurnIndex: number;
+}
+export interface DaemonUiSessionBranchedEvent extends DaemonUiEventBase {
+    type: 'session.branched';
+    sourceSessionId: string;
+    newSessionId: string;
+    displayName: string;
+}
 export interface DaemonUiWorkspaceMemoryChangedEvent extends DaemonUiEventBase {
     type: 'workspace.memory.changed';
-    scope: 'workspace' | 'global';
-    filePath: string;
-    mode: 'append' | 'replace';
-    bytesWritten: number;
+    scope: 'workspace' | 'global' | 'managed';
+    filePath?: string;
+    mode?: 'append' | 'replace';
+    bytesWritten?: number;
+    source?: string;
+    taskId?: string;
+    touchedScopes?: Array<'user' | 'project'>;
 }
 export interface DaemonUiWorkspaceAgentChangedEvent extends DaemonUiEventBase {
     type: 'workspace.agent.changed';
@@ -270,10 +369,25 @@ export interface DaemonUiWorkspaceSettingsChangedEvent extends DaemonUiEventBase
     scope: string;
     value: unknown;
 }
+export interface DaemonUiTrustChangeRequestedEvent extends DaemonUiEventBase {
+    type: 'workspace.trust.change.requested';
+    workspaceCwd: string;
+    desiredState: 'trusted' | 'untrusted';
+    reason?: string;
+}
 export interface DaemonUiWorkspaceInitializedEvent extends DaemonUiEventBase {
     type: 'workspace.initialized';
     path: string;
     action: 'created' | 'overwrote' | 'noop';
+}
+export interface DaemonUiGithubSetupCompletedEvent extends DaemonUiEventBase {
+    type: 'workspace.github.setup.completed';
+    releaseTag: string;
+    readmeUrl: string;
+    secretsUrl?: string;
+    workflows: unknown[];
+    gitignore: unknown;
+    warnings: string[];
 }
 export interface DaemonUiMcpBudgetWarningEvent extends DaemonUiEventBase {
     type: 'workspace.mcp.budget_warning';
@@ -302,7 +416,22 @@ export interface DaemonUiMcpServerRestartedEvent extends DaemonUiEventBase {
 export interface DaemonUiMcpServerRestartRefusedEvent extends DaemonUiEventBase {
     type: 'workspace.mcp.server_restart_refused';
     serverName: string;
-    reason: 'in_flight' | 'disabled' | 'budget_would_exceed';
+    reason: 'in_flight' | 'disabled' | 'budget_would_exceed' | 'authentication_required';
+}
+export interface DaemonUiMcpServerChangedEvent extends DaemonUiEventBase {
+    type: 'workspace.mcp.server_changed';
+    serverName: string;
+    action: 'added' | 'removed' | 'approve' | 'enable' | 'disable' | 'authenticate' | 'clear-auth';
+}
+export interface DaemonUiExtensionsChangedEvent extends DaemonUiEventBase {
+    type: 'workspace.extensions.changed';
+    refreshed: number;
+    failed: number;
+    status?: 'installed' | 'enabled' | 'disabled' | 'updated' | 'uninstalled' | 'failed';
+    source?: string;
+    name?: string;
+    version?: string;
+    error?: string;
 }
 export interface DaemonUiAuthDeviceFlowStartedEvent extends DaemonUiEventBase {
     type: 'auth.device_flow.started';
@@ -333,7 +462,7 @@ export interface DaemonUiAuthDeviceFlowCancelledEvent extends DaemonUiEventBase 
     deviceFlowId: string;
 }
 export type DaemonUiAuthDeviceFlowEvent = DaemonUiAuthDeviceFlowStartedEvent | DaemonUiAuthDeviceFlowThrottledEvent | DaemonUiAuthDeviceFlowAuthorizedEvent | DaemonUiAuthDeviceFlowFailedEvent | DaemonUiAuthDeviceFlowCancelledEvent;
-export type DaemonUiEvent = DaemonUiTextEvent | DaemonUiUserImageEvent | DaemonUiUserShellCommandEvent | DaemonUiAssistantDoneEvent | DaemonUiToolUpdateEvent | DaemonUiShellOutputEvent | DaemonUiUserShellOutputEvent | DaemonUiPermissionRequestEvent | DaemonUiPermissionResolvedEvent | DaemonUiModelChangedEvent | DaemonUiStatusEvent | DaemonUiErrorEvent | DaemonUiSessionMetadataChangedEvent | DaemonUiSessionApprovalModeChangedEvent | DaemonUiSessionAvailableCommandsEvent | DaemonUiStateResyncRequiredEvent | DaemonUiReplayCompleteEvent | DaemonUiPromptCancelledEvent | DaemonUiFollowupSuggestionEvent | DaemonUiWorkspaceMemoryChangedEvent | DaemonUiWorkspaceAgentChangedEvent | DaemonUiWorkspaceToolToggledEvent | DaemonUiWorkspaceSettingsChangedEvent | DaemonUiWorkspaceInitializedEvent | DaemonUiMcpBudgetWarningEvent | DaemonUiMcpChildRefusedEvent | DaemonUiMcpServerRestartedEvent | DaemonUiMcpServerRestartRefusedEvent | DaemonUiAuthDeviceFlowEvent;
+export type DaemonUiEvent = DaemonUiTextEvent | DaemonUiUserImageEvent | DaemonUiUserShellCommandEvent | DaemonUiAssistantDoneEvent | DaemonUiAssistantUsageEvent | DaemonUiToolUpdateEvent | DaemonUiShellOutputEvent | DaemonUiUserShellOutputEvent | DaemonUiPermissionRequestEvent | DaemonUiPermissionResolvedEvent | DaemonUiModelChangedEvent | DaemonUiStatusEvent | DaemonUiErrorEvent | DaemonUiSessionMetadataChangedEvent | DaemonUiSessionArtifactChangedEvent | DaemonUiSessionApprovalModeChangedEvent | DaemonUiSessionAvailableCommandsEvent | DaemonUiStateResyncRequiredEvent | DaemonUiReplayCompleteEvent | DaemonUiSessionRewoundEvent | DaemonUiSessionBranchedEvent | DaemonUiPromptCancelledEvent | DaemonUiFollowupSuggestionEvent | DaemonUiWorkspaceMemoryChangedEvent | DaemonUiWorkspaceAgentChangedEvent | DaemonUiWorkspaceToolToggledEvent | DaemonUiWorkspaceSettingsChangedEvent | DaemonUiTrustChangeRequestedEvent | DaemonUiWorkspaceInitializedEvent | DaemonUiGithubSetupCompletedEvent | DaemonUiMcpBudgetWarningEvent | DaemonUiMcpChildRefusedEvent | DaemonUiMcpServerRestartedEvent | DaemonUiMcpServerRestartRefusedEvent | DaemonUiMcpServerChangedEvent | DaemonUiExtensionsChangedEvent | DaemonUiAuthDeviceFlowEvent;
 export interface NormalizeDaemonEventOptions {
     /**
      * Client id returned by `DaemonSessionClient`. Used only for optional
@@ -469,6 +598,8 @@ export interface DaemonTranscriptBlockBase {
      * display: clients viewing the same session see the same value.
      */
     serverTimestamp?: number;
+    /** Ordered persisted ChatRecord identities that contributed to this block. */
+    sourceRecordIds?: readonly string[];
     /**
      * Same as the previous `createdAt` semantics — client-local clock at the
      * moment the block was first observed. Renamed for clarity:
@@ -501,6 +632,15 @@ export interface DaemonTextTranscriptBlock extends DaemonTranscriptBlockBase {
     collapsed?: boolean;
     /** Used by the reducer for per-subAgent block routing; renderers may use it for nesting. */
     parentToolCallId?: string;
+    /** Raw ACP update metadata used by renderers for display-only routing. */
+    meta?: DaemonTextDeltaMeta;
+    /**
+     * Token usage folded onto this assistant block by the reducer from the
+     * round's `assistant.usage` event(s). Summed across a turn's assistant blocks
+     * for a per-turn total. Assistant blocks only; absent until a usage frame
+     * lands (and on sessions whose agent predates usage stamping).
+     */
+    usage?: DaemonTurnUsage;
 }
 export interface DaemonToolTranscriptBlock extends DaemonTranscriptBlockBase {
     kind: 'tool';
@@ -564,7 +704,11 @@ export interface DaemonStatusTranscriptBlock extends DaemonTranscriptBlockBase {
     text: string;
     code?: string;
     promptId?: string;
-    source?: 'turn_error';
+    errorKind?: DaemonErrorKind;
+    source?: string;
+    data?: unknown;
+    /** Mirrors `DaemonUiStatusEvent.debugReason`; only set on `debug` blocks. */
+    debugReason?: DaemonUiDebugReason;
 }
 export interface DaemonPromptCancelledTranscriptBlock extends DaemonTranscriptBlockBase {
     kind: 'prompt_cancelled';
@@ -641,10 +785,18 @@ export interface DaemonTranscriptState extends DaemonTranscriptSidechannelState 
     nextOrdinal: number;
     now: number;
     maxBlocks: number;
+    retainSubagentBlocks: boolean;
 }
 export interface DaemonTranscriptReducerOptions {
     maxBlocks?: number;
     now?: number;
+    retainSubagentBlocks?: boolean;
+    onTruncation?: (detail: DaemonTranscriptTruncationDetail) => void;
+}
+export interface DaemonTranscriptTruncationDetail {
+    kind: 'blocks' | 'text';
+    blockId?: string;
+    sourceRecordIds?: readonly string[];
 }
 export interface DaemonTranscriptStore {
     getSnapshot(): DaemonTranscriptState;
@@ -653,7 +805,7 @@ export interface DaemonTranscriptStore {
     appendLocalUserMessage(text: string, images?: Array<{
         data: string;
         mimeType: string;
-    }>): void;
+    }>, meta?: DaemonTextDeltaMeta): void;
     reset(seed?: Partial<DaemonTranscriptState>): void;
     /**
      * Clear the `awaitingResync` latch that gets set when the daemon emits

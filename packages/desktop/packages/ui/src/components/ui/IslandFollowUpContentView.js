@@ -1,0 +1,115 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import * as React from 'react';
+import { ChevronDown, Send } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { IslandContentView } from './Island';
+import { DropdownMenu, DropdownMenuTrigger, StyledDropdownMenuContent, StyledDropdownMenuItem, } from './StyledDropdown';
+/**
+ * Reusable Follow-up confirmation view for Island flows.
+ *
+ * - Uses multiline textarea input
+ * - Esc cancels
+ * - Cmd/Ctrl+Enter submits
+ */
+export function IslandFollowUpContentView({ id, value, onValueChange, onCancel, onSubmit, onSubmitAndSend, onDelete, title: titleProp, placeholder: placeholderProp, submitLabel: submitLabelProp, submitAndSendLabel: submitAndSendLabelProp, editLabel: editLabelProp, deleteLabel: deleteLabelProp, maxInputHeight = 400, sendMessageKey = 'enter', morphFrom = null, lockScroll = false, blockOutsideInteraction = false, mode = 'edit', onRequestEdit, }) {
+    const { t } = useTranslation();
+    const title = titleProp ?? t('chat.followUp');
+    const placeholder = placeholderProp ?? t('chat.annotationPlaceholder');
+    const submitLabel = submitLabelProp ?? t('common.continue');
+    const submitAndSendLabel = submitAndSendLabelProp ?? t('chat.followUpSaveAndSend');
+    const editLabel = editLabelProp ?? t('common.edit');
+    const deleteLabel = deleteLabelProp ?? t('common.delete');
+    const textareaRef = React.useRef(null);
+    const measureTextareaRef = React.useRef(null);
+    const isViewMode = mode === 'view';
+    const isEmpty = !isViewMode && value.trim().length === 0;
+    const canSubmitAndSend = !isViewMode && !!onSubmitAndSend;
+    const minInputHeight = isViewMode ? 20 : 44;
+    const [inputHeight, setInputHeight] = React.useState(minInputHeight);
+    const [inputOverflow, setInputOverflow] = React.useState(false);
+    const [submitMenuOpen, setSubmitMenuOpen] = React.useState(false);
+    const handleSubmitMenuInteractOutside = React.useCallback((event) => {
+        const dismissEvent = event;
+        // Dismiss only the Save & Send popup. Do not let this outside tap
+        // cascade into the parent island's outside-dismiss behavior.
+        dismissEvent.preventDefault?.();
+        dismissEvent.detail?.originalEvent?.preventDefault?.();
+        dismissEvent.detail?.originalEvent?.stopPropagation?.();
+        setSubmitMenuOpen(false);
+    }, []);
+    React.useLayoutEffect(() => {
+        const measure = measureTextareaRef.current;
+        if (!measure)
+            return;
+        measure.value = value;
+        const measured = measure.scrollHeight;
+        const nextHeight = Math.min(Math.max(measured, minInputHeight), maxInputHeight);
+        const nextOverflow = measured > maxInputHeight;
+        setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+        setInputOverflow((prev) => (prev === nextOverflow ? prev : nextOverflow));
+    }, [value, maxInputHeight, minInputHeight]);
+    React.useEffect(() => {
+        if (isViewMode || typeof window === 'undefined')
+            return;
+        const raf = window.requestAnimationFrame(() => {
+            const textarea = textareaRef.current;
+            if (!textarea)
+                return;
+            textarea.focus();
+            const cursor = textarea.value.length;
+            textarea.setSelectionRange(cursor, cursor);
+        });
+        return () => window.cancelAnimationFrame(raf);
+    }, [isViewMode]);
+    React.useEffect(() => {
+        if (!canSubmitAndSend && submitMenuOpen) {
+            setSubmitMenuOpen(false);
+        }
+    }, [canSubmitAndSend, submitMenuOpen]);
+    return (_jsx(IslandContentView, { id: id, anchorX: "center", anchorY: "top", morphFrom: morphFrom, lockScroll: lockScroll, blockOutsideInteraction: blockOutsideInteraction, children: _jsxs("div", { className: "w-[330px] px-3 pb-3 pt-3 space-y-2.5 select-none", children: [_jsx("div", { className: "flex items-center", children: _jsx("div", { className: "pl-[4px] text-sm font-medium", children: title }) }), _jsxs("div", { className: "relative rounded-[8px] px-0 py-1", children: [_jsx("textarea", { ref: measureTextareaRef, "aria-hidden": "true", tabIndex: -1, readOnly: true, rows: isViewMode ? 1 : 2, value: value, className: "pointer-events-none absolute left-0 right-0 top-1 resize-none overflow-hidden bg-transparent text-sm leading-5 opacity-0 pl-[4px]" }), _jsx("textarea", { ref: textareaRef, value: value, readOnly: isViewMode, tabIndex: isViewMode ? -1 : 0, onChange: (event) => {
+                                if (isViewMode)
+                                    return;
+                                onValueChange(event.target.value);
+                            }, onKeyDown: (event) => {
+                                if (isViewMode)
+                                    return;
+                                if (event.key === 'Escape') {
+                                    event.preventDefault();
+                                    onCancel();
+                                    return;
+                                }
+                                if (event.nativeEvent.isComposing)
+                                    return;
+                                const trimmedEmpty = value.trim().length === 0;
+                                if (sendMessageKey === 'enter') {
+                                    if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+                                        event.preventDefault();
+                                        if (!trimmedEmpty)
+                                            onSubmit(value);
+                                        return;
+                                    }
+                                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                                        event.preventDefault();
+                                        if (!trimmedEmpty)
+                                            onSubmit(value);
+                                    }
+                                    return;
+                                }
+                                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                                    event.preventDefault();
+                                    if (!trimmedEmpty)
+                                        onSubmit(value);
+                                }
+                            }, placeholder: placeholder, rows: isViewMode ? 1 : 2, style: { height: inputHeight, overflowY: inputOverflow ? 'auto' : 'hidden' }, className: "relative w-full resize-none bg-transparent outline-none text-sm leading-5 select-text pl-[4px]" })] }), _jsxs("div", { className: "flex justify-between items-center pt-1 shrink-0", children: [_jsx("div", { children: onDelete && (_jsx("button", { type: "button", onClick: onDelete, className: "h-8 px-3 rounded-[8px] text-sm bg-background shadow-minimal text-red-500 inline-flex items-center cursor-pointer hover:bg-foreground/2", children: deleteLabel })) }), _jsxs("div", { className: "flex gap-2", children: [_jsx("button", { type: "button", onClick: onCancel, className: "h-8 px-3 rounded-[8px] text-sm text-foreground/75 hover:bg-foreground/5", children: t('common.cancel') }), canSubmitAndSend ? (_jsxs("div", { className: "inline-flex rounded-[8px] bg-background shadow-minimal overflow-hidden", children: [_jsx("button", { type: "button", disabled: isEmpty, onClick: () => onSubmit(value), className: "h-8 px-3 text-sm text-foreground inline-flex items-center cursor-pointer hover:bg-foreground/2 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent", children: submitLabel }), _jsxs(DropdownMenu, { open: submitMenuOpen, onOpenChange: (open) => { if (!isEmpty)
+                                                setSubmitMenuOpen(open); }, children: [_jsx(DropdownMenuTrigger, { asChild: true, children: _jsx("button", { type: "button", disabled: isEmpty, "aria-label": t('chat.moreSubmitActions'), title: t('chat.moreSubmitActions'), className: "h-8 w-6 border-l border-border/40 inline-flex items-center justify-center text-foreground/70 hover:text-foreground hover:bg-foreground/2 data-[state=open]:bg-foreground/2 data-[state=open]:text-foreground disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-foreground/70", children: _jsx(ChevronDown, { className: "h-3 w-3" }) }) }), _jsx(StyledDropdownMenuContent, { side: "bottom", align: "end", sideOffset: 6, minWidth: "", style: { zIndex: 'var(--z-island-popover, 410)' }, onInteractOutside: handleSubmitMenuInteractOutside, "data-ca-annotation-island": "true", children: _jsxs(StyledDropdownMenuItem, { onSelect: () => {
+                                                            setSubmitMenuOpen(false);
+                                                            onSubmitAndSend?.(value);
+                                                        }, children: [_jsx(Send, { className: "h-3.5 w-3.5" }), submitAndSendLabel] }) })] })] })) : (_jsx("button", { type: "button", disabled: isEmpty, onClick: () => {
+                                        if (isViewMode) {
+                                            onRequestEdit?.();
+                                            return;
+                                        }
+                                        onSubmit(value);
+                                    }, className: "h-8 px-3 rounded-[8px] text-sm bg-background shadow-minimal text-foreground inline-flex items-center cursor-pointer hover:bg-foreground/2 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent", children: isViewMode ? editLabel : submitLabel }))] })] })] }) }));
+}
+//# sourceMappingURL=IslandFollowUpContentView.js.map

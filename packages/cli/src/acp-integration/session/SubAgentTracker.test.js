@@ -1,0 +1,796 @@
+/**
+ * @license
+ * Copyright 2025 Qwen
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SubAgentTracker } from './SubAgentTracker.js';
+import { AgentEventType, ToolConfirmationOutcome, ToolNames, } from '@qwen-code/qwen-code-core';
+import { EventEmitter } from 'node:events';
+// Helper to create a mock AgentToolCallEvent with required fields
+function createToolCallEvent(overrides) {
+    return {
+        subagentId: 'test-subagent',
+        round: 1,
+        timestamp: Date.now(),
+        description: `Calling ${overrides.name}`,
+        args: {},
+        ...overrides,
+    };
+}
+// Helper to create a mock AgentToolResultEvent with required fields
+function createToolResultEvent(overrides) {
+    return {
+        subagentId: 'test-subagent',
+        round: 1,
+        timestamp: Date.now(),
+        ...overrides,
+    };
+}
+// Helper to create a mock AgentApprovalRequestEvent with required fields
+function createApprovalEvent(overrides) {
+    return {
+        subagentId: 'test-subagent',
+        round: 1,
+        timestamp: Date.now(),
+        description: `Awaiting approval for ${overrides.name}`,
+        args: {},
+        ...overrides,
+    };
+}
+// Helper to create edit confirmation details
+function createEditConfirmation(overrides) {
+    return {
+        type: 'edit',
+        title: 'Edit file',
+        fileName: '/test.ts',
+        filePath: '/test.ts',
+        fileDiff: '',
+        originalContent: '',
+        newContent: '',
+        ...overrides,
+    };
+}
+// Helper to create info confirmation details
+function createInfoConfirmation(overrides) {
+    return {
+        type: 'info',
+        title: 'Tool requires approval',
+        prompt: 'Allow this action?',
+        ...overrides,
+    };
+}
+// Helper to create a mock AgentStreamTextEvent with required fields
+function createStreamTextEvent(overrides) {
+    return {
+        subagentId: 'test-subagent',
+        round: 1,
+        timestamp: Date.now(),
+        ...overrides,
+    };
+}
+describe('SubAgentTracker', () => {
+    let mockContext;
+    let mockClient;
+    let sendUpdateSpy;
+    let requestPermissionSpy;
+    let tracker;
+    let eventEmitter;
+    let abortController;
+    beforeEach(() => {
+        sendUpdateSpy = vi.fn().mockResolvedValue(undefined);
+        requestPermissionSpy = vi.fn().mockResolvedValue({
+            outcome: { optionId: ToolConfirmationOutcome.ProceedOnce },
+        });
+        const mockToolRegistry = {
+            getTool: vi.fn().mockReturnValue(null),
+        };
+        mockContext = {
+            sessionId: 'test-session-id',
+            config: {
+                getToolRegistry: () => mockToolRegistry,
+            },
+            sendUpdate: sendUpdateSpy,
+        };
+        mockClient = {
+            requestPermission: requestPermissionSpy,
+        };
+        tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent');
+        eventEmitter = new EventEmitter();
+        abortController = new AbortController();
+    });
+    describe('setup', () => {
+        it('should return cleanup function', () => {
+            const cleanups = tracker.setup(eventEmitter, abortController.signal);
+            expect(cleanups).toHaveLength(1);
+            expect(typeof cleanups[0]).toBe('function');
+        });
+        it('should register event listeners', () => {
+            const onSpy = vi.spyOn(eventEmitter, 'on');
+            tracker.setup(eventEmitter, abortController.signal);
+            expect(onSpy).toHaveBeenCalledWith(AgentEventType.TOOL_CALL, expect.any(Function));
+            expect(onSpy).toHaveBeenCalledWith(AgentEventType.TOOL_RESULT, expect.any(Function));
+            expect(onSpy).toHaveBeenCalledWith(AgentEventType.TOOL_WAITING_APPROVAL, expect.any(Function));
+            expect(onSpy).toHaveBeenCalledWith(AgentEventType.STREAM_TEXT, expect.any(Function));
+        });
+        it('should remove event listeners on cleanup', () => {
+            const offSpy = vi.spyOn(eventEmitter, 'off');
+            const cleanups = tracker.setup(eventEmitter, abortController.signal);
+            cleanups[0]();
+            expect(offSpy).toHaveBeenCalledWith(AgentEventType.TOOL_CALL, expect.any(Function));
+            expect(offSpy).toHaveBeenCalledWith(AgentEventType.TOOL_RESULT, expect.any(Function));
+            expect(offSpy).toHaveBeenCalledWith(AgentEventType.TOOL_WAITING_APPROVAL, expect.any(Function));
+            expect(offSpy).toHaveBeenCalledWith(AgentEventType.STREAM_TEXT, expect.any(Function));
+        });
+    });
+    describe('tool call handling', () => {
+        it('should emit tool_call on TOOL_CALL event', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createToolCallEvent({
+                name: 'read_file',
+                callId: 'call-123',
+                args: { path: '/test.ts' },
+                description: 'Reading file',
+            });
+            eventEmitter.emit(AgentEventType.TOOL_CALL, event);
+            // Allow async operations to complete
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            // ToolCallEmitter resolves metadata from registry - uses toolName when tool not found
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'tool_call',
+                toolCallId: 'call-123',
+                status: 'pending',
+                title: 'read_file',
+                content: [],
+                locations: [],
+                kind: 'other',
+                rawInput: { path: '/test.ts' },
+                _meta: expect.objectContaining({
+                    toolName: 'read_file',
+                    parentToolCallId: 'parent-call-123',
+                    subagentType: 'test-subagent',
+                }),
+            }));
+        });
+        it('should skip tool_call for TodoWriteTool', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createToolCallEvent({
+                name: ToolNames.TODO_WRITE,
+                callId: 'call-todo',
+                args: { todos: [] },
+            });
+            eventEmitter.emit(AgentEventType.TOOL_CALL, event);
+            // Give time for any async operation
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            expect(sendUpdateSpy).not.toHaveBeenCalled();
+        });
+        it('should not emit when aborted', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            abortController.abort();
+            const event = createToolCallEvent({
+                name: 'read_file',
+                callId: 'call-123',
+                args: {},
+            });
+            eventEmitter.emit(AgentEventType.TOOL_CALL, event);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            expect(sendUpdateSpy).not.toHaveBeenCalled();
+        });
+    });
+    describe('tool result handling', () => {
+        it('should emit tool_call_update on TOOL_RESULT event', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            // First emit tool call to store state
+            eventEmitter.emit(AgentEventType.TOOL_CALL, createToolCallEvent({
+                name: 'read_file',
+                callId: 'call-123',
+                args: { path: '/test.ts' },
+            }));
+            // Then emit result
+            const resultEvent = createToolResultEvent({
+                name: 'read_file',
+                callId: 'call-123',
+                success: true,
+                resultDisplay: 'File contents',
+            });
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, resultEvent);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                    sessionUpdate: 'tool_call_update',
+                    toolCallId: 'call-123',
+                    status: 'completed',
+                    _meta: expect.objectContaining({
+                        toolName: 'read_file',
+                        parentToolCallId: 'parent-call-123',
+                        subagentType: 'test-subagent',
+                    }),
+                }));
+            });
+        });
+        it('should emit failed status on unsuccessful result', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const resultEvent = createToolResultEvent({
+                name: 'read_file',
+                callId: 'call-fail',
+                success: false,
+                resultDisplay: undefined,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, resultEvent);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                    sessionUpdate: 'tool_call_update',
+                    status: 'failed',
+                    _meta: expect.objectContaining({
+                        toolName: 'read_file',
+                        parentToolCallId: 'parent-call-123',
+                        subagentType: 'test-subagent',
+                    }),
+                }));
+            });
+        });
+        it('treats rejected nested tool updates as best-effort', async () => {
+            sendUpdateSpy.mockRejectedValue(new Error('client unavailable'));
+            tracker.setup(eventEmitter, abortController.signal);
+            eventEmitter.emit(AgentEventType.TOOL_CALL, createToolCallEvent({
+                name: 'read_file',
+                callId: 'call-best-effort',
+                args: { path: '/test.ts' },
+            }));
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, createToolResultEvent({
+                name: 'read_file',
+                callId: 'call-best-effort',
+                success: true,
+                resultDisplay: 'contents',
+            }));
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalledTimes(2);
+            });
+            await Promise.resolve();
+        });
+        // Subagent todo state is isolated from the parent session plan: a
+        // subagent's TodoWrite result must not promote into a session-level
+        // plan update. The guard lives in ToolCallEmitter.emitResult, keyed on
+        // the subagentMeta this tracker stamps onto every emit.
+        it('does not promote a subagent TodoWrite as the session plan', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            eventEmitter.emit(AgentEventType.TOOL_CALL, createToolCallEvent({
+                name: ToolNames.TODO_WRITE,
+                callId: 'call-todo',
+                args: {
+                    todos: [{ id: '1', content: 'Task 1', status: 'pending' }],
+                },
+            }));
+            const resultEvent = createToolResultEvent({
+                name: ToolNames.TODO_WRITE,
+                callId: 'call-todo',
+                success: true,
+                resultDisplay: JSON.stringify({
+                    type: 'todo_list',
+                    todos: [{ id: '1', content: 'Task 1', status: 'completed' }],
+                }),
+            });
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, resultEvent);
+            // emitResult is fire-and-forget; flush the microtask queue before
+            // asserting so a regression that re-enables plan emission is caught.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect(sendUpdateSpy).not.toHaveBeenCalledWith(expect.objectContaining({ sessionUpdate: 'plan' }));
+        });
+        it('should clean up state after result', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            eventEmitter.emit(AgentEventType.TOOL_CALL, createToolCallEvent({
+                name: 'test_tool',
+                callId: 'call-cleanup',
+                args: { test: true },
+            }));
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, createToolResultEvent({
+                name: 'test_tool',
+                callId: 'call-cleanup',
+                success: true,
+            }));
+            // Emit another result for same callId - should not have stored args
+            sendUpdateSpy.mockClear();
+            eventEmitter.emit(AgentEventType.TOOL_RESULT, createToolResultEvent({
+                name: 'test_tool',
+                callId: 'call-cleanup',
+                success: true,
+            }));
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            // Second call should not have args from first call
+            // (state was cleaned up)
+        });
+    });
+    describe('approval handling', () => {
+        it('should request permission from client', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'edit_file',
+                callId: 'call-edit',
+                description: 'Editing file',
+                confirmationDetails: createEditConfirmation({
+                    fileName: '/test.ts',
+                    originalContent: 'old',
+                    newContent: 'new',
+                }),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(requestPermissionSpy).toHaveBeenCalled();
+            });
+            expect(requestPermissionSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionId: 'test-session-id',
+                toolCall: expect.objectContaining({
+                    toolCallId: 'call-edit',
+                    status: 'pending',
+                    content: [
+                        {
+                            type: 'diff',
+                            path: '/test.ts',
+                            oldText: 'old',
+                            newText: 'new',
+                        },
+                    ],
+                    // Second producer path must mirror the tool name onto _meta so
+                    // consumers (e.g. the Agent prompt) get the same identity the
+                    // primary path in Session.ts provides.
+                    _meta: expect.objectContaining({ toolName: 'edit_file' }),
+                }),
+            }));
+        });
+        it('should respond to subagent with permission outcome', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'test_tool',
+                callId: 'call-123',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.ProceedOnce, {
+                    answers: undefined,
+                });
+            });
+        });
+        it('should cancel on permission request failure', async () => {
+            requestPermissionSpy.mockRejectedValue(new Error('Network error'));
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'test_tool',
+                callId: 'call-123',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel);
+            });
+        });
+        it('should handle cancelled outcome from client', async () => {
+            requestPermissionSpy.mockResolvedValue({
+                outcome: { outcome: 'cancelled' },
+            });
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'test_tool',
+                callId: 'call-123',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel, {
+                    answers: undefined,
+                });
+            });
+        });
+        it('cancels outcomes that were not offered to the ACP host', async () => {
+            requestPermissionSpy.mockResolvedValue({
+                outcome: {
+                    outcome: 'selected',
+                    optionId: ToolConfirmationOutcome.ProceedAlwaysProject,
+                },
+            });
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, createApprovalEvent({
+                name: 'shell',
+                callId: 'call-exact-shell',
+                confirmationDetails: {
+                    type: 'exec',
+                    title: 'Confirm shell',
+                    command: "python -c 'print(1)'",
+                    rootCommand: 'python',
+                    hideAlwaysAllow: true,
+                    warnings: ['Exact one-off approval required'],
+                },
+                respond: respondSpy,
+            }));
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel);
+            });
+        });
+        it('notifies when nested ask_user_question is cancelled', async () => {
+            requestPermissionSpy.mockResolvedValue({
+                outcome: { outcome: 'cancelled' },
+            });
+            const onPermissionCancel = vi.fn();
+            tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent', onPermissionCancel);
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: ToolNames.ASK_USER_QUESTION,
+                callId: 'call-ask',
+                confirmationDetails: {
+                    type: 'ask_user_question',
+                    title: 'Question',
+                    questions: [{ question: 'Continue?', header: 'Question' }],
+                },
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel, {
+                    answers: undefined,
+                });
+            });
+            expect(onPermissionCancel).toHaveBeenCalledOnce();
+            expect(respondSpy.mock.invocationCallOrder[0]).toBeLessThan(onPermissionCancel.mock.invocationCallOrder[0]);
+        });
+        it('notifies when a non-question subagent tool is cancelled', async () => {
+            requestPermissionSpy.mockResolvedValue({
+                outcome: { outcome: 'cancelled' },
+            });
+            const onPermissionCancel = vi.fn();
+            tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent', onPermissionCancel);
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'shell',
+                callId: 'call-shell',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel, {
+                    answers: undefined,
+                });
+            });
+            expect(onPermissionCancel).toHaveBeenCalledOnce();
+            expect(respondSpy.mock.invocationCallOrder[0]).toBeLessThan(onPermissionCancel.mock.invocationCallOrder[0]);
+        });
+        it('notifies when nested permission request fails', async () => {
+            requestPermissionSpy.mockRejectedValue(new Error('Network error'));
+            const onPermissionCancel = vi.fn();
+            tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent', onPermissionCancel);
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'shell',
+                callId: 'call-shell',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel);
+            });
+            expect(onPermissionCancel).toHaveBeenCalledOnce();
+            expect(onPermissionCancel.mock.invocationCallOrder[0]).toBeLessThan(respondSpy.mock.invocationCallOrder[0]);
+        });
+        it('does not report parent abort as an explicit nested permission cancellation', async () => {
+            requestPermissionSpy.mockReturnValue(new Promise(() => { }));
+            const onPermissionCancel = vi.fn();
+            tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent', onPermissionCancel);
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, createApprovalEvent({
+                name: 'shell',
+                callId: 'call-shell',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            }));
+            await vi.waitFor(() => {
+                expect(requestPermissionSpy).toHaveBeenCalledOnce();
+            });
+            abortController.abort();
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel);
+            });
+            expect(onPermissionCancel).not.toHaveBeenCalled();
+        });
+        it('notifies when nested permission failure cannot respond', async () => {
+            requestPermissionSpy.mockRejectedValue(new Error('Network error'));
+            const onPermissionCancel = vi.fn();
+            tracker = new SubAgentTracker(mockContext, mockClient, 'parent-call-123', 'test-subagent', onPermissionCancel);
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockRejectedValue(new Error('Already closed'));
+            const event = createApprovalEvent({
+                name: 'shell',
+                callId: 'call-shell',
+                confirmationDetails: createInfoConfirmation(),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(onPermissionCancel).toHaveBeenCalledOnce();
+            });
+            expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.Cancel);
+        });
+        it('should forward answers payload from ACP permission responses', async () => {
+            requestPermissionSpy.mockResolvedValue({
+                outcome: {
+                    outcome: 'selected',
+                    optionId: ToolConfirmationOutcome.ProceedOnce,
+                },
+                answers: {
+                    answer: 'yes',
+                },
+            });
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const confirmationDetails = {
+                type: 'ask_user_question',
+                title: 'Question',
+                questions: [
+                    {
+                        question: 'Continue?',
+                        header: 'Question',
+                        options: [],
+                        multiSelect: false,
+                    },
+                ],
+            };
+            const event = createApprovalEvent({
+                name: 'ask_user_question',
+                callId: 'call-ask',
+                confirmationDetails,
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(respondSpy).toHaveBeenCalledWith(ToolConfirmationOutcome.ProceedOnce, {
+                    answers: {
+                        answer: 'yes',
+                    },
+                });
+            });
+        });
+        it('should use filePath over fileName for diff content path', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'edit_file',
+                callId: 'call-path-test',
+                description: 'Editing file',
+                confirmationDetails: createEditConfirmation({
+                    fileName: 'test.ts',
+                    filePath: '/workspace/src/test.ts',
+                    originalContent: 'old content',
+                    newContent: 'new content',
+                }),
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(requestPermissionSpy).toHaveBeenCalled();
+            });
+            expect(requestPermissionSpy).toHaveBeenCalledWith(expect.objectContaining({
+                toolCall: expect.objectContaining({
+                    content: [
+                        {
+                            type: 'diff',
+                            path: '/workspace/src/test.ts',
+                            oldText: 'old content',
+                            newText: 'new content',
+                        },
+                    ],
+                }),
+            }));
+        });
+        it('should fall back to fileName when filePath is not available', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const respondSpy = vi.fn().mockResolvedValue(undefined);
+            const event = createApprovalEvent({
+                name: 'edit_file',
+                callId: 'call-fallback-test',
+                description: 'Editing file',
+                confirmationDetails: {
+                    type: 'edit',
+                    title: 'Edit file',
+                    fileName: 'fallback.ts',
+                    fileDiff: '',
+                    originalContent: 'old',
+                    newContent: 'new',
+                },
+                respond: respondSpy,
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(requestPermissionSpy).toHaveBeenCalled();
+            });
+            expect(requestPermissionSpy).toHaveBeenCalledWith(expect.objectContaining({
+                toolCall: expect.objectContaining({
+                    content: [
+                        {
+                            type: 'diff',
+                            path: 'fallback.ts',
+                            oldText: 'old',
+                            newText: 'new',
+                        },
+                    ],
+                }),
+            }));
+        });
+    });
+    describe('permission options', () => {
+        it('should include "Allow All Edits" for edit type', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createApprovalEvent({
+                name: 'edit_file',
+                callId: 'call-123',
+                confirmationDetails: createEditConfirmation({
+                    fileName: '/test.ts',
+                    originalContent: '',
+                    newContent: 'new',
+                }),
+                respond: vi.fn(),
+            });
+            eventEmitter.emit(AgentEventType.TOOL_WAITING_APPROVAL, event);
+            await vi.waitFor(() => {
+                expect(requestPermissionSpy).toHaveBeenCalled();
+            });
+            const call = requestPermissionSpy.mock.calls[0][0];
+            expect(call.options).toContainEqual(expect.objectContaining({
+                optionId: ToolConfirmationOutcome.ProceedAlways,
+                name: 'Allow All Edits',
+            }));
+        });
+    });
+    describe('stream text handling', () => {
+        it.each([
+            [
+                'stream text',
+                AgentEventType.STREAM_TEXT,
+                () => createStreamTextEvent({
+                    text: 'best-effort stream text',
+                }),
+            ],
+            [
+                'usage metadata',
+                AgentEventType.USAGE_METADATA,
+                () => ({
+                    subagentId: 'test-subagent',
+                    round: 1,
+                    timestamp: Date.now(),
+                    usage: { promptTokenCount: 1 },
+                    durationMs: 5,
+                }),
+            ],
+        ])('treats rejected %s updates as best-effort', async (_, type, event) => {
+            sendUpdateSpy.mockRejectedValue(new Error('client unavailable'));
+            tracker.setup(eventEmitter, abortController.signal);
+            eventEmitter.emit(type, event());
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalledOnce();
+            });
+            await Promise.resolve();
+        });
+        it('should emit agent_message_chunk on STREAM_TEXT event', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createStreamTextEvent({
+                text: 'Hello, this is a response from the model.',
+            });
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, event);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: {
+                    type: 'text',
+                    text: 'Hello, this is a response from the model.',
+                },
+                _meta: expect.objectContaining({
+                    parentToolCallId: 'parent-call-123',
+                    subagentType: 'test-subagent',
+                }),
+            }));
+        });
+        it('should emit multiple chunks for multiple STREAM_TEXT events', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, createStreamTextEvent({ text: 'First chunk ' }));
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, createStreamTextEvent({ text: 'Second chunk ' }));
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, createStreamTextEvent({ text: 'Third chunk' }));
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalledTimes(3);
+            });
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'First chunk ' },
+            }));
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Second chunk ' },
+            }));
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(3, expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Third chunk' },
+            }));
+        });
+        it('should not emit when aborted', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            abortController.abort();
+            const event = createStreamTextEvent({
+                text: 'This should not be emitted',
+            });
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, event);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            expect(sendUpdateSpy).not.toHaveBeenCalled();
+        });
+        it('should emit agent_thought_chunk when thought flag is true', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createStreamTextEvent({
+                text: 'Let me think about this...',
+                thought: true,
+            });
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, event);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_thought_chunk',
+                content: {
+                    type: 'text',
+                    text: 'Let me think about this...',
+                },
+            }));
+        });
+        it('should emit agent_message_chunk when thought flag is false', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            const event = createStreamTextEvent({
+                text: 'Here is the answer.',
+                thought: false,
+            });
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, event);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: {
+                    type: 'text',
+                    text: 'Here is the answer.',
+                },
+            }));
+        });
+        it('should emit agent_message_chunk when thought flag is undefined', async () => {
+            tracker.setup(eventEmitter, abortController.signal);
+            // Event without thought flag (undefined)
+            const event = createStreamTextEvent({
+                text: 'Default behavior text.',
+            });
+            eventEmitter.emit(AgentEventType.STREAM_TEXT, event);
+            await vi.waitFor(() => {
+                expect(sendUpdateSpy).toHaveBeenCalled();
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                content: {
+                    type: 'text',
+                    text: 'Default behavior text.',
+                },
+            }));
+        });
+    });
+});
+//# sourceMappingURL=SubAgentTracker.test.js.map

@@ -1,5 +1,6 @@
 declare const _default: {
     introduction: string;
+    'agent-plugins': string;
     'getting-started-extensions': {
         display: string;
     };

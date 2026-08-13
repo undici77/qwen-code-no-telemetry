@@ -10,8 +10,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createSdkMcpServer } from '../../src/mcp/createSdkMcpServer.js';
-import { tool } from '../../src/mcp/tool.js';
+import { createSdkMcpServer } from '../../src/daemon-mcp/createSdkMcpServer.js';
+import { tool } from '../../src/daemon-mcp/tool.js';
 describe('createSdkMcpServer', () => {
     describe('Server Creation', () => {
         it('should create server with name and version', () => {
@@ -42,7 +42,7 @@ describe('createSdkMcpServer', () => {
             expect(() => createSdkMcpServer({
                 name: 'test',
                 version: '1.0.0',
-                 
+                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
                 tools: {},
             })).toThrow('Tools must be an array');
         });
@@ -98,7 +98,7 @@ describe('createSdkMcpServer', () => {
             expect(() => createSdkMcpServer({
                 name: 'test-server',
                 version: '1.0.0',
-                 
+                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
                 tools: [invalidTool],
             })).toThrow('Tool name');
         });

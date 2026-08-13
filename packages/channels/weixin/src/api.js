@@ -1,6 +1,7 @@
 /**
  * HTTP API wrapper for WeChat iLink Bot API.
  */
+import * as crypto from 'node:crypto';
 // ── Error handling ────────────────────────────────────────────────
 /** Structured error from WeChat iLink Bot API. */
 export class WeixinApiError extends Error {
@@ -208,14 +209,15 @@ export async function getUploadUrl(baseUrl, token, toUserId, filekey, rawsize, r
 export async function uploadToCdn(urlOrParam, filekey, encryptedData) {
     const CDN_HOST = 'novac2c.cdn.weixin.qq.com';
     let url;
-    if (urlOrParam.startsWith('https://')) {
+    const lowerUrlOrParam = urlOrParam.toLowerCase();
+    if (lowerUrlOrParam.startsWith('https://')) {
         const parsed = new URL(urlOrParam);
         if (parsed.hostname !== CDN_HOST) {
             throw new Error(`CDN upload URL has unexpected host: ${parsed.hostname}`);
         }
         url = urlOrParam;
     }
-    else if (urlOrParam.startsWith('http://')) {
+    else if (lowerUrlOrParam.startsWith('http://')) {
         throw new Error('CDN upload URL must use HTTPS');
     }
     else {

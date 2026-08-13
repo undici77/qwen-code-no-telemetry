@@ -1,0 +1,1 @@
+{"version":3,"file":"customization.js","sourceRoot":"","sources":["customization.tsx"],"names":[],"mappings":"AAAA,OAAO,EACL,aAAa,EACb,UAAU,GAIX,MAAM,OAAO,CAAC;AA6ff,MAAM,4BAA4B,GAAG,aAAa,CAAwB,EAAE,CAAC,CAAC;AAE9E,MAAM,CAAC,MAAM,6BAA6B,GACxC,4BAA4B,CAAC,QAAQ,CAAC;AAExC,MAAM,UAAU,wBAAwB;IACtC,OAAO,UAAU,CAAC,4BAA4B,CAAC,CAAC;AAClD,CAAC"}

@@ -511,7 +511,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Auto Update',
         category: 'General',
         requiresRestart: false,
-        default: false,
+        default: true,
         description:
           'Enable automatic update checks and installations on startup.',
         showInDialog: true,
@@ -564,7 +564,7 @@ const SETTINGS_SCHEMA = {
         // schema publishes the same "enabled by default" hint users see
         // at runtime. The empty-object form here would silently lose
         // editor-surfaced defaults.
-        default: { commit: false, pr: false },
+        default: { commit: true, pr: true },
         description:
           'Attribution added to git commits and pull requests created through Qwen Code.',
         showInDialog: false,
@@ -581,7 +581,7 @@ const SETTINGS_SCHEMA = {
             label: 'Attribution: commit',
             category: 'General',
             requiresRestart: false,
-            default: false,
+            default: true,
             description:
               'Add a Co-authored-by trailer to git commit messages AND attach a per-file AI-attribution git note (`refs/notes/ai-attribution`) for commits made through Qwen Code. Disabling skips both.',
             showInDialog: true,
@@ -591,7 +591,7 @@ const SETTINGS_SCHEMA = {
             label: 'Attribution: PR',
             category: 'General',
             requiresRestart: false,
-            default: false,
+            default: true,
             description:
               'Append a Qwen Code attribution line to PR descriptions when running `gh pr create`.',
             showInDialog: true,
@@ -832,7 +832,7 @@ const SETTINGS_SCHEMA = {
             )
           | undefined,
         description:
-          'Status line display configuration. Use `type: "preset"` with built-in item ids, or `type: "command"` with a shell command. Optional command `refreshInterval` (seconds, >= 1) re-runs the command on a timer so external data stays fresh. Set `respectUserColors: true` to preserve ANSI color codes in command output instead of applying dim/theme styling. Set `hideContextIndicator: true` to hide the built-in context usage indicator in the footer right section. When unset (default), the built-in default preset (model, git branch, context usage, current dir) is shown automatically; set to `null` to explicitly disable the status line.',
+          'Status line display configuration. Use `type: "preset"` with built-in item ids, or `type: "command"` with a shell command. Optional command `refreshInterval` (seconds, >= 1) re-runs the command on a timer so external data stays fresh. Set `respectUserColors: true` to preserve ANSI color codes in command output instead of applying dim/theme styling. Set `hideContextIndicator: true` to hide the built-in context usage indicator in the footer right section, or `false` to always show it. When `hideContextIndicator` is unset, the footer indicator is hidden automatically for preset status lines that already include `context-used` or `context-remaining`, and shown otherwise (including for `command` status lines). When unset (default), the built-in default preset (model, git branch, context usage, current dir) is shown automatically; set to `null` to explicitly disable the status line.',
         showInDialog: false,
       },
       customThemes: {
@@ -1255,7 +1255,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Usage Statistics',
         category: 'Privacy',
         requiresRestart: true,
-        default: false,
+        default: true,
         description: 'Enable collection of usage statistics',
         showInDialog: true,
       },
@@ -1602,7 +1602,7 @@ const SETTINGS_SCHEMA = {
         default: DEFAULT_OPENAI_LOG_RETENTION_DAYS,
         minimum: 0,
         description:
-          'Number of days to retain OpenAI API log files written when enableOpenAILogging is on. Log files older than this are removed by an interactive-session background housekeeping pass that runs at most once per day. Set to 0 for minimum retention (~1 hour). For a custom openAILoggingDir, configure this at user or system scope; workspace-scoped retention is skipped because one directory can be shared by multiple workspaces.',
+          'Number of days to retain OpenAI API log files written when enableOpenAILogging is on. Completed background housekeeping passes run at most once per day in interactive, headless, stream-json SDK, and ACP sessions. Short-lived non-interactive processes make best-effort progress, while persistent processes scan to completion. Set to 0 for minimum retention (~1 hour). For a custom openAILoggingDir, configure this at user or system scope; workspace-scoped retention is skipped because one directory can be shared by multiple workspaces.',
         showInDialog: false,
       },
       generationConfig: {
@@ -2445,7 +2445,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: true,
         default: {},
         description:
-          'Settings for the built-in WebSearch tool (SerpApi backend). Opt-in: requires enabled=true and a SerpApi API key. The API key can be set here or via the SERPAPI_API_KEY environment variable. Additional options: engine (default: google), hl (language, default: en), gl (country, default: us).',
+          'Settings for the built-in WebSearch tool (DashScope Responses API backend). Opt-in: requires enabled=true and a search model. Fully env-configurable for environments without settings.json: ENABLE_WEB_SEARCH, WEB_SEARCH_MODEL, WEB_SEARCH_BASE_URL, WEB_SEARCH_API_KEY (falls back to DASHSCOPE_API_KEY), WEB_SEARCH_EXTRACTOR. Note: baseUrl and API key are env-only (WEB_SEARCH_BASE_URL / WEB_SEARCH_API_KEY) and cannot be set in settings.json.',
         showInDialog: false,
         properties: {
           enabled: {
@@ -2455,47 +2455,27 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: false,
             description:
-              'Enable the built-in web_search tool. Also requires a SerpApi API key (set tools.webSearch.apiKey or the SERPAPI_API_KEY env var). Env override: ENABLE_WEB_SEARCH.',
+              'Enable the built-in web_search tool. Also requires tools.webSearch.model. Env override: ENABLE_WEB_SEARCH.',
             showInDialog: true,
           },
-          apiKey: {
+          model: {
             type: 'string',
-            label: 'SerpApi API Key',
+            label: 'Search Model',
             category: 'Tools',
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'SerpApi API key. Falls back to the SERPAPI_API_KEY environment variable when not set here. Get a key at https://serpapi.com/manage-api-key.',
+              'Model selector for the search side request, resolved against modelProviders like fastModel ("modelId" or "authType:modelId"). Must resolve to a DashScope-compatible entry with an envKey. Recommended: qwen3.6-plus. Env override: WEB_SEARCH_MODEL.',
             showInDialog: true,
           },
-          engine: {
-            type: 'string',
-            label: 'Search Engine',
+          webExtractor: {
+            type: 'boolean',
+            label: 'Open Result Pages',
             category: 'Tools',
             requiresRestart: true,
-            default: 'google',
+            default: true,
             description:
-              'Search engine to use. Supported: google, bing, baidu, yahoo, duckduckgo, yandex, etc. Default: google.',
-            showInDialog: true,
-          },
-          hl: {
-            type: 'string',
-            label: 'Language',
-            category: 'Tools',
-            requiresRestart: true,
-            default: 'en',
-            description:
-              'Language parameter (hl). Default: en. Examples: zh, ja, de, fr, es.',
-            showInDialog: true,
-          },
-          gl: {
-            type: 'string',
-            label: 'Country',
-            category: 'Tools',
-            requiresRestart: true,
-            default: 'us',
-            description:
-              'Country parameter (gl). Default: us. Examples: cn, jp, de, fr, uk.',
+              'Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.',
             showInDialog: true,
           },
         },

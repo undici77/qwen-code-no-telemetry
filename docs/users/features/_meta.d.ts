@@ -5,19 +5,19 @@ declare const _default: {
     'tool-use-summaries': string;
     'markdown-rendering': string;
     'sub-agents': string;
+    'multi-agent-coordination': string;
     arena: string;
     skills: string;
     memory: string;
     headless: string;
     'structured-output': string;
     'dual-output': string;
-    checkpointing: {
-        display: string;
-    };
     'approval-mode': string;
     'auto-mode': string;
+    worktree: string;
     mcp: string;
     lsp: string;
+    'computer-use': string;
     'token-caching': string;
     sandbox: string;
     language: string;

@@ -1,0 +1,170 @@
+/**
+ * @license
+ * Copyright 2025 Qwen Code
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { useState, useCallback } from 'react';
+import { SessionService, buildSessionRecoveryPlan, } from '@qwen-code/qwen-code-core';
+import { buildResumedHistoryItems, applyCollapsePolicyAndSummary, } from '../utils/resumeHistoryUtils.js';
+import { MessageType } from '../types.js';
+import { hasBlockingBackgroundWork, buildBackgroundWorkBlockedMessage, resetBackgroundStateForSessionSwitch, } from '../utils/backgroundWorkUtils.js';
+import { waitForGoalRuntime } from '../utils/goal-runtime.js';
+const BACKGROUND_WORK_SWITCH_BLOCKED_MESSAGE = "Stop the current session's running background tasks before resuming another session.";
+export function useResumeCommand(options) {
+    const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
+    const [resumeMatchedSessions, setResumeMatchedSessions] = useState();
+    const openResumeDialog = useCallback((matchedSessions) => {
+        setResumeMatchedSessions(matchedSessions);
+        setIsResumeDialogOpen(true);
+    }, []);
+    const closeResumeDialog = useCallback(() => {
+        setIsResumeDialogOpen(false);
+        setResumeMatchedSessions(undefined);
+    }, []);
+    const { config, settings, historyManager, startNewSession, clearPendingState, setSessionName, remount, } = options;
+    const { addItem, clearItems, loadHistory } = historyManager;
+    const handleResume = useCallback(async (sessionId) => {
+        if (!config) {
+            return;
+        }
+        if (hasBlockingBackgroundWork(config)) {
+            const blockedMessage = {
+                type: MessageType.ERROR,
+                text: buildBackgroundWorkBlockedMessage(config, BACKGROUND_WORK_SWITCH_BLOCKED_MESSAGE),
+            };
+            addItem(blockedMessage, Date.now());
+            closeResumeDialog();
+            return;
+        }
+        // Close dialog immediately to prevent input capture during async operations.
+        closeResumeDialog();
+        const oldSessionId = config.getSessionId();
+        let coreSwapped = false;
+        let uiSwapped = false;
+        let recoveredBackgroundAgentsNotice = null;
+        try {
+            const cwd = config.getTargetDir();
+            const sessionService = new SessionService(cwd);
+            const sessionData = await sessionService.loadSession(sessionId);
+            if (!sessionData) {
+                return;
+            }
+            // Restore session name tag from custom title.
+            const customTitle = sessionService.getSessionTitle(sessionId);
+            // Build UI history items.
+            const recoveryPlan = buildSessionRecoveryPlan({
+                sessionId,
+                conversation: sessionData.conversation,
+                historyGaps: sessionData.historyGaps,
+            });
+            const rawItems = buildResumedHistoryItems(sessionData, config);
+            const collapseOnResume = settings.merged.ui?.history?.collapseOnResume ?? false;
+            const collapsePreviewCount = settings.merged.ui?.history?.collapsePreviewCount ?? 0;
+            const uiHistoryItems = applyCollapsePolicyAndSummary(rawItems, collapseOnResume, collapsePreviewCount);
+            if (recoveryPlan.kind !== 'clean' &&
+                recoveryPlan.kind !== 'degraded_history' &&
+                recoveryPlan.visibleNotice) {
+                const nextId = (uiHistoryItems.at(-1)?.id ?? 0) + 1;
+                uiHistoryItems.push({
+                    id: nextId,
+                    type: MessageType.INFO,
+                    text: recoveryPlan.visibleNotice,
+                });
+            }
+            // 1. Swap core first. Matches useBranchCommand's core-before-UI
+            //    pattern: if anything fails between core swap and UI swap,
+            //    the catch block rolls core back to the old session so the
+            //    user is not stranded with a half-live client.
+            resetBackgroundStateForSessionSwitch(config);
+            config.startNewSession(sessionId, sessionData);
+            coreSwapped = true;
+            await waitForGoalRuntime(config);
+            // Rebuild turn boundary tracking so rewind works within resumed sessions.
+            config
+                .getChatRecordingService()
+                ?.rebuildTurnBoundaries(sessionData.conversation.messages);
+            await config.getGeminiClient()?.initialize?.();
+            const recovered = await config.loadPausedBackgroundAgents(sessionId);
+            if (recovered.length > 0) {
+                recoveredBackgroundAgentsNotice = config
+                    .getBackgroundAgentResumeService()
+                    .buildRecoveredBackgroundAgentsNotice(recovered.length);
+            }
+            // 2. Swap UI. Once this commits, rolling core back is unsafe —
+            //    it would leave UI on the resumed session but recorder writing
+            //    into the old JSONL (split-brain).
+            startNewSession(sessionId);
+            setSessionName?.(customTitle ?? null);
+            clearPendingState?.();
+            clearItems();
+            loadHistory(uiHistoryItems);
+            if (recoveredBackgroundAgentsNotice) {
+                addItem({
+                    type: MessageType.INFO,
+                    text: recoveredBackgroundAgentsNotice,
+                }, Date.now());
+            }
+            uiSwapped = true;
+            // SessionStart hook is handled during chat initialization so its
+            // additionalContext can be injected into the resumed model context.
+            // Refresh terminal UI.
+            remount?.();
+        }
+        catch (error) {
+            if (coreSwapped && !uiSwapped) {
+                // Core switched to the resumed session but UI hasn't swapped
+                // yet — put core back on the old session, otherwise the
+                // recorder would keep writing new user messages into the
+                // orphaned session JSONL while UI still shows the old session.
+                try {
+                    resetBackgroundStateForSessionSwitch(config);
+                    config.startNewSession(oldSessionId, undefined);
+                    // The forward path cleared the old session's in-memory
+                    // background agents (resetBackgroundStateForSessionSwitch above,
+                    // ~L158) before swapping core. After rolling core back to the old
+                    // session, reload them so `list_agents` reflects the old session's
+                    // still-on-disk sidecars again; otherwise the user lands back on
+                    // the old session with an empty roster until the next process
+                    // start or successful /resume. Best-effort — the guard inside
+                    // loadPausedBackgroundAgents requires the session to already be
+                    // current, which the startNewSession above satisfies.
+                    await config
+                        .loadPausedBackgroundAgents(oldSessionId)
+                        .catch(() => { });
+                }
+                catch (rollbackErr) {
+                    config
+                        .getDebugLogger()
+                        .warn(`Rollback after failed /resume init failed: ${rollbackErr}`);
+                }
+            }
+            addItem({
+                type: MessageType.ERROR,
+                text: `Failed to resume session: ${error instanceof Error ? error.message : String(error)}`,
+            }, Date.now());
+            closeResumeDialog();
+            remount?.();
+        }
+    }, [
+        closeResumeDialog,
+        config,
+        addItem,
+        clearItems,
+        loadHistory,
+        startNewSession,
+        clearPendingState,
+        setSessionName,
+        remount,
+        settings.merged.ui?.history?.collapseOnResume,
+        settings.merged.ui?.history?.collapsePreviewCount,
+    ]);
+    return {
+        isResumeDialogOpen,
+        resumeMatchedSessions,
+        openResumeDialog,
+        closeResumeDialog,
+        handleResume,
+    };
+}
+export { BACKGROUND_WORK_SWITCH_BLOCKED_MESSAGE };
+//# sourceMappingURL=useResumeCommand.js.map

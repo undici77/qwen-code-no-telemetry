@@ -38,9 +38,9 @@ const expectReadThenNotebookEdit = (rig, result) => {
 const expectNoSuccessfulRawNotebookWrites = (rig, notebookFileName) => {
     const rawNotebookWrites = rig
         .readToolLogs()
-        .filter((log) => ['edit', 'write_file'].includes(log.toolRequest.name) &&
+        .filter((log) => ['edit', 'write_file'].includes(log.toolRequest.name ?? '') &&
         log.toolRequest.success &&
-        log.toolRequest.args.includes(notebookFileName));
+        log.toolRequest.args?.includes(notebookFileName));
     expect(rawNotebookWrites).toEqual([]);
 };
 describe('notebook_edit integration', () => {

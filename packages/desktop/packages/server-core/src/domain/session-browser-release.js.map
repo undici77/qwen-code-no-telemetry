@@ -1,0 +1,1 @@
+{"version":3,"file":"session-browser-release.js","sourceRoot":"","sources":["session-browser-release.ts"],"names":[],"mappings":"AAKA,MAAM,CAAC,KAAK,UAAU,mCAAmC,CACvD,kBAA+D,EAC/D,SAAiB;IAEjB,IAAI,CAAC,kBAAkB;QAAE,OAAM;IAC/B,MAAM,kBAAkB,CAAC,sBAAsB,CAAC,SAAS,CAAC,CAAA;IAC1D,kBAAkB,CAAC,mBAAmB,CAAC,SAAS,CAAC,CAAA;AACnD,CAAC"}

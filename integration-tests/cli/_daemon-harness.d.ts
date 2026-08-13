@@ -30,6 +30,7 @@
  */
 import { type ChildProcess } from 'node:child_process';
 import { DaemonClient, type SubscribeOptions } from '@qwen-code/sdk';
+import { type MCPServerConfig } from '@qwen-code/qwen-code-core';
 /**
  * Default workspace and CLI binary resolution mirrors the existing
  * `qwen-serve-routes.test.ts` constants so callers that copy/paste between
@@ -74,6 +75,7 @@ export interface SpawnedDaemon {
     /** Idempotent. Sends SIGTERM, awaits exit (up to 5s). */
     dispose: () => Promise<void>;
 }
+export declare const LISTENING_LINE_RE: RegExp;
 export declare function spawnDaemon(opts?: SpawnDaemonOptions): Promise<SpawnedDaemon>;
 /**
  * Write a `.qwen/settings.json` into `workspaceCwd` so the daemon picks up
@@ -82,6 +84,23 @@ export declare function spawnDaemon(opts?: SpawnDaemonOptions): Promise<SpawnedD
  * settings file path for visibility in test output.
  */
 export declare function writeWorkspaceSettings(workspaceCwd: string, settings: Record<string, unknown>): string;
+/**
+ * Pre-approve gated (workspace / project scope, #4615) MCP servers for
+ * `workspaceCwd` so the daemon's `qwen --acp` child connects them instead of
+ * skipping them as pending-approval. Servers declared in `.qwen/settings.json`
+ * are workspace-scoped and therefore gated: absent a stored approval, discovery
+ * skips them BEFORE any spawn, which makes the MCP-amplification suite time out
+ * waiting for grandchildren that never appear.
+ *
+ * Writes a standalone approvals file (NOT the developer's global
+ * `~/.qwen/mcpApprovals.json`) under the workspace and returns the env that
+ * points the daemon — and, by inheritance, its acp child — at it. Pass the
+ * returned env to `spawnDaemon({ env })`. The approval hash binds to the same
+ * behavioral fields the child hashes (`scope` is provenance-only and excluded),
+ * so the plain settings config is sufficient. Mirrors the pre-approval pattern
+ * in `simple-mcp-server.test.ts`.
+ */
+export declare function approveWorkspaceMcpServers(workspaceCwd: string, servers: Record<string, MCPServerConfig>): Record<string, string>;
 /**
  * One-shot RSS read via `ps -o rss= -p <pid>`. Returns megabytes (rounded
  * to 1 decimal). Returns NaN if the process is gone or `ps` errored — call
@@ -154,6 +173,8 @@ export declare function percentiles(values: number[]): Percentiles;
  */
 export interface ConsumeSseResult {
     received: number;
+    /** The last non-undefined `ev.id` observed (for `Last-Event-ID` reconnect). */
+    lastSeenId?: number;
     evictedAt?: number;
     evictionReason?: string;
     elapsedMs: number;
@@ -164,3 +185,13 @@ export declare function consumeSseEvents(client: DaemonClient, sessionId: string
     timeoutMs?: number;
     subscribe?: SubscribeOptions;
 }): Promise<ConsumeSseResult>;
+export declare function sleep(ms: number): Promise<void>;
+export declare function gitHead(timeoutMs?: number): string | null;
+export declare function makeTempWorkspace(label: string, prefix?: string): string;
+export interface ScenarioResult {
+    name: string;
+    status: 'passed' | 'failed' | 'skipped';
+    durationMs: number;
+    error?: string;
+    metrics?: Record<string, unknown>;
+}

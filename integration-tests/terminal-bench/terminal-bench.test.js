@@ -3,6 +3,10 @@
  *
  * Tests qwen-code integration with terminal-bench tasks
  * using both oracle (for debugging) and qwen-code agents
+ *
+ * Manual-only: excluded from the integration vitest config and not run by
+ * any CI job. Changes to this file are ungated; run it locally with
+ * `npm run test:terminal-bench`.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TestRig } from '../test-helper.js';
@@ -73,7 +77,9 @@ describe('terminal-bench integration', () => {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean);
-        const available = new Set(baseTestTasks.map((t) => t));
+        // Set<string>, not Set<of the literal union>: the whole point is to test
+        // arbitrary env-supplied ids for membership.
+        const available = new Set(baseTestTasks);
         const unknown = selected.filter((s) => !available.has(s));
         if (unknown.length > 0) {
             throw new Error(`Unknown TB task id(s): ${unknown.join(', ')}. Available: ${[...available].join(', ')}`);
@@ -85,7 +91,7 @@ describe('terminal-bench integration', () => {
     }
     describe.each(testTasks)('Task: %s', (taskId) => {
         it(`should complete ${taskId} task with oracle agent`, async () => {
-            rig.setup(`terminal-bench-oracle-${taskId}`);
+            await rig.setup(`terminal-bench-oracle-${taskId}`);
             const outputPath = join(outputBase, `oracle-${taskId}`);
             // Check if ci-tasks exists
             if (!existsSync(ciTasksPath)) {
@@ -158,7 +164,7 @@ describe('terminal-bench integration', () => {
             }
         }, DEFAULT_TIMEOUT_MS);
         it(`should complete ${taskId} task with qwen-code agent`, async () => {
-            rig.setup(`terminal-bench-qwen-${taskId}`);
+            await rig.setup(`terminal-bench-qwen-${taskId}`);
             const outputPath = join(outputBase, `qwen-${taskId}`);
             // Check if API key is available
             const apiKey = process.env['OPENAI_API_KEY'];

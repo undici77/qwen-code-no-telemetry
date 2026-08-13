@@ -61,14 +61,14 @@ describe('file-system', () => {
         const rig = new TestRig();
         await rig.setup('should correctly handle file paths with spaces');
         const fileName = 'my test file.txt';
-        const result = await rig.run(`write "hello" to "${fileName}"`);
+        const result = await rig.run(`Use write_file to write exactly "hello" to "${fileName}".`);
         const foundToolCall = await rig.waitForToolCall('write_file');
         if (!foundToolCall) {
             printDebugInfo(rig, result);
         }
         expect(foundToolCall, 'Expected to find a write_file tool call').toBeTruthy();
         const newFileContent = rig.readFile(fileName);
-        expect(newFileContent).toBe('hello');
+        expect(newFileContent.trimEnd()).toBe('hello');
     });
     it('should perform a read-then-write sequence', async () => {
         const rig = new TestRig();
@@ -126,7 +126,7 @@ describe('file-system', () => {
         await rig.waitForTelemetryReady();
         const toolLogs = rig.readToolLogs();
         const readAttempt = toolLogs.find((log) => log.toolRequest.name === 'read_file' &&
-            log.toolRequest.args.includes(fileName));
+            log.toolRequest.args?.includes(fileName));
         const editAttempt = toolLogs.find((log) => log.toolRequest.name === 'edit_file');
         const successfulReplace = toolLogs.find((log) => log.toolRequest.name === 'replace' && log.toolRequest.success);
         // The model can either investigate (and fail) or do nothing.

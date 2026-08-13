@@ -1,0 +1,82 @@
+/**
+ * @license
+ * Copyright 2025 Qwen Team
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/**
+ * Control Context
+ *
+ * Layer 1 of the control plane architecture. Provides shared, session-scoped
+ * state for all controllers and services, eliminating the need for prop
+ * drilling. Mutable fields are intentionally exposed so controllers can track
+ * runtime state (e.g. permission mode, active MCP clients).
+ */
+import type { Config, MCPServerConfig } from '@qwen-code/qwen-code-core';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { StreamJsonOutputAdapter } from '../io/StreamJsonOutputAdapter.js';
+import type { PermissionMode } from '../types.js';
+import type { LoadedSettings } from '../../config/settings.js';
+/**
+ * Control Context interface
+ *
+ * Provides shared access to session-scoped resources and mutable state
+ * for all controllers across both ControlDispatcher (protocol routing) and
+ * ControlService (programmatic API).
+ */
+export interface IControlContext {
+    readonly config: Config;
+    readonly streamJson: StreamJsonOutputAdapter;
+    readonly sessionId: string;
+    readonly abortSignal: AbortSignal;
+    readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+    readonly debugMode: boolean;
+    readonly settings: LoadedSettings;
+    permissionMode: PermissionMode;
+    sdkCanUseToolTimeoutMs?: number;
+    sdkMcpServers: Set<string>;
+    mcpClients: Map<string, {
+        client: Client;
+        config: MCPServerConfig;
+    }>;
+    inputClosed: boolean;
+    onInterrupt?: () => void;
+    /**
+     * Continue the most recent unfinished turn (continue_last_turn control
+     * request). Resolves with `{ accepted, interruption }`; the resumed
+     * turn's output flows through the regular stream afterwards.
+     */
+    onContinueLastTurn?: () => Promise<Record<string, unknown>>;
+}
+/**
+ * Control Context implementation
+ */
+export declare class ControlContext implements IControlContext {
+    readonly config: Config;
+    readonly streamJson: StreamJsonOutputAdapter;
+    readonly sessionId: string;
+    readonly abortSignal: AbortSignal;
+    readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+    readonly debugMode: boolean;
+    readonly settings: LoadedSettings;
+    permissionMode: PermissionMode;
+    sdkCanUseToolTimeoutMs?: number;
+    sdkMcpServers: Set<string>;
+    mcpClients: Map<string, {
+        client: Client;
+        config: MCPServerConfig;
+    }>;
+    inputClosed: boolean;
+    onInterrupt?: () => void;
+    onContinueLastTurn?: () => Promise<Record<string, unknown>>;
+    constructor(options: {
+        config: Config;
+        streamJson: StreamJsonOutputAdapter;
+        sessionId: string;
+        abortSignal: AbortSignal;
+        getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+        settings: LoadedSettings;
+        permissionMode?: PermissionMode;
+        onInterrupt?: () => void;
+        onContinueLastTurn?: () => Promise<Record<string, unknown>>;
+    });
+}

@@ -83,6 +83,9 @@ function convertSettingToJsonSchema(setting) {
         case 'number':
             schema.type = 'number';
             break;
+        case 'integer':
+            schema.type = 'integer';
+            break;
         case 'array':
             schema.type = 'array';
             if (setting.items) {
@@ -136,6 +139,14 @@ function convertSettingToJsonSchema(setting) {
             // default value (e.g. `{commit: true, pr: true}` for gitCoAuthor).
             schema.default = defaultVal;
         }
+    }
+    if ((setting.type === 'number' || setting.type === 'integer') &&
+        setting.minimum !== undefined) {
+        schema.minimum = setting.minimum;
+    }
+    if ((setting.type === 'number' || setting.type === 'integer') &&
+        setting.maximum !== undefined) {
+        schema.maximum = setting.maximum;
     }
     // If the field accepts a legacy primitive shape (e.g. a boolean that was
     // later expanded into an object), wrap with `anyOf` so existing values

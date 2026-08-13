@@ -3,7 +3,7 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { DaemonToolTranscriptBlock, DaemonTranscriptBlock, DaemonTranscriptReducerOptions, DaemonTranscriptState, DaemonUiEvent } from './types.js';
+import type { DaemonTextDeltaMeta, DaemonToolTranscriptBlock, DaemonTranscriptBlock, DaemonTranscriptReducerOptions, DaemonTranscriptState, DaemonUiEvent } from './types.js';
 type TimestampFormatOptions = {
     locale?: string;
     timeZone?: string;
@@ -16,8 +16,10 @@ export declare function appendLocalUserTranscriptMessage(state: DaemonTranscript
         data: string;
         mimeType: string;
     }>;
+    meta?: DaemonTextDeltaMeta;
 }): DaemonTranscriptState;
 export declare function reduceDaemonTranscriptEvents(state: DaemonTranscriptState, events: readonly DaemonUiEvent[], opts?: DaemonTranscriptReducerOptions): DaemonTranscriptState;
+export declare function finalizeOfflineDaemonTranscriptState(state: DaemonTranscriptState): DaemonTranscriptState;
 export declare function rebuildDaemonTranscriptBlockIndex(blocks: readonly DaemonTranscriptBlock[]): Record<string, number>;
 /**
  * Format `missed daemon events X-Y` defensively. The naive formula

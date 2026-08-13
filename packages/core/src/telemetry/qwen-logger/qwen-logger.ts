@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Buffer } from 'buffer';
-import * as https from 'https';
+
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
 import * as os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+
 import { Storage } from '../../config/storage.js';
 
 import type {
@@ -69,15 +70,12 @@ import {
   createDebugLogger,
   type DebugLogger,
 } from '../../utils/debugLogger.js';
-import { safeJsonStringify } from '../../utils/safeJsonStringify.js';
 import { sanitizeHookName } from '../sanitize.js';
 import { InstallationManager } from '../../utils/installationManager.js';
 import { FixedDeque } from 'mnemonist';
 import { AuthType } from '../../core/contentGenerator.js';
 
 // Usage statistics collection endpoint
-const USAGE_STATS_HOSTNAME = 'gb4w8c3ygj-default-sea.rum.aliyuncs.com';
-const USAGE_STATS_PATH = '/';
 
 const RUN_APP_ID = 'gb4w8c3ygj@851d5d500f08f92';
 
@@ -89,7 +87,6 @@ const FLUSH_INTERVAL_MS = 1000 * 60;
 /**
  * Minimum interval between logging network errors to avoid log spam.
  */
-const ERROR_LOG_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Maximum amount of events to keep in memory. Events added after this amount
@@ -124,7 +121,6 @@ export class QwenLogger {
   /**
    * The last time that the events were successfully flushed to the server.
    */
-  private lastFlushTime: number = Date.now();
 
   private userId: string;
 
@@ -140,17 +136,14 @@ export class QwenLogger {
    * The value is true when there is a pending flush happening. This prevents
    * concurrent flush operations.
    */
-  private isFlushInProgress: boolean = false;
 
   /**
    * This value is true when a flush was requested during an ongoing flush.
    */
-  private pendingFlush: boolean = false;
 
   /**
    * Timestamp of the last network error log to prevent log spam.
    */
-  private lastErrorLogTime: number = 0;
 
   private constructor(config: Config) {
     this.config = config;
@@ -296,12 +289,8 @@ export class QwenLogger {
     } as RumPayload;
   }
 
-  flushIfNeeded(): void {
-    if (Date.now() - this.lastFlushTime < FLUSH_INTERVAL_MS) {
-      return;
-    }
-
-    void this.flushToRum();
+    flushIfNeeded(): void {
+    // No-op for no-telemetry policy
   }
 
   readSourceInfo(): string {
@@ -337,87 +326,10 @@ export class QwenLogger {
     return '';
   }
 
-  async flushToRum(): Promise<LogResponse> {
-    if (this.isFlushInProgress) {
-      this.debugLogger.debug(
-        'QwenLogger: Flush already in progress, marking pending flush.',
-      );
-      this.pendingFlush = true;
-      return Promise.resolve({});
-    }
-    this.isFlushInProgress = true;
+    async flushToRum(): Promise<LogResponse> {
+    // No-op for no-telemetry policy
+    return {};
 
-    if (this.events.size === 0) {
-      this.isFlushInProgress = false;
-      return {};
-    }
-
-    const eventsToSend = this.events.toArray() as RumEvent[];
-    this.events.clear();
-
-    const rumPayload = await this.createRumPayload();
-    // Override events with the ones we're sending
-    rumPayload.events = eventsToSend;
-    try {
-      await new Promise<Buffer>((resolve, reject) => {
-        const body = safeJsonStringify(rumPayload);
-        const options = {
-          hostname: USAGE_STATS_HOSTNAME,
-          path: USAGE_STATS_PATH,
-          method: 'POST',
-          headers: {
-            'Content-Length': Buffer.byteLength(body),
-            'Content-Type': 'text/plain;charset=UTF-8',
-          },
-        };
-        const bufs: Buffer[] = [];
-        const req = https.request(
-          {
-            ...options,
-            agent: this.getProxyAgent(),
-          },
-          (res) => {
-            if (
-              res.statusCode &&
-              (res.statusCode < 200 || res.statusCode >= 300)
-            ) {
-              const err = new Error(
-                `Request failed with status ${res.statusCode}`,
-              );
-              res.resume();
-              return reject(err);
-            }
-            res.on('data', (buf) => bufs.push(buf));
-            res.on('end', () => resolve(Buffer.concat(bufs)));
-          },
-        );
-        req.on('error', reject);
-        req.end(body);
-      });
-
-      this.lastFlushTime = Date.now();
-      return {};
-    } catch (error) {
-      // Only log network errors if sufficient time has passed to avoid spam
-      const now = Date.now();
-      if (now - this.lastErrorLogTime > ERROR_LOG_INTERVAL_MS) {
-        this.debugLogger.error('RUM flush failed.', error);
-        this.lastErrorLogTime = now;
-      }
-
-      // Re-queue failed events for retry
-      this.requeueFailedEvents(eventsToSend);
-      return {};
-    } finally {
-      this.isFlushInProgress = false;
-
-      // If a flush was requested while we were flushing, flush again
-      if (this.pendingFlush) {
-        this.pendingFlush = false;
-        // Fire and forget the pending flush
-        void this.flushToRum();
-      }
-    }
   }
 
   // session events
@@ -1120,49 +1032,6 @@ export class QwenLogger {
     } else {
       throw new Error('Unsupported proxy type');
     }
-  }
-
-  private requeueFailedEvents(eventsToSend: RumEvent[]): void {
-    // Add the events back to the front of the queue to be retried, but limit retry queue size
-    const eventsToRetry = eventsToSend.slice(-MAX_RETRY_EVENTS); // Keep only the most recent events
-
-    // Log a warning if we're dropping events
-    if (eventsToSend.length > MAX_RETRY_EVENTS) {
-      this.debugLogger.warn(
-        `QwenLogger: Dropping ${
-          eventsToSend.length - MAX_RETRY_EVENTS
-        } events due to retry queue limit. Total events: ${
-          eventsToSend.length
-        }, keeping: ${MAX_RETRY_EVENTS}`,
-      );
-    }
-
-    // Determine how many events can be re-queued
-    const availableSpace = MAX_EVENTS - this.events.size;
-    const numEventsToRequeue = Math.min(eventsToRetry.length, availableSpace);
-
-    if (numEventsToRequeue === 0) {
-      return;
-    }
-
-    // Get the most recent events to re-queue
-    const eventsToRequeue = eventsToRetry.slice(
-      eventsToRetry.length - numEventsToRequeue,
-    );
-
-    // Prepend events to the front of the deque to be retried first.
-    // We iterate backwards to maintain the original order of the failed events.
-    for (let i = eventsToRequeue.length - 1; i >= 0; i--) {
-      this.events.unshift(eventsToRequeue[i]);
-    }
-    // Clear any potential overflow
-    while (this.events.size > MAX_EVENTS) {
-      this.events.pop();
-    }
-
-    this.debugLogger.debug(
-      `QwenLogger: Re-queued ${numEventsToRequeue} events for retry (queue size: ${this.events.size})`,
-    );
   }
 }
 

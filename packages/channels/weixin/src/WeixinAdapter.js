@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ChannelBase } from '@qwen-code/channel-base';
+import { ChannelBase, isTerminalTaskLifecycleType, } from '@qwen-code/channel-base';
 import { loadAccount, DEFAULT_BASE_URL } from './accounts.js';
 import { startPollLoop, getContextToken } from './monitor.js';
 import { sendText, sendImage, detectImageMime } from './send.js';
@@ -21,6 +21,7 @@ function escapeRegex(s) {
 }
 export class WeixinChannel extends ChannelBase {
     abortController = null;
+    activeTypingChats = new Set();
     baseUrl;
     token = '';
     constructor(name, config, bridge, options) {
@@ -97,10 +98,19 @@ export class WeixinChannel extends ChannelBase {
         process.stderr.write(`[Weixin:${this.name}] Connected to WeChat (${this.baseUrl})\n`);
     }
     onPromptStart(chatId) {
-        this.setTyping(chatId, true).catch(() => { });
+        this.startTyping(chatId);
     }
     onPromptEnd(chatId) {
-        this.setTyping(chatId, false).catch(() => { });
+        this.stopTyping(chatId);
+    }
+    onTaskLifecycle(event) {
+        if (event.type === 'started') {
+            this.startTyping(event.chatId);
+            return;
+        }
+        if (isTerminalTaskLifecycleType(event.type)) {
+            this.stopTyping(event.chatId);
+        }
     }
     async handleInboundWithMedia(envelope, image, file) {
         // Download image from CDN
@@ -212,6 +222,32 @@ export class WeixinChannel extends ChannelBase {
             this.abortController.abort();
             this.abortController = null;
         }
+        this.activeTypingChats.clear();
+    }
+    startTyping(chatId) {
+        if (this.activeTypingChats.has(chatId))
+            return;
+        this.activeTypingChats.add(chatId);
+        const controller = this.abortController;
+        void this.setTyping(chatId, true).then((started) => {
+            // Disconnect (or reconnect) raced the request — don't fire a
+            // post-disconnect setTyping(false).
+            if (controller !== this.abortController || controller?.signal.aborted) {
+                return;
+            }
+            if (!started) {
+                this.activeTypingChats.delete(chatId);
+                return;
+            }
+            if (!this.activeTypingChats.has(chatId)) {
+                void this.setTyping(chatId, false);
+            }
+        });
+    }
+    stopTyping(chatId) {
+        if (!this.activeTypingChats.delete(chatId))
+            return;
+        void this.setTyping(chatId, false);
     }
     async setTyping(userId, typing) {
         try {
@@ -225,15 +261,17 @@ export class WeixinChannel extends ChannelBase {
                 }
             }
             if (!ticket)
-                return;
+                return false;
             await sendTyping(this.baseUrl, this.token, {
                 ilink_user_id: userId,
                 typing_ticket: ticket,
                 status: typing ? TypingStatus.TYPING : TypingStatus.CANCEL,
             });
+            return true;
         }
         catch {
             // Typing is best-effort — don't fail the message flow
+            return false;
         }
     }
 }

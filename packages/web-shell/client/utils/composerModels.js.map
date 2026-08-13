@@ -1,0 +1,1 @@
+{"version":3,"file":"composerModels.js","sourceRoot":"","sources":["composerModels.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH;;;;GAIG;AACH,MAAM,CAAC,MAAM,yBAAyB,GAAG,IAAI,GAAG,CAAC,CAAC,yBAAyB,CAAC,CAAC,CAAC;AAE9E,iEAAiE;AACjE,MAAM,UAAU,sBAAsB,CAAC,KAAqB;IAC1D,OAAO,CAAC,yBAAyB,CAAC,GAAG,CAAC,KAAK,CAAC,EAAE,CAAC,CAAC;AAClD,CAAC"}

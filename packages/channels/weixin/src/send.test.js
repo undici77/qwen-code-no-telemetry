@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { markdownToPlainText } from './send.js';
 const { mockReadFileSync, mockStatSync, mockRealpathSync, mockGetUploadUrl, mockUploadToCdn, mockSendMessage, mockRandomBytes, } = vi.hoisted(() => ({
     mockReadFileSync: vi.fn(),
@@ -79,11 +80,9 @@ describe('markdownToPlainText', () => {
     it('converts links to text (url)', () => {
         expect(markdownToPlainText('[click here](https://example.com)')).toBe('click here (https://example.com)');
     });
-    it('converts image syntax (link regex fires before image regex)', () => {
-        // In the current implementation, the link regex fires before the image regex,
-        // so `![alt](url)` becomes `!alt (url)` rather than `[alt]`
+    it('converts image syntax to alt text', () => {
         const result = markdownToPlainText('![alt](https://img.png)');
-        expect(result).toBe('!alt (https://img.png)');
+        expect(result).toBe('[alt]');
     });
     it('strips blockquote markers', () => {
         expect(markdownToPlainText('> quoted text')).toBe('quoted text');
@@ -122,9 +121,40 @@ describe('detectImageMime', () => {
         const buf = Buffer.from([0x47, 0x49, 0x46]);
         expect(detectImageMime(buf)).toBe('image/gif');
     });
-    it('detects WebP magic bytes (RIFF)', () => {
-        const buf = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+    it('detects WebP magic bytes (RIFF....WEBP)', () => {
+        const buf = Buffer.from([
+            0x52,
+            0x49,
+            0x46,
+            0x46, // "RIFF"
+            0x1a,
+            0x00,
+            0x00,
+            0x00, // file size (little-endian)
+            0x57,
+            0x45,
+            0x42,
+            0x50, // "WEBP"
+        ]);
         expect(detectImageMime(buf)).toBe('image/webp');
+    });
+    it('does not misidentify a non-WebP RIFF container (e.g. WAV) as WebP', () => {
+        // WAV is also a RIFF container; only bytes 8-11 distinguish it from WebP.
+        const buf = Buffer.from([
+            0x52,
+            0x49,
+            0x46,
+            0x46, // "RIFF"
+            0x24,
+            0x00,
+            0x00,
+            0x00, // file size
+            0x57,
+            0x41,
+            0x56,
+            0x45, // "WAVE", not "WEBP"
+        ]);
+        expect(() => detectImageMime(buf)).toThrow('Unrecognized image format');
     });
     it('detects JPEG magic bytes', () => {
         const buf = Buffer.from([0xff, 0xd8, 0xff]);
@@ -178,6 +208,53 @@ describe('validateImagePath', () => {
         mockRealpathSync.mockImplementation((p) => p);
         expect(() => validateImagePath('/etc/passwd.png', workspaceDirs)).toThrow('Image path outside allowed directories');
     });
+    it('allows Windows paths inside the workspace directory', () => {
+        const imagePath = 'D:\\WorkGroup\\QwenCode\\002\\hello.png';
+        const workspaceDir = 'D:\\WorkGroup\\QwenCode\\002';
+        mockRealpathSync.mockImplementation((p) => {
+            if (p.includes('hello.png'))
+                return imagePath;
+            if (p.includes('QwenCode\\002'))
+                return workspaceDir;
+            return p;
+        });
+        expect(validateImagePath(imagePath, [workspaceDir])).toBe(imagePath);
+    });
+    it('rejects Windows paths in a sibling directory with the same prefix', () => {
+        const imagePath = 'D:\\WorkGroup\\QwenCode\\0022\\hello.png';
+        const workspaceDir = 'D:\\WorkGroup\\QwenCode\\002';
+        mockRealpathSync.mockImplementation((p) => {
+            if (p.includes('hello.png'))
+                return imagePath;
+            if (p.includes('QwenCode\\002'))
+                return workspaceDir;
+            return p;
+        });
+        expect(() => validateImagePath(imagePath, [workspaceDir])).toThrow('Image path outside allowed directories');
+    });
+    it('reports the allowed directories when a Windows image path is rejected', () => {
+        const imagePath = 'D:\\WorkGroup\\QwenCode\\002\\hello.png';
+        const workspaceDir = 'D:\\OtherProject';
+        mockRealpathSync.mockImplementation((p) => {
+            if (p.includes('hello.png'))
+                return imagePath;
+            if (p.includes('OtherProject'))
+                return workspaceDir;
+            return p;
+        });
+        expect(() => validateImagePath(imagePath, [workspaceDir])).toThrow(`Image path outside allowed directories: ${imagePath}. Allowed directories: /tmp, ${workspaceDir}`);
+    });
+    it.skipIf(process.platform === 'win32')('does not treat POSIX backslashes as directory separators', () => {
+        const imagePath = '/home/user/project\\escape.png';
+        mockRealpathSync.mockImplementation((p) => {
+            if (p.includes('escape.png'))
+                return imagePath;
+            if (p === '/home/user/project')
+                return '/home/user/project';
+            return p;
+        });
+        expect(() => validateImagePath(imagePath, workspaceDirs)).toThrow('Image path outside allowed directories');
+    });
     it('rejects image with magic bytes that do not match extension', () => {
         // readSync returns JPEG magic, but file extension is .png
         vi.mocked(fs.readSync).mockImplementation((_fd, buf) => {
@@ -188,9 +265,14 @@ describe('validateImagePath', () => {
         expect(() => validateImagePath('/tmp/actually-jpeg.png', workspaceDirs)).toThrow('Image type mismatch');
     });
     it('returns resolved realpath on success', () => {
-        mockRealpathSync.mockImplementation((p) => `/private${p}`);
-        const result = validateImagePath('/tmp/photo.png', workspaceDirs);
-        expect(result).toBe('/private/tmp/photo.png');
+        const imagePath = path.resolve('/tmp/photo.png');
+        const realImagePath = path.join(path.dirname(imagePath), `real-${path.basename(imagePath)}`);
+        // A distinguishable realpath (only the image path is remapped, the allowlist
+        // probes stay identity) proves the resolved path is returned rather than the
+        // argument passed through unchanged.
+        mockRealpathSync.mockImplementation((p) => p === imagePath ? realImagePath : p);
+        const result = validateImagePath(imagePath, workspaceDirs);
+        expect(result).toBe(realImagePath);
     });
 });
 describe('sendImage', () => {
@@ -228,7 +310,7 @@ describe('sendImage', () => {
         // check (only 16 bytes), then sendImage calls readFileSync for
         // full file read.
         expect(mockReadFileSync).toHaveBeenCalledTimes(1);
-        expect(mockReadFileSync).toHaveBeenCalledWith('/tmp/test.png');
+        expect(mockReadFileSync).toHaveBeenCalledWith(path.resolve('/tmp/test.png'));
         // Step 2: get upload URL called with correct params
         const encryptedSize = Math.ceil((fakeImageData.length + 1) / 16) * 16;
         const expectedFilekey = '42424242424242424242424242424242';
@@ -238,8 +320,10 @@ describe('sendImage', () => {
         const aesKeyBytes = Buffer.alloc(16, 0x42);
         const expectedEncrypted = encryptAesEcb(fakeImageData, aesKeyBytes);
         expect(mockUploadToCdn).toHaveBeenCalledWith('upload-param-value', expectedFilekey, expectedEncrypted);
-        // Step 4: send message with image_item using CDN's x-encrypted-param
-        const expectedAesKeyBase64 = aesKeyBytes.toString('base64');
+        // Step 4: send message with image_item using CDN's x-encrypted-param.
+        // WeChat expects images to include the hex key both directly and
+        // base64-encoded in the media payload.
+        const expectedAesKeyBase64 = Buffer.from(expectedAesKeyHex, 'ascii').toString('base64');
         expect(mockSendMessage).toHaveBeenCalledWith('https://api.example.com', 'token-abc', expect.objectContaining({
             to_user_id: 'user-123',
             context_token: 'ctx-456',
@@ -247,6 +331,8 @@ describe('sendImage', () => {
                 expect.objectContaining({
                     type: 2, // MessageItemType.IMAGE
                     image_item: expect.objectContaining({
+                        aeskey: expectedAesKeyHex,
+                        mid_size: encryptedSize,
                         media: {
                             encrypt_query_param: 'cdn-encrypt-param',
                             aes_key: expectedAesKeyBase64,

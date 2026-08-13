@@ -1,0 +1,156 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { memo, useMemo, useRef, useCallback } from 'react';
+import { escapeAnsiCtrlCodes, sanitizeSensitiveText, } from '../utils/textUtils.js';
+import { UserMessage, UserShellMessage, AssistantMessage, AssistantMessageContent, ThinkMessage, ThinkMessageContent, } from './messages/ConversationMessages.js';
+import { ToolGroupMessage } from './messages/ToolGroupMessage.js';
+import { CompressionMessage } from './messages/CompressionMessage.js';
+import { SummaryMessage } from './messages/SummaryMessage.js';
+import { InfoMessage, WarningMessage, ErrorMessage, RetryCountdownMessage, VisionNoticeMessage, SuccessMessage, AwayRecapMessage, } from './messages/StatusMessages.js';
+import { Box, Text } from 'ink';
+import { theme } from '../semantic-colors.js';
+import { MarkdownDisplay, } from '../utils/MarkdownDisplay.js';
+import { AboutBox } from './AboutBox.js';
+import { StatsDisplay } from './StatsDisplay.js';
+import { ModelStatsDisplay } from './ModelStatsDisplay.js';
+import { ToolStatsDisplay } from './ToolStatsDisplay.js';
+import { SkillStatsDisplay } from './SkillStatsDisplay.js';
+import { SessionSummaryDisplay } from './SessionSummaryDisplay.js';
+import { Help } from './Help.js';
+import { ExtensionsList } from './views/ExtensionsList.js';
+import { getMCPServerStatus } from '@qwen-code/qwen-code-core';
+import { SkillsList } from './views/SkillsList.js';
+import { ToolsList } from './views/ToolsList.js';
+import { McpStatus } from './views/McpStatus.js';
+import { ContextUsage } from './views/ContextUsage.js';
+import { DoctorReport } from './views/DoctorReport.js';
+import { ArenaAgentCard, ArenaSessionCard } from './arena/ArenaCards.js';
+import { InsightProgressMessage } from './messages/InsightProgressMessage.js';
+import { BtwMessage } from './messages/BtwMessage.js';
+import { MemorySavedMessage } from './messages/MemorySavedMessage.js';
+import { DiffStatsDisplay } from './messages/DiffStatsDisplay.js';
+import { GoalStatusMessage } from './messages/GoalStatusMessage.js';
+import { useSettings } from '../contexts/SettingsContext.js';
+import { useVirtualViewport } from '../contexts/VirtualViewportContext.js';
+import { useThoughtExpanded } from '../contexts/ThoughtExpandedContext.js';
+import { useMouseEvents } from '../hooks/useMouseEvents.js';
+import { useMouseTrackingEnabled } from '../hooks/use-mouse-tracking-enabled.js';
+import { measureElementPosition, layoutRowForEvent, } from '../utils/measure-element-position.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { ICON } from '../constants.js';
+/**
+ * Wraps ThinkMessage with mouse click-to-open handling.
+ * Extracted so that non-thought HistoryItemDisplay instances
+ * don't pay the useMouseEvents/useRef/useCallback hook cost.
+ */
+const ClickableThinkMessage = ({ text, isPending, expanded, availableTerminalHeight, contentWidth, durationMs, onToggle, }) => {
+    const ref = useRef(null);
+    const pressRef = useRef(null);
+    const { rows: terminalHeight } = useTerminalSize();
+    const settings = useSettings();
+    const mouseTrackingEnabled = useMouseTrackingEnabled();
+    const clickable = useVirtualViewport(settings.merged.ui?.useTerminalBuffer) &&
+        mouseTrackingEnabled;
+    const isActive = !isPending;
+    useMouseEvents(useCallback((event) => {
+        if (!ref.current)
+            return;
+        if (event.name === 'move') {
+            if (pressRef.current &&
+                (event.col !== pressRef.current.col ||
+                    event.row !== pressRef.current.row)) {
+                pressRef.current = null;
+            }
+            return;
+        }
+        if (event.name !== 'left-press' && event.name !== 'left-release') {
+            pressRef.current = null;
+            return;
+        }
+        const metrics = measureElementPosition(ref.current);
+        const col = event.col - 1;
+        const row = layoutRowForEvent(ref.current, event.row, terminalHeight);
+        const isInside = col >= metrics.x &&
+            col < metrics.x + metrics.width &&
+            row >= metrics.y &&
+            row < metrics.y + metrics.height;
+        if (event.name === 'left-press') {
+            pressRef.current = isInside
+                ? { col: event.col, row: event.row }
+                : null;
+            return;
+        }
+        const press = pressRef.current;
+        pressRef.current = null;
+        if (isInside && press?.col === event.col && press.row === event.row) {
+            onToggle();
+        }
+    }, [onToggle, terminalHeight]), { isActive });
+    return (_jsx(Box, { ref: isActive ? ref : undefined, children: _jsx(ThinkMessage, { text: text, isPending: isPending, expanded: expanded, availableTerminalHeight: availableTerminalHeight, contentWidth: contentWidth, durationMs: durationMs, clickable: clickable }) }));
+};
+function getHistoryItemMarginTop(item) {
+    switch (item.type) {
+        case 'gemini':
+        case 'gemini_thought':
+            return 1;
+        case 'gemini_content':
+        case 'gemini_thought_content':
+        case 'info':
+        case 'success':
+        case 'warning':
+        case 'error':
+        case 'retry_countdown':
+        case 'memory_saved':
+        case 'tool_group':
+        case 'tool_use_summary':
+        case 'notification':
+        case 'compression':
+        case 'summary':
+        case 'insight_progress':
+        case 'btw':
+        case 'away_recap':
+        case 'user':
+        case 'user_prompt_submit_blocked':
+        case 'stop_hook_loop':
+        case 'stop_hook_system_message':
+        case 'goal_status':
+        case 'goal_state':
+        case 'vision_notice':
+            return 0;
+        default:
+            return 1;
+    }
+}
+const HistoryItemDisplayComponent = ({ item, availableTerminalHeight, terminalWidth, mainAreaWidth, isPending, commands, isFocused = true, activeShellPtyId, embeddedShellFocused, availableTerminalHeightGemini, sourceCopyIndexOffsets, thoughtExpanded, fullDetail = false, thoughtHeadId, }) => {
+    const marginTop = getHistoryItemMarginTop(item);
+    const { allExpanded, expandedHeadIds, toggle: toggleThought, } = useThoughtExpanded();
+    // A thought spans the `gemini_thought` head plus its trailing
+    // `gemini_thought_content` items; all of them key off the head id so one
+    // click expands the whole group. Continuations receive the head id via
+    // `thoughtHeadId`; the head itself falls back to its own id.
+    const thoughtGroupHeadId = thoughtHeadId ?? item.id;
+    // Ctrl+O full-detail forces every thought open; otherwise honor an explicit
+    // `thoughtExpanded` prop, then the global Alt+T toggle / per-group click set.
+    const resolvedThoughtExpanded = fullDetail ||
+        (thoughtExpanded ??
+            (allExpanded || expandedHeadIds.has(thoughtGroupHeadId)));
+    const settings = useSettings();
+    const showTimestamps = settings.merged.output?.showTimestamps === true;
+    const itemForDisplay = useMemo(() => escapeAnsiCtrlCodes(item), [item]);
+    const contentWidth = terminalWidth - 4;
+    const boxWidth = mainAreaWidth || contentWidth;
+    return (_jsxs(Box, { flexDirection: "column", marginTop: marginTop, marginLeft: 2, marginRight: 2, children: [itemForDisplay.type === 'user' && (_jsx(UserMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'notification' && (_jsx(InfoMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'user_shell' && (_jsx(UserShellMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'gemini' && (_jsxs(_Fragment, { children: [showTimestamps && itemForDisplay.timestamp != null && (_jsxs(Text, { dimColor: true, children: ["[", new Date(itemForDisplay.timestamp).toLocaleTimeString('en-US', {
+                                hour12: false,
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                            }), "]"] })), _jsx(AssistantMessage, { text: itemForDisplay.text, images: itemForDisplay.images, omittedImageCount: itemForDisplay.omittedImageCount, isPending: isPending, availableTerminalHeight: availableTerminalHeightGemini ?? availableTerminalHeight, contentWidth: contentWidth, sourceCopyIndexOffsets: sourceCopyIndexOffsets })] })), itemForDisplay.type === 'gemini_content' && (_jsx(AssistantMessageContent, { text: itemForDisplay.text, images: itemForDisplay.images, omittedImageCount: itemForDisplay.omittedImageCount, isPending: isPending, availableTerminalHeight: availableTerminalHeightGemini ?? availableTerminalHeight, contentWidth: contentWidth, sourceCopyIndexOffsets: sourceCopyIndexOffsets })), itemForDisplay.type === 'gemini_thought' && (_jsx(ClickableThinkMessage, { text: itemForDisplay.text.trimEnd(), isPending: isPending, expanded: resolvedThoughtExpanded, availableTerminalHeight: availableTerminalHeightGemini ?? availableTerminalHeight, contentWidth: contentWidth, durationMs: itemForDisplay.durationMs, onToggle: () => toggleThought(thoughtGroupHeadId) })), itemForDisplay.type === 'gemini_thought_content' && (_jsx(ThinkMessageContent, { text: itemForDisplay.text.trimEnd(), isPending: isPending, expanded: resolvedThoughtExpanded, availableTerminalHeight: availableTerminalHeightGemini ?? availableTerminalHeight, contentWidth: contentWidth })), itemForDisplay.type === 'info' && (_jsx(InfoMessage, { text: itemForDisplay.text, linkUrl: itemForDisplay.linkUrl, linkText: itemForDisplay.linkText })), itemForDisplay.type === 'success' && (_jsx(SuccessMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'warning' && (_jsx(WarningMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'error' && (_jsx(ErrorMessage, { text: itemForDisplay.text, hint: itemForDisplay.hint })), itemForDisplay.type === 'retry_countdown' && (_jsx(RetryCountdownMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'vision_notice' && (_jsx(VisionNoticeMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'about' && (_jsx(AboutBox, { ...itemForDisplay.systemInfo, width: boxWidth })), itemForDisplay.type === 'help' && commands && (_jsx(Help, { commands: commands, width: boxWidth })), itemForDisplay.type === 'stats' && (_jsx(StatsDisplay, { duration: itemForDisplay.duration, width: boxWidth })), itemForDisplay.type === 'diff_stats' && (_jsx(DiffStatsDisplay, { model: itemForDisplay.model })), itemForDisplay.type === 'model_stats' && (_jsx(ModelStatsDisplay, { width: boxWidth })), itemForDisplay.type === 'tool_stats' && (_jsx(ToolStatsDisplay, { width: boxWidth })), itemForDisplay.type === 'skill_stats' && (_jsx(SkillStatsDisplay, { width: boxWidth })), itemForDisplay.type === 'quit' && (_jsx(SessionSummaryDisplay, { duration: itemForDisplay.duration, width: boxWidth })), itemForDisplay.type === 'tool_group' && (_jsx(ToolGroupMessage, { toolCalls: itemForDisplay.tools, groupId: itemForDisplay.id, availableTerminalHeight: availableTerminalHeight, contentWidth: contentWidth, isFocused: isFocused, isPending: isPending, activeShellPtyId: activeShellPtyId, embeddedShellFocused: embeddedShellFocused, memoryWriteCount: itemForDisplay.memoryWriteCount, memoryReadCount: itemForDisplay.memoryReadCount, isUserInitiated: itemForDisplay.isUserInitiated, fullDetail: fullDetail })), itemForDisplay.type === 'tool_use_summary' && (_jsxs(Box, { flexDirection: "row", children: [_jsx(Box, { width: 2, flexShrink: 0, children: _jsx(Text, { dimColor: true, children: ICON.CIRCLE_FILLED }) }), _jsx(Text, { dimColor: true, children: itemForDisplay.summary })] })), itemForDisplay.type === 'compression' && (_jsx(CompressionMessage, { compression: itemForDisplay.compression })), itemForDisplay.type === 'summary' && (_jsx(SummaryMessage, { summary: itemForDisplay.summary })), itemForDisplay.type === 'extensions_list' && _jsx(ExtensionsList, {}), itemForDisplay.type === 'tools_list' && (_jsx(ToolsList, { contentWidth: contentWidth, tools: itemForDisplay.tools, showDescriptions: itemForDisplay.showDescriptions })), itemForDisplay.type === 'skills_list' && (_jsx(SkillsList, { skills: itemForDisplay.skills })), itemForDisplay.type === 'mcp_status' && (_jsx(McpStatus, { ...itemForDisplay, serverStatus: getMCPServerStatus })), itemForDisplay.type === 'context_usage' && (_jsx(ContextUsage, { modelName: itemForDisplay.modelName, totalTokens: itemForDisplay.totalTokens, contextWindowSize: itemForDisplay.contextWindowSize, breakdown: itemForDisplay.breakdown, builtinTools: itemForDisplay.builtinTools, mcpTools: itemForDisplay.mcpTools, memoryFiles: itemForDisplay.memoryFiles, skills: itemForDisplay.skills, isEstimated: itemForDisplay.isEstimated, showDetails: itemForDisplay.showDetails })), itemForDisplay.type === 'doctor' && (_jsx(DoctorReport, { checks: itemForDisplay.checks, summary: itemForDisplay.summary, width: boxWidth })), itemForDisplay.type === 'arena_agent_complete' && (_jsx(ArenaAgentCard, { agent: itemForDisplay.agent, width: boxWidth })), itemForDisplay.type === 'arena_session_complete' && (_jsx(ArenaSessionCard, { sessionStatus: itemForDisplay.sessionStatus, task: itemForDisplay.task, totalDurationMs: itemForDisplay.totalDurationMs, agents: itemForDisplay.agents, width: boxWidth })), itemForDisplay.type === 'insight_progress' && (_jsx(InsightProgressMessage, { progress: itemForDisplay.progress })), itemForDisplay.type === 'btw' && itemForDisplay.btw && (_jsx(BtwMessage, { btw: itemForDisplay.btw, containerWidth: contentWidth })), itemForDisplay.type === 'user_prompt_submit_blocked' && (_jsx(Box, { flexDirection: "column", children: _jsx(Text, { color: theme.status.warning, children: `✕ UserPromptSubmit operation blocked by hook:\n${itemForDisplay.reason}\n\nOriginal prompt: ${sanitizeSensitiveText(itemForDisplay.originalPrompt)}` }) })), itemForDisplay.type === 'stop_hook_loop' && (_jsx(InfoMessage, { text: `Ran ${itemForDisplay.stopHookCount} stop hooks\n  ⎿  Stop hook error: ${itemForDisplay.reasons[itemForDisplay.reasons.length - 1]}` })), itemForDisplay.type === 'stop_hook_system_message' && (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: theme.text.primary, children: " \u23BF Stop says:" }), _jsx(Box, { marginLeft: 4, flexDirection: "column", children: _jsx(MarkdownDisplay, { text: itemForDisplay.message, isPending: false, contentWidth: contentWidth - 4 }) })] })), itemForDisplay.type === 'memory_saved' && (_jsx(MemorySavedMessage, { item: itemForDisplay })), itemForDisplay.type === 'away_recap' && (_jsx(AwayRecapMessage, { text: itemForDisplay.text })), itemForDisplay.type === 'goal_status' && (_jsx(GoalStatusMessage, { kind: itemForDisplay.kind, condition: itemForDisplay.condition, iterations: itemForDisplay.iterations, durationMs: itemForDisplay.durationMs, lastReason: itemForDisplay.lastReason })), itemForDisplay.type === 'goal_state' && (_jsx(GoalStatusMessage, { snapshot: itemForDisplay.snapshot, cause: itemForDisplay.cause }))] }, itemForDisplay.id));
+};
+// Memoized so the Ctrl+O transcript — which re-renders on every scroll tick —
+// skips re-rendering frozen-snapshot items whose props are shallowly unchanged.
+// The transcript hands stable `item` references (from the freeze snapshot), so
+// the default shallow compare is effective. Harmless for the main view, whose
+// items live in Ink's `<Static>` and render once anyway.
+const HistoryItemDisplay = memo(HistoryItemDisplayComponent);
+HistoryItemDisplay.displayName = 'HistoryItemDisplay';
+export { HistoryItemDisplay };
+//# sourceMappingURL=HistoryItemDisplay.js.map

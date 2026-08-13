@@ -14,8 +14,8 @@ function decryptAesEcb(ciphertext, key) {
 /**
  * Parse aes_key from CDNMedia into a raw 16-byte Buffer.
  * Two encodings exist:
- *   - base64(raw 16 bytes) → images
- *   - base64(hex string of 16 bytes) → file/voice/video
+ *   - base64(raw 16 bytes)
+ *   - base64(hex string of 16 bytes)
  */
 export function parseAesKey(aesKeyBase64) {
     const decoded = Buffer.from(aesKeyBase64, 'base64');

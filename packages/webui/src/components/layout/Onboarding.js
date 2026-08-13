@@ -1,0 +1,8 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+/**
+ * Onboarding - Welcome screen for new users
+ * Pure presentational component
+ */
+export const Onboarding = ({ iconUrl, onGetStarted, appName = 'Qwen Code', subtitle = 'Unlock the power of AI to understand, navigate, and transform your codebase faster than ever before.', buttonText = 'Get Started with Qwen Code', }) => (_jsx("div", { className: "flex flex-col items-center justify-center h-full p-5 md:p-10", children: _jsx("div", { className: "flex flex-col items-center gap-8 w-full max-w-md mx-auto", children: _jsxs("div", { className: "flex flex-col items-center gap-6", children: [iconUrl && (_jsx("div", { className: "relative", children: _jsx("img", { src: iconUrl, alt: `${appName} Logo`, className: "w-[80px] h-[80px] object-contain" }) })), _jsxs("div", { className: "text-center", children: [_jsxs("h1", { className: "text-2xl font-bold text-[var(--app-primary-foreground)] mb-2", children: ["Welcome to ", appName] }), _jsx("p", { className: "text-[var(--app-secondary-foreground)] max-w-sm", children: subtitle })] }), _jsx("button", { onClick: onGetStarted, className: "w-full px-4 py-3 bg-[var(--app-primary,var(--app-button-background))] text-[var(--app-button-foreground,#ffffff)] font-medium rounded-lg shadow-sm hover:bg-[var(--app-primary-hover,var(--app-button-hover-background))] transition-colors duration-200", children: buttonText })] }) }) }));
+export default Onboarding;
+//# sourceMappingURL=Onboarding.js.map

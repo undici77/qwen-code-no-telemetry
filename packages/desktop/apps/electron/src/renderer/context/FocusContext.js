@@ -1,0 +1,89 @@
+import { jsx as _jsx } from "react/jsx-runtime";
+import * as React from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { setCurrentZone } from '@/actions/keybinding-context';
+const ZONE_ORDER = ['sidebar', 'navigator', 'chat'];
+const FocusContext = createContext(null);
+export function FocusProvider({ children }) {
+    const [focusState, setFocusState] = useState({
+        zone: null,
+        intent: null,
+        shouldMoveDOMFocus: false,
+    });
+    const zonesRef = useRef(new Map());
+    const registerZone = useCallback((zone) => {
+        zonesRef.current.set(zone.id, zone);
+    }, []);
+    const unregisterZone = useCallback((id) => {
+        zonesRef.current.delete(id);
+    }, []);
+    const focusZone = useCallback((id, options) => {
+        const zone = zonesRef.current.get(id);
+        if (!zone)
+            return;
+        const intent = options?.intent ?? 'programmatic';
+        // Default behavior: keyboard navigation moves focus, clicks don't
+        const shouldMoveFocus = options?.moveFocus ?? (intent === 'keyboard' || intent === 'programmatic');
+        setFocusState({
+            zone: id,
+            intent,
+            shouldMoveDOMFocus: shouldMoveFocus,
+        });
+        // Sync to keybinding context for when-clause evaluation
+        setCurrentZone(id);
+        // Only move DOM focus if explicitly requested
+        if (shouldMoveFocus) {
+            if (zone.focusFirst) {
+                zone.focusFirst();
+            }
+            else if (zone.ref.current) {
+                zone.ref.current.focus();
+            }
+            // Reset shouldMoveDOMFocus after focus is moved - "consume" the intent
+            // This prevents effects from re-triggering on data changes
+            // Use setTimeout(0) to ensure subscribers see true first, then false
+            setTimeout(() => {
+                setFocusState(prev => ({ ...prev, shouldMoveDOMFocus: false }));
+            }, 0);
+        }
+    }, []);
+    const focusNextZone = useCallback(() => {
+        const currentIndex = focusState.zone ? ZONE_ORDER.indexOf(focusState.zone) : -1;
+        const nextIndex = (currentIndex + 1) % ZONE_ORDER.length;
+        // Tab navigation is explicit keyboard intent - always move focus
+        focusZone(ZONE_ORDER[nextIndex], { intent: 'keyboard', moveFocus: true });
+    }, [focusState.zone, focusZone]);
+    const focusPreviousZone = useCallback(() => {
+        const currentIndex = focusState.zone ? ZONE_ORDER.indexOf(focusState.zone) : 0;
+        const prevIndex = (currentIndex - 1 + ZONE_ORDER.length) % ZONE_ORDER.length;
+        // Shift+Tab navigation is explicit keyboard intent - always move focus
+        focusZone(ZONE_ORDER[prevIndex], { intent: 'keyboard', moveFocus: true });
+    }, [focusState.zone, focusZone]);
+    const isZoneFocused = useCallback((id) => {
+        return focusState.zone === id;
+    }, [focusState.zone]);
+    // NOTE: Removed automatic focusin tracking - it caused cascading re-renders
+    // across all mounted tabs (250-780ms per focus change). Focus state now only
+    // changes via explicit focusZone() calls (keyboard shortcuts Cmd+1/2/3, Tab).
+    // Components that need to focus on session change should use session?.id as
+    // the effect dependency instead of isFocused.
+    const value = {
+        currentZone: focusState.zone,
+        focusState,
+        registerZone,
+        unregisterZone,
+        focusZone,
+        focusNextZone,
+        focusPreviousZone,
+        isZoneFocused,
+    };
+    return (_jsx(FocusContext.Provider, { value: value, children: children }));
+}
+export function useFocusContext() {
+    const context = useContext(FocusContext);
+    if (!context) {
+        throw new Error('useFocusContext must be used within a FocusProvider');
+    }
+    return context;
+}
+//# sourceMappingURL=FocusContext.js.map

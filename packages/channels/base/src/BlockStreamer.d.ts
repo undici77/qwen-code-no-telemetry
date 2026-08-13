@@ -36,6 +36,8 @@ export declare class BlockStreamer {
     push(chunk: string): void;
     /** Flush all remaining buffered text. Awaits all pending sends. */
     flush(): Promise<void>;
+    /** Drop buffered text and cancel future idle emission. */
+    stop(): void;
     private checkEmit;
     private onIdle;
     private emitBlock;

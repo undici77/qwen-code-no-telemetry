@@ -5,13 +5,13 @@ declare const _default: {
         title: string;
         cwd: string;
     };
+    gif: true;
     flow: {
         type: string;
         streaming: {
             delayMs: number;
             intervalMs: number;
             count: number;
-            gif: boolean;
         };
     }[];
 };

@@ -3,8 +3,9 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import { execSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from 'node:process';
@@ -20,7 +21,12 @@ function sanitizeTestName(name) {
         .replace(/-+/g, '-');
 }
 // Helper to create detailed error messages
-export function createToolCallErrorMessage(expectedTools, foundTools, result) {
+export function createToolCallErrorMessage(expectedTools, 
+// Callers build this by mapping `toolRequest.name` over the parsed
+// telemetry, where the name is optional. This is a failure message, so a
+// missing entry should print as `undefined` rather than force every call
+// site to filter first.
+foundTools, result) {
     const expectedStr = Array.isArray(expectedTools)
         ? expectedTools.join(' or ')
         : expectedTools;
@@ -83,6 +89,39 @@ export async function type(ptyProcess, text) {
         await new Promise((resolve) => setTimeout(resolve, delay));
     }
 }
+const SANDBOX_MODE = process.env['QWEN_SANDBOX']?.toLowerCase().trim();
+export const IS_CONTAINER_SANDBOX = SANDBOX_MODE === 'docker' || SANDBOX_MODE === 'podman';
+export const CONTAINER_SANDBOX_NO_PROXY = '127.0.0.1,localhost,host.docker.internal';
+export function fakeServerHostOptions() {
+    return IS_CONTAINER_SANDBOX
+        ? { listenHost: '0.0.0.0', baseUrlHost: 'host.docker.internal' }
+        : undefined;
+}
+// Sets NO_PROXY so a containerized CLI reaches the host-side fake server, and
+// returns a restorer for the previous values. No-op outside a container sandbox.
+export function applyContainerSandboxNoProxy() {
+    if (!IS_CONTAINER_SANDBOX) {
+        return () => { };
+    }
+    const savedNoProxy = process.env['NO_PROXY'];
+    const savedNoProxyLower = process.env['no_proxy'];
+    process.env['NO_PROXY'] = CONTAINER_SANDBOX_NO_PROXY;
+    process.env['no_proxy'] = CONTAINER_SANDBOX_NO_PROXY;
+    return () => {
+        if (savedNoProxy === undefined) {
+            delete process.env['NO_PROXY'];
+        }
+        else {
+            process.env['NO_PROXY'] = savedNoProxy;
+        }
+        if (savedNoProxyLower === undefined) {
+            delete process.env['no_proxy'];
+        }
+        else {
+            process.env['no_proxy'] = savedNoProxyLower;
+        }
+    };
+}
 export class TestRig {
     bundlePath;
     testDir;
@@ -101,10 +140,15 @@ export class TestRig {
             return 30000; // 30s in containers
         return 15000; // 15s locally
     }
-    setup(testName, options = {}) {
+    async setup(testName, options = {}) {
         this.testName = testName;
         const sanitizedName = sanitizeTestName(testName);
         this.testDir = join(env['INTEGRATION_TEST_FILE_DIR'], sanitizedName);
+        // Two cases that set up under the same name share this directory, and
+        // cleanup() below keeps it whenever KEEP_OUTPUT is set — which CI always
+        // sets. Reset it so a case never inherits the previous one's files; see the
+        // SDK helper, where exactly that made a suite pass locally and fail in CI.
+        await rm(this.testDir, { recursive: true, force: true });
         mkdirSync(this.testDir, { recursive: true });
         // Create a settings file to point the CLI to the local collector
         const qwenDir = join(this.testDir, '.qwen');
@@ -131,10 +175,6 @@ export class TestRig {
     }
     mkdir(dir) {
         mkdirSync(join(this.testDir, dir), { recursive: true });
-    }
-    sync() {
-        // ensure file system is done before spawning
-        execSync('sync', { cwd: this.testDir });
     }
     /**
      * The command and args to use to invoke Qwen Code CLI. Allows us to switch
@@ -326,7 +366,7 @@ export class TestRig {
         // Clean up test directory
         if (this.testDir && !env['KEEP_OUTPUT']) {
             try {
-                execSync(`rm -rf ${this.testDir}`);
+                await rm(this.testDir, { recursive: true, force: true });
             }
             catch (error) {
                 // Ignore cleanup errors
@@ -339,8 +379,6 @@ export class TestRig {
     async waitForTelemetryReady() {
         // Telemetry is always written to the test directory
         const logFilePath = join(this.testDir, 'telemetry.log');
-        if (!logFilePath)
-            return;
         // Wait for telemetry file to exist and have content
         await this.poll(() => {
             if (!fs.existsSync(logFilePath))
@@ -394,18 +432,31 @@ export class TestRig {
     async poll(predicate, timeout, interval) {
         const startTime = Date.now();
         let attempts = 0;
+        let lastError;
         while (Date.now() - startTime < timeout) {
             attempts++;
-            const result = predicate();
-            if (env['VERBOSE'] === 'true' && attempts % 5 === 0) {
-                console.log(`Poll attempt ${attempts}: ${result ? 'success' : 'waiting...'}`);
+            try {
+                const result = predicate();
+                if (env['VERBOSE'] === 'true' && attempts % 5 === 0) {
+                    console.log(`Poll attempt ${attempts}: ${result ? 'success' : 'waiting...'}`);
+                }
+                if (result) {
+                    lastError = undefined;
+                    return true;
+                }
             }
-            if (result) {
-                return true;
+            catch (err) {
+                lastError = err;
+                if (env['VERBOSE'] === 'true') {
+                    console.log(`Poll attempt ${attempts}: predicate threw: ${err}`);
+                }
             }
             await new Promise((resolve) => setTimeout(resolve, interval));
         }
-        if (env['VERBOSE'] === 'true') {
+        if (lastError) {
+            console.log(`Poll timed out after ${attempts} attempts. Last error:`, lastError);
+        }
+        else if (env['VERBOSE'] === 'true') {
             console.log(`Poll timed out after ${attempts} attempts`);
         }
         return false;
@@ -579,6 +630,11 @@ export class TestRig {
             }
         }
         const parsedLogs = this._readAndParseTelemetryLog();
+        // Every field is optional because it is copied straight out of the
+        // telemetry attributes, which nothing validates. The stdout fallback above
+        // reconstructs the same fields from a regex and can promise them; this
+        // branch cannot, and claiming otherwise just moved the `undefined` past
+        // the type checker into the assertions.
         const logs = [];
         for (const logData of parsedLogs) {
             // Look for tool call logs
@@ -591,12 +647,16 @@ export class TestRig {
                         args: logData.attributes.function_args,
                         success: logData.attributes.success,
                         duration_ms: logData.attributes.duration_ms,
+                        status: logData.attributes.status,
+                        error: logData.attributes['error.message'],
                     },
                 });
             }
         }
         return logs;
     }
+    // Returns the parsed log, not a bare record: callers want `.attributes`,
+    // and `Record<string, unknown>` hid that the value already has a shape.
     readLastApiRequest() {
         const logs = this._readAndParseTelemetryLog();
         const apiRequests = logs.filter((logData) => logData.attributes &&

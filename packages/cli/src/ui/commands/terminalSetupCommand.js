@@ -1,0 +1,48 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { CommandKind } from './types.js';
+import { terminalSetup } from '../utils/terminalSetup.js';
+import { t } from '../../i18n/index.js';
+/**
+ * Command to configure terminal keybindings for multiline input support.
+ *
+ * This command automatically detects and configures VS Code, Cursor, and Windsurf
+ * to support Shift+Enter and Ctrl+Enter for multiline input.
+ */
+export const terminalSetupCommand = {
+    name: 'terminal-setup',
+    get description() {
+        return t('Configure terminal keybindings for multiline input (VS Code, Cursor, Windsurf, Trae)');
+    },
+    kind: CommandKind.BUILT_IN,
+    supportedModes: ['interactive'],
+    action: async () => {
+        try {
+            const result = await terminalSetup();
+            let content = result.message;
+            if (result.requiresRestart) {
+                content +=
+                    '\n\n' +
+                        t('Please restart your terminal for the changes to take effect.');
+            }
+            return {
+                type: 'message',
+                content,
+                messageType: result.success ? 'info' : 'error',
+            };
+        }
+        catch (error) {
+            return {
+                type: 'message',
+                content: t('Failed to configure terminal: {{error}}', {
+                    error: String(error),
+                }),
+                messageType: 'error',
+            };
+        }
+    },
+};
+//# sourceMappingURL=terminalSetupCommand.js.map

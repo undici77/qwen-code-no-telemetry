@@ -1,0 +1,477 @@
+/**
+ * @license
+ * Copyright 2025 Qwen Team
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/**
+ * System Controller
+ *
+ * Handles system-level control requests:
+ * - initialize: Setup session and return system info
+ * - interrupt: Cancel current operations
+ * - set_model: Switch model (placeholder)
+ */
+import { BaseController } from './baseController.js';
+import { getAvailableCommands } from '../../../nonInteractiveCliCommands.js';
+import { createDebugLogger, MCPServerConfig, AuthProviderType, applyReasoningEffort, normalizeReasoningEffort, loadUsageDashboard, } from '@qwen-code/qwen-code-core';
+const debugLogger = createDebugLogger('SYSTEM_CONTROLLER');
+/**
+ * Maximum allowed timeout for canUseTool requests (10 minutes).
+ * Node.js setTimeout coerces delays > 2^31-1 to 32-bit signed integers,
+ * which can cause timeouts to fire immediately or never. This cap prevents
+ * such edge cases while still allowing reasonable timeout values.
+ */
+const MAX_CAN_USE_TOOL_TIMEOUT_MS = 600_000;
+export class SystemController extends BaseController {
+    /**
+     * Handle system control requests
+     */
+    async handleRequestPayload(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        switch (payload.subtype) {
+            case 'initialize':
+                return this.handleInitialize(payload, signal);
+            case 'interrupt':
+                return this.handleInterrupt();
+            case 'continue_last_turn':
+                return this.handleContinueLastTurn();
+            case 'set_model':
+                return this.handleSetModel(payload, signal);
+            case 'set_effort':
+                return this.handleSetEffort(payload, signal);
+            case 'supported_commands':
+                return this.handleSupportedCommands(signal);
+            case 'get_context_usage':
+                return this.handleGetContextUsage(payload, signal);
+            case 'get_available_models':
+                return this.handleGetAvailableModels(signal);
+            case 'get_usage_info':
+                return this.handleGetUsageInfo(payload, signal);
+            default:
+                throw new Error(`Unsupported request subtype in SystemController`);
+        }
+    }
+    async handleGetContextUsage(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        try {
+            const mod = await import('../../../ui/commands/contextCommand.js');
+            if (signal.aborted) {
+                throw new Error('Request aborted');
+            }
+            if (typeof mod.collectContextData !== 'function') {
+                throw new Error('collectContextData is not available');
+            }
+            const showDetails = payload.show_details ?? false;
+            const contextUsageItem = await mod.collectContextData(this.context.config, showDetails);
+            if (signal.aborted) {
+                throw new Error('Request aborted');
+            }
+            const { type: _type, ...contextData } = contextUsageItem;
+            return {
+                subtype: 'get_context_usage',
+                ...contextData,
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to get context usage';
+            debugLogger.error('[SystemController] Failed to get context usage:', error);
+            throw new Error(errorMessage);
+        }
+    }
+    /**
+     * Handle initialize request
+     *
+     * Processes SDK MCP servers config.
+     * SDK servers are registered in context.sdkMcpServers
+     * and added to config.mcpServers with the sdk type flag.
+     * External MCP servers are configured separately in settings.
+     */
+    async handleInitialize(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        this.context.config.setSdkMode(true);
+        let effortStatus;
+        const canUseToolTimeout = payload.timeout?.canUseTool;
+        if (typeof canUseToolTimeout === 'number' &&
+            Number.isFinite(canUseToolTimeout) &&
+            canUseToolTimeout > 0 &&
+            canUseToolTimeout <= MAX_CAN_USE_TOOL_TIMEOUT_MS) {
+            this.context.sdkCanUseToolTimeoutMs = canUseToolTimeout;
+        }
+        if (payload.effort) {
+            const normalized = normalizeReasoningEffort(payload.effort);
+            if (normalized) {
+                try {
+                    const effortMatches = applyReasoningEffort(this.context.config, normalized);
+                    const override = this.context.config.getReasoningEffortOverride?.() ?? null;
+                    const applied = effortMatches && override === null;
+                    const reason = applied
+                        ? undefined
+                        : [
+                            ...(effortMatches ? [] : ['thinking may be disabled']),
+                            ...(override
+                                ? [`${override.source}.${override.field} takes precedence`]
+                                : []),
+                        ].join('; ');
+                    effortStatus = { effort: normalized, applied, override, reason };
+                    if (!applied) {
+                        debugLogger.warn(`[SystemController] Effort '${normalized}' was not applied (${reason})`);
+                    }
+                    else {
+                        debugLogger.info(`[SystemController] Set reasoning effort to: ${normalized}`);
+                    }
+                }
+                catch (error) {
+                    debugLogger.error('[SystemController] Failed to set reasoning effort:', error);
+                }
+            }
+            else {
+                throw new Error('Invalid effort value. Supported: low, medium, high, xhigh, max');
+            }
+        }
+        // Process SDK MCP servers
+        if (payload.sdkMcpServers &&
+            typeof payload.sdkMcpServers === 'object' &&
+            payload.sdkMcpServers !== null) {
+            const sdkServers = {};
+            for (const [key, wireConfig] of Object.entries(payload.sdkMcpServers)) {
+                const name = typeof wireConfig?.name === 'string' && wireConfig.name.trim().length
+                    ? wireConfig.name
+                    : key;
+                this.context.sdkMcpServers.add(name);
+                sdkServers[name] = new MCPServerConfig(undefined, // command
+                undefined, // args
+                undefined, // env
+                undefined, // cwd
+                undefined, // url
+                undefined, // httpUrl
+                undefined, // headers
+                undefined, // tcp
+                undefined, // timeout
+                true, // trust - SDK servers are trusted
+                undefined, // description
+                undefined, // includeTools
+                undefined, // excludeTools
+                undefined, // extensionName
+                undefined, // oauth
+                undefined, // authProviderType
+                undefined, // targetAudience
+                undefined, // targetServiceAccount
+                'sdk');
+            }
+            const sdkServerCount = Object.keys(sdkServers).length;
+            if (sdkServerCount > 0) {
+                try {
+                    this.context.config.addMcpServers(sdkServers);
+                    debugLogger.debug(`[SystemController] Added ${sdkServerCount} SDK MCP servers to config`);
+                }
+                catch (error) {
+                    debugLogger.error('[SystemController] Failed to add SDK MCP servers:', error);
+                }
+            }
+        }
+        if (payload.mcpServers &&
+            typeof payload.mcpServers === 'object' &&
+            payload.mcpServers !== null) {
+            const externalServers = {};
+            for (const [name, serverConfig] of Object.entries(payload.mcpServers)) {
+                const normalized = this.normalizeMcpServerConfig(name, serverConfig);
+                if (normalized) {
+                    externalServers[name] = normalized;
+                }
+            }
+            const externalCount = Object.keys(externalServers).length;
+            if (externalCount > 0) {
+                try {
+                    this.context.config.addMcpServers(externalServers);
+                    debugLogger.debug(`[SystemController] Added ${externalCount} external MCP servers to config`);
+                }
+                catch (error) {
+                    debugLogger.error('[SystemController] Failed to add external MCP servers:', error);
+                }
+            }
+        }
+        if (payload.agents && Array.isArray(payload.agents)) {
+            try {
+                this.context.config.setSessionSubagents(payload.agents);
+                debugLogger.debug(`[SystemController] Added ${payload.agents.length} session subagents to config`);
+            }
+            catch (error) {
+                debugLogger.error('[SystemController] Failed to add session subagents:', error);
+            }
+        }
+        // Build capabilities for response
+        const capabilities = this.buildControlCapabilities();
+        debugLogger.debug(`[SystemController] Initialized with ${this.context.sdkMcpServers.size} SDK MCP servers`);
+        return {
+            subtype: 'initialize',
+            session_id: this.context.config.getSessionId(),
+            capabilities,
+            ...(effortStatus ? { effort_status: effortStatus } : {}),
+        };
+    }
+    /**
+     * Build control capabilities for initialize control response
+     *
+     * This method constructs the control capabilities object that indicates
+     * what control features are available. It is used exclusively in the
+     * initialize control response.
+     */
+    buildControlCapabilities() {
+        const capabilities = {
+            can_handle_can_use_tool: true,
+            can_handle_hook_callback: false,
+            can_set_permission_mode: typeof this.context.config.setApprovalMode === 'function',
+            can_set_model: typeof this.context.config.setModel === 'function',
+            can_set_effort: typeof this.context.config.setReasoningEffort === 'function',
+            can_get_context_usage: true,
+            can_get_available_models: typeof this.context.config.getAvailableModels === 'function',
+            can_get_usage_info: true,
+            // SDK MCP servers are supported - messages routed through control plane
+            can_handle_mcp_message: true,
+        };
+        return capabilities;
+    }
+    normalizeMcpServerConfig(serverName, config) {
+        if (!config || typeof config !== 'object') {
+            debugLogger.warn(`[SystemController] Ignoring invalid MCP server config for '${serverName}'`);
+            return null;
+        }
+        const authProvider = this.normalizeAuthProviderType(config.authProviderType);
+        const oauthConfig = this.normalizeOAuthConfig(config.oauth);
+        return new MCPServerConfig(config.command, config.args, config.env, config.cwd, config.url, config.httpUrl, config.headers, config.tcp, config.timeout, config.trust, config.description, config.includeTools, config.excludeTools, config.extensionName, oauthConfig, authProvider, config.targetAudience, config.targetServiceAccount);
+    }
+    normalizeAuthProviderType(value) {
+        if (!value) {
+            return undefined;
+        }
+        switch (value) {
+            case AuthProviderType.DYNAMIC_DISCOVERY:
+            case AuthProviderType.GOOGLE_CREDENTIALS:
+            case AuthProviderType.SERVICE_ACCOUNT_IMPERSONATION:
+                return value;
+            default:
+                debugLogger.warn(`[SystemController] Unsupported authProviderType '${value}', skipping`);
+                return undefined;
+        }
+    }
+    normalizeOAuthConfig(oauth) {
+        if (!oauth) {
+            return undefined;
+        }
+        return {
+            enabled: oauth.enabled,
+            clientId: oauth.clientId,
+            clientSecret: oauth.clientSecret,
+            authorizationUrl: oauth.authorizationUrl,
+            tokenUrl: oauth.tokenUrl,
+            scopes: oauth.scopes,
+            audiences: oauth.audiences,
+            redirectUri: oauth.redirectUri,
+            tokenParamName: oauth.tokenParamName,
+            registrationUrl: oauth.registrationUrl,
+        };
+    }
+    /**
+     * Handle interrupt request
+     *
+     * Triggers the interrupt callback to cancel current operations
+     */
+    async handleInterrupt() {
+        // Trigger interrupt callback if available
+        if (this.context.onInterrupt) {
+            this.context.onInterrupt();
+        }
+        // Abort the main signal to cancel ongoing operations
+        if (this.context.abortSignal && !this.context.abortSignal.aborted) {
+            // Note: We can't directly abort the signal, but the onInterrupt callback should handle this
+            debugLogger.debug('[SystemController] Interrupt signal triggered');
+        }
+        debugLogger.debug('[SystemController] Interrupt handled');
+        return { subtype: 'interrupt' };
+    }
+    /**
+     * Handle continue_last_turn request
+     *
+     * Delegates to the session-provided callback, which classifies the last
+     * turn from chat history and (when interrupted) schedules a continuation
+     * turn. The response reports `{ accepted, interruption }`; the resumed
+     * turn's output flows as regular stream messages afterwards.
+     */
+    async handleContinueLastTurn() {
+        if (!this.context.onContinueLastTurn) {
+            throw new Error('continue_last_turn callback (onContinueLastTurn) was not registered on ' +
+                'ControlContext — check session wiring');
+        }
+        const result = await this.context.onContinueLastTurn();
+        debugLogger.debug('[SystemController] continue_last_turn handled:', result);
+        return { subtype: 'continue_last_turn', ...result };
+    }
+    /**
+     * Handle set_model request
+     *
+     * Implements actual model switching with validation and error handling
+     */
+    async handleSetModel(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        const model = payload.model;
+        // Validate model parameter
+        if (typeof model !== 'string' || model.trim() === '') {
+            throw new Error('Invalid model specified for set_model request');
+        }
+        try {
+            // Attempt to set the model using config
+            await this.context.config.setModel(model);
+            debugLogger.info(`[SystemController] Model switched to: ${model}`);
+            return {
+                subtype: 'set_model',
+                model,
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to set model';
+            debugLogger.error(`[SystemController] Failed to set model ${model}:`, error);
+            throw new Error(errorMessage);
+        }
+    }
+    /**
+     * Handle set_effort request
+     *
+     * Sets the reasoning effort tier at runtime.
+     */
+    async handleSetEffort(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        const effort = payload.effort;
+        if (typeof effort !== 'string' || effort.trim() === '') {
+            throw new Error('Invalid effort specified for set_effort request');
+        }
+        const normalized = normalizeReasoningEffort(effort);
+        if (!normalized) {
+            throw new Error('Invalid effort value. Supported: low, medium, high, xhigh, max');
+        }
+        try {
+            const effortMatches = applyReasoningEffort(this.context.config, normalized);
+            const override = this.context.config.getReasoningEffortOverride?.() ?? null;
+            const applied = effortMatches && override === null;
+            debugLogger.info(`[SystemController] Reasoning effort set to: ${normalized} (applied: ${applied})`);
+            return {
+                subtype: 'set_effort',
+                effort: normalized,
+                applied,
+                override,
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to set effort';
+            debugLogger.error(`[SystemController] Failed to set effort ${effort}:`, error);
+            throw new Error(errorMessage);
+        }
+    }
+    /**
+     * Handle get_available_models request
+     *
+     * Returns the list of models available for the current auth type.
+     */
+    async handleGetAvailableModels(signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        try {
+            const models = this.context.config
+                .getAvailableModels()
+                .filter((model) => !model.imageOnly)
+                .map(({ id, label, capabilities, contextWindowSize }) => ({
+                id,
+                label,
+                capabilities,
+                contextWindowSize,
+            }));
+            return {
+                subtype: 'get_available_models',
+                models,
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error
+                ? error.message
+                : 'Failed to get available models';
+            debugLogger.error('[SystemController] Failed to get available models:', error);
+            throw new Error(errorMessage);
+        }
+    }
+    /**
+     * Handle get_usage_info request
+     *
+     * Returns usage dashboard data for the specified time range.
+     */
+    async handleGetUsageInfo(payload, signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        try {
+            const range = payload.range;
+            const dashboard = await loadUsageDashboard(range ? { range } : undefined);
+            return {
+                ...dashboard,
+                subtype: 'get_usage_info',
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to get usage info';
+            debugLogger.error('[SystemController] Failed to get usage info:', error);
+            throw new Error(errorMessage);
+        }
+    }
+    /**
+     * Handle supported_commands request
+     *
+     * Returns list of supported slash commands loaded dynamically
+     */
+    async handleSupportedCommands(signal) {
+        if (signal.aborted) {
+            throw new Error('Request aborted');
+        }
+        const slashCommands = await this.loadSlashCommandNames(signal);
+        return {
+            subtype: 'supported_commands',
+            commands: slashCommands,
+        };
+    }
+    /**
+     * Load slash command names using getAvailableCommands
+     *
+     * @param signal - AbortSignal to respect for cancellation
+     * @returns Promise resolving to array of slash command names
+     */
+    async loadSlashCommandNames(signal) {
+        if (signal.aborted) {
+            return [];
+        }
+        try {
+            const commands = await getAvailableCommands(this.context.config, signal, 'non_interactive');
+            if (signal.aborted) {
+                return [];
+            }
+            // Extract command names and sort
+            return commands.map((cmd) => cmd.name).sort();
+        }
+        catch (error) {
+            // Check if the error is due to abort
+            if (signal.aborted) {
+                return [];
+            }
+            debugLogger.error('[SystemController] Failed to load slash commands:', error);
+            return [];
+        }
+    }
+}
+//# sourceMappingURL=systemController.js.map

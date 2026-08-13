@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { CHANNEL_PROMPT_AUTHORIZATION_META_KEY, CHANNEL_PROMPT_DISPLAY_TEXT_META_KEY, CHANNEL_PROMPT_META_KEY, } from './ChannelAgentBridge.js';
+import { readAvailableCommandAltNames } from './AcpBridge.js';
+import { ChannelLoopMcpServer, } from './ChannelLoopTools.js';
 const MAX_RESPONDED_PERMISSION_REQUESTS = 256;
 function isRecord(value) {
     return typeof value === 'object' && value !== null;
@@ -19,7 +22,15 @@ function getSessionUpdate(data) {
     return data['update'];
 }
 function isAvailableCommand(value) {
-    return isRecord(value) && typeof value['name'] === 'string';
+    if (!isRecord(value) || typeof value['name'] !== 'string')
+        return false;
+    // altNames is optional; when present it MUST be a string[] (so the type guard is
+    // honest). A malformed wire payload — e.g. `altNames: 5` — would otherwise survive
+    // onto the command and throw at the downstream `altNames.some(...)` recognition
+    // site in ChannelBase.matchAgentCommand.
+    const altNames = value['altNames'];
+    return (altNames === undefined ||
+        (Array.isArray(altNames) && altNames.every((n) => typeof n === 'string')));
 }
 function isPermissionRequestData(value) {
     if (!isRecord(value) ||
@@ -66,26 +77,36 @@ function summarizeProtocolDetails(details) {
     }
     return summary;
 }
-async function drainDaemonEventLoop() {
-    // TODO(daemon-roadmap): replace this bounded client-side drain with a daemon
-    // terminal turn event / SSE waterline once the typed event schema defines it.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-}
 export class DaemonChannelBridge extends EventEmitter {
     options;
     sessions = new Map();
+    sessionBindingTokens = new Map();
     eventControllers = new Map();
     requestToSession = new Map();
     respondedRequestToSession = new Map();
     activePrompts = new Set();
     activePromptControllers = new Map();
     availableCommandsBySession = new Map();
+    turnBarriers = new Map();
+    channelLoopToolHandlers = [];
+    registeredChannelLoopMcpSessions = new Set();
+    channelLoopMcpRegistrations = new Map();
+    channelLoopMcpServer;
     connected = false;
+    lifecycleGeneration = 0;
     latestAvailableCommandsSessionId;
     lastError;
+    deleteSessionData;
     constructor(options) {
         super();
         this.options = options;
+        const deleteSessionData = options.deleteSessionData;
+        if (deleteSessionData) {
+            this.deleteSessionData = async (sessionId) => {
+                await deleteSessionData(sessionId);
+                this.removeSessionBinding(sessionId);
+            };
+        }
         this.on('error', (error) => {
             this.lastError = error;
         });
@@ -102,30 +123,70 @@ export class DaemonChannelBridge extends EventEmitter {
     getAvailableCommands(sessionId) {
         return this.availableCommandsBySession.get(sessionId) ?? [];
     }
+    listSessions() {
+        const result = [];
+        for (const session of this.sessions.values()) {
+            result.push({
+                sessionId: session.sessionId,
+                workspaceCwd: session.workspaceCwd,
+                hasActivePrompt: this.activePrompts.has(session.sessionId),
+            });
+        }
+        return result;
+    }
     async start() {
         this.connected = true;
     }
-    async newSession(cwd) {
+    async newSession(cwd, options, bindingToken) {
+        const lifecycleGeneration = this.lifecycleGeneration;
         const session = await this.options.sessionFactory({
             workspaceCwd: cwd || this.options.cwd,
             modelServiceId: this.options.modelServiceId,
             sessionScope: this.options.sessionScope ?? 'thread',
+            ...(options?.approvalMode ? { approvalMode: options.approvalMode } : {}),
+            ...(options?.sourceId ? { sourceId: options.sourceId } : {}),
         });
-        this.attachSession(session);
+        if (lifecycleGeneration !== this.lifecycleGeneration) {
+            await this.rejectStaleSession(session);
+        }
+        this.attachSession(session, bindingToken);
+        await this.registerChannelLoopMcpForSession(session.sessionId);
         return session.sessionId;
     }
-    async loadSession(sessionId, cwd) {
+    async loadSession(sessionId, cwd, options, bindingToken) {
+        const lifecycleGeneration = this.lifecycleGeneration;
         const session = await this.options.sessionFactory({
             workspaceCwd: cwd || this.options.cwd,
             modelServiceId: this.options.modelServiceId,
             sessionId,
             sessionScope: this.options.sessionScope ?? 'thread',
+            ...(options?.approvalMode ? { approvalMode: options.approvalMode } : {}),
         });
+        if (lifecycleGeneration !== this.lifecycleGeneration) {
+            await this.rejectStaleSession(session);
+        }
         if (session.sessionId !== sessionId) {
+            void this.releaseSessionClient(session).catch((error) => {
+                this.lastError = error;
+            });
             throw new Error(`Daemon returned session ${session.sessionId} while loading ${sessionId}`);
         }
-        this.attachSession(session);
+        this.attachSession(session, bindingToken);
+        await this.registerChannelLoopMcpForSession(session.sessionId);
         return session.sessionId;
+    }
+    registerChannelLoopToolHandler(handler) {
+        if (!this.channelLoopToolHandlers.includes(handler)) {
+            this.channelLoopToolHandlers.push(handler);
+        }
+        this.channelLoopMcpServer ??= new ChannelLoopMcpServer({
+            create: (sessionId, input) => this.resolveChannelLoopToolHandler(sessionId).create(sessionId, input),
+            list: (sessionId) => this.resolveChannelLoopToolHandler(sessionId).list(sessionId),
+            cancel: (sessionId, id) => this.resolveChannelLoopToolHandler(sessionId).cancel(sessionId, id),
+        });
+        for (const sessionId of this.sessions.keys()) {
+            void this.registerChannelLoopMcpForSession(sessionId);
+        }
     }
     async prompt(sessionId, text, options) {
         const session = this.ensureSession(sessionId);
@@ -141,9 +202,21 @@ export class DaemonChannelBridge extends EventEmitter {
         }
         controllers.add(controller);
         const chunks = [];
+        let slashCommandOutput = '';
         const onChunk = (sid, chunk) => {
             if (sid === sessionId) {
                 chunks.push(chunk);
+            }
+        };
+        const onSlashCommandOutput = (sid, chunk) => {
+            if (sid === sessionId) {
+                slashCommandOutput = chunk;
+            }
+        };
+        const clearChunks = (sid) => {
+            if (sid === sessionId) {
+                chunks.length = 0;
+                slashCommandOutput = '';
             }
         };
         const onSessionDied = (info) => {
@@ -152,7 +225,10 @@ export class DaemonChannelBridge extends EventEmitter {
             }
         };
         this.on('textChunk', onChunk);
+        this.on('slashCommandOutput', onSlashCommandOutput);
+        this.on('responseBoundary', clearChunks);
         this.on('sessionDied', onSessionDied);
+        const turnBarrier = this.createTurnBarrier(sessionId);
         const prompt = [];
         if (options?.imageBase64 && options.imageMimeType) {
             prompt.push({
@@ -162,10 +238,34 @@ export class DaemonChannelBridge extends EventEmitter {
             });
         }
         prompt.push({ type: 'text', text });
+        const promptAuthorization = options?.displayText !== undefined
+            ? this.options.promptAuthorization
+            : undefined;
         try {
-            const result = await session.prompt({ prompt }, controller.signal);
-            await drainDaemonEventLoop();
-            const textResult = chunks.join('');
+            const result = await session.prompt({
+                prompt,
+                _meta: {
+                    [CHANNEL_PROMPT_META_KEY]: true,
+                    ...(promptAuthorization
+                        ? {
+                            [CHANNEL_PROMPT_AUTHORIZATION_META_KEY]: promptAuthorization,
+                        }
+                        : {}),
+                    ...(options?.displayText !== undefined
+                        ? {
+                            [CHANNEL_PROMPT_DISPLAY_TEXT_META_KEY]: options.displayText,
+                        }
+                        : {}),
+                },
+            }, controller.signal);
+            // Prefer turn_complete for deterministic chunk collection (SSE path).
+            // Fall back to one event-loop tick for non-SSE prompt paths (blocking
+            // HTTP, non-202 responses) where turn_complete never arrives.
+            await Promise.race([
+                turnBarrier,
+                new Promise((resolve) => setTimeout(resolve, 0)),
+            ]);
+            const textResult = chunks.join('') || slashCommandOutput;
             this.emit('promptComplete', {
                 sessionId,
                 text: textResult,
@@ -174,7 +274,10 @@ export class DaemonChannelBridge extends EventEmitter {
             return textResult;
         }
         finally {
+            this.clearTurnBarrier(sessionId);
             this.off('textChunk', onChunk);
+            this.off('slashCommandOutput', onSlashCommandOutput);
+            this.off('responseBoundary', clearChunks);
             this.off('sessionDied', onSessionDied);
             this.activePrompts.delete(sessionId);
             controllers.delete(controller);
@@ -184,11 +287,41 @@ export class DaemonChannelBridge extends EventEmitter {
             }
         }
     }
+    async shellCommand(sessionId, command, signal) {
+        const session = this.ensureSession(sessionId);
+        if (!session.shellCommand) {
+            throw new Error('Shell command not supported by this session client');
+        }
+        return session.shellCommand(command, signal);
+    }
     async cancelSession(sessionId) {
         const session = this.ensureSession(sessionId);
-        await session.cancel();
+        this.resolveTurnBarrier(sessionId);
         this.abortActivePrompts(sessionId);
         this.activePrompts.delete(sessionId);
+        await session.cancel();
+    }
+    async discardSession(sessionId, expectedBindingToken) {
+        if (expectedBindingToken !== undefined &&
+            this.sessionBindingTokens.get(sessionId) !== expectedBindingToken) {
+            return;
+        }
+        const session = this.removeSessionBinding(sessionId);
+        if (!session)
+            return;
+        await this.releaseSessionClient(session);
+    }
+    async releaseSessionClient(session) {
+        if (session.detach) {
+            try {
+                await session.detach();
+                return;
+            }
+            catch {
+                // Fall back to cancellation for clients that cannot detach cleanly.
+            }
+        }
+        await session.cancel();
     }
     async setSessionModel(sessionId, modelId) {
         return await this.ensureSession(sessionId).setModel(modelId);
@@ -222,6 +355,7 @@ export class DaemonChannelBridge extends EventEmitter {
         }
     }
     stop() {
+        this.lifecycleGeneration++;
         for (const sessionId of Array.from(this.sessions.keys())) {
             const session = this.sessions.get(sessionId);
             if (session) {
@@ -229,7 +363,7 @@ export class DaemonChannelBridge extends EventEmitter {
                     this.lastError = error;
                 });
             }
-            this.dropSession(sessionId, 'bridge_stopped');
+            this.dropSession(sessionId, 'bridge_stopped', false);
         }
         this.latestAvailableCommandsSessionId = undefined;
         this.connected = false;
@@ -237,14 +371,28 @@ export class DaemonChannelBridge extends EventEmitter {
     get isConnected() {
         return this.connected;
     }
-    attachSession(session) {
-        if (this.sessions.has(session.sessionId)) {
-            this.dropSession(session.sessionId, 'session_replaced');
+    attachSession(session, bindingToken) {
+        const replacedSession = this.removeSessionBinding(session.sessionId, false);
+        if (replacedSession) {
+            void this.releaseSessionClient(replacedSession).catch((error) => {
+                this.lastError = error;
+            });
+            this.emit('sessionDied', {
+                sessionId: session.sessionId,
+                reason: 'session_replaced',
+            });
         }
         this.sessions.set(session.sessionId, session);
+        this.sessionBindingTokens.set(session.sessionId, bindingToken);
         const controller = new AbortController();
         this.eventControllers.set(session.sessionId, controller);
         void this.pumpEvents(session, controller.signal);
+    }
+    async rejectStaleSession(session) {
+        void this.releaseSessionClient(session).catch((error) => {
+            this.lastError = error;
+        });
+        throw new Error('Daemon channel bridge stopped during session creation');
     }
     ensureSession(sessionId) {
         const session = this.sessions.get(sessionId);
@@ -283,6 +431,11 @@ export class DaemonChannelBridge extends EventEmitter {
     handleEvent(session, event) {
         switch (event.type) {
             case 'session_update':
+                if (isRecord(event.data) &&
+                    typeof event.data['sessionId'] === 'string' &&
+                    event.data['sessionId'] !== session.sessionId) {
+                    break;
+                }
                 this.handleSessionUpdate(session.sessionId, event.data);
                 break;
             case 'permission_request':
@@ -301,10 +454,17 @@ export class DaemonChannelBridge extends EventEmitter {
                 this.handleSessionDied(session.sessionId, event.data);
                 break;
             case 'client_evicted':
-                this.dropSession(session.sessionId, this.getReason(event.data, 'client_evicted'));
+                this.dropSession(session.sessionId, this.getStringField(event.data, 'reason', 'client_evicted'));
                 break;
             case 'stream_error':
-                this.dropSession(session.sessionId, this.getError(event.data, 'stream_error'));
+                this.dropSession(session.sessionId, this.getStringField(event.data, 'error', 'stream_error'));
+                break;
+            case 'turn_complete':
+                this.resolveTurnBarrier(session.sessionId);
+                break;
+            case 'turn_error':
+                this.emitProtocolError(`Daemon turn error for session ${session.sessionId}`, event.data);
+                this.resolveTurnBarrier(session.sessionId);
                 break;
             default:
                 break;
@@ -319,9 +479,23 @@ export class DaemonChannelBridge extends EventEmitter {
         const type = getString(update['sessionUpdate']);
         switch (type) {
             case 'agent_message_chunk': {
+                const meta = isRecord(update['_meta']) ? update['_meta'] : undefined;
+                if (typeof meta?.['parentToolCallId'] === 'string') {
+                    break;
+                }
                 const text = getTextContent(update['content']);
+                if (meta?.['qwenDiscreteMessage'] === true) {
+                    if (meta['source'] === 'background_notification_response' &&
+                        meta['rewritten'] !== true &&
+                        text) {
+                        this.emit('backgroundResponse', sessionId, text);
+                    }
+                    break;
+                }
                 if (text) {
-                    this.emit('textChunk', sessionId, text);
+                    this.emit(meta?.['source'] === 'slash_command'
+                        ? 'slashCommandOutput'
+                        : 'textChunk', sessionId, text);
                 }
                 break;
             }
@@ -336,6 +510,20 @@ export class DaemonChannelBridge extends EventEmitter {
             case 'tool_call_update': {
                 const toolCallId = getString(update['toolCallId']);
                 const kind = getString(update['kind']);
+                const meta = isRecord(update['_meta']) ? update['_meta'] : undefined;
+                if (!kind &&
+                    toolCallId &&
+                    getString(update['status']) === 'in_progress' &&
+                    meta?.['shellProgress'] !== undefined) {
+                    // Silent-shell liveness heartbeat: a kind-less in_progress frame
+                    // carrying only the id, status, and _meta.shellProgress stats.
+                    // Channels have no use for it — drop it without flagging the
+                    // session as malformed. Gate on shellProgress (matching the
+                    // qwen-agent and web-shell normalizer guards) so a genuinely
+                    // malformed kind-less tool_call still reaches emitProtocolError
+                    // below instead of being silently swallowed.
+                    break;
+                }
                 if (!toolCallId || !kind) {
                     this.emitProtocolError(`Malformed daemon ${type} event`, update);
                     break;
@@ -350,12 +538,24 @@ export class DaemonChannelBridge extends EventEmitter {
                         ? update['rawInput']
                         : undefined,
                 };
+                if (event.status === 'pending' || event.status === 'in_progress') {
+                    this.emitResponseBoundary(sessionId);
+                }
                 this.emit('toolCall', event);
+                break;
+            }
+            case 'plan': {
+                this.emitResponseBoundary(sessionId);
                 break;
             }
             case 'available_commands_update': {
                 if (Array.isArray(update['availableCommands'])) {
-                    const commands = update['availableCommands'].filter(isAvailableCommand);
+                    const commands = update['availableCommands']
+                        .filter(isAvailableCommand)
+                        .map((cmd) => {
+                        const altNames = readAvailableCommandAltNames(cmd);
+                        return altNames ? { ...cmd, altNames } : cmd;
+                    });
                     this.availableCommandsBySession.set(sessionId, commands);
                     this.latestAvailableCommandsSessionId = sessionId;
                 }
@@ -376,6 +576,7 @@ export class DaemonChannelBridge extends EventEmitter {
         }
         const requestId = data['requestId'];
         this.requestToSession.set(requestId, sessionId);
+        this.emitResponseBoundary(sessionId);
         this.emit('permissionRequest', {
             requestId,
             sessionId,
@@ -448,15 +649,28 @@ export class DaemonChannelBridge extends EventEmitter {
         });
     }
     handleSessionDied(sessionId, data) {
-        this.dropSession(sessionId, this.getReason(data, 'session_died'));
+        this.dropSession(sessionId, this.getStringField(data, 'reason', 'session_died'));
     }
-    dropSession(sessionId, reason) {
-        if (!this.sessions.has(sessionId)) {
+    dropSession(sessionId, reason, releaseClient = true) {
+        const session = this.removeSessionBinding(sessionId);
+        if (!session)
             return;
+        if (releaseClient) {
+            void this.releaseSessionClient(session).catch((error) => {
+                this.lastError = error;
+            });
         }
+        this.emit('sessionDied', { sessionId, reason });
+    }
+    removeSessionBinding(sessionId, unregisterChannelLoopMcp = true) {
+        const session = this.sessions.get(sessionId);
+        if (!session)
+            return undefined;
+        this.resolveTurnBarrier(sessionId);
         this.eventControllers.get(sessionId)?.abort();
         this.eventControllers.delete(sessionId);
         this.sessions.delete(sessionId);
+        this.sessionBindingTokens.delete(sessionId);
         this.abortActivePrompts(sessionId);
         this.activePrompts.delete(sessionId);
         this.availableCommandsBySession.delete(sessionId);
@@ -473,16 +687,64 @@ export class DaemonChannelBridge extends EventEmitter {
                 this.respondedRequestToSession.delete(requestId);
             }
         }
-        this.emit('sessionDied', { sessionId, reason });
+        if (unregisterChannelLoopMcp) {
+            this.unregisterChannelLoopMcpForSession(sessionId);
+        }
+        return session;
     }
-    getReason(data, fallback) {
-        return isRecord(data) && typeof data['reason'] === 'string'
-            ? data['reason']
-            : fallback;
+    async registerChannelLoopMcpForSession(sessionId) {
+        const host = this.options.channelLoopMcpHost;
+        const server = this.channelLoopMcpServer;
+        if (!host ||
+            !server ||
+            this.registeredChannelLoopMcpSessions.has(sessionId)) {
+            return;
+        }
+        const pending = this.channelLoopMcpRegistrations.get(sessionId);
+        if (pending) {
+            await pending;
+            return;
+        }
+        const registration = host
+            .register(sessionId, (message) => server.handleMessage(message, { sessionId }))
+            .then(async () => {
+            if (this.sessions.has(sessionId)) {
+                this.registeredChannelLoopMcpSessions.add(sessionId);
+            }
+            else {
+                await host.unregister(sessionId);
+            }
+        })
+            .catch((error) => {
+            this.lastError = error;
+        })
+            .finally(() => {
+            if (this.channelLoopMcpRegistrations.get(sessionId) === registration) {
+                this.channelLoopMcpRegistrations.delete(sessionId);
+            }
+        });
+        this.channelLoopMcpRegistrations.set(sessionId, registration);
+        await registration;
     }
-    getError(data, fallback) {
-        return isRecord(data) && typeof data['error'] === 'string'
-            ? data['error']
+    unregisterChannelLoopMcpForSession(sessionId) {
+        if (!this.registeredChannelLoopMcpSessions.delete(sessionId))
+            return;
+        void this.options.channelLoopMcpHost
+            ?.unregister(sessionId)
+            .catch((error) => {
+            this.lastError = error;
+        });
+    }
+    resolveChannelLoopToolHandler(sessionId) {
+        const handler = this.channelLoopToolHandlers.find((candidate) => candidate.canHandle?.(sessionId) === true ||
+            (this.channelLoopToolHandlers.length === 1 && !candidate.canHandle));
+        if (handler)
+            return handler;
+        throw new Error(`No channel loop handler matched session ${sessionId}.`);
+    }
+    getStringField(data, field, fallback) {
+        return isRecord(data) && typeof data[field] === 'string'
+            ? data[field]
             : fallback;
     }
     abortActivePrompts(sessionId) {
@@ -494,6 +756,24 @@ export class DaemonChannelBridge extends EventEmitter {
             controller.abort();
         }
         this.activePromptControllers.delete(sessionId);
+    }
+    emitResponseBoundary(sessionId) {
+        this.emit('responseBoundary', sessionId);
+    }
+    createTurnBarrier(sessionId) {
+        return new Promise((resolve) => {
+            this.turnBarriers.set(sessionId, resolve);
+        });
+    }
+    resolveTurnBarrier(sessionId) {
+        const resolve = this.turnBarriers.get(sessionId);
+        if (resolve) {
+            this.turnBarriers.delete(sessionId);
+            resolve();
+        }
+    }
+    clearTurnBarrier(sessionId) {
+        this.turnBarriers.delete(sessionId);
     }
     emitProtocolError(message, details) {
         const error = new Error(message);

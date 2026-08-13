@@ -3,8 +3,10 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { DaemonEvent, DaemonErrorKind, DaemonMcpTransport, PermissionOutcome } from './types.js';
-export declare const DAEMON_KNOWN_EVENT_TYPE_VALUES: readonly ["session_update", "permission_request", "permission_resolved", "permission_already_resolved", "model_switched", "model_switch_failed", "session_died", "session_closed", "session_metadata_updated", "client_evicted", "slow_client_warning", "stream_error", "state_resync_required", "mcp_budget_warning", "mcp_child_refused_batch", "memory_changed", "agent_changed", "auth_device_flow_started", "auth_device_flow_throttled", "auth_device_flow_authorized", "auth_device_flow_failed", "auth_device_flow_cancelled", "approval_mode_changed", "tool_toggled", "settings_changed", "workspace_initialized", "mcp_server_restarted", "mcp_server_restart_refused", "settings_reloaded", "mcp_server_added", "mcp_server_removed", "permission_partial_vote", "permission_forbidden", "prompt_cancelled", "replay_complete", "followup_suggestion", "user_shell_command", "user_shell_result", "turn_complete", "turn_error", "session_rewound", "session_branched", "session_snapshot"];
+import type { DaemonEvent, DaemonErrorKind, DaemonMcpTransport, DaemonSessionArtifactChange, PermissionOutcome } from './types.js';
+import { MID_TURN_MESSAGE_INJECTED_EVENT, PENDING_PROMPT_ADDED_EVENT, PENDING_PROMPT_STARTED_EVENT, PENDING_PROMPT_COMPLETED_EVENT } from '@qwen-code/acp-bridge/daemonEventTypes';
+export { MID_TURN_MESSAGE_INJECTED_EVENT, PENDING_PROMPT_ADDED_EVENT, PENDING_PROMPT_STARTED_EVENT, PENDING_PROMPT_COMPLETED_EVENT, };
+export declare const DAEMON_KNOWN_EVENT_TYPE_VALUES: readonly ["session_update", "permission_request", "permission_resolved", "permission_already_resolved", "model_switched", "model_switch_failed", "session_died", "session_closed", "session_metadata_updated", "session_recording_degraded", "artifact_changed", "mid_turn_message_injected", "pending_prompt_added", "pending_prompt_started", "pending_prompt_completed", "client_evicted", "slow_client_warning", "stream_error", "state_resync_required", "history_truncated", "mcp_budget_warning", "mcp_child_refused_batch", "memory_changed", "agent_changed", "auth_device_flow_started", "auth_device_flow_throttled", "auth_device_flow_authorized", "auth_device_flow_failed", "auth_device_flow_cancelled", "approval_mode_changed", "tool_toggled", "settings_changed", "trust_change_requested", "workspace_initialized", "github_setup_completed", "mcp_server_restarted", "mcp_server_restart_refused", "mcp_server_changed", "settings_reloaded", "mcp_server_added", "mcp_server_removed", "extensions_changed", "permission_partial_vote", "permission_forbidden", "prompt_cancelled", "replay_complete", "followup_suggestion", "channel_delivery_result", "user_shell_command", "user_shell_result", "turn_complete", "turn_error", "session_rewound", "session_branched", "session_snapshot", "git_branch_changed", "git_status_changed"];
 export type DaemonKnownEventType = (typeof DAEMON_KNOWN_EVENT_TYPE_VALUES)[number];
 export interface DaemonEventEnvelope<TType extends string, TData> extends Omit<DaemonEvent, 'type' | 'data'> {
     type: TType;
@@ -114,9 +116,38 @@ export interface DaemonSessionMetadataUpdatedData {
     displayName?: string;
     [key: string]: unknown;
 }
+export interface DaemonArtifactChangedData {
+    sessionId: string;
+    change: DaemonSessionArtifactChange;
+    [key: string]: unknown;
+}
+/**
+ * `mid_turn_message_injected` payload. Emitted when the daemon drains
+ * browser-queued mid-turn messages into the running turn (web-shell mid-turn
+ * drain). It is a transient dedupe signal, not a transcript item: consumers
+ * move these messages out of their pending queue so they aren't resent as the
+ * next turn. They are not rendered from this event — the message already reached
+ * the model mid-turn, and the persisted transcript shows it on reload.
+ */
+export interface DaemonMidTurnMessageInjectedData {
+    sessionId: string;
+    messages: string[];
+    messageIds?: string[];
+    /**
+     * Present only on events from older daemons. New daemons publish one
+     * session-wide batch and clients reconcile it by message id.
+     */
+    originatorClientId?: string;
+    [key: string]: unknown;
+}
 export interface DaemonClientEvictedData {
     reason: string;
     droppedAfter?: number;
+    queueSize?: number;
+    maxQueued?: number;
+    queuedBytes?: number;
+    maxQueuedBytes?: number;
+    eventBytes?: number;
     [key: string]: unknown;
 }
 export interface DaemonSlowClientWarningData {
@@ -130,6 +161,12 @@ export interface DaemonSlowClientWarningData {
      * `Last-Event-ID` or detach + drain.
      */
     lastEventId: number;
+    /** Approximate serialized bytes queued for this subscriber's live backlog. */
+    queuedBytes?: number;
+    /** Per-subscriber serialized-byte backlog cap. */
+    maxQueuedBytes?: number;
+    /** Which backlog threshold caused the warning. */
+    threshold?: 'frames' | 'bytes' | 'frames_and_bytes';
     [key: string]: unknown;
 }
 export interface DaemonStreamErrorData {
@@ -158,12 +195,22 @@ export interface DaemonStateResyncRequiredData {
      * Machine-readable resync reason. One of:
      * - `'ring_evicted'`: consumer's `Last-Event-ID` fell behind the ring's
      *   earliest surviving id (same-epoch gap).
-     * - `'epoch_reset'`: consumer's `Last-Event-ID` is past the bus
-     *   high-water — its cursor is from a previous bus epoch (daemon
-     *   restart rebuilt the EventBus). The whole fresh ring is replayed.
+     * - `'epoch_reset'`: consumer's cursor is from a previous bus epoch
+     *   (daemon restart rebuilt the EventBus). Triggered either by the
+     *   numeric heuristic (`Last-Event-ID` past the bus high-water) or by
+     *   an epoch token comparison (`X-Qwen-Event-Epoch` header does not
+     *   match the bus's current epoch — see `detail`). The whole fresh
+     *   ring is replayed.
      * Reserved for future causes (e.g. `'schema_version_bump'`).
      */
     reason: string;
+    /**
+     * Optional trigger discriminator on the wire. `'epoch_mismatch'` marks an
+     * `'epoch_reset'` produced by the epoch token comparison rather than the
+     * numeric heuristic. Operational/wire-level field — UI consumers key on
+     * `reason` alone.
+     */
+    detail?: string;
     /** Consumer's `Last-Event-ID` at reconnect time. */
     lastDeliveredId: number;
     /**
@@ -172,6 +219,27 @@ export interface DaemonStateResyncRequiredData {
      * earliestAvailableId - 1]` inclusive.
      */
     earliestAvailableId: number;
+    [key: string]: unknown;
+}
+export interface DaemonHistoryTruncatedData {
+    reason: 'replay_window_exceeded';
+    scope?: 'live_journal' | (string & {});
+    truncatedEvents: number;
+    retainedEvents: number;
+    maxBytes: number;
+    maxEvents?: number;
+    truncatedTurns?: number;
+    /**
+     * Pagination anchor: the last `qwen.session.recordId` observed by the
+     * daemon's compaction engine before the truncation point. Present when
+     * at least one recordId-bearing `session_update` was ingested or seeded
+     * during the engine's lifetime; omitted otherwise. Clients use this as
+     * the `beforeRecordId` for `GET /session/:id/transcript` pagination
+     * when the retained replay window lost every turn-boundary event
+     * (e.g. live-journal truncation during one long in-flight turn).
+     */
+    recordId?: string;
+    fullTranscriptAvailable: boolean;
     [key: string]: unknown;
 }
 /**
@@ -251,13 +319,21 @@ export interface DaemonMcpChildRefusedBatchData {
  * ~/.qwen/QWEN.md), `mode` is the requested write mode, and
  * `bytesWritten` is the size of the file post-write.
  */
-export interface DaemonMemoryChangedData {
+export interface DaemonFileMemoryChangedData {
     scope: 'workspace' | 'global';
     filePath: string;
     mode: 'append' | 'replace';
     bytesWritten: number;
     [key: string]: unknown;
 }
+export interface DaemonManagedMemoryChangedData {
+    scope: 'managed';
+    source: 'workspace_memory_remember' | 'workspace_memory_forget' | 'workspace_memory_dream' | (string & {});
+    taskId: string;
+    touchedScopes: Array<'user' | 'project'>;
+    [key: string]: unknown;
+}
+export type DaemonMemoryChangedData = DaemonFileMemoryChangedData | DaemonManagedMemoryChangedData;
 /**
  * A workspace agent CRUD mutation completed successfully. `change`
  * discriminates the operation; `level` records whether the project- or
@@ -366,6 +442,12 @@ export interface DaemonToolToggledData {
     originatorClientId?: string;
     [key: string]: unknown;
 }
+export interface DaemonTrustChangeRequestedData {
+    workspaceCwd: string;
+    desiredState: 'trusted' | 'untrusted';
+    reason?: string;
+    [key: string]: unknown;
+}
 /**
  * Workspace-scoped: fan-outs to every active session SSE bus when
  * `POST /workspace/init` is invoked. The `action` field discriminates
@@ -386,6 +468,26 @@ export interface DaemonWorkspaceInitializedData {
     path: string;
     action: 'created' | 'overwrote' | 'noop';
     originatorClientId?: string;
+    [key: string]: unknown;
+}
+export interface DaemonGithubSetupCompletedData {
+    releaseTag: string;
+    readmeUrl: string;
+    secretsUrl?: string;
+    workflows: Array<{
+        sourcePath?: string;
+        path: string;
+        status: 'written' | 'failed';
+        sizeBytes?: number;
+        error?: string;
+    }>;
+    gitignore: {
+        path: '.gitignore';
+        status: 'created' | 'updated' | 'unchanged' | 'failed' | 'skipped';
+        added?: string[];
+        error?: string;
+    };
+    warnings: string[];
     [key: string]: unknown;
 }
 /**
@@ -428,7 +530,7 @@ export interface DaemonMcpServerRestartedData {
  */
 export interface DaemonMcpServerRestartRefusedData {
     serverName: string;
-    reason: 'in_flight' | 'disabled' | 'budget_would_exceed' | 'restart_failed';
+    reason: 'in_flight' | 'disabled' | 'budget_would_exceed' | 'authentication_required' | 'restart_failed';
     originatorClientId?: string;
     entryIndex?: number;
     details?: string;
@@ -448,6 +550,26 @@ export interface DaemonFollowupSuggestionData {
     promptId: string;
     [key: string]: unknown;
 }
+export type DaemonChannelDeliveryErrorCode = 'channel_worker_unavailable' | 'channel_delivery_timeout' | 'channel_delivery_invalid' | 'channel_delivery_rejected' | 'channel_delivery_queue_full' | 'channel_delivery_failed';
+type DeliveryResultSource = {
+    source: 'prompt';
+    promptId: string;
+} | {
+    source: 'scheduled';
+    taskId: string;
+    firedAt: number;
+};
+export type DaemonChannelDeliveryResultData = ({
+    sessionId: string;
+    deliveryId: string;
+    status: 'delivered' | 'skipped';
+} & DeliveryResultSource) | ({
+    sessionId: string;
+    deliveryId: string;
+    status: 'failed';
+    code: DaemonChannelDeliveryErrorCode;
+    error: string;
+} & DeliveryResultSource);
 export interface DaemonTurnCompleteData {
     sessionId: string;
     stopReason: string;
@@ -458,6 +580,7 @@ export interface DaemonTurnErrorData {
     sessionId: string;
     message: string;
     code?: string;
+    errorKind?: DaemonErrorKind | (string & {});
     promptId?: string;
     [key: string]: unknown;
 }
@@ -508,10 +631,34 @@ export interface DaemonMcpServerRemovedData {
     [key: string]: unknown;
 }
 export type DaemonMcpServerRemovedEvent = DaemonEventEnvelope<'mcp_server_removed', DaemonMcpServerRemovedData>;
+export interface DaemonMcpServerChangedData {
+    readonly serverName: string;
+    readonly action: 'approve' | 'enable' | 'disable' | 'authenticate' | 'clear-auth';
+    readonly originatorClientId?: string;
+    [key: string]: unknown;
+}
+export type DaemonMcpServerChangedEvent = DaemonEventEnvelope<'mcp_server_changed', DaemonMcpServerChangedData>;
+export interface DaemonExtensionsChangedData {
+    readonly refreshed: number;
+    readonly failed: number;
+    readonly status?: 'installed' | 'enabled' | 'disabled' | 'updated' | 'uninstalled' | 'failed';
+    readonly source?: string;
+    readonly name?: string;
+    readonly version?: string;
+    readonly error?: string;
+    [key: string]: unknown;
+}
+export type DaemonExtensionsChangedEvent = DaemonEventEnvelope<'extensions_changed', DaemonExtensionsChangedData>;
 export interface DaemonSessionSnapshotData {
     sessionId: string;
     currentModelId: string | null;
     currentApprovalMode: string | null;
+    recordingDegraded?: boolean;
+    [key: string]: unknown;
+}
+export interface DaemonSessionRecordingDegradedData {
+    sessionId: string;
+    reason: 'write_failed';
     [key: string]: unknown;
 }
 export type DaemonSessionUpdateEvent = DaemonEventEnvelope<'session_update', DaemonSessionUpdateData>;
@@ -525,10 +672,36 @@ export type DaemonModelSwitchFailedEvent = DaemonEventEnvelope<'model_switch_fai
 export type DaemonSessionDiedEvent = DaemonEventEnvelope<'session_died', DaemonSessionDiedData>;
 export type DaemonSessionClosedEvent = DaemonEventEnvelope<'session_closed', DaemonSessionClosedData>;
 export type DaemonSessionMetadataUpdatedEvent = DaemonEventEnvelope<'session_metadata_updated', DaemonSessionMetadataUpdatedData>;
+export type DaemonArtifactChangedEvent = DaemonEventEnvelope<'artifact_changed', DaemonArtifactChangedData>;
+export type DaemonMidTurnMessageInjectedEvent = DaemonEventEnvelope<typeof MID_TURN_MESSAGE_INJECTED_EVENT, DaemonMidTurnMessageInjectedData>;
+export interface DaemonPendingPromptAddedData {
+    sessionId: string;
+    promptId: string;
+    text: string;
+    queuedAt: number;
+    [key: string]: unknown;
+}
+export interface DaemonPendingPromptStartedData {
+    sessionId: string;
+    promptId: string;
+    text: string;
+    [key: string]: unknown;
+}
+export interface DaemonPendingPromptCompletedData {
+    sessionId: string;
+    promptId: string;
+    state: 'completed' | 'removed';
+    [key: string]: unknown;
+}
+export type DaemonPendingPromptAddedEvent = DaemonEventEnvelope<typeof PENDING_PROMPT_ADDED_EVENT, DaemonPendingPromptAddedData>;
+export type DaemonPendingPromptStartedEvent = DaemonEventEnvelope<typeof PENDING_PROMPT_STARTED_EVENT, DaemonPendingPromptStartedData>;
+export type DaemonPendingPromptCompletedEvent = DaemonEventEnvelope<typeof PENDING_PROMPT_COMPLETED_EVENT, DaemonPendingPromptCompletedData>;
+export type DaemonPendingPromptEvent = DaemonPendingPromptAddedEvent | DaemonPendingPromptStartedEvent | DaemonPendingPromptCompletedEvent;
 export type DaemonClientEvictedEvent = DaemonEventEnvelope<'client_evicted', DaemonClientEvictedData>;
 export type DaemonSlowClientWarningEvent = DaemonEventEnvelope<'slow_client_warning', DaemonSlowClientWarningData>;
 export type DaemonStreamErrorEvent = DaemonEventEnvelope<'stream_error', DaemonStreamErrorData>;
 export type DaemonStateResyncRequiredEvent = DaemonEventEnvelope<'state_resync_required', DaemonStateResyncRequiredData>;
+export type DaemonHistoryTruncatedEvent = DaemonEventEnvelope<'history_truncated', DaemonHistoryTruncatedData>;
 export type DaemonMcpBudgetWarningEvent = DaemonEventEnvelope<'mcp_budget_warning', DaemonMcpBudgetWarningData>;
 export type DaemonMcpChildRefusedBatchEvent = DaemonEventEnvelope<'mcp_child_refused_batch', DaemonMcpChildRefusedBatchData>;
 export type DaemonMemoryChangedEvent = DaemonEventEnvelope<'memory_changed', DaemonMemoryChangedData>;
@@ -536,7 +709,9 @@ export type DaemonAgentChangedEvent = DaemonEventEnvelope<'agent_changed', Daemo
 export type DaemonApprovalModeChangedEvent = DaemonEventEnvelope<'approval_mode_changed', DaemonApprovalModeChangedData>;
 export type DaemonToolToggledEvent = DaemonEventEnvelope<'tool_toggled', DaemonToolToggledData>;
 export type DaemonSettingsChangedEvent = DaemonEventEnvelope<'settings_changed', Record<string, unknown>>;
+export type DaemonTrustChangeRequestedEvent = DaemonEventEnvelope<'trust_change_requested', DaemonTrustChangeRequestedData>;
 export type DaemonWorkspaceInitializedEvent = DaemonEventEnvelope<'workspace_initialized', DaemonWorkspaceInitializedData>;
+export type DaemonGithubSetupCompletedEvent = DaemonEventEnvelope<'github_setup_completed', DaemonGithubSetupCompletedData>;
 export type DaemonMcpServerRestartedEvent = DaemonEventEnvelope<'mcp_server_restarted', DaemonMcpServerRestartedData>;
 export type DaemonMcpServerRestartRefusedEvent = DaemonEventEnvelope<'mcp_server_restart_refused', DaemonMcpServerRestartRefusedData>;
 export interface DaemonSettingsReloadedData {
@@ -558,15 +733,17 @@ export type DaemonAuthDeviceFlowAuthorizedEvent = DaemonEventEnvelope<'auth_devi
 export type DaemonAuthDeviceFlowFailedEvent = DaemonEventEnvelope<'auth_device_flow_failed', DaemonAuthDeviceFlowFailedData>;
 export type DaemonAuthDeviceFlowCancelledEvent = DaemonEventEnvelope<'auth_device_flow_cancelled', DaemonAuthDeviceFlowCancelledData>;
 export type DaemonFollowupSuggestionEvent = DaemonEventEnvelope<'followup_suggestion', DaemonFollowupSuggestionData>;
+export type DaemonChannelDeliveryResultEvent = DaemonEventEnvelope<'channel_delivery_result', DaemonChannelDeliveryResultData>;
 export type DaemonTurnCompleteEvent = DaemonEventEnvelope<'turn_complete', DaemonTurnCompleteData>;
 export type DaemonTurnErrorEvent = DaemonEventEnvelope<'turn_error', DaemonTurnErrorData>;
 export type DaemonSessionRewoundEvent = DaemonEventEnvelope<'session_rewound', DaemonSessionRewoundData>;
 export type DaemonSessionSnapshotEvent = DaemonEventEnvelope<'session_snapshot', DaemonSessionSnapshotData>;
+export type DaemonSessionRecordingDegradedEvent = DaemonEventEnvelope<'session_recording_degraded', DaemonSessionRecordingDegradedData>;
 export type DaemonSessionBranchedEvent = DaemonEventEnvelope<'session_branched', DaemonSessionBranchedData>;
 export type DaemonAuthEvent = DaemonAuthDeviceFlowStartedEvent | DaemonAuthDeviceFlowThrottledEvent | DaemonAuthDeviceFlowAuthorizedEvent | DaemonAuthDeviceFlowFailedEvent | DaemonAuthDeviceFlowCancelledEvent;
-export type DaemonSessionEvent = DaemonSessionUpdateEvent | DaemonModelSwitchedEvent | DaemonModelSwitchFailedEvent | DaemonSessionDiedEvent | DaemonSessionClosedEvent | DaemonSessionMetadataUpdatedEvent | DaemonSessionBranchedEvent;
-export type DaemonControlEvent = DaemonPermissionRequestEvent | DaemonPermissionResolvedEvent | DaemonPermissionAlreadyResolvedEvent | DaemonPermissionPartialVoteEvent | DaemonPermissionForbiddenEvent | DaemonApprovalModeChangedEvent | DaemonToolToggledEvent | DaemonSettingsChangedEvent | DaemonWorkspaceInitializedEvent | DaemonMcpServerRestartedEvent | DaemonMcpServerRestartRefusedEvent | DaemonSettingsReloadedEvent | DaemonMcpServerAddedEvent | DaemonMcpServerRemovedEvent | DaemonSessionRewoundEvent;
-export type DaemonStreamLifecycleEvent = DaemonClientEvictedEvent | DaemonSlowClientWarningEvent | DaemonStreamErrorEvent | DaemonStateResyncRequiredEvent;
+export type DaemonSessionEvent = DaemonSessionUpdateEvent | DaemonModelSwitchedEvent | DaemonModelSwitchFailedEvent | DaemonSessionDiedEvent | DaemonSessionClosedEvent | DaemonSessionMetadataUpdatedEvent | DaemonSessionRecordingDegradedEvent | DaemonArtifactChangedEvent | DaemonMidTurnMessageInjectedEvent | DaemonPendingPromptEvent | DaemonChannelDeliveryResultEvent | DaemonSessionBranchedEvent;
+export type DaemonControlEvent = DaemonPermissionRequestEvent | DaemonPermissionResolvedEvent | DaemonPermissionAlreadyResolvedEvent | DaemonPermissionPartialVoteEvent | DaemonPermissionForbiddenEvent | DaemonApprovalModeChangedEvent | DaemonToolToggledEvent | DaemonSettingsChangedEvent | DaemonWorkspaceInitializedEvent | DaemonGithubSetupCompletedEvent | DaemonMcpServerRestartedEvent | DaemonMcpServerRestartRefusedEvent | DaemonSettingsReloadedEvent | DaemonMcpServerAddedEvent | DaemonMcpServerRemovedEvent | DaemonSessionRewoundEvent;
+export type DaemonStreamLifecycleEvent = DaemonClientEvictedEvent | DaemonSlowClientWarningEvent | DaemonStreamErrorEvent | DaemonStateResyncRequiredEvent | DaemonHistoryTruncatedEvent;
 /**
  * MCP guardrail push events. Grouped as their own union member (rather
  * than folded into `DaemonStreamLifecycleEvent`) because they report
@@ -580,7 +757,7 @@ export type DaemonMcpGuardrailEvent = DaemonMcpBudgetWarningEvent | DaemonMcpChi
  * session's bus. Non-terminal; clients use them to refresh cached
  * views of workspace memory / agents.
  */
-export type DaemonWorkspaceMutationEvent = DaemonMemoryChangedEvent | DaemonAgentChangedEvent;
+export type DaemonWorkspaceMutationEvent = DaemonMemoryChangedEvent | DaemonAgentChangedEvent | DaemonTrustChangeRequestedEvent | DaemonExtensionsChangedEvent | DaemonMcpServerChangedEvent;
 /**
  * Daemon assist push events — non-terminal UX hints emitted by the ACP
  * child on the per-session SSE bus. Today only `followup_suggestion`
@@ -604,6 +781,7 @@ export interface DaemonSessionViewState {
     alive: boolean;
     currentModelId?: string;
     displayName?: string;
+    recordingDegraded: boolean;
     pendingPermissions: Record<string, DaemonPermissionRequestData>;
     lastSessionUpdate?: DaemonSessionUpdateData;
     lastModelSwitchFailure?: DaemonModelSwitchFailedData;
@@ -758,6 +936,14 @@ export interface DaemonSessionViewState {
     resyncRequiredCount: number;
     /** Most recent resync payload (reason + gap range). */
     lastResyncRequired?: DaemonStateResyncRequiredData;
+    /**
+     * Count of `history_truncated` markers observed from bounded replay
+     * snapshots. This is informational only and does not imply stale local state
+     * or trigger resync recovery.
+     */
+    historyTruncatedCount: number;
+    /** Most recent bounded replay-window marker. */
+    lastHistoryTruncated?: DaemonHistoryTruncatedData;
     /**
      * Daemon assist push: most recent `followup_suggestion` observed on
      * this session. Adapters render it as ghost-text in the input

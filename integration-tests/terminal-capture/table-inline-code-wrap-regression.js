@@ -4,12 +4,12 @@
  * Copyright 2026 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { createServer, } from 'node:http';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TerminalCapture } from './terminal-capture.js';
+import { startFakeOpenAIServer } from '../fake-openai-server.js';
 const TERMINAL_COLS = 100;
 const TERMINAL_ROWS = 32;
 const TABLE_NAME = 'deleted_t_spark_odps_sql_type_system2_test_view_more_times_expand_view_f44c82c06096_244650615';
@@ -24,98 +24,6 @@ const MARKDOWN_RESPONSE = [
     '',
     'REGRESSION_TABLE_DONE',
 ].join('\n');
-function sendJson(res, body) {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(body));
-}
-function sendStream(res, chunks) {
-    res.writeHead(200, {
-        'cache-control': 'no-cache, no-transform',
-        connection: 'keep-alive',
-        'content-type': 'text/event-stream; charset=utf-8',
-    });
-    for (const chunk of chunks) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-    }
-    res.write('data: [DONE]\n\n');
-    res.end();
-}
-function chatCompletionId() {
-    return `chatcmpl-table-wrap-${Date.now()}`;
-}
-function streamWrap(id, delta, finishReason, usage) {
-    return {
-        id,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [{ index: 0, delta, finish_reason: finishReason }],
-        ...(usage ? { usage } : {}),
-    };
-}
-function readRequestBody(req) {
-    return new Promise((resolveRead, rejectRead) => {
-        const chunks = [];
-        req.on('data', (chunk) => chunks.push(chunk));
-        req.on('end', () => resolveRead(Buffer.concat(chunks).toString('utf8')));
-        req.on('error', rejectRead);
-    });
-}
-async function startFakeOpenAIServer() {
-    let requestCount = 0;
-    const server = createServer(async (req, res) => {
-        if (req.method !== 'POST' || !req.url?.endsWith('/chat/completions')) {
-            res.writeHead(404);
-            res.end('not found');
-            return;
-        }
-        requestCount += 1;
-        const body = await readRequestBody(req);
-        const parsed = JSON.parse(body);
-        const id = chatCompletionId();
-        const usage = {
-            prompt_tokens: 24,
-            completion_tokens: 16,
-            total_tokens: 40,
-        };
-        if (parsed.stream) {
-            sendStream(res, [
-                streamWrap(id, { role: 'assistant' }, null),
-                streamWrap(id, { content: MARKDOWN_RESPONSE }, null),
-                streamWrap(id, {}, 'stop', usage),
-            ]);
-            return;
-        }
-        sendJson(res, {
-            id,
-            object: 'chat.completion',
-            created: Math.floor(Date.now() / 1000),
-            model: 'dummy',
-            choices: [
-                {
-                    index: 0,
-                    message: { role: 'assistant', content: MARKDOWN_RESPONSE },
-                    finish_reason: 'stop',
-                },
-            ],
-            usage,
-        });
-    });
-    await new Promise((resolveListen) => {
-        server.listen(0, '127.0.0.1', resolveListen);
-    });
-    const address = server.address();
-    if (!address) {
-        throw new Error('failed to start fake OpenAI server');
-    }
-    return {
-        baseUrl: `http://127.0.0.1:${address.port}/v1`,
-        close: () => new Promise((resolveClose) => {
-            server.close(() => resolveClose());
-        }),
-        getRequestCount: () => requestCount,
-    };
-}
 function qwenArgs(baseUrl) {
     return [
         'dist/cli.js',
@@ -201,7 +109,14 @@ async function main() {
         rmSync(outputDir, { recursive: true });
     }
     mkdirSync(outputDir, { recursive: true });
-    const fakeServer = await startFakeOpenAIServer();
+    const fakeServer = await startFakeOpenAIServer(() => ({
+        content: MARKDOWN_RESPONSE,
+        usage: {
+            prompt_tokens: 24,
+            completion_tokens: 16,
+            total_tokens: 40,
+        },
+    }));
     const homeDir = join(outputDir, 'home');
     mkdirSync(homeDir, { recursive: true });
     const env = {
@@ -259,7 +174,7 @@ async function main() {
         const uncoloredContinuationOccurrences = foregrounds.length - coloredContinuationOccurrences;
         const finalScreenWrappedTableName = finalScreen.includes(TABLE_NAME_SUFFIX) &&
             !finalScreen.includes(TABLE_NAME);
-        const pass = fakeServer.getRequestCount() > 0 &&
+        const pass = fakeServer.requests.length > 0 &&
             finalScreenWrappedTableName &&
             foregrounds.length > 0 &&
             uncoloredContinuationOccurrences === 0;
@@ -268,7 +183,7 @@ async function main() {
         const summary = {
             repoRoot,
             outputDir,
-            requestCount: fakeServer.getRequestCount(),
+            requestCount: fakeServer.requests.length,
             rawBytes: raw.length,
             finalScreenLines: finalScreen.split('\n').length,
             continuationOccurrences: foregrounds.length,

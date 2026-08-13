@@ -1,0 +1,1237 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { useCallback, useMemo, useLayoutEffect, useEffect, useRef, useState, } from 'react';
+import {} from '@google/genai';
+import process from 'node:process';
+import { createDebugLogger, logSlashCommand, makeSlashCommandEvent, SlashCommandStatus, ToolConfirmationOutcome, IdeClient, addMCPStatusChangeListener, removeMCPStatusChangeListener, MCPServerStatus, recordSkillInvocation, } from '@qwen-code/qwen-code-core';
+import { useSessionStats } from '../contexts/SessionContext.js';
+import { MessageType } from '../types.js';
+import { CommandKind, } from '../commands/types.js';
+import { CommandService } from '../../services/CommandService.js';
+import { BuiltinCommandLoader } from '../../services/BuiltinCommandLoader.js';
+import { BundledSkillLoader } from '../../services/BundledSkillLoader.js';
+import { FileCommandLoader } from '../../services/FileCommandLoader.js';
+import { SavedWorkflowLoader } from '../../services/saved-workflow-loader.js';
+import { McpPromptLoader } from '../../services/McpPromptLoader.js';
+import { recordAutoSkillCommandUsage, SkillCommandLoader, } from '../../services/SkillCommandLoader.js';
+import { parseSlashCommand, parseStackedSlashCommands, MAX_STACKED_SKILLS, } from '../../utils/commands.js';
+import { AppEvent } from '../../utils/events.js';
+import { t } from '../../i18n/index.js';
+import { refreshExtensionContentRuntime } from '../../config/extension-runtime-reload.js';
+import { EXTENSION_RELOAD_FAILED_REASON, ExtensionRefreshState, } from '../../config/extension-refresh-state.js';
+import { hasSlashCommandPathSeparator, isBtwCommand, } from '../utils/commandUtils.js';
+import { clearScreen } from '../../utils/stdioHelpers.js';
+import { useKeypress } from './useKeypress.js';
+import { isPickerOnlyModelInvocation } from '../commands/modelCommand.js';
+import {} from '../state/extensions.js';
+import { appendUserPromptExpansionAdditionalContext, formatUserPromptExpansionBlockedMessage, serializeUserPromptExpansionPrompt, } from '../../utils/userPromptExpansionHook.js';
+const debugLogger = createDebugLogger('SLASH_COMMAND_PROCESSOR');
+function hasUserPromptExpansionHooks(config) {
+    return (!!config &&
+        !config.getDisableAllHooks?.() &&
+        (config.hasHooksForEvent?.('UserPromptExpansion') ?? false));
+}
+function serializeHistoryItemForRecording(item) {
+    const clone = { ...item };
+    if ('timestamp' in clone && clone['timestamp'] instanceof Date) {
+        clone['timestamp'] = clone['timestamp'].toISOString();
+    }
+    return clone;
+}
+const SLASH_COMMANDS_SKIP_RECORDING = new Set([
+    'quit',
+    'exit',
+    'clear',
+    'reset',
+    'new',
+    'resume',
+    'delete',
+    'branch',
+    'btw',
+    'history',
+]);
+const SLASH_COMMAND_ROOTS_HIDE_INVOCATION = new Set([
+    'auth',
+    'diff',
+    'editor',
+    'help',
+    'settings',
+    'status',
+    'stats',
+    'theme',
+]);
+const BARE_SLASH_COMMANDS_HIDE_INVOCATION = new Set([
+    'effort',
+    'model',
+    'statusline',
+]);
+const MAX_EXTENSION_CONTENT_REFRESH_PASSES = 5;
+function shouldHideSlashCommandInvocation(command, canonicalPath, args) {
+    if (command?.kind !== CommandKind.BUILT_IN) {
+        return false;
+    }
+    // Bare-root match only: subcommands that produce output (e.g. `/status
+    // paths`) keep their invocation like any other work-performing command.
+    if (canonicalPath.length === 1 &&
+        SLASH_COMMAND_ROOTS_HIDE_INVOCATION.has(canonicalPath[0] ?? '')) {
+        // NO_COLOR prevents the theme dialog from opening, so /theme prints
+        // feedback instead and keeps its invocation like any work-performing
+        // command.
+        if (canonicalPath[0] === 'theme' && process.env['NO_COLOR']) {
+            return false;
+        }
+        return true;
+    }
+    const path = canonicalPath.join(' ');
+    if (BARE_SLASH_COMMANDS_HIDE_INVOCATION.has(path)) {
+        if (path === 'model') {
+            return isPickerOnlyModelInvocation(args);
+        }
+        return args.trim() === '';
+    }
+    return false;
+}
+function getSkillCommandName(command) {
+    return command.skillDetail?.name ?? command.name;
+}
+/**
+ * Hook to define and process slash commands (e.g., /help, /clear).
+ */
+export const useSlashCommandProcessor = (config, settings, history, addItem, clearItems, loadHistory, refreshStatic, toggleVimEnabled, isProcessing, setIsProcessing, isIdleRef, setGeminiMdFileCount, actions, extensionsUpdateState, isConfigInitialized, logger, updateItem, setSessionName, extensionRefreshState) => {
+    const fallbackExtensionRefreshStateRef = useRef(null);
+    if (!fallbackExtensionRefreshStateRef.current) {
+        fallbackExtensionRefreshStateRef.current = new ExtensionRefreshState();
+    }
+    const activeExtensionRefreshState = extensionRefreshState ?? fallbackExtensionRefreshStateRef.current;
+    // Ref avoids adding `history` to the commandContext useMemo deps,
+    // which would cause a full context rebuild on every history append.
+    const historyRef = useRef(history);
+    useLayoutEffect(() => {
+        historyRef.current = history;
+    }, [history]);
+    const { stats: sessionStats, startNewSession } = useSessionStats();
+    const [commands, setCommands] = useState([]);
+    const [recentCommands, setRecentCommands] = useState(new Map());
+    const [reloadTrigger, setReloadTrigger] = useState(0);
+    const commandReloadResolversRef = useRef([]);
+    const extensionContentRefreshTimerRef = useRef(null);
+    const extensionContentRefreshRunningRef = useRef(false);
+    const extensionContentRefreshPendingRef = useRef(false);
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+    const resolveCommandReloads = useCallback((completedTrigger) => {
+        if (commandReloadResolversRef.current.length === 0) {
+            return;
+        }
+        const remaining = [];
+        for (const request of commandReloadResolversRef.current) {
+            if (request.trigger <= completedTrigger) {
+                request.resolve();
+            }
+            else {
+                remaining.push(request);
+            }
+        }
+        commandReloadResolversRef.current = remaining;
+    }, []);
+    const reloadCommands = useCallback(() => {
+        if (!config) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            setReloadTrigger((v) => {
+                const nextTrigger = v + 1;
+                commandReloadResolversRef.current.push({
+                    trigger: nextTrigger,
+                    resolve,
+                });
+                return nextTrigger;
+            });
+        });
+    }, [config]);
+    const clearPendingExtensionContentRefresh = useCallback(() => {
+        if (!extensionContentRefreshTimerRef.current) {
+            return;
+        }
+        clearTimeout(extensionContentRefreshTimerRef.current);
+        extensionContentRefreshTimerRef.current = null;
+    }, []);
+    const showExtensionContentRefreshError = useCallback((error) => {
+        if (!mountedRef.current) {
+            return;
+        }
+        addItem({
+            type: MessageType.ERROR,
+            text: error instanceof Error
+                ? t('Failed to refresh extension content: {{message}}. Run /reload-plugins to apply updates.', { message: error.message })
+                : t('Failed to refresh extension content. Run /reload-plugins to apply updates.'),
+        }, Date.now());
+    }, [addItem]);
+    const runExtensionContentRefresh = useCallback(async () => {
+        if (!config) {
+            return;
+        }
+        if (extensionContentRefreshRunningRef.current) {
+            extensionContentRefreshPendingRef.current = true;
+            return;
+        }
+        extensionContentRefreshRunningRef.current = true;
+        let refreshPasses = 0;
+        try {
+            do {
+                if (refreshPasses >= MAX_EXTENSION_CONTENT_REFRESH_PASSES) {
+                    extensionContentRefreshPendingRef.current = false;
+                    showExtensionContentRefreshError(new Error('too many extension content changes are still pending'));
+                    return;
+                }
+                refreshPasses++;
+                extensionContentRefreshPendingRef.current = false;
+                if (activeExtensionRefreshState.isReloadInProgress()) {
+                    return;
+                }
+                if (activeExtensionRefreshState.needsExtensionRefresh()) {
+                    return;
+                }
+                await refreshExtensionContentRuntime({
+                    config,
+                    reloadCommands,
+                });
+            } while (extensionContentRefreshPendingRef.current);
+        }
+        catch (error) {
+            extensionContentRefreshPendingRef.current = false;
+            showExtensionContentRefreshError(error);
+        }
+        finally {
+            extensionContentRefreshRunningRef.current = false;
+        }
+    }, [
+        activeExtensionRefreshState,
+        config,
+        reloadCommands,
+        showExtensionContentRefreshError,
+    ]);
+    const [shellConfirmationRequest, setShellConfirmationRequest] = useState(null);
+    const [confirmationRequest, setConfirmationRequest] = useState(null);
+    const [sessionShellAllowlist, setSessionShellAllowlist] = useState(new Set());
+    const [pendingItem, setPendingItem] = useState(null);
+    const [btwItem, setBtwItem] = useState(null);
+    const btwAbortControllerRef = useRef(null);
+    const cancelBtw = useCallback(() => {
+        btwAbortControllerRef.current?.abort();
+        btwAbortControllerRef.current = null;
+        setBtwItem(null);
+    }, []);
+    // AbortController for cancelling async slash commands via ESC
+    const abortControllerRef = useRef(null);
+    const cancelSlashCommand = useCallback(() => {
+        cancelBtw();
+        if (!abortControllerRef.current) {
+            return;
+        }
+        abortControllerRef.current.abort();
+        addItem({
+            type: MessageType.INFO,
+            text: 'Command cancelled.',
+        }, Date.now());
+        setPendingItem(null);
+        setIsProcessing(false);
+    }, [addItem, setIsProcessing, cancelBtw]);
+    useKeypress((key) => {
+        if (key.name === 'escape') {
+            cancelSlashCommand();
+        }
+    }, { isActive: isProcessing });
+    const pendingHistoryItems = useMemo(() => {
+        const items = [];
+        if (pendingItem != null) {
+            items.push(pendingItem);
+        }
+        return items;
+    }, [pendingItem]);
+    const addMessage = useCallback((message) => {
+        // Convert Message to HistoryItemWithoutId
+        let historyItemContent;
+        if (message.type === MessageType.ABOUT) {
+            historyItemContent = {
+                type: 'about',
+                systemInfo: message.systemInfo,
+            };
+        }
+        else if (message.type === MessageType.HELP) {
+            historyItemContent = {
+                type: 'help',
+                timestamp: message.timestamp,
+            };
+        }
+        else if (message.type === MessageType.STATS) {
+            historyItemContent = {
+                type: 'stats',
+                duration: message.duration,
+            };
+        }
+        else if (message.type === MessageType.MODEL_STATS) {
+            historyItemContent = {
+                type: 'model_stats',
+            };
+        }
+        else if (message.type === MessageType.TOOL_STATS) {
+            historyItemContent = {
+                type: 'tool_stats',
+            };
+        }
+        else if (message.type === MessageType.SKILL_STATS) {
+            historyItemContent = {
+                type: 'skill_stats',
+            };
+        }
+        else if (message.type === MessageType.QUIT) {
+            historyItemContent = {
+                type: 'quit',
+                duration: message.duration,
+            };
+        }
+        else if (message.type === MessageType.COMPRESSION) {
+            historyItemContent = {
+                type: 'compression',
+                compression: message.compression,
+            };
+        }
+        else if (message.type === MessageType.SUMMARY) {
+            historyItemContent = {
+                type: 'summary',
+                summary: message.summary,
+            };
+        }
+        else if (message.type === MessageType.INSIGHT_PROGRESS) {
+            historyItemContent = {
+                type: 'insight_progress',
+                progress: message.progress,
+            };
+        }
+        else {
+            historyItemContent = {
+                type: message.type,
+                text: message.content,
+            };
+        }
+        addItem(historyItemContent, message.timestamp.getTime());
+    }, [addItem]);
+    const commandContext = useMemo(() => ({
+        services: {
+            config,
+            settings,
+            logger,
+            extensionRefreshState: activeExtensionRefreshState,
+        },
+        ui: {
+            get history() {
+                return historyRef.current;
+            },
+            addItem,
+            clear: () => {
+                cancelBtw();
+                actions.clearPendingState();
+                clearItems();
+                clearScreen();
+                refreshStatic();
+                setSessionName?.(null);
+            },
+            clearPendingState: actions.clearPendingState,
+            loadHistory,
+            refreshStatic,
+            setDebugMessage: actions.setDebugMessage,
+            pendingItem,
+            setPendingItem,
+            btwItem,
+            setBtwItem,
+            cancelBtw,
+            btwAbortControllerRef,
+            isIdleRef,
+            toggleVimEnabled,
+            setGeminiMdFileCount,
+            reloadCommands,
+            setSessionName: setSessionName ?? (() => { }),
+            extensionsUpdateState,
+            dispatchExtensionStateUpdate: actions.dispatchExtensionStateUpdate,
+            addConfirmUpdateExtensionRequest: actions.addConfirmUpdateExtensionRequest,
+        },
+        session: {
+            stats: sessionStats,
+            sessionShellAllowlist,
+            startNewSession,
+        },
+        executionMode: 'interactive',
+    }), [
+        config,
+        settings,
+        logger,
+        loadHistory,
+        addItem,
+        clearItems,
+        refreshStatic,
+        sessionStats,
+        startNewSession,
+        actions,
+        pendingItem,
+        setPendingItem,
+        btwItem,
+        setBtwItem,
+        cancelBtw,
+        toggleVimEnabled,
+        sessionShellAllowlist,
+        setGeminiMdFileCount,
+        reloadCommands,
+        setSessionName,
+        extensionsUpdateState,
+        isIdleRef,
+        activeExtensionRefreshState,
+    ]);
+    useEffect(() => {
+        if (!config) {
+            return;
+        }
+        const listener = () => {
+            reloadCommands();
+        };
+        (async () => {
+            const ideClient = await IdeClient.getInstance();
+            ideClient.addStatusChangeListener(listener);
+        })();
+        return () => {
+            (async () => {
+                const ideClient = await IdeClient.getInstance();
+                ideClient.removeStatusChangeListener(listener);
+            })();
+        };
+    }, [config, reloadCommands]);
+    // MCP discovery is progressive: it runs in the background after the UI is
+    // already interactive, so a server's prompts (prompts/list) are not in the
+    // registry when the command loaders first run. Without this, an MCP prompt
+    // never surfaces as a `/<prompt>` command until some unrelated reload (IDE
+    // status / skill change) happens to fire — the `/mcp` dialog shows the
+    // prompt count while the slash menu stays empty. Rebuild the command tree
+    // when a server finishes connecting; debounce so a burst of servers
+    // connecting at startup triggers a single rebuild.
+    useEffect(() => {
+        if (!config) {
+            return;
+        }
+        let timer = null;
+        const listener = (_serverName, status) => {
+            if (status !== MCPServerStatus.CONNECTED) {
+                return;
+            }
+            if (timer) {
+                clearTimeout(timer);
+            }
+            timer = setTimeout(() => {
+                timer = null;
+                reloadCommands();
+            }, 250);
+        };
+        addMCPStatusChangeListener(listener);
+        return () => {
+            removeMCPStatusChangeListener(listener);
+            if (timer) {
+                clearTimeout(timer);
+            }
+        };
+    }, [config, reloadCommands]);
+    // SkillManager rebuilds its own cache when skills change on disk. The
+    // slash-command list is a separate consumer: SkillCommandLoader reads
+    // `listSkills()` once during CommandService.create(), so without this
+    // bridge a newly added SKILL.md never produces a `/<skill-name>` entry
+    // until restart. Bumping reloadTrigger re-runs the loader effect below
+    // and CommandService picks up the fresh skill list.
+    useEffect(() => {
+        if (!isConfigInitialized) {
+            return;
+        }
+        const skillManager = config?.getSkillManager();
+        if (!skillManager) {
+            return;
+        }
+        return skillManager.addChangeListener(() => {
+            // The `/skills` dialog calls `reloadCommands()` itself BEFORE it
+            // calls `notifyConfigChanged()`, so a listener-driven second reload
+            // would be a wasted CommandService rebuild on every save. Honor the
+            // one-shot suppression signal — disk-driven changes (no
+            // dialog-orchestrated reload) leave the flag false and reload
+            // normally.
+            if (skillManager.consumeSlashReloadSuppression()) {
+                return;
+            }
+            reloadCommands();
+        });
+    }, [config, isConfigInitialized, reloadCommands]);
+    useEffect(() => {
+        const listener = (reason) => {
+            clearPendingExtensionContentRefresh();
+            addItem({
+                type: MessageType.INFO,
+                text: reason === EXTENSION_RELOAD_FAILED_REASON
+                    ? t('Extension reload did not complete. Run /reload-plugins to try again.')
+                    : t('Extensions changed on disk. Run /reload-plugins to apply updates.'),
+            }, Date.now());
+        };
+        activeExtensionRefreshState.on(AppEvent.ExtensionRefreshNeeded, listener);
+        return () => {
+            activeExtensionRefreshState.off(AppEvent.ExtensionRefreshNeeded, listener);
+        };
+    }, [
+        activeExtensionRefreshState,
+        addItem,
+        clearPendingExtensionContentRefresh,
+    ]);
+    useEffect(() => {
+        activeExtensionRefreshState.on(AppEvent.ExtensionsReloadStarted, clearPendingExtensionContentRefresh);
+        activeExtensionRefreshState.on(AppEvent.ExtensionsReloaded, clearPendingExtensionContentRefresh);
+        return () => {
+            activeExtensionRefreshState.off(AppEvent.ExtensionsReloadStarted, clearPendingExtensionContentRefresh);
+            activeExtensionRefreshState.off(AppEvent.ExtensionsReloaded, clearPendingExtensionContentRefresh);
+        };
+    }, [activeExtensionRefreshState, clearPendingExtensionContentRefresh]);
+    useEffect(() => {
+        if (!config) {
+            return;
+        }
+        const listener = () => {
+            clearPendingExtensionContentRefresh();
+            extensionContentRefreshTimerRef.current = setTimeout(() => {
+                extensionContentRefreshTimerRef.current = null;
+                void runExtensionContentRefresh();
+            }, 250);
+        };
+        activeExtensionRefreshState.on(AppEvent.ExtensionContentChanged, listener);
+        return () => {
+            activeExtensionRefreshState.off(AppEvent.ExtensionContentChanged, listener);
+            clearPendingExtensionContentRefresh();
+            extensionContentRefreshPendingRef.current = false;
+        };
+    }, [
+        clearPendingExtensionContentRefresh,
+        config,
+        activeExtensionRefreshState,
+        runExtensionContentRefresh,
+    ]);
+    useEffect(() => {
+        const controller = new AbortController();
+        const load = async () => {
+            try {
+                const loaders = [
+                    new McpPromptLoader(config),
+                    new BuiltinCommandLoader(config),
+                    new BundledSkillLoader(config),
+                    new SkillCommandLoader(config),
+                    new SavedWorkflowLoader(config),
+                    new FileCommandLoader(config),
+                ];
+                const disabled = config?.getDisabledSlashCommands() ?? [];
+                const commandService = await CommandService.create(loaders, controller.signal, disabled.length > 0 ? new Set(disabled) : undefined);
+                // Avoid overwriting newer results from a subsequent effect run
+                if (controller.signal.aborted) {
+                    return;
+                }
+                // Register model-invocable commands provider so the startup snapshot
+                // and per-turn drain include bundled skills, file commands, and MCP
+                // prompts in the <available_skills> listing.
+                if (config) {
+                    config.setModelInvocableCommandsProvider(() => commandService.getModelInvocableCommands().map((cmd) => ({
+                        name: cmd.name,
+                        description: cmd.modelDescription ?? cmd.description,
+                    })));
+                    // Register executor so SkillTool can actually invoke model-invocable
+                    // commands (e.g. MCP prompts) that are not file-based skills.
+                    config.setModelInvocableCommandsExecutor(async (name, args = '') => {
+                        const commands = commandService.getModelInvocableCommands();
+                        const cmd = commands.find((c) => c.name === name);
+                        if (!cmd?.action)
+                            return null;
+                        // Build a minimal context; submit_prompt actions only need
+                        // invocation + services.config, not UI state.
+                        const minimalContext = {
+                            executionMode: 'non_interactive',
+                            invocation: {
+                                raw: args ? `/${name} ${args}` : `/${name}`,
+                                name,
+                                args,
+                            },
+                            services: { config, settings, logger: null },
+                        };
+                        const result = await cmd.action(minimalContext, args);
+                        if (!result || result.type !== 'submit_prompt')
+                            return null;
+                        const output = hasUserPromptExpansionHooks(config)
+                            ? await config
+                                .getHookSystem()
+                                ?.fireUserPromptExpansionEvent(name, args, serializeUserPromptExpansionPrompt(result.content), controller.signal)
+                            : undefined;
+                        if (controller.signal.aborted) {
+                            return { error: 'Skill execution cancelled by user.' };
+                        }
+                        if (output) {
+                            const blockingError = output.getBlockingError();
+                            if (blockingError.blocked || output.shouldStopExecution()) {
+                                return {
+                                    error: formatUserPromptExpansionBlockedMessage(blockingError.reason || output.getEffectiveReason()),
+                                };
+                            }
+                        }
+                        const content = appendUserPromptExpansionAdditionalContext(result.content, output?.getAdditionalContext());
+                        if (typeof content === 'string')
+                            return content;
+                        if (Array.isArray(content)) {
+                            return content
+                                .map((p) => typeof p === 'string'
+                                ? p
+                                : (p.text ?? ''))
+                                .join('');
+                        }
+                        return null;
+                    });
+                }
+                setCommands(commandService.getCommandsForMode('interactive'));
+            }
+            catch (error) {
+                debugLogger.error('Failed to load slash commands:', error);
+            }
+            finally {
+                if (!controller.signal.aborted) {
+                    resolveCommandReloads(reloadTrigger);
+                }
+            }
+        };
+        load();
+        return () => {
+            controller.abort();
+        };
+    }, [
+        config,
+        reloadTrigger,
+        isConfigInitialized,
+        settings,
+        resolveCommandReloads,
+    ]);
+    const handleSlashCommand = useCallback(async (rawQuery, oneTimeShellAllowlist, overwriteConfirmed, existingInvocationItemId) => {
+        if (typeof rawQuery !== 'string') {
+            return false;
+        }
+        const trimmed = rawQuery.trim();
+        if (!trimmed.startsWith('/') && !trimmed.startsWith('?')) {
+            return false;
+        }
+        if (trimmed.startsWith('/') && hasSlashCommandPathSeparator(trimmed)) {
+            return false;
+        }
+        const { commandToExecute, args, canonicalPath: resolvedCommandPath, } = parseSlashCommand(trimmed, commands);
+        const recordedItems = [];
+        const recordItem = (item) => {
+            recordedItems.push(item);
+        };
+        const addItemWithRecording = (item, timestamp) => {
+            recordItem(item);
+            return addItem(item, timestamp);
+        };
+        setIsProcessing(true);
+        // Create a new AbortController for this command execution
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        const userMessageTimestamp = Date.now();
+        let invocationItemId = existingInvocationItemId;
+        let invocationSentToModel = false;
+        let hideInvocation = isBtwCommand(trimmed) ||
+            shouldHideSlashCommandInvocation(commandToExecute, resolvedCommandPath, args);
+        if (!hideInvocation && invocationItemId === undefined) {
+            invocationItemId = addItemWithRecording({ type: MessageType.USER, text: trimmed, sentToModel: false }, userMessageTimestamp);
+        }
+        const revealHiddenInvocation = () => {
+            if (resolvedCommandPath.join(' ') !== 'model' ||
+                !hideInvocation ||
+                invocationItemId !== undefined) {
+                return;
+            }
+            hideInvocation = false;
+            invocationItemId = addItemWithRecording({ type: MessageType.USER, text: trimmed, sentToModel: false }, userMessageTimestamp);
+        };
+        let hasError = false;
+        let delegatedToRecursiveInvocation = false;
+        const subcommand = resolvedCommandPath.length > 1
+            ? resolvedCommandPath.slice(1).join(' ')
+            : undefined;
+        const isSkillCommand = commandToExecute?.kind === CommandKind.SKILL;
+        let skillInvocationRecorded = false;
+        const recordSkillCommandInvocation = (success) => {
+            if (!config ||
+                !commandToExecute ||
+                !isSkillCommand ||
+                skillInvocationRecorded) {
+                return;
+            }
+            recordSkillInvocation(config, {
+                skillName: getSkillCommandName(commandToExecute),
+                success,
+            });
+            skillInvocationRecorded = true;
+        };
+        try {
+            // Handle stacked skill invocations (e.g. /feat-dev /e2e-testing implement X)
+            const stackedResult = parseStackedSlashCommands(trimmed, commands);
+            if (stackedResult.skills.length >= 2) {
+                const combinedContent = [];
+                let firstModelOverride;
+                const onCompleteCallbacks = [];
+                let refreshContextFilesOnWrite = false;
+                for (const skill of stackedResult.skills) {
+                    if (!skill.action)
+                        continue;
+                    const skillContext = {
+                        invocation: {
+                            raw: `/${skill.name}`,
+                            name: skill.name,
+                            args: '',
+                        },
+                        services: { config, settings, logger: null },
+                    };
+                    const skillResult = await skill.action(skillContext, '');
+                    if (skillResult?.type === 'submit_prompt') {
+                        combinedContent.push(skillResult.content);
+                        firstModelOverride ??= skillResult.modelOverride;
+                        refreshContextFilesOnWrite ||= Boolean(skillResult.refreshContextFilesOnWrite);
+                        if (skillResult.onComplete) {
+                            onCompleteCallbacks.push(skillResult.onComplete);
+                        }
+                    }
+                    else if (skillResult?.type === 'message' &&
+                        skillResult.messageType === 'error') {
+                        addMessage({
+                            type: MessageType.ERROR,
+                            content: `Skill "/${skill.name}" error: ${skillResult.content}`,
+                            timestamp: new Date(),
+                        });
+                    }
+                    if (config) {
+                        const succeeded = skillResult?.type === 'submit_prompt';
+                        recordSkillInvocation(config, {
+                            skillName: getSkillCommandName(skill),
+                            success: succeeded,
+                        });
+                        if (succeeded) {
+                            void recordAutoSkillCommandUsage(config, skill);
+                        }
+                    }
+                }
+                // Append user's remaining text after skill tokens
+                if (stackedResult.remainingText) {
+                    combinedContent.push([{ text: stackedResult.remainingText }]);
+                }
+                if (stackedResult.exceededMax) {
+                    addMessage({
+                        type: MessageType.WARNING,
+                        content: `Only the first ${MAX_STACKED_SKILLS} skills were loaded. Additional /skill tokens were treated as prompt text.`,
+                        timestamp: new Date(),
+                    });
+                }
+                // Mark as sent to model so chat recording and telemetry work correctly
+                invocationSentToModel = true;
+                if (invocationItemId !== undefined) {
+                    updateItem(invocationItemId, { sentToModel: true });
+                }
+                // Combine all content into a single submit_prompt
+                const mergedContent = combinedContent.flat();
+                return {
+                    type: 'submit_prompt',
+                    content: mergedContent,
+                    ...(firstModelOverride
+                        ? { modelOverride: firstModelOverride }
+                        : {}),
+                    ...(refreshContextFilesOnWrite
+                        ? { refreshContextFilesOnWrite: true }
+                        : {}),
+                    ...(onCompleteCallbacks.length
+                        ? {
+                            onComplete: async () => {
+                                for (const cb of onCompleteCallbacks)
+                                    await cb();
+                            },
+                        }
+                        : {}),
+                };
+            }
+            if (commandToExecute) {
+                if (!commandToExecute.hidden) {
+                    setRecentCommands((previous) => {
+                        const next = new Map(previous);
+                        const existing = next.get(commandToExecute.name);
+                        next.set(commandToExecute.name, {
+                            name: commandToExecute.name,
+                            usedAt: Date.now(),
+                            count: (existing?.count ?? 0) + 1,
+                        });
+                        return next;
+                    });
+                }
+                if (commandToExecute.action) {
+                    const fullCommandContext = {
+                        ...commandContext,
+                        ui: {
+                            ...commandContext.ui,
+                            addItem: addItemWithRecording,
+                        },
+                        invocation: {
+                            raw: trimmed,
+                            name: commandToExecute.name,
+                            args,
+                        },
+                        overwriteConfirmed,
+                        abortSignal: abortController.signal,
+                    };
+                    // If a one-time list is provided for a "Proceed" action, temporarily
+                    // augment the session allowlist for this single execution.
+                    if (oneTimeShellAllowlist && oneTimeShellAllowlist.size > 0) {
+                        fullCommandContext.session = {
+                            ...fullCommandContext.session,
+                            sessionShellAllowlist: new Set([
+                                ...fullCommandContext.session.sessionShellAllowlist,
+                                ...oneTimeShellAllowlist,
+                            ]),
+                        };
+                    }
+                    // Race the command action against the abort signal so that
+                    // ESC cancellation immediately unblocks the await chain.
+                    // Without this, commands like /compress whose underlying
+                    // operation (tryCompressChat) doesn't accept an AbortSignal
+                    // would keep submitQuery stuck until the operation completes.
+                    const abortPromise = new Promise((resolve) => {
+                        abortController.signal.addEventListener('abort', () => resolve(undefined), { once: true });
+                    });
+                    const result = await Promise.race([
+                        commandToExecute.action(fullCommandContext, args),
+                        abortPromise,
+                    ]);
+                    // If the command was cancelled via ESC while executing, skip result processing
+                    if (abortController.signal.aborted) {
+                        return { type: 'handled' };
+                    }
+                    if (result) {
+                        switch (result.type) {
+                            case 'tool':
+                                return {
+                                    type: 'schedule_tool',
+                                    toolName: result.toolName,
+                                    toolArgs: result.toolArgs,
+                                };
+                            case 'message':
+                                // Picker-shaped commands can still reject their arguments
+                                // before opening a dialog. Keep those failures paired with
+                                // the invocation in both live and reconstructed history.
+                                revealHiddenInvocation();
+                                if (result.messageType === 'info') {
+                                    addItemWithRecording({ type: MessageType.INFO, text: result.content }, Date.now());
+                                }
+                                else if (result.messageType === 'warning') {
+                                    addItemWithRecording({ type: MessageType.WARNING, text: result.content }, Date.now());
+                                }
+                                else {
+                                    addItemWithRecording({ type: MessageType.ERROR, text: result.content }, Date.now());
+                                }
+                                return { type: 'handled' };
+                            case 'goal_control': {
+                                // A causeless result (a `status` read, or a `clear` when no
+                                // Goal is active) emits no runtime broadcast, so it must render
+                                // its own card even mid-turn. Mutations broadcast a GoalState
+                                // event the active stream renders, so they defer to it while a
+                                // turn is running.
+                                const rendersHere = result.cause === undefined ||
+                                    commandContext.ui.isIdleRef.current;
+                                if (rendersHere) {
+                                    const snapshot = result.response.snapshot;
+                                    if (snapshot.goal || result.cause === 'clear') {
+                                        addItem({
+                                            type: MessageType.GOAL_STATE,
+                                            snapshot,
+                                            ...(result.cause ? { cause: result.cause } : {}),
+                                        }, Date.now());
+                                    }
+                                    else {
+                                        addMessage({
+                                            type: MessageType.INFO,
+                                            content: 'No Goal set.',
+                                            timestamp: new Date(),
+                                        });
+                                    }
+                                }
+                                return { type: 'handled' };
+                            }
+                            case 'dialog':
+                                switch (result.dialog) {
+                                    case 'arena_start':
+                                        actions.openArenaDialog?.('start');
+                                        return { type: 'handled' };
+                                    case 'arena_select':
+                                        actions.openArenaDialog?.('select');
+                                        return { type: 'handled' };
+                                    case 'arena_stop':
+                                        actions.openArenaDialog?.('stop');
+                                        return { type: 'handled' };
+                                    case 'arena_status':
+                                        actions.openArenaDialog?.('status');
+                                        return { type: 'handled' };
+                                    case 'auth':
+                                        actions.openAuthDialog();
+                                        return { type: 'handled' };
+                                    case 'theme':
+                                        actions.openThemeDialog();
+                                        return { type: 'handled' };
+                                    case 'editor':
+                                        actions.openEditorDialog();
+                                        return { type: 'handled' };
+                                    case 'settings':
+                                        actions.openSettingsDialog();
+                                        return { type: 'handled' };
+                                    case 'statusline':
+                                        actions.openStatusLineDialog();
+                                        return { type: 'handled' };
+                                    case 'memory':
+                                        actions.openMemoryDialog();
+                                        return { type: 'handled' };
+                                    case 'model':
+                                        actions.openModelDialog({
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'fast-model':
+                                        actions.openModelDialog({
+                                            fastModelMode: true,
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'voice-model':
+                                        actions.openModelDialog({
+                                            voiceModelMode: true,
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'vision-model':
+                                        actions.openModelDialog({
+                                            visionModelMode: true,
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'compaction-model':
+                                        actions.openModelDialog({
+                                            compactionModelMode: true,
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'image-model':
+                                        actions.openModelDialog({
+                                            imageModelMode: true,
+                                            persistScope: result.persistScope,
+                                        });
+                                        return { type: 'handled' };
+                                    case 'trust':
+                                        actions.openTrustDialog();
+                                        return { type: 'handled' };
+                                    case 'permissions':
+                                        actions.openPermissionsDialog();
+                                        return { type: 'handled' };
+                                    case 'subagent_create':
+                                        actions.openSubagentCreateDialog();
+                                        return { type: 'handled' };
+                                    case 'subagent_list':
+                                        actions.openAgentsManagerDialog();
+                                        return { type: 'handled' };
+                                    case 'skills_manage':
+                                        actions.openSkillsManagerDialog();
+                                        return { type: 'handled' };
+                                    case 'mcp':
+                                        actions.openMcpDialog();
+                                        return { type: 'handled' };
+                                    case 'hooks':
+                                        actions.openHooksDialog();
+                                        return { type: 'handled' };
+                                    case 'stats':
+                                        actions.openStatsDialog();
+                                        return { type: 'handled' };
+                                    case 'approval-mode':
+                                        actions.openApprovalModeDialog();
+                                        return { type: 'handled' };
+                                    case 'effort':
+                                        actions.openEffortDialog();
+                                        return { type: 'handled' };
+                                    case 'resume':
+                                        if (result.sessionId) {
+                                            await actions.handleResume(result.sessionId);
+                                        }
+                                        else {
+                                            actions.openResumeDialog(result.matchedSessions);
+                                        }
+                                        return { type: 'handled' };
+                                    case 'branch':
+                                        // Must be awaited: `/branch` swaps core + UI session
+                                        // state asynchronously, and a non-awaited call lets
+                                        // this dispatcher return `handled` while the swap is
+                                        // still in flight. A fast follow-up prompt could then
+                                        // interleave with the swap and be recorded against
+                                        // the wrong session.
+                                        await actions.handleBranch(result.name);
+                                        return { type: 'handled' };
+                                    case 'delete':
+                                        actions.openDeleteDialog();
+                                        return { type: 'handled' };
+                                    case 'extensions_manage':
+                                        actions.openExtensionsManagerDialog();
+                                        return { type: 'handled' };
+                                    case 'rewind':
+                                        actions.openRewindSelector();
+                                        return { type: 'handled' };
+                                    case 'diff':
+                                        actions.openDiffDialog();
+                                        return { type: 'handled' };
+                                    case 'help':
+                                        actions.openHelpDialog();
+                                        return { type: 'handled' };
+                                    default: {
+                                        const unhandled = result.dialog;
+                                        throw new Error(`Unhandled slash command result: ${unhandled}`);
+                                    }
+                                }
+                            case 'load_history': {
+                                config?.getGeminiClient()?.setHistory(result.clientHistory);
+                                fullCommandContext.ui.clear();
+                                result.history.forEach((item, index) => {
+                                    fullCommandContext.ui.addItem(item, index);
+                                });
+                                return { type: 'handled' };
+                            }
+                            case 'quit':
+                                actions.quit(result.messages);
+                                return { type: 'handled' };
+                            case 'submit_prompt': {
+                                const invocation = fullCommandContext.invocation;
+                                let content = result.content;
+                                const output = hasUserPromptExpansionHooks(config)
+                                    ? await config
+                                        .getHookSystem()
+                                        ?.fireUserPromptExpansionEvent(invocation?.name ?? '', invocation?.args ?? '', serializeUserPromptExpansionPrompt(content), abortController.signal)
+                                    : undefined;
+                                if (abortController.signal.aborted) {
+                                    hasError = true;
+                                    return { type: 'handled' };
+                                }
+                                if (output) {
+                                    const blockingError = output.getBlockingError();
+                                    if (blockingError.blocked || output.shouldStopExecution()) {
+                                        hasError = true;
+                                        recordSkillCommandInvocation(false);
+                                        addMessage({
+                                            type: MessageType.ERROR,
+                                            content: formatUserPromptExpansionBlockedMessage(blockingError.reason || output.getEffectiveReason()),
+                                            timestamp: new Date(),
+                                        });
+                                        return { type: 'handled' };
+                                    }
+                                    content = appendUserPromptExpansionAdditionalContext(content, output.getAdditionalContext());
+                                }
+                                invocationSentToModel = true;
+                                if (invocationItemId !== undefined) {
+                                    debugLogger.debug(`Marked slash command invocation as model-sent: /${resolvedCommandPath.join(' ')}`);
+                                    // React applies this update asynchronously. No same-turn
+                                    // logic reads the UI history classification; rewind/resume
+                                    // consumers observe it after state has rendered.
+                                    updateItem(invocationItemId, { sentToModel: true });
+                                }
+                                recordSkillCommandInvocation(true);
+                                void recordAutoSkillCommandUsage(config, commandToExecute);
+                                return {
+                                    type: 'submit_prompt',
+                                    content,
+                                    onComplete: result.onComplete,
+                                    modelOverride: result.modelOverride,
+                                    refreshContextFilesOnWrite: result.refreshContextFilesOnWrite,
+                                };
+                            }
+                            case 'confirm_shell_commands': {
+                                const { outcome, approvedCommands } = await new Promise((resolve) => {
+                                    setShellConfirmationRequest({
+                                        commands: result.commandsToConfirm,
+                                        onConfirm: (resolvedOutcome, resolvedApprovedCommands) => {
+                                            setShellConfirmationRequest(null); // Close the dialog
+                                            resolve({
+                                                outcome: resolvedOutcome,
+                                                approvedCommands: resolvedApprovedCommands,
+                                            });
+                                        },
+                                    });
+                                });
+                                if (outcome === ToolConfirmationOutcome.Cancel ||
+                                    !approvedCommands ||
+                                    approvedCommands.length === 0) {
+                                    return { type: 'handled' };
+                                }
+                                if (outcome === ToolConfirmationOutcome.ProceedAlways) {
+                                    setSessionShellAllowlist((prev) => new Set([...prev, ...approvedCommands]));
+                                }
+                                delegatedToRecursiveInvocation = true;
+                                return await handleSlashCommand(result.originalInvocation.raw, 
+                                // Pass the approved commands as a one-time grant for this execution.
+                                new Set(approvedCommands), undefined, invocationItemId);
+                            }
+                            case 'confirm_action': {
+                                const { confirmed } = await new Promise((resolve) => {
+                                    setConfirmationRequest({
+                                        prompt: result.prompt,
+                                        onConfirm: (resolvedConfirmed) => {
+                                            setConfirmationRequest(null);
+                                            resolve({ confirmed: resolvedConfirmed });
+                                        },
+                                    });
+                                });
+                                if (!confirmed) {
+                                    addItemWithRecording({
+                                        type: MessageType.INFO,
+                                        text: 'Operation cancelled.',
+                                    }, Date.now());
+                                    return { type: 'handled' };
+                                }
+                                delegatedToRecursiveInvocation = true;
+                                return await handleSlashCommand(result.originalInvocation.raw, undefined, true, invocationItemId);
+                            }
+                            case 'stream_messages': {
+                                // stream_messages is only used in ACP/Zed integration mode
+                                // and should not be returned in interactive UI mode
+                                throw new Error('stream_messages result type is not supported in interactive mode');
+                            }
+                            default: {
+                                const unhandled = result;
+                                throw new Error(`Unhandled slash command result: ${unhandled}`);
+                            }
+                        }
+                    }
+                    return { type: 'handled' };
+                }
+                else if (commandToExecute.subCommands) {
+                    const helpText = `Command '/${commandToExecute.name}' requires a subcommand. Available:\n${commandToExecute.subCommands
+                        .map((sc) => `  - ${sc.name}: ${sc.description || ''}`)
+                        .join('\n')}`;
+                    addMessage({
+                        type: MessageType.INFO,
+                        content: helpText,
+                        timestamp: new Date(),
+                    });
+                    return { type: 'handled' };
+                }
+            }
+            addMessage({
+                type: MessageType.ERROR,
+                content: `Unknown command: ${trimmed}`,
+                timestamp: new Date(),
+            });
+            return { type: 'handled' };
+        }
+        catch (e) {
+            // If cancelled via ESC, the cancelSlashCommand callback already handled cleanup
+            if (abortController.signal.aborted) {
+                return { type: 'handled' };
+            }
+            hasError = true;
+            recordSkillCommandInvocation(false);
+            if (config) {
+                const event = makeSlashCommandEvent({
+                    command: resolvedCommandPath[0],
+                    subcommand,
+                    status: SlashCommandStatus.ERROR,
+                });
+                logSlashCommand(config, event);
+            }
+            addItemWithRecording({
+                type: MessageType.ERROR,
+                text: e instanceof Error ? e.message : String(e),
+            }, Date.now());
+            return { type: 'handled' };
+        }
+        finally {
+            if (config?.getChatRecordingService) {
+                const chatRecorder = config.getChatRecordingService();
+                const primaryCommand = resolvedCommandPath[0] ||
+                    trimmed.replace(/^[/?]/, '').split(/\s+/u)[0] ||
+                    trimmed;
+                const shouldRecord = !delegatedToRecursiveInvocation &&
+                    !SLASH_COMMANDS_SKIP_RECORDING.has(primaryCommand);
+                try {
+                    if (shouldRecord) {
+                        chatRecorder?.recordSlashCommand({
+                            phase: 'invocation',
+                            rawCommand: trimmed,
+                            sentToModel: invocationSentToModel,
+                            hiddenInvocation: hideInvocation,
+                        });
+                        const outputItems = recordedItems
+                            .filter((item) => item.type !== 'user')
+                            .map(serializeHistoryItemForRecording);
+                        chatRecorder?.recordSlashCommand({
+                            phase: 'result',
+                            rawCommand: trimmed,
+                            outputHistoryItems: outputItems,
+                        });
+                    }
+                }
+                catch (recordError) {
+                    debugLogger.error('[slashCommand] Failed to record slash command:', recordError);
+                }
+            }
+            if (config &&
+                resolvedCommandPath[0] &&
+                !hasError &&
+                !delegatedToRecursiveInvocation) {
+                const event = makeSlashCommandEvent({
+                    command: resolvedCommandPath[0],
+                    subcommand,
+                    status: SlashCommandStatus.SUCCESS,
+                });
+                logSlashCommand(config, event);
+            }
+            setIsProcessing(false);
+        }
+    }, [
+        config,
+        settings,
+        addItem,
+        actions,
+        commands,
+        commandContext,
+        addMessage,
+        setShellConfirmationRequest,
+        setSessionShellAllowlist,
+        setIsProcessing,
+        setConfirmationRequest,
+        updateItem,
+    ]);
+    return {
+        handleSlashCommand,
+        slashCommands: commands,
+        recentSlashCommands: recentCommands,
+        pendingHistoryItems,
+        btwItem,
+        setBtwItem,
+        cancelBtw,
+        cancelSlashCommand,
+        commandContext,
+        shellConfirmationRequest,
+        confirmationRequest,
+        // Exposed so dialogs (e.g. SkillsManagerDialog) can trigger a
+        // CommandService rebuild without going through `commandContext.ui`,
+        // which is plumbed only to slash-command actions, not arbitrary UI.
+        reloadCommands,
+    };
+};
+//# sourceMappingURL=slashCommandProcessor.js.map

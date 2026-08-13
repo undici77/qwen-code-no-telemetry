@@ -29,3 +29,13 @@ export function getSessionContext(): Context | undefined {
 export function getCurrentSessionId(): string | undefined {
   return currentSessionId;
 }
+
+// No-op stubs for no-telemetry policy.
+// Upstream uses these to extract session IDs from OTel contexts.
+export function setSessionIdOnContext(_ctx: Context, _sessionId: string | undefined): Context {
+  return _ctx;
+}
+
+export function getSessionIdFromContext(_ctx: Context): string | undefined {
+  return currentSessionId;
+}

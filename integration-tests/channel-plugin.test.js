@@ -28,7 +28,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync } from 'node:fs';
 // Import from the monorepo channel packages
-import { AcpBridge, SessionRouter, } from '../packages/channels/base/dist/index.js';
+import { AcpBridge, SessionRouter } from '@qwen-code/channel-base';
 import { MockPluginChannel, createMockServer, } from '../packages/channels/plugin-example/src/index.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_PATH = join(__dirname, '..', 'dist', 'cli.js');
@@ -55,6 +55,8 @@ describe('Channel Plugin (Mock WebSocket E2E)', () => {
         });
         await bridge.start();
         // 3. Create and connect MockPluginChannel via WebSocket
+        // MockPluginConfig, not ChannelConfig: the constructor below requires
+        // `serverWsUrl`, and typing the literal as the base interface erased it.
         const config = {
             type: 'plugin-example',
             token: '',
@@ -63,6 +65,7 @@ describe('Channel Plugin (Mock WebSocket E2E)', () => {
             sessionScope: 'user',
             cwd: testDir,
             groupPolicy: 'disabled',
+            dmPolicy: 'open',
             groups: {},
             serverWsUrl: server.wsUrl,
         };
@@ -103,10 +106,10 @@ describe('Channel Plugin (Mock WebSocket E2E)', () => {
     it('should maintain session state across multiple WebSocket messages', async () => {
         const chatId = 'ws-session-test';
         const opts = { chatId };
-        const r1 = await server.sendMessage('My secret word is "pineapple". Remember it.', opts);
+        const r1 = await server.sendMessage('My favorite fruit is "pineapple". Remember it.', opts);
         expect(r1).toBeTruthy();
         console.log(`[mock-e2e] Memory set response: "${r1}"`);
-        const r2 = await server.sendMessage('What is my secret word? Reply with ONLY the word, nothing else.', opts);
+        const r2 = await server.sendMessage('What is my favorite fruit? Reply with ONLY the fruit, nothing else.', opts);
         expect(r2).toBeTruthy();
         expect(r2.toLowerCase()).toContain('pineapple');
         console.log(`[mock-e2e] Memory recall response: "${r2}"`);

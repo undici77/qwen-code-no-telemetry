@@ -1,0 +1,271 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { CommandKind } from './types.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { loadServerHierarchicalMemory, ConditionalRulesRegistry, expandHomeDir, } from '@qwen-code/qwen-code-core';
+import { t } from '../../i18n/index.js';
+import { SettingScope } from '../../config/settings.js';
+function findExistingWorkspaceDirectory(directory, existingDirectories) {
+    if (existingDirectories.has(directory)) {
+        return directory;
+    }
+    try {
+        const absolutePath = path.isAbsolute(directory)
+            ? directory
+            : path.resolve(directory);
+        const resolvedDirectory = fs.realpathSync(absolutePath);
+        if (existingDirectories.has(resolvedDirectory)) {
+            return resolvedDirectory;
+        }
+    }
+    catch {
+        // WorkspaceContext also skips unreadable paths; only report paths that
+        // resolve to an existing workspace directory as already present.
+    }
+    return undefined;
+}
+/**
+ * Returns directory path completions for the given partial argument.
+ * Supports comma-separated paths by completing only the last segment.
+ */
+export function getDirPathCompletions(partialArg) {
+    const lastComma = partialArg.lastIndexOf(',');
+    const prefix = lastComma >= 0 ? partialArg.substring(0, lastComma + 1) : '';
+    const partial = lastComma >= 0
+        ? partialArg.substring(lastComma + 1).trimStart()
+        : partialArg;
+    return getPathCompletions(prefix, partial);
+}
+export function getSingleDirPathCompletions(partialArg) {
+    return getPathCompletions('', partialArg);
+}
+function getPathCompletions(prefix, partial) {
+    const trimmed = partial.trim();
+    if (!trimmed)
+        return [];
+    const inputEndsWithSep = trimmed.endsWith('/') || trimmed.endsWith('\\');
+    const expanded = expandHomeDir(trimmed);
+    const endsWithSep = inputEndsWithSep || expanded.endsWith('/') || expanded.endsWith(path.sep);
+    const searchDir = endsWithSep ? expanded : path.dirname(expanded);
+    const namePrefix = endsWithSep ? '' : path.basename(expanded);
+    try {
+        const children = fs
+            .readdirSync(searchDir, { withFileTypes: true })
+            .filter((e) => e.isDirectory() &&
+            e.name.startsWith(namePrefix) &&
+            !e.name.startsWith('.'))
+            .map((e) => ({
+            value: prefix + path.join(searchDir, e.name) + path.sep,
+            isDirectory: true,
+        }));
+        // When the input ends with a separator (e.g. "learn/"), also include
+        // the typed directory itself so the user can select it to cd into it
+        // rather than being forced to pick a child (#7318).
+        if (endsWithSep) {
+            const selfPath = prefix + searchDir;
+            const normalizedSelf = selfPath.endsWith(path.sep)
+                ? selfPath
+                : selfPath + path.sep;
+            if (!children.some((c) => c.value === normalizedSelf)) {
+                children.unshift({ value: normalizedSelf, isDirectory: true });
+            }
+        }
+        return children.slice(0, 8);
+    }
+    catch {
+        return [];
+    }
+}
+export const directoryCommand = {
+    name: 'directory',
+    altNames: ['dir'],
+    get description() {
+        return t('Manage workspace directories');
+    },
+    kind: CommandKind.BUILT_IN,
+    supportedModes: ['interactive', 'acp'],
+    action: async () => ({
+        type: 'message',
+        messageType: 'info',
+        content: t('Usage: /directory add <path>[,<path>,...] or /directory show'),
+    }),
+    subCommands: [
+        {
+            name: 'add',
+            get description() {
+                return t('Add directories to the workspace. Use comma to separate multiple paths');
+            },
+            kind: CommandKind.BUILT_IN,
+            supportedModes: ['interactive', 'acp'],
+            argumentHint: '<path>[,<path>,...]',
+            completion: async (_context, partialArg) => getDirPathCompletions(partialArg),
+            action: async (context, args) => {
+                const { config, settings } = context.services;
+                if (!config) {
+                    return {
+                        type: 'message',
+                        messageType: 'error',
+                        content: t('Configuration is not available.'),
+                    };
+                }
+                const workspaceContext = config.getWorkspaceContext();
+                const pathsToAdd = args.split(',').filter((p) => p.trim());
+                if (pathsToAdd.length === 0) {
+                    return {
+                        type: 'message',
+                        messageType: 'error',
+                        content: t('Please provide at least one path to add.'),
+                    };
+                }
+                if (config.isRestrictiveSandbox()) {
+                    return {
+                        type: 'message',
+                        messageType: 'error',
+                        content: t('The /directory add command is not supported in restrictive sandbox profiles. Please use --include-directories when starting the session instead.'),
+                    };
+                }
+                try {
+                    const added = [];
+                    const alreadyAdded = [];
+                    const errors = [];
+                    const messages = [];
+                    for (const pathToAdd of pathsToAdd) {
+                        const directory = expandHomeDir(pathToAdd.trim());
+                        const directoriesBeforeAdd = new Set(workspaceContext.getDirectories());
+                        try {
+                            workspaceContext.addDirectory(directory);
+                            const acceptedDirectories = workspaceContext
+                                .getDirectories()
+                                .filter((dir) => !directoriesBeforeAdd.has(dir));
+                            if (acceptedDirectories.length > 0) {
+                                added.push(...acceptedDirectories);
+                            }
+                            else {
+                                const existingDirectory = findExistingWorkspaceDirectory(directory, directoriesBeforeAdd);
+                                if (existingDirectory) {
+                                    alreadyAdded.push(existingDirectory);
+                                }
+                            }
+                        }
+                        catch (e) {
+                            const error = e;
+                            errors.push(t("Error adding '{{path}}': {{error}}", {
+                                path: pathToAdd.trim(),
+                                error: error.message,
+                            }));
+                        }
+                    }
+                    if (added.length > 0) {
+                        try {
+                            const existingIncludeDirectories = settings.workspace.originalSettings.context
+                                ?.includeDirectories ?? [];
+                            const includeDirectories = Array.from(new Set([...existingIncludeDirectories, ...added]));
+                            settings.setValue(SettingScope.Workspace, 'context.includeDirectories', includeDirectories);
+                        }
+                        catch (error) {
+                            errors.push(t('Error saving directories to workspace settings: {{error}}', {
+                                error: error.message,
+                            }));
+                        }
+                    }
+                    if (added.length > 0) {
+                        try {
+                            if (config.isSafeMode()) {
+                                messages.push(t('Safe mode active — skipping memory reload from include directories.'));
+                            }
+                            else if (config.shouldLoadMemoryFromIncludeDirectories()) {
+                                const { memoryContent, fileCount, conditionalRules, projectRoot, } = await loadServerHierarchicalMemory(config.getWorkingDir(), [...config.getWorkspaceContext().getDirectories(), ...added], config.getFileService(), config.getExtensionContextFilePaths(), config.getFolderTrust(), context.services.settings.merged.context?.importFormat ||
+                                    'tree', config.getContextRuleExcludes());
+                                config.setUserMemory(memoryContent);
+                                config.setGeminiMdFileCount(fileCount);
+                                config.setConditionalRulesRegistry(new ConditionalRulesRegistry(conditionalRules, projectRoot));
+                                context.ui.setGeminiMdFileCount(fileCount);
+                                messages.push(t('Successfully added QWEN.md files from the following directories if there are:\n- {{directories}}', { directories: added.join('\n- ') }));
+                            }
+                        }
+                        catch (error) {
+                            errors.push(t('Error refreshing memory: {{error}}', {
+                                error: error.message,
+                            }));
+                        }
+                    }
+                    if (added.length > 0) {
+                        const gemini = config.getGeminiClient();
+                        if (gemini) {
+                            try {
+                                await gemini.addDirectoryContext();
+                            }
+                            catch (error) {
+                                errors.push(t('Error notifying model of new directories: {{error}}', {
+                                    error: error.message,
+                                }));
+                            }
+                        }
+                        messages.push(t('Successfully added directories:\n- {{directories}}', {
+                            directories: added.join('\n- '),
+                        }));
+                    }
+                    if (alreadyAdded.length > 0) {
+                        const directories = Array.from(new Set(alreadyAdded));
+                        messages.push(t('Directories already in workspace:\n- {{directories}}', {
+                            directories: directories.join('\n- '),
+                        }));
+                    }
+                    if (errors.length > 0) {
+                        return {
+                            type: 'message',
+                            messageType: added.length > 0 ? 'warning' : 'error',
+                            content: [...messages, ...errors].join('\n'),
+                        };
+                    }
+                    return {
+                        type: 'message',
+                        messageType: 'info',
+                        content: messages.join('\n') || t('No directories added.'),
+                    };
+                }
+                catch (error) {
+                    return {
+                        type: 'message',
+                        messageType: 'error',
+                        content: t('Failed to process /directory add: {{message}}', {
+                            message: error instanceof Error ? error.message : String(error),
+                        }),
+                    };
+                }
+            },
+        },
+        {
+            name: 'show',
+            get description() {
+                return t('Show all directories in the workspace');
+            },
+            kind: CommandKind.BUILT_IN,
+            supportedModes: ['interactive', 'acp'],
+            action: async (context) => {
+                const { config } = context.services;
+                if (!config) {
+                    return {
+                        type: 'message',
+                        messageType: 'error',
+                        content: t('Configuration is not available.'),
+                    };
+                }
+                const directories = config.getWorkspaceContext().getDirectories();
+                const directoryList = directories.map((dir) => `- ${dir}`).join('\n');
+                return {
+                    type: 'message',
+                    messageType: 'info',
+                    content: t('Current workspace directories:\n{{directories}}', {
+                        directories: directoryList,
+                    }),
+                };
+            },
+        },
+    ],
+};
+//# sourceMappingURL=directoryCommand.js.map

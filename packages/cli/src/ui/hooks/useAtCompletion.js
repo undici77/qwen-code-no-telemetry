@@ -1,0 +1,459 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { useEffect, useReducer, useRef } from 'react';
+import { FileSearchFactory, escapePath } from '@qwen-code/qwen-code-core';
+import { MAX_SUGGESTIONS_TO_SHOW } from '../components/SuggestionsDisplay.js';
+import { matchMcpServerPrefix, buildMcpResourceRef } from './mcpResourceRef.js';
+import { getExtensionSuggestions } from './extension-mention-ref.js';
+import { getSessionSuggestions } from './session-completion.js';
+import { buildMcpServerRef } from '../../utils/mcp-server-mention.js';
+import { t } from '../../i18n/index.js';
+/**
+ * Lower rank = better match; `Infinity` means no match (filtered out). Shared by
+ * the per-server and global resource paths so their ranking can't drift, best
+ * first: URI prefix, then friendly-name prefix, then URI substring, then name
+ * substring. `query` must already be lower-cased.
+ */
+function rankResourceMatch(uri, friendly, query) {
+    if (uri.startsWith(query))
+        return 0;
+    if (friendly.startsWith(query))
+        return 1;
+    if (uri.includes(query))
+        return 2;
+    if (friendly.includes(query))
+        return 3;
+    return Infinity;
+}
+/**
+ * Rank `resources` against `query` (already lower-cased) and project the matches
+ * onto completion suggestions, best first (ties break by the canonical
+ * `@server:uri` reference for a stable order).
+ *
+ * The partial is matched case-INsensitively against each resource's URI AND its
+ * friendly name/title (the same `title || name` the `/mcp` dialog shows), so a
+ * user who only remembers the human-readable name — not the URI — still gets
+ * completions. An empty `query` matches every resource (`''` is a substring of
+ * every string); callers gate that where it is unwanted.
+ *
+ * The injected `value` is always the canonical `@server:uri` reference (the
+ * friendly name is not a referenceable identifier); the name rides along as the
+ * suggestion `description` only when it adds information beyond the URI (mirrors
+ * the `/mcp` resource list, which dims a redundant name).
+ */
+function rankResourcesToSuggestions(resources, query) {
+    return resources
+        .map((resource) => {
+        const friendly = resource.title || resource.name || '';
+        return {
+            resource,
+            friendly,
+            ref: buildMcpResourceRef(resource.serverName, resource.uri),
+            rank: rankResourceMatch(resource.uri.toLowerCase(), friendly.toLowerCase(), query),
+        };
+    })
+        .filter((m) => m.rank !== Infinity)
+        .sort((a, b) => a.rank - b.rank || a.ref.localeCompare(b.ref))
+        .slice(0, MAX_SUGGESTIONS_TO_SHOW * 3)
+        .map((m) => ({
+        label: m.ref,
+        value: m.ref,
+        description: m.friendly && m.friendly !== m.resource.uri ? m.friendly : undefined,
+        isDirectory: false,
+    }));
+}
+/**
+ * `@server:uri` per-server MCP resource completion. Returns suggestions when
+ * `pattern` is of the form `<server>:<partial>` and `<server>` is a configured
+ * MCP server (so a plain file path containing ':' is never hijacked); returns
+ * `null` otherwise to let the caller fall through to filesystem search (and the
+ * global path below). The resource list comes from the post-discovery
+ * `ResourceRegistry`, so an empty result before discovery simply shows nothing.
+ */
+function getMcpResourceSuggestions(config, pattern) {
+    if (!config)
+        return null;
+    // Don't surface resource URIs in an untrusted folder: the read path
+    // (`ToolRegistry.readMcpResource`) is blocked there, so completing them
+    // would both mislead and leak the existence of a server's resources.
+    if (config.isTrustedFolder?.() === false)
+        return null;
+    // Shared longest-prefix match (see `matchMcpServerPrefix`) so the
+    // completion path and the `@server:uri` injection path stay in lockstep.
+    const mcpServers = config.getMcpServers?.() || {};
+    const match = matchMcpServerPrefix(pattern, Object.keys(mcpServers));
+    if (!match)
+        return null;
+    const resources = config.getResourceRegistry?.()?.getResourcesByServer(match.serverName) ??
+        [];
+    return rankResourcesToSuggestions(resources, match.rest.toLowerCase());
+}
+/**
+ * Bare `@<partial>` GLOBAL MCP resource completion. When the partial carries no
+ * `<server>:` prefix (so `getMcpResourceSuggestions` doesn't apply), match it
+ * against EVERY discovered resource across all servers, so a user can pull up a
+ * resource by a memorable fragment of its URI/name without first recalling which
+ * server exposes it. The injected `value` is still the canonical `@server:uri`.
+ *
+ * Returns `[]` (never `null`): like `getMcpServerSuggestions`, these are
+ * surfaced ALONGSIDE the filesystem results, never replacing them. The empty
+ * partial (bare `@`) is intentionally excluded — every resource would otherwise
+ * match — keeping the bare `@` a files-only view.
+ */
+function getGlobalMcpResourceSuggestions(config, pattern) {
+    if (!config)
+        return [];
+    if (config.isTrustedFolder?.() === false)
+        return [];
+    if (pattern.length === 0)
+        return [];
+    const resources = config.getResourceRegistry?.()?.getAllResources?.() ?? [];
+    return rankResourcesToSuggestions(resources, pattern.toLowerCase());
+}
+/**
+ * `@mcp:<partial>` mention suggestions. Bare `@` stays files-only; otherwise
+ * these are prepended beside file/resource matches without replacing them.
+ */
+function getMcpServerMentionSuggestions(config, pattern) {
+    if (!config)
+        return [];
+    if (config.isTrustedFolder?.() === false)
+        return [];
+    const mcpServers = config.getMcpServers?.() || {};
+    const query = pattern.startsWith('mcp:')
+        ? pattern.slice('mcp:'.length).toLowerCase()
+        : pattern.toLowerCase();
+    return Object.keys(mcpServers)
+        .filter((name) => name.toLowerCase().includes(query))
+        .sort((a, b) => {
+        const aLower = a.toLowerCase();
+        const bLower = b.toLowerCase();
+        const aPrefix = aLower.startsWith(query) ? 0 : 1;
+        const bPrefix = bLower.startsWith(query) ? 0 : 1;
+        if (aPrefix !== bPrefix)
+            return aPrefix - bPrefix;
+        return aLower.localeCompare(bLower);
+    })
+        .map((name) => ({
+        label: buildMcpServerRef(name),
+        value: buildMcpServerRef(name),
+        description: t('MCP server'),
+        isDirectory: false,
+    }))
+        .slice(0, MAX_SUGGESTIONS_TO_SHOW);
+}
+function getMcpServerSuggestions(config, pattern) {
+    if (!config)
+        return [];
+    if (config.isTrustedFolder?.() === false)
+        return [];
+    if (pattern.length === 0)
+        return [];
+    const registry = config.getResourceRegistry?.();
+    if (!registry)
+        return [];
+    const mcpServers = config.getMcpServers?.() || {};
+    const query = pattern.toLowerCase();
+    return Object.keys(mcpServers)
+        .filter((name) => name.toLowerCase().startsWith(query) &&
+        (registry.getResourcesByServer(name)?.length ?? 0) > 0)
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({
+        label: `${name}:`,
+        value: `${name}:`,
+        description: t('MCP resource server'),
+        isDirectory: true,
+    }));
+}
+export var AtCompletionStatus;
+(function (AtCompletionStatus) {
+    AtCompletionStatus["IDLE"] = "idle";
+    AtCompletionStatus["INITIALIZING"] = "initializing";
+    AtCompletionStatus["READY"] = "ready";
+    AtCompletionStatus["SEARCHING"] = "searching";
+    AtCompletionStatus["ERROR"] = "error";
+})(AtCompletionStatus || (AtCompletionStatus = {}));
+const initialState = {
+    status: AtCompletionStatus.IDLE,
+    suggestions: [],
+    isLoading: false,
+    pattern: null,
+};
+function atCompletionReducer(state, action) {
+    switch (action.type) {
+        case 'INITIALIZE':
+            return {
+                ...state,
+                status: AtCompletionStatus.INITIALIZING,
+                isLoading: true,
+            };
+        case 'INITIALIZE_SUCCESS':
+            return { ...state, status: AtCompletionStatus.READY, isLoading: false };
+        case 'SEARCH':
+            // Keep old suggestions, don't set loading immediately
+            return {
+                ...state,
+                status: AtCompletionStatus.SEARCHING,
+                pattern: action.payload,
+            };
+        case 'SEARCH_SUCCESS':
+            return {
+                ...state,
+                status: AtCompletionStatus.READY,
+                suggestions: action.payload,
+                isLoading: false,
+            };
+        case 'SET_LOADING':
+            // Only show loading if we are still in a searching state
+            if (state.status === AtCompletionStatus.SEARCHING) {
+                return { ...state, isLoading: action.payload, suggestions: [] };
+            }
+            return state;
+        case 'ERROR':
+            return {
+                ...state,
+                status: AtCompletionStatus.ERROR,
+                isLoading: false,
+                suggestions: [],
+            };
+        case 'RESET':
+            return initialState;
+        default:
+            return state;
+    }
+}
+export function useAtCompletion(props) {
+    const { enabled, pattern, config, cwd, setSuggestions, setIsLoadingSuggestions, } = props;
+    const [state, dispatch] = useReducer(atCompletionReducer, initialState);
+    const fileSearch = useRef(null);
+    const searchAbortController = useRef(null);
+    const slowSearchTimer = useRef(null);
+    useEffect(() => {
+        setSuggestions(state.suggestions);
+    }, [state.suggestions, setSuggestions]);
+    useEffect(() => {
+        setIsLoadingSuggestions(state.isLoading);
+    }, [state.isLoading, setIsLoadingSuggestions]);
+    useEffect(() => {
+        dispatch({ type: 'RESET' });
+        return () => {
+            void fileSearch.current?.dispose?.();
+            fileSearch.current = null;
+        };
+    }, [cwd, config]);
+    // Reacts to user input (`pattern`) ONLY.
+    useEffect(() => {
+        if (!enabled) {
+            // reset when first getting out of completion suggestions
+            if (state.status === AtCompletionStatus.READY ||
+                state.status === AtCompletionStatus.ERROR) {
+                dispatch({ type: 'RESET' });
+            }
+            return;
+        }
+        if (pattern === null) {
+            dispatch({ type: 'RESET' });
+            return;
+        }
+        if (state.status === AtCompletionStatus.IDLE) {
+            dispatch({ type: 'INITIALIZE' });
+        }
+        else if ((state.status === AtCompletionStatus.READY ||
+            state.status === AtCompletionStatus.SEARCHING) &&
+            pattern !== state.pattern // Only search if the pattern has changed
+        ) {
+            dispatch({ type: 'SEARCH', payload: pattern });
+        }
+    }, [enabled, pattern, state.status, state.pattern]);
+    // The "Worker" that performs async operations based on status.
+    useEffect(() => {
+        let cancelled = false;
+        const initialize = async () => {
+            try {
+                // Dispose previous instance to prevent worker thread leaks on
+                // re-initialization (cwd/config change triggers RESET → re-init).
+                await fileSearch.current?.dispose?.();
+                fileSearch.current = null;
+                const searcher = FileSearchFactory.create({
+                    projectRoot: cwd,
+                    ignoreDirs: [],
+                    useGitignore: config?.getFileFilteringOptions()?.respectGitIgnore ?? true,
+                    useQwenignore: config?.getFileFilteringOptions()?.respectQwenIgnore ?? true,
+                    customIgnoreFiles: config?.getFileFilteringOptions()?.customIgnoreFiles,
+                    cache: true,
+                    cacheTtl: 30, // 30 seconds
+                    enableRecursiveFileSearch: config?.getEnableRecursiveFileSearch() ?? true,
+                    // Use enableFuzzySearch with !== false to default to true when undefined.
+                    enableFuzzySearch: config?.getFileFilteringEnableFuzzySearch() !== false,
+                });
+                await searcher.initialize();
+                // Guard against the effect being cleaned up (unmount / cwd change)
+                // or superseded by a newer initialize() while we were awaiting.
+                if (cancelled) {
+                    await searcher.dispose?.();
+                    return;
+                }
+                fileSearch.current = searcher;
+                dispatch({ type: 'INITIALIZE_SUCCESS' });
+                // Always trigger a SEARCH after init completes so suggestions
+                // appear immediately. Previously checked `state.pattern !== null`
+                // which was ALWAYS false because no action sets pattern during
+                // INITIALIZE — only SEARCH/SEARCH_SUCCESS do. This caused a missed
+                // render cycle where the autocomplete stayed at READY with zero
+                // results until the next keystroke.
+                //
+                // Use the outer-scope `pattern` prop (guaranteed non-null here since
+                // we're inside the initialize callback, itself gated by enabled +
+                // non-null pattern). An empty-string pattern returns all files for
+                // bare "@"; a non-empty one filters directly.
+                dispatch({
+                    type: 'SEARCH',
+                    payload: pattern ?? '',
+                });
+            }
+            catch (_) {
+                if (!cancelled) {
+                    dispatch({ type: 'ERROR' });
+                }
+            }
+        };
+        const search = async () => {
+            if (state.pattern === null) {
+                return;
+            }
+            // Extension suggestions are computed synchronously from in-memory data.
+            // Unlike MCP servers, they show even on bare `@` (empty pattern) since
+            // the extension count is typically small and immediate discoverability
+            // matters.
+            const extensionSuggestions = getExtensionSuggestions(config, state.pattern);
+            // `@server:uri` MCP resource completion short-circuits filesystem
+            // search. Synchronous (in-memory registry), so no abort/slow-timer
+            // machinery is needed.
+            const resourceSuggestions = getMcpResourceSuggestions(config, state.pattern);
+            if (resourceSuggestions !== null) {
+                if (slowSearchTimer.current) {
+                    clearTimeout(slowSearchTimer.current);
+                }
+                // When drilling into a specific server's resources (`@server:partial`),
+                // extension suggestions are noise — only show resource results here.
+                dispatch({ type: 'SEARCH_SUCCESS', payload: resourceSuggestions });
+                return;
+            }
+            // No `<server>:` prefix yet — offer, ALONGSIDE the filesystem results
+            // (never hiding files): matching MCP servers (discovery, so the user can
+            // drill in without knowing a URI) AND resources matched globally by
+            // URI/name across all servers. Both computed synchronously and prepended
+            // below.
+            const mcpServerMentionSuggestions = getMcpServerMentionSuggestions(config, state.pattern);
+            const serverSuggestions = getMcpServerSuggestions(config, state.pattern);
+            const globalResourceSuggestions = getGlobalMcpResourceSuggestions(config, state.pattern);
+            const mcpSuggestions = [
+                ...extensionSuggestions,
+                ...mcpServerMentionSuggestions,
+                ...serverSuggestions,
+                ...globalResourceSuggestions,
+            ].map((s) => ({ ...s, category: s.category ?? 'mcp' }));
+            // Prior-session suggestions (current project). Kicked off CONCURRENTLY so
+            // the disk listing never delays the file-search loading timer below;
+            // awaited only when assembling the final payload. A listing failure
+            // yields [] so it never blocks file/MCP/extension completion.
+            // Merge order invariant: sessions are always appended LAST in every
+            // SEARCH_SUCCESS dispatch path (mcp → file → session).
+            const sessionPromise = getSessionSuggestions(cwd, state.pattern);
+            if (!fileSearch.current) {
+                // File index not ready yet; still surface non-file matches so they
+                // don't have to wait on the crawler.
+                const sessionSuggestions = await sessionPromise.catch(() => []);
+                // The disk listing awaited above opens a window in which a newer
+                // keystroke may have superseded this search; drop a stale result.
+                if (cancelled) {
+                    return;
+                }
+                const scoped = [...mcpSuggestions, ...sessionSuggestions];
+                if (scoped.length > 0) {
+                    if (slowSearchTimer.current) {
+                        clearTimeout(slowSearchTimer.current);
+                    }
+                    dispatch({ type: 'SEARCH_SUCCESS', payload: scoped });
+                }
+                return;
+            }
+            if (slowSearchTimer.current) {
+                clearTimeout(slowSearchTimer.current);
+            }
+            const controller = new AbortController();
+            searchAbortController.current = controller;
+            slowSearchTimer.current = setTimeout(() => {
+                dispatch({ type: 'SET_LOADING', payload: true });
+            }, 200);
+            try {
+                const results = await fileSearch.current.search(state.pattern, {
+                    signal: controller.signal,
+                    maxResults: MAX_SUGGESTIONS_TO_SHOW * 3,
+                });
+                if (slowSearchTimer.current) {
+                    clearTimeout(slowSearchTimer.current);
+                }
+                if (controller.signal.aborted) {
+                    return;
+                }
+                // isDirectory relies on crawler.ts in @qwen-code/qwen-code-core
+                // always normalizing paths with posix '/' via fdir.withPathSeparator('/').
+                // If the crawler ever switches to path.sep, this check must be updated.
+                const fileSuggestions = results.map((p) => ({
+                    label: p,
+                    value: escapePath(p),
+                    isDirectory: p.endsWith('/'),
+                    category: 'file',
+                }));
+                const sessionSuggestions = await sessionPromise.catch(() => []);
+                if (controller.signal.aborted || cancelled) {
+                    return;
+                }
+                dispatch({
+                    type: 'SEARCH_SUCCESS',
+                    payload: [
+                        ...mcpSuggestions,
+                        ...fileSuggestions,
+                        ...sessionSuggestions,
+                    ],
+                });
+            }
+            catch (error) {
+                if (!(error instanceof Error && error.name === 'AbortError')) {
+                    // A file-search failure shouldn't swallow non-file matches we already
+                    // have; show those rather than dropping to an error state.
+                    const sessionSuggestions = await sessionPromise.catch(() => []);
+                    if (cancelled) {
+                        return;
+                    }
+                    const scoped = [...mcpSuggestions, ...sessionSuggestions];
+                    if (scoped.length > 0) {
+                        dispatch({ type: 'SEARCH_SUCCESS', payload: scoped });
+                    }
+                    else {
+                        dispatch({ type: 'ERROR' });
+                    }
+                }
+            }
+        };
+        if (state.status === AtCompletionStatus.INITIALIZING) {
+            initialize();
+        }
+        else if (state.status === AtCompletionStatus.SEARCHING) {
+            search();
+        }
+        return () => {
+            cancelled = true;
+            searchAbortController.current?.abort();
+            if (slowSearchTimer.current) {
+                clearTimeout(slowSearchTimer.current);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.status, state.pattern, config, cwd]);
+}
+//# sourceMappingURL=useAtCompletion.js.map

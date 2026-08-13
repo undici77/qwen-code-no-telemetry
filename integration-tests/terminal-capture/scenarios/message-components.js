@@ -6,7 +6,7 @@
  * - Info message prefix (● filled circle)
  * - Error message prefix (✕)
  * - User message prefix (>)
- * - Assistant message prefix (✦)
+ * - Assistant message prefix (◆)
  */
 export default {
     name: 'message-components',

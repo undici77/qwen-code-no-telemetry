@@ -220,7 +220,7 @@ export class TerminalCapture {
         // 4. Create xterm Terminal instance inside the page
         await this.page.evaluate(({ cols, rows, theme, fontSize, fontFamily }) => {
             const W = window;
-             
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const Terminal = W['Terminal'];
             const term = new Terminal({
                 cols,
@@ -383,6 +383,19 @@ export class TerminalCapture {
         await this.flush();
         // 2. Wait for xterm.js rendering to complete
         await this.sleep(150);
+        // 2b. Anchor the viewport to the live bottom. xterm.js does not re-scroll
+        //     to the latest output once the viewport has drifted up — which happens
+        //     after an idle period or a full-screen repaint (e.g. the agent-team
+        //     leader goes idle waiting for teammate reports, then repaints a long
+        //     summary). Without this, a plain viewport screenshot can show stale
+        //     scrollback (the banner / start of the session) instead of the current
+        //     state. Mirrors captureFull's scrollToTop().
+        await this.page.evaluate(() => {
+            const W = window;
+            const term = W['term'];
+            term?.scrollToBottom?.();
+        });
+        await this.sleep(50);
         // 3. Prepare output directory
         const dir = outputDir ?? this.outputDir;
         mkdirSync(dir, { recursive: true });

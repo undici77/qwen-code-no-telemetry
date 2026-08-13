@@ -1,0 +1,429 @@
+/**
+ * @license
+ * Copyright 2025 Qwen
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import * as fsPromises from 'fs/promises';
+import path from 'path';
+import { CommandKind, } from './types.js';
+import { getProjectSummaryPrompt, isSubpath, resolvePath, runSideQuery, } from '@qwen-code/qwen-code-core';
+import { t } from '../../i18n/index.js';
+// Resolves the real path of the nearest existing ancestor of targetPath. The
+// target file itself usually does not exist yet, but a symlinked parent
+// directory can still point outside the project root, so the ancestor must be
+// resolved to detect that. Unlike the realpathNearestExisting copies in
+// exportCommand.ts/statsCommand.ts, this one does not guard the upward walk
+// itself (they loop while isSubpath(cwd, currentPath) and throw on escape);
+// every call site here must check containment on the returned path.
+const realpathNearestExisting = async (targetPath) => {
+    let currentPath = targetPath;
+    for (;;) {
+        try {
+            return await fsPromises.realpath(currentPath);
+        }
+        catch (error) {
+            if (error.code !== 'ENOENT') {
+                throw error;
+            }
+            const parentPath = path.dirname(currentPath);
+            if (parentPath === currentPath) {
+                return currentPath;
+            }
+            currentPath = parentPath;
+        }
+    }
+};
+// Follows the full symlink chain at filePath (with cycle detection) and
+// verifies the final target is contained within realProjectRoot. A broken
+// chain whose terminal target is absent still resolves via
+// realpathNearestExisting, catching multi-hop escapes.
+const assertLeafNotSymlinkEscape = async (filePath, realProjectRoot) => {
+    let current = filePath;
+    const seen = new Set();
+    for (;;) {
+        const linkStat = await fsPromises.lstat(current).catch(() => null);
+        if (!linkStat?.isSymbolicLink())
+            break;
+        if (seen.has(current)) {
+            throw new Error(t('Summary path must be within the project root.'));
+        }
+        seen.add(current);
+        const linkTarget = await fsPromises.readlink(current);
+        current = path.isAbsolute(linkTarget)
+            ? linkTarget
+            : path.resolve(path.dirname(current), linkTarget);
+    }
+    const realTarget = await realpathNearestExisting(current);
+    if (!isSubpath(realProjectRoot, realTarget)) {
+        throw new Error(t('Summary path must be within the project root.'));
+    }
+};
+// Static footer prefix shared by the writer (saveSummaryToDisk) and the
+// detector below, kept in one place so the two cannot drift apart.
+const SUMMARY_FOOTER_PREFIX = '\n---\n\n## Summary Metadata\n**Update time**: ';
+const buildSummaryFooter = (timestamp) => `${SUMMARY_FOOTER_PREFIX}${timestamp}\n`;
+// Reads only the file tail: the footer always lives in the last ~90 bytes, so
+// a mistyped multi-GB path is not loaded fully into memory just to test for it.
+const readSummaryTail = async (p, bytes = 4096) => {
+    const handle = await fsPromises.open(p, 'r');
+    try {
+        const { size } = await handle.stat();
+        const length = Math.min(size, bytes);
+        const buffer = Buffer.alloc(length);
+        await handle.read(buffer, 0, length, Math.max(0, size - length));
+        return buffer.toString('utf8');
+    }
+    finally {
+        await handle.close();
+    }
+};
+// Built from the same prefix the writer emits (escaped so the literal `**` is
+// not read as a quantifier) and anchored to end-of-file, so a document that
+// merely embeds a sample footer is not mistaken for a generated summary and
+// clobbered.
+const isGeneratedSummary = (content) => new RegExp(`${SUMMARY_FOOTER_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\n?$`).test(content.replace(/\r\n/g, '\n'));
+export const summaryCommand = {
+    name: 'summary',
+    get description() {
+        return t('Generate a project summary and save it to .qwen/PROJECT_SUMMARY.md');
+    },
+    argumentHint: '[path]',
+    kind: CommandKind.BUILT_IN,
+    supportedModes: ['interactive', 'non_interactive', 'acp'],
+    action: async (context, args) => {
+        const { config } = context.services;
+        const { ui } = context;
+        const executionMode = context.executionMode ?? 'interactive';
+        const abortSignal = context.abortSignal;
+        if (!config) {
+            return {
+                type: 'message',
+                messageType: 'error',
+                content: t('Config not loaded.'),
+            };
+        }
+        const geminiClient = config.getGeminiClient();
+        if (!geminiClient) {
+            return {
+                type: 'message',
+                messageType: 'error',
+                content: t('No chat client available to generate summary.'),
+            };
+        }
+        // Check if already generating summary (interactive UI only)
+        if (executionMode === 'interactive' && ui.pendingItem) {
+            ui.addItem({
+                type: 'error',
+                text: t('Already generating summary, wait for previous request to complete'),
+            }, Date.now());
+            return {
+                type: 'message',
+                messageType: 'error',
+                content: t('Already generating summary, wait for previous request to complete'),
+            };
+        }
+        const getChatHistory = () => {
+            const chat = geminiClient.getChat();
+            return chat.getHistoryShallow();
+        };
+        const validateChatHistory = (history) => {
+            if (history.length <= 2) {
+                throw new Error(t('No conversation found to summarize.'));
+            }
+        };
+        const generateSummaryMarkdown = async (history) => {
+            // Build the conversation context for summary generation
+            const conversationContext = history.map((message) => ({
+                role: message.role,
+                parts: message.parts,
+            }));
+            // Carry over the main session's system instruction. Without this the
+            // model sees only chat history + the summary prompt, losing the coding-
+            // assistant role, project context, and user memory. The chat sets it
+            // as a string (see GeminiClient.getMainSessionSystemInstruction).
+            const rawSystemInstruction = geminiClient
+                .getChat()
+                .getGenerationConfig().systemInstruction;
+            const chatSystemInstruction = typeof rawSystemInstruction === 'string'
+                ? rawSystemInstruction
+                : undefined;
+            const result = await runSideQuery(config, {
+                purpose: 'project-summary',
+                skipOutputLanguagePreference: true,
+                model: config.getModel(),
+                systemInstruction: chatSystemInstruction,
+                contents: [
+                    ...conversationContext,
+                    {
+                        role: 'user',
+                        parts: [
+                            {
+                                text: getProjectSummaryPrompt(),
+                            },
+                        ],
+                    },
+                ],
+                abortSignal: abortSignal ?? new AbortController().signal,
+            });
+            if (!result.text) {
+                throw new Error(t('Failed to generate summary - no text content received from LLM response'));
+            }
+            return result.text;
+        };
+        const resolveSummaryTarget = async () => {
+            const projectRoot = config.getProjectRoot();
+            const defaultSummaryPath = path.join(projectRoot, '.qwen', 'PROJECT_SUMMARY.md');
+            const customPath = args?.trim();
+            if (!customPath) {
+                // The default target always overwrites: regenerating the summary is
+                // the command's purpose, and .qwen/PROJECT_SUMMARY.md is a generated
+                // artifact — not user prose the overwrite guard protects.
+                return {
+                    summaryPath: defaultSummaryPath,
+                    filePathForDisplay: '.qwen/PROJECT_SUMMARY.md',
+                    isDefaultTarget: true,
+                    realProjectRoot: await fsPromises.realpath(projectRoot),
+                };
+            }
+            // resolvePath expands a leading ~ so the path is honest before the
+            // containment check rejects it, instead of creating a literal "~" dir.
+            const resolved = resolvePath(projectRoot, customPath);
+            if (!isSubpath(projectRoot, resolved)) {
+                throw new Error(t('Summary path must be within the project root.'));
+            }
+            // A lexical check cannot see through symlinks: a link inside the project
+            // root may point outside it. Re-check containment on the real paths.
+            const realProjectRoot = await fsPromises.realpath(projectRoot);
+            await assertLeafNotSymlinkEscape(resolved, realProjectRoot);
+            const realResolved = await realpathNearestExisting(resolved);
+            if (!isSubpath(realProjectRoot, realResolved)) {
+                throw new Error(t('Summary path must be within the project root.'));
+            }
+            const hasTrailingSep = customPath.endsWith('/') || customPath.endsWith(path.sep);
+            const resolvedStat = await fsPromises.stat(resolved).catch(() => null);
+            if (hasTrailingSep && resolvedStat?.isFile()) {
+                throw new Error(t('Summary path ends with a separator but is an existing file: {{path}}', { path: customPath }));
+            }
+            const isDir = hasTrailingSep || (resolvedStat?.isDirectory() ?? false);
+            const summaryPath = isDir
+                ? path.join(resolved, 'PROJECT_SUMMARY.md')
+                : resolved;
+            // The appended filename may itself be a symlink escaping the project
+            // root (e.g. a malicious repo tracks docs/PROJECT_SUMMARY.md -> /etc/
+            // passwd). Re-check the leaf after the join.
+            if (isDir) {
+                await assertLeafNotSymlinkEscape(summaryPath, realProjectRoot);
+            }
+            const filePathForDisplay = (path.isAbsolute(customPath)
+                ? summaryPath
+                : path.relative(projectRoot, summaryPath)).replaceAll(path.sep, '/');
+            // Compute the default-target flag before the guards so an explicitly
+            // spelled default path (`.qwen/PROJECT_SUMMARY.md` or `.qwen/`) is
+            // treated as the default target for the overwrite guard and always
+            // overwrites. Unlike the no-arg command, a spelled path still runs the
+            // custom-path symlink containment checks.
+            const isDefaultTarget = summaryPath === defaultSummaryPath;
+            const existingStat = await fsPromises.stat(summaryPath).catch(() => null);
+            // Reject an existing directory at the leaf (e.g. `/summary docs` where
+            // docs/PROJECT_SUMMARY.md is itself a directory) before the LLM call,
+            // instead of surfacing a raw EISDIR only at write time.
+            if (existingStat?.isDirectory()) {
+                throw new Error(t('Summary path resolves to an existing directory: {{path}}', {
+                    path: filePathForDisplay,
+                }));
+            }
+            // For any non-default path, refuse to clobber a pre-existing file that is
+            // not a generated summary (e.g. a mistyped `package.json`). A generated
+            // summary carries a `## Summary Metadata` footer, so regenerating one is
+            // allowed.
+            if (!isDefaultTarget && existingStat?.isFile() && existingStat.size > 0) {
+                const existing = await readSummaryTail(summaryPath).catch(() => '');
+                if (!isGeneratedSummary(existing)) {
+                    throw new Error(t('Summary path already exists and is not a generated summary: {{path}}', { path: filePathForDisplay }));
+                }
+            }
+            return {
+                summaryPath,
+                filePathForDisplay,
+                isDefaultTarget,
+                realProjectRoot,
+            };
+        };
+        const saveSummaryToDisk = async (markdownSummary, target) => {
+            const summaryContent = `${markdownSummary}\n${buildSummaryFooter(new Date().toISOString())}`;
+            // Re-check the leaf right before writing to narrow the TOCTOU window
+            // between resolveSummaryTarget (pre-LLM) and the write (post-LLM).
+            // The default target is the user's own .qwen/ directory — a symlinked
+            // .qwen/ is a deliberate setup, not an attack vector.
+            if (!target.isDefaultTarget) {
+                await assertLeafNotSymlinkEscape(target.summaryPath, target.realProjectRoot);
+            }
+            const preWriteStat = await fsPromises
+                .stat(target.summaryPath)
+                .catch(() => null);
+            // Re-run the overwrite guard: a file created during generation (the
+            // slow step) would otherwise be silently destroyed.
+            if (!target.isDefaultTarget &&
+                preWriteStat?.isFile() &&
+                preWriteStat.size > 0) {
+                const existing = await readSummaryTail(target.summaryPath).catch(() => '');
+                if (!isGeneratedSummary(existing)) {
+                    throw new Error(t('Summary path already exists and is not a generated summary: {{path}}', { path: target.filePathForDisplay }));
+                }
+            }
+            await fsPromises.mkdir(path.dirname(target.summaryPath), {
+                recursive: true,
+                ...(target.isDefaultTarget ? { mode: 0o700 } : {}),
+            });
+            // writeFile's mode applies at creation; for an existing file the user may
+            // have relaxed, the mode argument is ignored and permissions are kept.
+            await fsPromises.writeFile(target.summaryPath, summaryContent, {
+                encoding: 'utf8',
+                mode: 0o600,
+            });
+            return {
+                filePathForDisplay: target.filePathForDisplay,
+                fullPath: target.summaryPath,
+            };
+        };
+        const emitInteractivePending = (stage) => {
+            if (executionMode !== 'interactive') {
+                return;
+            }
+            const pendingMessage = {
+                type: 'summary',
+                summary: {
+                    isPending: true,
+                    stage,
+                },
+            };
+            ui.setPendingItem(pendingMessage);
+        };
+        const completeInteractive = (filePathForDisplay) => {
+            if (executionMode !== 'interactive') {
+                return;
+            }
+            ui.setPendingItem(null);
+            const completedSummaryItem = {
+                type: 'summary',
+                summary: {
+                    isPending: false,
+                    stage: 'completed',
+                    filePath: filePathForDisplay,
+                },
+            };
+            ui.addItem(completedSummaryItem, Date.now());
+        };
+        const formatErrorMessage = (error) => t('Failed to generate project context summary: {{error}}', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        const failInteractive = (error) => {
+            if (executionMode !== 'interactive') {
+                return;
+            }
+            // If cancelled via ESC, don't show error — cancelSlashCommand already handled UI
+            if (abortSignal?.aborted) {
+                return;
+            }
+            ui.setPendingItem(null);
+            ui.addItem({
+                type: 'error',
+                text: `✗ ${formatErrorMessage(error)}`,
+            }, Date.now());
+        };
+        const formatSuccessMessage = (filePathForDisplay) => t('Saved project summary to {{filePathForDisplay}}.', {
+            filePathForDisplay,
+        });
+        const returnNoConversationMessage = () => {
+            const msg = t('No conversation found to summarize.');
+            if (executionMode === 'acp') {
+                const messages = async function* () {
+                    yield {
+                        messageType: 'info',
+                        content: msg,
+                    };
+                };
+                return {
+                    type: 'stream_messages',
+                    messages: messages(),
+                };
+            }
+            return {
+                type: 'message',
+                messageType: 'info',
+                content: msg,
+            };
+        };
+        const executeSummaryGeneration = async (history) => {
+            const target = await resolveSummaryTarget();
+            emitInteractivePending('generating');
+            const markdownSummary = await generateSummaryMarkdown(history);
+            if (abortSignal?.aborted) {
+                throw new DOMException('Summary generation cancelled.', 'AbortError');
+            }
+            emitInteractivePending('saving');
+            const { filePathForDisplay } = await saveSummaryToDisk(markdownSummary, target);
+            completeInteractive(filePathForDisplay);
+            return { markdownSummary, filePathForDisplay };
+        };
+        // Validate chat history once at the beginning
+        const history = getChatHistory();
+        try {
+            validateChatHistory(history);
+        }
+        catch (_error) {
+            return returnNoConversationMessage();
+        }
+        if (executionMode === 'acp') {
+            const messages = async function* () {
+                try {
+                    yield {
+                        messageType: 'info',
+                        content: t('Generating project summary...'),
+                    };
+                    const { filePathForDisplay } = await executeSummaryGeneration(history);
+                    yield {
+                        messageType: 'info',
+                        content: formatSuccessMessage(filePathForDisplay),
+                    };
+                }
+                catch (error) {
+                    failInteractive(error);
+                    yield {
+                        messageType: 'error',
+                        content: formatErrorMessage(error),
+                    };
+                }
+            };
+            return {
+                type: 'stream_messages',
+                messages: messages(),
+            };
+        }
+        try {
+            const { filePathForDisplay } = await executeSummaryGeneration(history);
+            if (executionMode === 'non_interactive') {
+                return {
+                    type: 'message',
+                    messageType: 'info',
+                    content: formatSuccessMessage(filePathForDisplay),
+                };
+            }
+            // Interactive mode: UI components already display progress and completion.
+            return {
+                type: 'message',
+                messageType: 'info',
+                content: '',
+            };
+        }
+        catch (error) {
+            failInteractive(error);
+            return {
+                type: 'message',
+                messageType: 'error',
+                content: executionMode === 'interactive' ? '' : formatErrorMessage(error),
+            };
+        }
+    },
+};
+//# sourceMappingURL=summaryCommand.js.map

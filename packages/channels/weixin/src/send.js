@@ -4,7 +4,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync, statSync, realpathSync, openSync, readSync, closeSync, } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve, extname } from 'node:path';
+import { resolve, extname, win32, posix } from 'node:path';
 import { sendMessage, getUploadUrl, uploadToCdn } from './api.js';
 import { MessageType, MessageState, MessageItemType } from './types.js';
 import { encryptAesEcb, computeMd5 } from './media.js';
@@ -21,8 +21,8 @@ export function markdownToPlainText(text) {
         .replace(/_(.+?)_/g, '$1')
         .replace(/~~(.+?)~~/g, '$1')
         .replace(/^#{1,6}\s+/gm, '')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, '[$1]')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
         .replace(/^>\s+/gm, '')
         .replace(/^[-*_]{3,}$/gm, '---')
         .replace(/^[\s]*[-*+]\s+/gm, '- ')
@@ -33,6 +33,30 @@ export function markdownToPlainText(text) {
 // ── Image path validation ─────────────────────────────────────────
 const ALLOWED_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20 MB
+function looksLikeWindowsPath(pathValue) {
+    return /^[a-zA-Z]:[\\/]/.test(pathValue) || pathValue.startsWith('\\\\');
+}
+function normalizeWindowsPath(pathValue) {
+    return pathValue.replace(/\//g, '\\');
+}
+function isInsideAllowedDir(realPath, allowedDir) {
+    const windowsStyle = looksLikeWindowsPath(realPath) || looksLikeWindowsPath(allowedDir);
+    const pathImpl = windowsStyle ? win32 : posix;
+    const from = windowsStyle ? normalizeWindowsPath(allowedDir) : allowedDir;
+    const to = windowsStyle ? normalizeWindowsPath(realPath) : realPath;
+    const relative = pathImpl.relative(from, to);
+    return (relative === '' ||
+        (!relative.startsWith('..') && !pathImpl.isAbsolute(relative)));
+}
+function trimDisplayDir(dir) {
+    if (/^[a-zA-Z]:[\\/]?$/.test(dir))
+        return dir;
+    const trimmed = dir.replace(/[\\/]+$/, '');
+    return trimmed || dir;
+}
+function formatAllowedImageDirs(dirs) {
+    return Array.from(new Set(dirs.map(trimDisplayDir))).join(', ');
+}
 /** Image magic bytes → MIME type mapping. */
 export function detectImageMime(data) {
     if (data[0] === 0x89 &&
@@ -44,10 +68,16 @@ export function detectImageMime(data) {
     if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) {
         return 'image/gif';
     }
+    // WebP is a RIFF container, so the "RIFF" prefix alone is not enough — WAV and
+    // AVI share it. The bytes at offset 8-11 must spell "WEBP" to confirm the type.
     if (data[0] === 0x52 &&
         data[1] === 0x49 &&
         data[2] === 0x46 &&
-        data[3] === 0x46) {
+        data[3] === 0x46 &&
+        data[8] === 0x57 &&
+        data[9] === 0x45 &&
+        data[10] === 0x42 &&
+        data[11] === 0x50) {
         return 'image/webp';
     }
     if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
@@ -97,8 +127,8 @@ export function validateImagePath(imagePath, workspaceDirs = []) {
         realpathSync(tmpdir()) + '/',
         ...workspaceDirs.map((d) => realpathSync(resolve(d)) + '/'),
     ];
-    if (!ALLOWED_DIRS.some((dir) => real.startsWith(dir))) {
-        throw new Error(`Image path outside allowed directories: ${real}`);
+    if (!ALLOWED_DIRS.some((dir) => isInsideAllowedDir(real, dir))) {
+        throw new Error(`Image path outside allowed directories: ${real}. Allowed directories: ${formatAllowedImageDirs(ALLOWED_DIRS)}`);
     }
     // Verify magic bytes match the extension (read only first 16 bytes to
     // avoid TOCTOU double-read — sendImage reads the full file later).
@@ -167,9 +197,10 @@ export async function sendImage(params) {
     // Step 3: encrypt and upload to CDN
     const encrypted = encryptAesEcb(fileBuffer, aesKeyBytes);
     const cdnEncryptParam = await uploadToCdn(uploadParam, filekey, encrypted);
-    // Step 4: send message with image_item using CDN's x-encrypted-param
-    // aes_key: base64(raw 16 bytes) for images per protocol
-    const aesKeyBase64 = aesKeyBytes.toString('base64');
+    // Step 4: send message with image_item using CDN's x-encrypted-param.
+    // WeChat image messages expect the AES key as a hex string, with media.aes_key
+    // carrying base64(hex string), not base64(raw bytes).
+    const aesKeyBase64 = Buffer.from(aesKeyHex, 'ascii').toString('base64');
     await sendMessage(baseUrl, token, {
         to_user_id: to,
         from_user_id: '',
@@ -181,6 +212,8 @@ export async function sendImage(params) {
             {
                 type: MessageItemType.IMAGE,
                 image_item: {
+                    aeskey: aesKeyHex,
+                    mid_size: encryptedSize,
                     media: {
                         encrypt_query_param: cdnEncryptParam,
                         aes_key: aesKeyBase64,

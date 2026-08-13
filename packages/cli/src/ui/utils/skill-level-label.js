@@ -1,0 +1,24 @@
+/**
+ * @license
+ * Copyright 2025 Qwen
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { t } from '../../i18n/index.js';
+// Call at render/command time, not module-load, so `/language` switches take effect.
+export function levelLabel(level) {
+    switch (level) {
+        case 'project':
+            return t('Project');
+        case 'user':
+            return t('User');
+        case 'extension':
+            return t('Extension');
+        case 'bundled':
+            return t('Bundled');
+        default: {
+            const _exhaustive = level;
+            return _exhaustive;
+        }
+    }
+}
+//# sourceMappingURL=skill-level-label.js.map

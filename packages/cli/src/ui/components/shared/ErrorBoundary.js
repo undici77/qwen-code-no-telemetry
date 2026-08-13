@@ -1,0 +1,68 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+/**
+ * @license
+ * Copyright 2025 Qwen Team
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { Component } from 'react';
+import { Box, Text } from 'ink';
+import { theme } from '../../semantic-colors.js';
+import { sanitizeTerminalText } from '../../utils/textUtils.js';
+function normalizeError(error) {
+    if (error instanceof Error) {
+        return error;
+    }
+    return new Error(String(error));
+}
+/**
+ * Module-level store for the last rendering error. The cleanup chain in
+ * startInteractiveUI.tsx reads this after `instance.unmount()` leaves the
+ * alternate screen, so the message can be echoed to the *main* screen buffer
+ * where it survives after the process exits. Without this, VP / alternate-
+ * screen mode discards the fallback UI on teardown and the user sees nothing.
+ */
+let lastRenderError;
+export function consumeLastRenderError() {
+    const err = lastRenderError;
+    lastRenderError = undefined;
+    return err;
+}
+/**
+ * React error boundary for the Ink tree. Catches render-time errors in its
+ * subtree and shows a fallback instead of letting the exception propagate and
+ * crash the whole CLI. The CLI UI otherwise has no error boundary, so any
+ * unexpected history-item shape in a full-detail render path (transcript) would
+ * take the process down.
+ */
+export class ErrorBoundary extends Component {
+    state = { error: null };
+    static getDerivedStateFromError(error) {
+        return { error: normalizeError(error) };
+    }
+    componentDidCatch(error, info) {
+        const normalized = normalizeError(error);
+        if (this.props.recordForExitEcho) {
+            lastRenderError = normalized;
+        }
+        this.props.onError?.(normalized, info);
+    }
+    reset = () => {
+        this.setState({ error: null });
+    };
+    render() {
+        const { error } = this.state;
+        if (error) {
+            if (this.props.fallback) {
+                return this.props.fallback(error, this.reset);
+            }
+            // Intentionally un-translated: this is a generic last-resort message for
+            // callers that pass no `fallback` (the transcript passes its own,
+            // localized one). It renders while the subtree is already crashing —
+            // pulling in the i18n layer here risks a second failure inside the
+            // boundary — so keep it a plain, dependency-free English string.
+            return (_jsxs(Box, { flexDirection: "column", children: [_jsx(Text, { color: theme.status.error, bold: true, children: "Something went wrong while rendering." }), _jsx(Text, { color: theme.text.secondary, children: sanitizeTerminalText(error.message) })] }));
+        }
+        return this.props.children;
+    }
+}
+//# sourceMappingURL=ErrorBoundary.js.map

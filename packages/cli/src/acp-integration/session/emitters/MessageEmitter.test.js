@@ -1,0 +1,463 @@
+/**
+ * @license
+ * Copyright 2025 Qwen
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageEmitter } from './MessageEmitter.js';
+import { apiActivityTracker, } from '@qwen-code/qwen-code-core';
+describe('MessageEmitter', () => {
+    let mockContext;
+    let sendUpdateSpy;
+    let emitter;
+    beforeEach(() => {
+        // emitUsageMetadata drains the process-global API-activity tracker onto a
+        // live frame's `_meta`; zero it so a nonzero count from another test can't
+        // inject apiErrors/apiRetries keys into these exact-`_meta` assertions.
+        apiActivityTracker.drain();
+        sendUpdateSpy = vi.fn().mockResolvedValue(undefined);
+        mockContext = {
+            sessionId: 'test-session-id',
+            config: {
+                getContentGeneratorConfig: vi.fn().mockReturnValue({
+                    contextWindowSize: 128_000,
+                }),
+            },
+            sendUpdate: sendUpdateSpy,
+        };
+        emitter = new MessageEmitter(mockContext);
+    });
+    describe('emitUserMessage', () => {
+        it('should send user_message_chunk update with text content', async () => {
+            await emitter.emitUserMessage('Hello, world!');
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(1);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'Hello, world!' },
+            });
+        });
+        it('should handle empty text', async () => {
+            await emitter.emitUserMessage('');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: '' },
+            });
+        });
+        it('should handle multiline text', async () => {
+            const multilineText = 'Line 1\nLine 2\nLine 3';
+            await emitter.emitUserMessage(multilineText);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: multilineText },
+            });
+        });
+        it('should include source metadata when provided', async () => {
+            await emitter.emitUserMessage('scheduled prompt', 1_700_000_000_000, {
+                source: 'cron',
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'scheduled prompt' },
+                _meta: {
+                    timestamp: 1_700_000_000_000,
+                    source: 'cron',
+                },
+            });
+        });
+    });
+    describe('emitAgentMessage', () => {
+        it('should send agent_message_chunk update with text content', async () => {
+            await emitter.emitAgentMessage('I can help you with that.');
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(1);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'I can help you with that.' },
+            });
+        });
+        it('should include subagent parent metadata when provided', async () => {
+            await emitter.emitAgentMessage('Subagent progress', undefined, {
+                parentToolCallId: 'agent-parent-1',
+                subagentType: 'general-purpose',
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Subagent progress' },
+                _meta: {
+                    parentToolCallId: 'agent-parent-1',
+                    subagentType: 'general-purpose',
+                },
+            });
+        });
+    });
+    describe('emitSlashCommandOutput', () => {
+        it('should identify slash-command output in metadata', async () => {
+            await emitter.emitSlashCommandOutput('Compressing context...');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Compressing context...' },
+                _meta: { source: 'slash_command' },
+            });
+        });
+    });
+    describe('emitGoalStatus', () => {
+        it('should send a goal status update in metadata', async () => {
+            const status = {
+                kind: 'set',
+                condition: 'ship goal support',
+                setAt: 1234,
+            };
+            await emitter.emitGoalStatus(status);
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(1);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: '' },
+                _meta: {
+                    goalStatus: status,
+                },
+            });
+        });
+    });
+    describe('emitGoalState', () => {
+        it('sends canonical state with the legacy projection used by replay', async () => {
+            const snapshot = {
+                v: 2,
+                activity: 'idle',
+                goal: {
+                    goalId: 'goal-1',
+                    revision: 1,
+                    objective: 'ship ACP Goal support',
+                    status: 'active',
+                    evidenceCursor: { recordId: 'cursor-1' },
+                    turnCount: 0,
+                    activeTimeMs: 0,
+                    createdAt: 1234,
+                    updatedAt: 1234,
+                },
+            };
+            await emitter.emitGoalState(snapshot, 'create');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: '' },
+                _meta: {
+                    goalState: snapshot,
+                    goalStatus: {
+                        kind: 'set',
+                        condition: 'ship ACP Goal support',
+                        iterations: 0,
+                        setAt: 1234,
+                        durationMs: 0,
+                    },
+                },
+            });
+        });
+        it('emits an authoritative status snapshot without inventing a cause', async () => {
+            const snapshot = {
+                v: 2,
+                activity: 'idle',
+                goal: null,
+            };
+            await emitter.emitGoalState(snapshot);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: '' },
+                _meta: { goalState: snapshot },
+            });
+        });
+    });
+    describe('emitAgentThought', () => {
+        it('should send agent_thought_chunk update with text content', async () => {
+            await emitter.emitAgentThought('Let me think about this...');
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(1);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_thought_chunk',
+                content: { type: 'text', text: 'Let me think about this...' },
+            });
+        });
+        it('should include subagent parent metadata when provided', async () => {
+            await emitter.emitAgentThought('Subagent thought', undefined, {
+                parentToolCallId: 'agent-parent-1',
+                subagentType: 'general-purpose',
+            });
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_thought_chunk',
+                content: { type: 'text', text: 'Subagent thought' },
+                _meta: {
+                    parentToolCallId: 'agent-parent-1',
+                    subagentType: 'general-purpose',
+                },
+            });
+        });
+    });
+    describe('emitMessage', () => {
+        it('should emit user message when role is user', async () => {
+            await emitter.emitMessage('User input', 'user');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'User input' },
+            });
+        });
+        it('should emit agent message when role is assistant and isThought is false', async () => {
+            await emitter.emitMessage('Agent response', 'assistant', false);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Agent response' },
+            });
+        });
+        it('should emit agent message when role is assistant and isThought is not provided', async () => {
+            await emitter.emitMessage('Agent response', 'assistant');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Agent response' },
+            });
+        });
+        it('should emit agent thought when role is assistant and isThought is true', async () => {
+            await emitter.emitAgentThought('Thinking...');
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_thought_chunk',
+                content: { type: 'text', text: 'Thinking...' },
+            });
+        });
+        it('should ignore isThought when role is user', async () => {
+            // Even if isThought is true, user messages should still be user_message_chunk
+            await emitter.emitMessage('User input', 'user', true);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'User input' },
+            });
+        });
+    });
+    describe('multiple emissions', () => {
+        it('should handle multiple sequential emissions', async () => {
+            await emitter.emitUserMessage('First');
+            await emitter.emitAgentMessage('Second');
+            await emitter.emitAgentThought('Third');
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(3);
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(1, {
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'First' },
+            });
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(2, {
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'Second' },
+            });
+            expect(sendUpdateSpy).toHaveBeenNthCalledWith(3, {
+                sessionUpdate: 'agent_thought_chunk',
+                content: { type: 'text', text: 'Third' },
+            });
+        });
+    });
+    describe('emitUsageMetadata', () => {
+        it('emits standard usage updates with the latest context occupancy, not a cumulative sum', async () => {
+            await emitter.emitUsageMetadata({ promptTokenCount: 100, totalTokenCount: 175 }, '', 20);
+            await emitter.emitUsageMetadata({ promptTokenCount: 120, totalTokenCount: 210 }, '', 30);
+            const usageUpdates = sendUpdateSpy.mock.calls
+                .map(([update]) => update)
+                .filter((update) => update.sessionUpdate === 'usage_update');
+            expect(usageUpdates).toEqual([
+                { sessionUpdate: 'usage_update', used: 100, size: 128_000 },
+                { sessionUpdate: 'usage_update', used: 120, size: 128_000 },
+            ]);
+            // Keep emitting the existing Qwen extension for current consumers.
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                _meta: expect.objectContaining({
+                    usage: expect.objectContaining({ inputTokens: 120 }),
+                }),
+            }));
+        });
+        it('does not replace main-session context usage with replay or subagent usage', async () => {
+            await emitter.emitUsageMetadata({ promptTokenCount: 90 });
+            await emitter.emitUsageMetadata({ promptTokenCount: 40 }, '', 10, {
+                parentToolCallId: 'agent-parent-1',
+                subagentType: 'general-purpose',
+            });
+            expect(sendUpdateSpy.mock.calls
+                .map(([update]) => update)
+                .filter((update) => update.sessionUpdate === 'usage_update')).toEqual([]);
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(2);
+        });
+        it('falls back to total tokens when a live provider omits prompt tokens', async () => {
+            await emitter.emitUsageMetadata({ totalTokenCount: 75 }, '', 10);
+            expect(sendUpdateSpy).toHaveBeenLastCalledWith({
+                sessionUpdate: 'usage_update',
+                used: 75,
+                size: 128_000,
+            });
+        });
+        it('keeps private usage metadata when the context window is unresolved', async () => {
+            const ctx = {
+                ...mockContext,
+                config: {
+                    getContentGeneratorConfig: () => undefined,
+                },
+            };
+            await new MessageEmitter(ctx).emitUsageMetadata({ promptTokenCount: 75 }, '', 10);
+            expect(sendUpdateSpy).toHaveBeenCalledTimes(1);
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                sessionUpdate: 'agent_message_chunk',
+                _meta: expect.objectContaining({ usage: expect.any(Object) }),
+            }));
+        });
+        it('should emit agent_message_chunk with _meta.usage containing token counts', async () => {
+            const usageMetadata = {
+                promptTokenCount: 100,
+                candidatesTokenCount: 50,
+                thoughtsTokenCount: 25,
+                totalTokenCount: 175,
+                cachedContentTokenCount: 10,
+            };
+            await emitter.emitUsageMetadata(usageMetadata);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: '' },
+                _meta: {
+                    usage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        totalTokens: 175,
+                        thoughtTokens: 25,
+                        cachedReadTokens: 10,
+                    },
+                },
+            });
+        });
+        it('should include durationMs in _meta when provided', async () => {
+            const usageMetadata = {
+                promptTokenCount: 10,
+                candidatesTokenCount: 5,
+                thoughtsTokenCount: 2,
+                totalTokenCount: 17,
+                cachedContentTokenCount: 1,
+            };
+            await emitter.emitUsageMetadata(usageMetadata, 'done', 1234);
+            expect(sendUpdateSpy).toHaveBeenCalledWith({
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'done' },
+                _meta: {
+                    usage: {
+                        inputTokens: 10,
+                        outputTokens: 5,
+                        totalTokens: 17,
+                        thoughtTokens: 2,
+                        cachedReadTokens: 1,
+                    },
+                    durationMs: 1234,
+                },
+            });
+        });
+        it('drains model API errors/retries onto a live frame and stamps them', async () => {
+            apiActivityTracker.recordError();
+            apiActivityTracker.recordError();
+            apiActivityTracker.recordRetry();
+            // Live round (durationMs present) → the counts are drained and stamped.
+            await emitter.emitUsageMetadata({ totalTokenCount: 1 }, '', 500);
+            expect(sendUpdateSpy).toHaveBeenCalledWith(expect.objectContaining({
+                _meta: expect.objectContaining({ apiErrors: 2, apiRetries: 1 }),
+            }));
+            // A second live round with nothing pending carries neither key (the first
+            // emit drained the tracker to zero).
+            await emitter.emitUsageMetadata({ totalTokenCount: 1 }, '', 500);
+            const privateUsageUpdates = sendUpdateSpy.mock.calls
+                .map(([update]) => update)
+                .filter((update) => update.sessionUpdate === 'agent_message_chunk' &&
+                update._meta?.usage);
+            const secondMeta = privateUsageUpdates.at(-1)?._meta;
+            expect(secondMeta).not.toHaveProperty('apiErrors');
+            expect(secondMeta).not.toHaveProperty('apiRetries');
+        });
+        it('does not drain the tracker on a replay frame (no durationMs)', async () => {
+            apiActivityTracker.recordError();
+            // Replay path omits durationMs → must not consume the pending count nor
+            // stamp it onto a frame the daemon ignores for replay.
+            await emitter.emitUsageMetadata({ totalTokenCount: 1 });
+            const replayMeta = sendUpdateSpy.mock.lastCall?.[0]._meta;
+            expect(replayMeta).not.toHaveProperty('apiErrors');
+            // The count survived for the next live frame to report.
+            expect(apiActivityTracker.peek().errors).toBe(1);
+        });
+        it('accumulates token counts and API time into the context cumulative usage', async () => {
+            const cumulativeUsage = {
+                promptTokens: 0,
+                cachedTokens: 0,
+                candidateTokens: 0,
+                apiTimeMs: 0,
+            };
+            const ctx = {
+                sessionId: 'test-session-id',
+                config: mockContext.config,
+                sendUpdate: sendUpdateSpy,
+                cumulativeUsage,
+            };
+            const e = new MessageEmitter(ctx);
+            await e.emitUsageMetadata({
+                promptTokenCount: 100,
+                candidatesTokenCount: 50,
+                cachedContentTokenCount: 10,
+            }, '', 800);
+            await e.emitUsageMetadata({
+                promptTokenCount: 30,
+                candidatesTokenCount: 20,
+                cachedContentTokenCount: 5,
+            }, '', 200);
+            expect(cumulativeUsage).toEqual({
+                promptTokens: 130,
+                cachedTokens: 15,
+                candidateTokens: 70,
+                apiTimeMs: 1000,
+            });
+        });
+        it('accumulates tokens but not API time when no duration is provided (replay)', async () => {
+            const cumulativeUsage = {
+                promptTokens: 0,
+                cachedTokens: 0,
+                candidateTokens: 0,
+                apiTimeMs: 0,
+            };
+            const ctx = {
+                sessionId: 'test-session-id',
+                config: {},
+                sendUpdate: sendUpdateSpy,
+                cumulativeUsage,
+            };
+            await new MessageEmitter(ctx).emitUsageMetadata({
+                promptTokenCount: 100,
+                candidatesTokenCount: 50,
+                cachedContentTokenCount: 10,
+            });
+            expect(cumulativeUsage).toEqual({
+                promptTokens: 100,
+                cachedTokens: 10,
+                candidateTokens: 50,
+                apiTimeMs: 0,
+            });
+        });
+        it('skips non-finite usage and durations so they do not poison the accumulator', async () => {
+            const cumulativeUsage = {
+                promptTokens: 5,
+                cachedTokens: 1,
+                candidateTokens: 2,
+                apiTimeMs: 100,
+            };
+            const ctx = {
+                sessionId: 'test-session-id',
+                config: {},
+                sendUpdate: sendUpdateSpy,
+                cumulativeUsage,
+            };
+            // NaN survives `?? 0` (NaN ?? 0 === NaN); a non-finite duration or token
+            // would otherwise make every later snapshot NaN forever.
+            await new MessageEmitter(ctx).emitUsageMetadata({
+                promptTokenCount: Number.NaN,
+                candidatesTokenCount: 10,
+                cachedContentTokenCount: Number.POSITIVE_INFINITY,
+            }, '', Number.NaN);
+            expect(cumulativeUsage).toEqual({
+                promptTokens: 5, // NaN skipped
+                cachedTokens: 1, // Infinity skipped
+                candidateTokens: 12, // 2 + 10
+                apiTimeMs: 100, // NaN duration skipped
+            });
+        });
+    });
+});
+//# sourceMappingURL=MessageEmitter.test.js.map

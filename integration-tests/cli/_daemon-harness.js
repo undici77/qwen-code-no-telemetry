@@ -30,9 +30,11 @@
  */
 import { spawn, execFileSync, } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DaemonClient } from '@qwen-code/sdk';
+import { hashMcpServerConfig, } from '@qwen-code/qwen-code-core';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
  * Default workspace and CLI binary resolution mirrors the existing
@@ -43,7 +45,7 @@ export const DEFAULT_REPO_ROOT = path.resolve(__dirname, '../..');
 export const DEFAULT_TOKEN = 'integration-test-token';
 export const DEFAULT_CLI_BIN = process.env['TEST_CLI_PATH'] ??
     path.resolve(__dirname, '../../packages/cli/dist/index.js');
-const LISTENING_RE = /listening on http:\/\/127\.0\.0\.1:(\d+)/;
+export const LISTENING_LINE_RE = /^(?<line>.*listening on http:\/\/127\.0\.0\.1:(?<port>\d+).*)$/m;
 const DISPOSE_GRACE_MS = 5_000;
 const MATCHED_DESCENDANT_DEPTH = 4;
 export async function spawnDaemon(opts = {}) {
@@ -103,14 +105,12 @@ export async function spawnDaemon(opts = {}) {
                 `stdout=${stdoutBuf.value}\nstderr=${stderrBuf.value}`), true);
         }, bootTimeoutMs);
         const onData = (_chunk) => {
-            const m = stdoutBuf.value.match(LISTENING_RE);
-            if (m) {
-                if (settled)
-                    return;
-                settled = true;
-                cleanup();
-                resolve(Number(m[1]));
-            }
+            const port = stdoutBuf.value.match(LISTENING_LINE_RE)?.groups?.['port'];
+            if (!port || settled)
+                return;
+            settled = true;
+            cleanup();
+            resolve(Number(port));
         };
         const onExit = (code) => {
             fail(new Error(`daemon exited with ${code} before listening:\n` +
@@ -168,6 +168,37 @@ export function writeWorkspaceSettings(workspaceCwd, settings) {
     const settingsPath = path.join(settingsDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     return settingsPath;
+}
+/**
+ * Pre-approve gated (workspace / project scope, #4615) MCP servers for
+ * `workspaceCwd` so the daemon's `qwen --acp` child connects them instead of
+ * skipping them as pending-approval. Servers declared in `.qwen/settings.json`
+ * are workspace-scoped and therefore gated: absent a stored approval, discovery
+ * skips them BEFORE any spawn, which makes the MCP-amplification suite time out
+ * waiting for grandchildren that never appear.
+ *
+ * Writes a standalone approvals file (NOT the developer's global
+ * `~/.qwen/mcpApprovals.json`) under the workspace and returns the env that
+ * points the daemon — and, by inheritance, its acp child — at it. Pass the
+ * returned env to `spawnDaemon({ env })`. The approval hash binds to the same
+ * behavioral fields the child hashes (`scope` is provenance-only and excluded),
+ * so the plain settings config is sufficient. Mirrors the pre-approval pattern
+ * in `simple-mcp-server.test.ts`.
+ */
+export function approveWorkspaceMcpServers(workspaceCwd, servers) {
+    const approvalsPath = path.join(workspaceCwd, '.qwen', 'mcpApprovals.json');
+    const project = {};
+    for (const [name, config] of Object.entries(servers)) {
+        project[name] = { hash: hashMcpServerConfig(config), status: 'approved' };
+    }
+    // Key by the canonical (realpath) workspace, NOT `path.resolve`: the daemon
+    // canonicalizes `--workspace` (e.g. macOS `/var` → `/private/var`) and the
+    // acp child looks approvals up under that resolved path. Keying by the
+    // un-resolved temp path would miss, leaving the servers pending.
+    const root = fs.realpathSync(workspaceCwd);
+    fs.mkdirSync(path.dirname(approvalsPath), { recursive: true });
+    fs.writeFileSync(approvalsPath, JSON.stringify({ [root]: project }, null, 2));
+    return { QWEN_CODE_MCP_APPROVALS_PATH: approvalsPath };
 }
 /**
  * One-shot RSS read via `ps -o rss= -p <pid>`. Returns megabytes (rounded
@@ -318,6 +349,7 @@ export async function consumeSseEvents(client, sessionId, opts = {}) {
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const startedAt = Date.now();
     let received = 0;
+    let lastSeenId;
     let evictedAt;
     let evictionReason;
     const ac = new AbortController();
@@ -334,6 +366,8 @@ export async function consumeSseEvents(client, sessionId, opts = {}) {
             signal: ac.signal,
         })) {
             received++;
+            if (ev.id !== undefined)
+                lastSeenId = ev.id;
             if (ev.type === 'client_evicted') {
                 evictedAt = ev.id;
                 const data = ev.data;
@@ -360,12 +394,28 @@ export async function consumeSseEvents(client, sessionId, opts = {}) {
     }
     return {
         received,
+        lastSeenId,
         evictedAt,
         evictionReason,
         elapsedMs: Date.now() - startedAt,
     };
 }
-function sleep(ms) {
+export function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
+}
+export function gitHead(timeoutMs = 5_000) {
+    try {
+        return execFileSync('git', ['rev-parse', 'HEAD'], {
+            encoding: 'utf8',
+            timeout: timeoutMs,
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+    }
+    catch {
+        return null;
+    }
+}
+export function makeTempWorkspace(label, prefix = 'qwen-test') {
+    return fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-${label}-`));
 }
 //# sourceMappingURL=_daemon-harness.js.map

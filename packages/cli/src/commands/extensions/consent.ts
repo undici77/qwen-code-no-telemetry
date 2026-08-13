@@ -153,7 +153,7 @@ export function extensionConsentString(
   originSource: string = 'QwenCode',
 ): string {
   const output: string[] = [];
-  if (originSource !== 'QwenCode') {
+  if (originSource !== 'QwenCode' && originSource !== 'AgentPlugins') {
     output.push(
       t(
         'You are installing an extension from {{originSource}}. Some features may not work perfectly with Qwen Code.',

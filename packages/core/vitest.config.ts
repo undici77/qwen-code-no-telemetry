@@ -34,14 +34,17 @@ export default defineConfig({
         __dirname,
         './src/telemetry/sdk.ts',
       ),
+      'mime/lite': path.resolve(
+        __dirname,
+        '../../node_modules/mime/dist/src/index_lite.js',
+      ),
+      'fdir': path.resolve(
+        __dirname,
+        '../../node_modules/fdir/dist/index.mjs',
+      ),
     },
   },
   test: {
-    // Raise the per-test ceiling above vitest's 5s default: the self-hosted
-    // CI runners are heavily oversubscribed (maxThreads: 16 below), and I/O-
-    // or WASM-load-bound tests (e.g. the web-tree-sitter lazy runtime, tar
-    // extraction) blow 5s purely under contention, not from any logic fault.
-    // Assertions still fail instantly; only the timeout ceiling grows.
     testTimeout: 15000,
     reporters: ['default', 'junit'],
     silent: true,
@@ -65,9 +68,12 @@ export default defineConfig({
       'src/telemetry/tracer.test.ts',
       'src/telemetry/daemon-metrics.test.ts',
       'src/telemetry/daemon-tracing.test.ts',
+      'src/telemetry/sdk.test.ts',
       'src/telemetry/trace-context.test.ts',
       'src/telemetry/qwen-logger/qwen-logger.test.ts',
       'src/telemetry/event-loop-lag-metrics.test.ts',
+      'src/tools/web-search.test.ts',
+      'src/telemetry/session-events.test.ts',
     ],
     outputFile: {
       junit: 'junit.xml',

@@ -7,12 +7,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
+/**
+ * Vite configuration for @qwen-code/webui library
+ *
+ * Build outputs:
+ * - Main entry:    dist/index.js, dist/index.cjs, dist/index.d.ts
+ * - Advanced entry: dist/advanced.js, dist/advanced.cjs, dist/advanced.d.ts
+ * - CSS: dist/styles.css
+ */
 export default defineConfig(({ command }) => ({
     resolve: command === 'serve'
         ? {

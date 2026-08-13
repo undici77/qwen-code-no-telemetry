@@ -12,8 +12,8 @@
  * invoke them in the same session.
  *
  * Cron tools (cron_create, cron_list, cron_delete) are convenient deferred
- * targets: deterministic, side-effect-free in -p mode, and gated behind the
- * `experimental.cron` setting so we control when they're registered.
+ * targets: deterministic, side-effect-free in -p mode, and enabled by default
+ * (can be disabled via `experimental.cron: false`).
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { TestRig, printDebugInfo, validateModelOutput, } from '../test-helper.js';
@@ -25,9 +25,7 @@ describe('tool-search / deferred tools', () => {
     });
     it('reveals a deferred tool via select: and lets the model invoke it', async () => {
         rig = new TestRig();
-        await rig.setup('tool-search-select-then-invoke', {
-            settings: { experimental: { cron: true } },
-        });
+        await rig.setup('tool-search-select-then-invoke');
         // Force the model down the select: path so the assertion isn't dependent
         // on whether the model spontaneously chose keyword search vs. select.
         const result = await rig.run('Step 1: call the tool_search tool with query "select:cron_list". ' +
@@ -54,9 +52,7 @@ describe('tool-search / deferred tools', () => {
     });
     it('finds deferred tools via keyword search', async () => {
         rig = new TestRig();
-        await rig.setup('tool-search-keyword', {
-            settings: { experimental: { cron: true } },
-        });
+        await rig.setup('tool-search-keyword');
         // The tool_search response is a synthetic <functions>...</functions>
         // block; we check the ARGS the model sent (a keyword query, not select:)
         // and trust the schema-loading behavior covered above.
@@ -86,9 +82,9 @@ describe('tool-search / deferred tools', () => {
     });
     it('does not register deferred tools when their feature flag is off', async () => {
         rig = new TestRig();
-        // No experimental.cron setting → cron_* tools must not be registered at
-        // all (deferred or otherwise). tool_search has nothing to surface.
-        await rig.setup('tool-search-no-cron');
+        await rig.setup('tool-search-no-cron', {
+            settings: { experimental: { cron: false } },
+        });
         const result = await rig.run('Call tool_search with query "select:cron_list". ' +
             'Then reply with the literal text "missing" if cron_list was not in the result, ' +
             'or "found" if it was.');

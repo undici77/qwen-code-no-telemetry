@@ -67,12 +67,12 @@
  *                                          this counter to ~469)
  *   QWEN_TUI_E2E_SUBAGENT_TOOL_CALLS=5
  */
-import { createServer, } from 'node:http';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { TerminalCapture } from './terminal-capture.js';
+import { fakeToolCall, startFakeOpenAIServer, } from '../fake-openai-server.js';
 const TERMINAL_COLS = 60;
 const TERMINAL_ROWS = 18;
 const PROMPT_TEXT = 'Use the general-purpose subagent to inspect package.json';
@@ -112,240 +112,97 @@ function captureCounts(raw) {
         cursorUpCount: countPattern(raw, new RegExp(`${ESC_PATTERN}\\[[0-9]+A`, 'g')),
     };
 }
-function chatCompletionId(suffix) {
-    return `chatcmpl-qwen-tui-subagent-${suffix}-${Date.now()}`;
-}
-function sendJson(res, body) {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(body));
-}
-function sendStream(res, chunks) {
-    res.writeHead(200, {
-        'content-type': 'text/event-stream; charset=utf-8',
-        'cache-control': 'no-cache, no-transform',
-        connection: 'keep-alive',
-    });
-    for (const chunk of chunks) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-    }
-    res.write('data: [DONE]\n\n');
-    res.end();
-}
-function streamWrap(id, delta, finishReason, usage) {
-    return {
-        id,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [{ index: 0, delta, finish_reason: finishReason }],
-        ...(usage ? { usage } : {}),
-    };
-}
-function responseToStreamChunks(response) {
-    const id = response.id;
-    const choice = response.choices[0];
-    const message = choice.message;
-    const chunks = [];
-    chunks.push(streamWrap(id, { role: 'assistant' }, null));
-    if (message.content !== null && message.content !== undefined) {
-        chunks.push(streamWrap(id, { content: message.content }, null));
-    }
-    if (message.tool_calls) {
-        for (let i = 0; i < message.tool_calls.length; i += 1) {
-            const tc = message.tool_calls[i];
-            chunks.push(streamWrap(id, {
-                tool_calls: [
-                    {
-                        index: i,
-                        id: tc.id,
-                        type: tc.type,
-                        function: {
-                            name: tc.function.name,
-                            arguments: tc.function.arguments,
-                        },
-                    },
-                ],
-            }, null));
-        }
-    }
-    chunks.push(streamWrap(id, {}, choice.finish_reason, response.usage));
-    return chunks;
-}
-function sendResponse(res, body, isStream) {
-    if (isStream) {
-        sendStream(res, responseToStreamChunks(body));
-    }
-    else {
-        sendJson(res, body);
-    }
-}
 function buildMainAgentToolCall(packageJsonPath) {
     return {
-        id: 'chatcmpl-qwen-tui-subagent-dispatch',
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [
-            {
-                index: 0,
-                message: {
-                    role: 'assistant',
-                    content: null,
-                    tool_calls: [
-                        {
-                            id: 'call_dispatch_main',
-                            type: 'function',
-                            function: {
-                                name: 'agent',
-                                arguments: JSON.stringify({
-                                    description: SUBAGENT_DESCRIPTION,
-                                    prompt: `${SUBAGENT_PROMPT_MARKER}: read ${packageJsonPath} a few times to drive the SubAgent display, then reply with "${SUBAGENT_DONE_MARKER}"`,
-                                    subagent_type: 'general-purpose',
-                                }),
-                            },
-                        },
-                    ],
-                },
-                finish_reason: 'tool_calls',
-            },
+        toolCalls: [
+            fakeToolCall('agent', {
+                description: SUBAGENT_DESCRIPTION,
+                prompt: `${SUBAGENT_PROMPT_MARKER}: read ${packageJsonPath} a few times to drive the SubAgent display, then reply with "${SUBAGENT_DONE_MARKER}"`,
+                subagent_type: 'general-purpose',
+            }, 'call_dispatch_main'),
         ],
         usage: { prompt_tokens: 32, completion_tokens: 16, total_tokens: 48 },
     };
 }
 function buildSubagentSingleToolCall(packageJsonPath, index) {
     return {
-        id: chatCompletionId(`subagent-tool-${index}`),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [
-            {
-                index: 0,
-                message: {
-                    role: 'assistant',
-                    content: null,
-                    tool_calls: [
-                        {
-                            id: `call_subagent_read_${index}`,
-                            type: 'function',
-                            function: {
-                                name: 'read_file',
-                                arguments: JSON.stringify({
-                                    absolute_path: packageJsonPath,
-                                    offset: index * 2,
-                                    limit: 6,
-                                }),
-                            },
-                        },
-                    ],
-                },
-                finish_reason: 'tool_calls',
-            },
+        toolCalls: [
+            fakeToolCall('read_file', {
+                absolute_path: packageJsonPath,
+                offset: index * 2,
+                limit: 6,
+            }, `call_subagent_read_${index}`),
         ],
         usage: { prompt_tokens: 50, completion_tokens: 12, total_tokens: 62 },
     };
 }
 function buildSubagentFinal() {
     return {
-        id: chatCompletionId('subagent-final'),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [
-            {
-                index: 0,
-                message: { role: 'assistant', content: SUBAGENT_DONE_MARKER },
-                finish_reason: 'stop',
-            },
-        ],
+        content: SUBAGENT_DONE_MARKER,
         usage: { prompt_tokens: 80, completion_tokens: 8, total_tokens: 88 },
     };
 }
 function buildMainFinal() {
     return {
-        id: chatCompletionId('main-final'),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'dummy',
-        choices: [
-            {
-                index: 0,
-                message: { role: 'assistant', content: MAIN_DONE_MARKER },
-                finish_reason: 'stop',
-            },
-        ],
+        content: MAIN_DONE_MARKER,
         usage: { prompt_tokens: 100, completion_tokens: 4, total_tokens: 104 },
     };
 }
-async function startFakeOpenAIServer(packageJsonPath, subagentToolCalls) {
+function messageText(content) {
+    if (typeof content === 'string') {
+        return content;
+    }
+    return content === undefined ? '' : JSON.stringify(content);
+}
+function roleContentMessages(body) {
+    const messages = body['messages'];
+    if (!Array.isArray(messages)) {
+        return '';
+    }
+    return messages
+        .filter((message) => typeof message === 'object' && message !== null)
+        .filter((message) => message['role'] === 'system' || message['role'] === 'user')
+        .map((message) => messageText(message['content']))
+        .join('\n');
+}
+function startSubagentFakeOpenAIServer(packageJsonPath, subagentToolCalls) {
     let mainTurnCount = 0;
     let subagentTurnCount = 0;
-    let requestCount = 0;
     const verbose = process.env['QWEN_TUI_E2E_VERBOSE'] === '1';
     const log = (...args) => {
         if (verbose) {
             console.error('[fake-openai]', ...args);
         }
     };
-    const server = createServer((req, res) => {
-        requestCount += 1;
-        log('incoming', req.method, req.url);
-        if (req.method !== 'POST') {
-            res.writeHead(404).end();
-            return;
+    return startFakeOpenAIServer(({ body, requestIndex }) => {
+        const bodyText = JSON.stringify(body);
+        log('request', requestIndex + 1, 'first 200:', bodyText.slice(0, 200));
+        // SubAgent loop is identified by the marker we planted in the prompt.
+        // Main-loop tool-call arguments and tool results can also contain the
+        // marker, so only `system`/`user` content participates in this check.
+        const roleContent = roleContentMessages(body);
+        const isSubagentLoop = roleContent.includes('general-purpose agent') &&
+            roleContent.includes(SUBAGENT_PROMPT_MARKER);
+        const isStream = body['stream'] === true;
+        if (isSubagentLoop) {
+            subagentTurnCount += 1;
+            log('subagent turn', subagentTurnCount, 'stream', isStream);
+            // Emit one tool_call per turn so the SubAgent display has to commit
+            // and re-render between roundtrips. Sending all tool_calls in a
+            // single response lets the CLI batch the renders and hides the
+            // streaming-flicker pattern we want to expose.
+            if (subagentTurnCount <= subagentToolCalls) {
+                return buildSubagentSingleToolCall(packageJsonPath, subagentTurnCount);
+            }
+            return buildSubagentFinal();
         }
-        let body = '';
-        req.on('data', (chunk) => {
-            body += chunk.toString('utf8');
-        });
-        req.on('end', () => {
-            log('body bytes', body.length, 'first 200:', body.slice(0, 200));
-            // SubAgent loop is identified by the marker we planted in the prompt.
-            // Main-loop tool-call arguments also contain the marker (it's embedded
-            // in the assistant's tool_call we returned), so we additionally require
-            // the marker to appear as a `user` or `system` content — which only
-            // happens after the parent dispatched into the SubAgent loop.
-            const isSubagentLoop = body.includes('"role":"system"') &&
-                body.includes('general-purpose agent') &&
-                body.includes(SUBAGENT_PROMPT_MARKER);
-            const isStream = body.includes('"stream":true');
-            if (isSubagentLoop) {
-                subagentTurnCount += 1;
-                log('subagent turn', subagentTurnCount, 'stream', isStream);
-                // Emit one tool_call per turn so the SubAgent display has to commit
-                // and re-render between roundtrips. Sending all tool_calls in a
-                // single response lets the CLI batch the renders and hides the
-                // streaming-flicker pattern we want to expose.
-                if (subagentTurnCount <= subagentToolCalls) {
-                    sendResponse(res, buildSubagentSingleToolCall(packageJsonPath, subagentTurnCount), isStream);
-                    return;
-                }
-                sendResponse(res, buildSubagentFinal(), isStream);
-                return;
-            }
-            mainTurnCount += 1;
-            log('main turn', mainTurnCount, 'stream', isStream);
-            if (mainTurnCount === 1) {
-                sendResponse(res, buildMainAgentToolCall(packageJsonPath), isStream);
-                return;
-            }
-            sendResponse(res, buildMainFinal(), isStream);
-        });
+        mainTurnCount += 1;
+        log('main turn', mainTurnCount, 'stream', isStream);
+        if (mainTurnCount === 1) {
+            return buildMainAgentToolCall(packageJsonPath);
+        }
+        return buildMainFinal();
     });
-    await new Promise((resolveListen) => {
-        server.listen(0, '127.0.0.1', resolveListen);
-    });
-    const address = server.address();
-    if (!address || typeof address === 'string') {
-        throw new Error('failed to start fake OpenAI server');
-    }
-    return {
-        baseUrl: `http://127.0.0.1:${address.port}/v1`,
-        getRequestCount: () => requestCount,
-        close: () => new Promise((resolveClose) => {
-            server.close(() => resolveClose());
-        }),
-    };
 }
 function qwenArgs(baseUrl) {
     // NOTE: --bare is intentionally omitted. Bare mode hard-codes the registered
@@ -386,7 +243,7 @@ async function main() {
         rmSync(outputDir, { recursive: true });
     }
     mkdirSync(outputDir, { recursive: true });
-    const fakeServer = await startFakeOpenAIServer(packageJsonPath, subagentToolCalls);
+    const fakeServer = await startSubagentFakeOpenAIServer(packageJsonPath, subagentToolCalls);
     console.error('[fake-openai] baseUrl =', fakeServer.baseUrl);
     // Sandbox HOME to keep ~/.qwen settings out of the run.
     const homeDir = join(outputDir, 'home');
@@ -471,7 +328,7 @@ async function main() {
             ...counts,
             finalScreenLines: finalScreen.split('\n').length,
             subagentToolCalls,
-            requestCount: fakeServer.getRequestCount(),
+            requestCount: fakeServer.requests.length,
             limits: {
                 maxClearTerminalPairs: maxClearPairs,
                 maxClearScreen,

@@ -42,6 +42,11 @@ export class BlockStreamer {
         }
         await this.sending;
     }
+    /** Drop buffered text and cancel future idle emission. */
+    stop() {
+        this.clearIdleTimer();
+        this.buffer = '';
+    }
     // ---------------------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------------------

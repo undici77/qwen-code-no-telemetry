@@ -100,6 +100,7 @@ describe('ProcessTransport', () => {
         });
     });
     afterEach(() => {
+        vi.useRealTimers();
         vi.restoreAllMocks();
     });
     describe('Construction and Initialization', () => {
@@ -272,6 +273,218 @@ describe('ProcessTransport', () => {
                 '123e4567-e89b-12d3-a456-426614174000',
             ]), expect.any(Object));
         });
+        it('should pass forkSession through --fork-session', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                forkSession: true,
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--fork-session']), expect.any(Object));
+        });
+        it('should pass maxToolCalls through --max-tool-calls', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                maxToolCalls: 25,
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--max-tool-calls', '25']), expect.any(Object));
+        });
+        it('should pass maxSubagentDepth through --max-subagent-depth', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                maxSubagentDepth: 5,
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--max-subagent-depth', '5']), expect.any(Object));
+        });
+        it('should pass includeDirectories through --include-directories', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                includeDirectories: ['/tmp/a', '/tmp/b'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--include-directories', '/tmp/a,/tmp/b']), expect.any(Object));
+        });
+        it('should pass extraArgs directly', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                extraArgs: ['--verbose', '--some-flag'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--verbose', '--some-flag']), expect.any(Object));
+        });
+        it('should pass extensions through --extensions', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                extensions: ['ext1', 'ext2'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--extensions', 'ext1,ext2']), expect.any(Object));
+        });
+        it('should pass fallbackModel through --fallback-model', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                fallbackModel: ['model-a', 'model-b'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--fallback-model', 'model-a,model-b']), expect.any(Object));
+        });
+        it('should pass proxy through --proxy', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                proxy: 'http://localhost:8080',
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--proxy', 'http://localhost:8080']), expect.any(Object));
+        });
+        it('should pass boolean flags through (sandbox, safeMode, insecure, worktree)', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                sandbox: true,
+                safeMode: true,
+                insecure: true,
+                worktree: true,
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining([
+                '--sandbox',
+                '--safe-mode',
+                '--insecure',
+                '--worktree',
+            ]), expect.any(Object));
+        });
+        it('should pass disabledSlashCommands through --disabled-slash-commands', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                disabledSlashCommands: ['cmd1', 'cmd2'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining(['--disabled-slash-commands', 'cmd1,cmd2']), expect.any(Object));
+        });
+        it('should pass allowedMcpServerNames through --allowed-mcp-server-names', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+                allowedMcpServerNames: ['server1', 'server2'],
+            };
+            new ProcessTransport(options);
+            expect(mockSpawn).toHaveBeenCalledWith('qwen', expect.arrayContaining([
+                '--allowed-mcp-server-names',
+                'server1,server2',
+            ]), expect.any(Object));
+        });
+        it('should not emit optional flags when options are unset', () => {
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const options = {
+                pathToQwenExecutable: 'qwen',
+            };
+            new ProcessTransport(options);
+            const spawnCall = mockSpawn.mock.calls[0];
+            const args = spawnCall?.[1];
+            const absentFlags = [
+                '--sandbox',
+                '--safe-mode',
+                '--insecure',
+                '--worktree',
+                '--fork-session',
+                '--max-tool-calls',
+                '--max-subagent-depth',
+                '--include-directories',
+                '--extensions',
+                '--allowed-mcp-server-names',
+                '--fallback-model',
+                '--proxy',
+                '--disabled-slash-commands',
+                '--resume',
+                '--session-id',
+                '--continue',
+            ];
+            for (const flag of absentFlags) {
+                expect(args).not.toContain(flag);
+            }
+        });
         it('should throw if aborted before initialization', () => {
             mockPrepareSpawnInfo.mockReturnValue({
                 command: 'qwen',
@@ -399,7 +612,75 @@ describe('ProcessTransport', () => {
             await transport.close();
             vi.advanceTimersByTime(5000);
             expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGKILL');
-            vi.useRealTimers();
+        });
+        it('should escalate abort-triggered SIGTERM to SIGKILL after timeout', () => {
+            vi.useFakeTimers();
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockChildProcess.kill = vi.fn((signal) => {
+                if (signal === 'SIGTERM') {
+                    mockChildProcess.killed = true;
+                }
+                return true;
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const abortController = new AbortController();
+            new ProcessTransport({
+                pathToQwenExecutable: 'qwen',
+                abortController,
+            });
+            abortController.abort();
+            expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGTERM');
+            vi.advanceTimersByTime(5000);
+            expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGKILL');
+        });
+        it('should escalate close-triggered SIGTERM even after killed becomes true', async () => {
+            vi.useFakeTimers();
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockChildProcess.kill = vi.fn((signal) => {
+                if (signal === 'SIGTERM') {
+                    mockChildProcess.killed = true;
+                }
+                return true;
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const transport = new ProcessTransport({
+                pathToQwenExecutable: 'qwen',
+            });
+            await transport.close();
+            expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGTERM');
+            vi.advanceTimersByTime(5000);
+            expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGKILL');
+        });
+        it('should clear the escalation timer when the child exits promptly', () => {
+            vi.useFakeTimers();
+            mockPrepareSpawnInfo.mockReturnValue({
+                command: 'qwen',
+                args: [],
+                type: 'native',
+                originalInput: 'qwen',
+            });
+            mockSpawn.mockReturnValue(mockChildProcess);
+            const abortController = new AbortController();
+            new ProcessTransport({
+                pathToQwenExecutable: 'qwen',
+                abortController,
+            });
+            abortController.abort();
+            mockChildProcess.exitCode = 0;
+            mockChildProcess.emit('close', 0, null);
+            vi.advanceTimersByTime(5000);
+            expect(mockChildProcess.kill).toHaveBeenCalledTimes(1);
+            expect(mockChildProcess.kill).not.toHaveBeenCalledWith('SIGKILL');
         });
         it('should be idempotent when calling close() multiple times', async () => {
             mockPrepareSpawnInfo.mockReturnValue({

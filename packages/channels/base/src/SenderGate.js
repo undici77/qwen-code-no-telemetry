@@ -7,6 +7,22 @@ export class SenderGate {
         this.allowedUsers = new Set(allowedUsers);
         this.pairingStore = pairingStore || null;
     }
+    replaceAllowedUsers(users) {
+        this.allowedUsers = new Set(users);
+    }
+    isAllowed(senderId) {
+        switch (this.policy) {
+            case 'open':
+                return true;
+            case 'allowlist':
+                return this.allowedUsers.has(senderId);
+            case 'pairing':
+                return (this.allowedUsers.has(senderId) ||
+                    this.pairingStore?.isApproved(senderId) === true);
+            default:
+                throw new Error(`Unknown sender policy: ${this.policy}`);
+        }
+    }
     check(senderId, senderName) {
         switch (this.policy) {
             case 'open':
@@ -23,8 +39,11 @@ export class SenderGate {
                     return { allowed: true };
                 }
                 // Generate pairing code
-                const code = this.pairingStore?.createRequest(senderId, senderName || senderId);
-                return { allowed: false, pairingCode: code ?? null };
+                const result = this.pairingStore?.createRequest(senderId, senderName || senderId);
+                return {
+                    allowed: false,
+                    pairing: result ?? { rejected: 'cap_reached' },
+                };
             }
             default:
                 throw new Error(`Unknown sender policy: ${this.policy}`);

@@ -1,0 +1,336 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+import { createDebugLogger, isGitRepository } from '@qwen-code/qwen-code-core';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as childProcess from 'node:child_process';
+export var PackageManager;
+(function (PackageManager) {
+    PackageManager["NPM"] = "npm";
+    PackageManager["YARN"] = "yarn";
+    PackageManager["PNPM"] = "pnpm";
+    PackageManager["PNPX"] = "pnpx";
+    PackageManager["BUN"] = "bun";
+    PackageManager["BUNX"] = "bunx";
+    PackageManager["HOMEBREW"] = "homebrew";
+    PackageManager["STANDALONE"] = "standalone";
+    PackageManager["NPX"] = "npx";
+    PackageManager["UNKNOWN"] = "unknown";
+})(PackageManager || (PackageManager = {}));
+export function getNpmCliPath(nodePath = process.execPath, platform = process.platform) {
+    if (platform === 'win32') {
+        return path.win32.join(path.win32.dirname(nodePath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    }
+    // Prefer the npm symlink that sits next to the node binary and resolve it to
+    // the real npm-cli.js. On split layouts where npm is not adjacent to node,
+    // fall back to the conventional `<prefix>/lib/node_modules/npm` location
+    // instead of throwing synchronously — getNpmCliPath is called from a
+    // non-async site (handleAutoUpdate), and a returned best-effort path lets the
+    // downstream spawn surface any failure through its 'error' handler.
+    //
+    // Node version managers (mise, asdf, proto) may replace bin/npm with a shell
+    // wrapper instead of a symlink to npm-cli.js. Validate the resolved path is a
+    // .js file before returning it; otherwise use the conventional fallback.
+    //
+    // This branch is POSIX-only; pin path.posix (not the host-default path) so the
+    // separator stays correct even when a caller passes an explicit `platform`
+    // that differs from the host, e.g. getNpmCliPath('/usr/bin/node', 'linux') on
+    // a Windows host.
+    const npmCliJs = path.posix.join(path.posix.dirname(nodePath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    const adjacentNpm = path.posix.join(path.posix.dirname(nodePath), 'npm');
+    try {
+        const resolved = fs.realpathSync(adjacentNpm);
+        if (resolved.endsWith('.js'))
+            return resolved;
+        return npmCliJs;
+    }
+    catch {
+        return npmCliJs;
+    }
+}
+const debugLogger = createDebugLogger('INSTALLATION_INFO');
+const STANDALONE_UNIX_INSTALLER = 'https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh';
+const STANDALONE_WINDOWS_INSTALLER = 'https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1';
+function getStandaloneInstallerUrl() {
+    return process.platform === 'win32'
+        ? STANDALONE_WINDOWS_INSTALLER
+        : STANDALONE_UNIX_INSTALLER;
+}
+export function resolveUpdateCommand(updateCommand, latestVersion) {
+    const isNightly = latestVersion.includes('nightly');
+    return updateCommand.replace('@latest', isNightly ? '@nightly' : `@${latestVersion}`);
+}
+export function formatUpdateInstructions(installationInfo, latestVersion) {
+    const lines = [];
+    if (installationInfo.updateMessage && !installationInfo.updateCommand) {
+        lines.push(...formatUpdateMessage(installationInfo.updateMessage, latestVersion));
+    }
+    if (installationInfo.updateCommand) {
+        const updateCmd = resolveUpdateCommand(installationInfo.updateCommand, latestVersion);
+        lines.push('Run the following to update:', `  ${updateCmd}`);
+    }
+    else if (!installationInfo.updateMessage) {
+        lines.push('Manual update required. Please reinstall Qwen Code.');
+    }
+    return lines;
+}
+function formatUpdateMessage(updateMessage, latestVersion) {
+    const message = resolveUpdateCommand(updateMessage, latestVersion);
+    const sudoPrefix = 'Update requires sudo. Please run: ';
+    if (message.startsWith(sudoPrefix)) {
+        return [
+            'Update requires sudo. Please run:',
+            `  ${message.slice(sudoPrefix.length)}`,
+        ];
+    }
+    return [message];
+}
+export function getInstallationInfo(projectRoot, isAutoUpdateEnabled) {
+    const cliPath = process.argv[1];
+    if (!cliPath) {
+        return { packageManager: PackageManager.UNKNOWN, isGlobal: false };
+    }
+    try {
+        // Normalize path separators to forward slashes for consistent matching.
+        const realPath = fs.realpathSync(cliPath).replace(/\\/g, '/');
+        const normalizedProjectRoot = projectRoot?.replace(/\\/g, '/');
+        const isGit = isGitRepository(process.cwd());
+        // Check for local git clone first
+        if (isGit &&
+            normalizedProjectRoot &&
+            isSamePathOrInside(realPath, normalizedProjectRoot) &&
+            !realPath.includes('/node_modules/')) {
+            return {
+                packageManager: PackageManager.UNKNOWN, // Not managed by a package manager in this sense
+                isGlobal: false,
+                updateMessage: 'Running from a local git clone. Please update with "git pull".',
+            };
+        }
+        // Check for npx/pnpx
+        if (realPath.includes('/.npm/_npx') || realPath.includes('/npm/_npx')) {
+            return {
+                packageManager: PackageManager.NPX,
+                isGlobal: false,
+                updateMessage: 'Running via npx, update not applicable.',
+            };
+        }
+        if (realPath.includes('/.pnpm/_pnpx')) {
+            return {
+                packageManager: PackageManager.PNPX,
+                isGlobal: false,
+                updateMessage: 'Running via pnpx, update not applicable.',
+            };
+        }
+        const standaloneInfo = getStandaloneInstallInfo(realPath, isAutoUpdateEnabled);
+        if (standaloneInfo) {
+            return standaloneInfo;
+        }
+        // Check for Homebrew
+        if (process.platform === 'darwin') {
+            try {
+                // We do not support homebrew for now, keep forward compatibility for future use
+                childProcess.execSync('brew list -1 | grep -q "^qwen-code$"', {
+                    stdio: 'ignore',
+                });
+                return {
+                    packageManager: PackageManager.HOMEBREW,
+                    isGlobal: true,
+                    updateMessage: 'Installed via Homebrew. Please update with "brew upgrade".',
+                };
+            }
+            catch (_error) {
+                // continue to the next check
+            }
+        }
+        // Check for pnpm
+        if (realPath.includes('/.pnpm/global')) {
+            const updateCommand = 'pnpm add -g @qwen-code/qwen-code@latest';
+            return {
+                packageManager: PackageManager.PNPM,
+                isGlobal: true,
+                updateCommand,
+                updateMessage: isAutoUpdateEnabled
+                    ? 'Installed with pnpm. Attempting to automatically update now...'
+                    : `Please run ${updateCommand} to update`,
+            };
+        }
+        // Check for yarn
+        if (realPath.includes('/.yarn/global')) {
+            const updateCommand = 'yarn global add @qwen-code/qwen-code@latest';
+            return {
+                packageManager: PackageManager.YARN,
+                isGlobal: true,
+                updateCommand,
+                updateMessage: isAutoUpdateEnabled
+                    ? 'Installed with yarn. Attempting to automatically update now...'
+                    : `Please run ${updateCommand} to update`,
+            };
+        }
+        // Check for bun
+        if (realPath.includes('/.bun/install/cache')) {
+            return {
+                packageManager: PackageManager.BUNX,
+                isGlobal: false,
+                updateMessage: 'Running via bunx, update not applicable.',
+            };
+        }
+        if (realPath.includes('/.bun/bin')) {
+            const updateCommand = 'bun add -g @qwen-code/qwen-code@latest';
+            return {
+                packageManager: PackageManager.BUN,
+                isGlobal: true,
+                updateCommand,
+                updateMessage: isAutoUpdateEnabled
+                    ? 'Installed with bun. Attempting to automatically update now...'
+                    : `Please run ${updateCommand} to update`,
+            };
+        }
+        // Check for local install
+        if (normalizedProjectRoot &&
+            isSamePathOrInside(realPath, `${normalizedProjectRoot}/node_modules`)) {
+            let pm = PackageManager.NPM;
+            if (fs.existsSync(path.join(projectRoot, 'yarn.lock'))) {
+                pm = PackageManager.YARN;
+            }
+            else if (fs.existsSync(path.join(projectRoot, 'pnpm-lock.yaml'))) {
+                pm = PackageManager.PNPM;
+            }
+            else if (fs.existsSync(path.join(projectRoot, 'bun.lockb'))) {
+                pm = PackageManager.BUN;
+            }
+            return {
+                packageManager: pm,
+                isGlobal: false,
+                updateMessage: "Locally installed. Please update via your project's package.json.",
+            };
+        }
+        // Check if the npm global package directory is writable to determine
+        // whether `npm install -g` would require sudo.
+        const npmPackageDir = path.dirname(path.dirname(realPath));
+        let npmPrefixWritable = false;
+        try {
+            fs.accessSync(npmPackageDir, fs.constants.W_OK);
+            npmPrefixWritable = true;
+        }
+        catch {
+            // Not writable (e.g., /usr/local/lib/node_modules owned by root)
+        }
+        if (!npmPrefixWritable) {
+            // The npm global prefix requires sudo. Do NOT silently migrate to the
+            // standalone installer here: that swaps in a bundled Node runtime which
+            // can be incompatible with the host (e.g. an older glibc), breaking users
+            // who were updating fine via npm. Keep npm installs on npm and ask the
+            // user to update with sudo instead. No updateCommand is returned so the
+            // auto-updater does not attempt an unattended sudo.
+            return {
+                packageManager: PackageManager.NPM,
+                isGlobal: true,
+                updateMessage: 'Update requires sudo. Please run: sudo npm install -g @qwen-code/qwen-code@latest',
+            };
+        }
+        const updateCommand = 'npm install -g @qwen-code/qwen-code@latest';
+        return {
+            packageManager: PackageManager.NPM,
+            isGlobal: true,
+            updateCommand,
+            updateMessage: isAutoUpdateEnabled
+                ? 'Installed with npm. Attempting to automatically update now...'
+                : `Please run ${updateCommand} to update`,
+        };
+    }
+    catch (error) {
+        debugLogger.error('Failed to detect installation info:', error);
+        return { packageManager: PackageManager.UNKNOWN, isGlobal: false };
+    }
+}
+function stripTrailingSlashes(value) {
+    return value.replace(/\/+$/, '') || '/';
+}
+function isSamePathOrInside(candidate, parent) {
+    const normalizedCandidate = stripTrailingSlashes(candidate);
+    const normalizedParent = stripTrailingSlashes(parent);
+    if (normalizedParent === '/') {
+        return normalizedCandidate === '/' || normalizedCandidate.startsWith('/');
+    }
+    return (normalizedCandidate === normalizedParent ||
+        normalizedCandidate.startsWith(`${normalizedParent}/`));
+}
+function getStandaloneInstallInfo(realPath, isAutoUpdateEnabled) {
+    const installDir = standaloneInstallDirForCliPath(realPath);
+    if (!installDir || !isStandaloneInstallDir(installDir)) {
+        return null;
+    }
+    const installerUrl = getStandaloneInstallerUrl();
+    const updateCommand = process.platform === 'win32'
+        ? `powershell -ExecutionPolicy Bypass -c "irm ${installerUrl} | iex"`
+        : `curl -fsSL ${installerUrl} | bash`;
+    return {
+        packageManager: PackageManager.STANDALONE,
+        isGlobal: true,
+        isStandalone: true,
+        standaloneDir: installDir,
+        updateMessage: isAutoUpdateEnabled
+            ? 'Standalone install detected. Attempting to automatically update now...'
+            : `Standalone install detected. Please rerun the standalone installer to update: ${updateCommand}`,
+    };
+}
+function standaloneInstallDirForCliPath(realPath) {
+    const normalized = realPath.replace(/\\/g, '/');
+    const suffix = '/lib/cli.js';
+    if (!normalized.endsWith(suffix)) {
+        return null;
+    }
+    return realPath.slice(0, -suffix.length);
+}
+function isStandaloneInstallDir(installDir) {
+    try {
+        const manifestPath = path.join(installDir, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) {
+            return false;
+        }
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        // Manifest format is produced by writeManifest in create-standalone-package.js.
+        if (manifest.name !== '@qwen-code/qwen-code' ||
+            typeof manifest.target !== 'string' ||
+            !isStandaloneTargetForCurrentPlatform(manifest.target)) {
+            return false;
+        }
+        const qwenBin = process.platform === 'win32'
+            ? path.join(installDir, 'bin', 'qwen.cmd')
+            : path.join(installDir, 'bin', 'qwen');
+        const nodeBin = process.platform === 'win32'
+            ? path.join(installDir, 'node', 'node.exe')
+            : path.join(installDir, 'node', 'bin', 'node');
+        return (fs.existsSync(qwenBin) &&
+            fs.existsSync(nodeBin) &&
+            isStandaloneRuntimeFile(qwenBin) &&
+            isStandaloneRuntimeFile(nodeBin));
+    }
+    catch (err) {
+        debugLogger.error('Standalone detection failed:', installDir, err);
+        return false;
+    }
+}
+function isStandaloneTargetForCurrentPlatform(target) {
+    switch (process.platform) {
+        case 'darwin':
+            return /^darwin-(arm64|x64)$/.test(target);
+        case 'linux':
+            return /^linux-(arm64|x64)$/.test(target);
+        case 'win32':
+            return /^win-(arm64|x64)$/.test(target);
+        default:
+            return false;
+    }
+}
+function isStandaloneRuntimeFile(filePath) {
+    const stats = fs.lstatSync(filePath);
+    if (!stats.isFile() || stats.isSymbolicLink()) {
+        return false;
+    }
+    return process.platform === 'win32' || (stats.mode & 0o111) !== 0;
+}
+//# sourceMappingURL=installationInfo.js.map
