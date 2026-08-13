@@ -8,7 +8,7 @@ import { render as inkRender } from 'ink';
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
-import type { Hunk } from 'diff';
+import type { GitDiffHunk } from '@qwen-code/qwen-code-core';
 import type { GitDiffResult } from '@qwen-code/qwen-code-core';
 import { DiffDialog } from './DiffDialog.js';
 import { KeypressProvider } from '../contexts/KeypressContext.js';
@@ -21,7 +21,7 @@ import { ShellFocusContext } from '../contexts/ShellFocusContext.js';
 const { diffState } = vi.hoisted(() => ({
   diffState: {
     result: null as GitDiffResult | null,
-    hunks: new Map<string, Hunk[]>(),
+    hunks: new Map<string, GitDiffHunk[]>(),
   },
 }));
 vi.mock('../hooks/useDiffData.js', () => ({

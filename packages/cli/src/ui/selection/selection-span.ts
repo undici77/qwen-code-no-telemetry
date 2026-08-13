@@ -85,7 +85,7 @@ function selectableLineSpan(
 function isSelectableContent(
   cell: ReadonlyFrame['cells'][number][number],
 ): boolean {
-  return cell.selectable && cell.value !== '' && cell.value !== ' ';
+  return (cell.selectable ?? false) && cell.value !== '' && cell.value !== ' ';
 }
 
 /** Nearest contiguous selectable line span around a click, or null if blank. */
