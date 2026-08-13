@@ -16,11 +16,19 @@ import * as nodeFs from 'node:fs';
 import { access, lstat, open, readFile, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
-import type { Hunk } from 'diff';
 import { findGitRoot, readFirstLineNoFollow } from './gitUtils.js';
 
-/** Re-export so consumers don't need to depend on `diff` directly. */
-export type GitDiffHunk = Hunk;
+/**
+ * Shape of a diff hunk as parsed from git patch output.
+ * Mirrors the `GitDiffHunk` type that was removed from `diff` v8+.
+ */
+export interface GitDiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
 
 /**
  * A single file's diff hunks plus whether the per-file caps
@@ -28,7 +36,7 @@ export type GitDiffHunk = Hunk;
  * viewer can label the diff as incomplete instead of silently under-reporting.
  */
 export interface GitDiffFileHunks {
-  hunks: Hunk[];
+  hunks: GitDiffHunk[];
   truncated: boolean;
 }
 
@@ -298,7 +306,7 @@ export async function fetchGitDiff(cwd: string): Promise<GitDiffResult | null> {
  */
 export async function fetchGitDiffHunks(
   cwd: string,
-): Promise<Map<string, Hunk[]>> {
+): Promise<Map<string, GitDiffHunk[]>> {
   // Walk ancestors once; reuse for the transient-state probe and the diff
   // call. Running from the repo root also keeps hunk keys repo-root-relative
   // regardless of which subdirectory the caller is in.
@@ -373,7 +381,10 @@ export async function fetchGitDiffHunksForFile(
   // A single-file diff yields at most one entry; return its hunks regardless of
   // the exact header key (which may carry rename / C-style-quote formatting).
   if (parsed.size > 0) {
-    const [key, hunks] = parsed.entries().next().value as [string, Hunk[]];
+    const [key, hunks] = parsed.entries().next().value as [
+      string,
+      GitDiffHunk[],
+    ];
     return { hunks: hunks ?? [], truncated: truncatedPaths.has(key) };
   }
 
@@ -618,8 +629,8 @@ export function parseGitNumstat(stdout: string): GitDiffResult {
 export function parseGitDiff(
   stdout: string,
   truncatedPaths?: Set<string>,
-): Map<string, Hunk[]> {
-  const result = new Map<string, Hunk[]>();
+): Map<string, GitDiffHunk[]> {
+  const result = new Map<string, GitDiffHunk[]>();
   if (!stdout.trim()) return result;
 
   const fileDiffs = stdout.split(/^diff --git /m).filter(Boolean);
@@ -641,8 +652,8 @@ export function parseGitDiff(
     const filePath = extractFilePath(lines);
     if (filePath === null) continue;
 
-    const fileHunks: Hunk[] = [];
-    let currentHunk: Hunk | null = null;
+    const fileHunks: GitDiffHunk[] = [];
+    let currentHunk: GitDiffHunk | null = null;
     let lineCount = 0;
 
     for (let i = 1; i < lines.length; i++) {
