@@ -507,12 +507,12 @@ describe('LoggingContentGenerator', () => {
     expect(logApiRequest).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      'parent-session',
+      'different-owner',
     );
     expect(logApiResponse).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      'parent-session',
+      'different-owner',
     );
   });
 
