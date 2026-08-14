@@ -1166,6 +1166,22 @@
               "description": "Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.",
               "type": "boolean",
               "default": true
+            },
+            "apiKey": {
+              "description": "API key for the search backend. Env override: WEB_SEARCH_API_KEY.",
+              "type": "string"
+            },
+            "engine": {
+              "description": "Search engine to use. Env override: WEB_SEARCH_ENGINE.",
+              "type": "string"
+            },
+            "hl": {
+              "description": "Highlight parameter for search. Env override: WEB_SEARCH_HL.",
+              "type": "string"
+            },
+            "gl": {
+              "description": "Geo location parameter for search. Env override: WEB_SEARCH_GL.",
+              "type": "string"
             }
           }
         },
