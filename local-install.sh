@@ -190,6 +190,16 @@ install_qwen_code() {
     rm -f "${work_dir}/.gitignore" 2>/dev/null || true
     rm -rf "${work_dir}/node_modules" 2>/dev/null || true
 
+    # Clean stale .js/.js.map files that may sit alongside .ts sources.
+    # esbuild picks up these stale outputs instead of recompiling from TypeScript,
+    # causing "No matching export" build failures.
+    echo "Cleaning stale compiled artifacts from source..."
+    find "${work_dir}/packages/*/src" -name "*.ts" -o -name "*.tsx" 2>/dev/null \
+        | sed 's/\.ts$//; s/\.tsx$//' \
+        | while read -r base; do
+            rm -f "${base}.js" "${base}.js.map"
+        done
+
     echo "Installing dependencies in temporary directory..."
     ( cd "${work_dir}" && npm install --no-audit --no-fund ) \
         || { echo "✗ npm install failed in ${work_dir}"; exit 1; }
