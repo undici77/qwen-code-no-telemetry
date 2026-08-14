@@ -1,0 +1,1 @@
+2026-08-14T18:57:57.347Z [WARN] [WORKSPACE] Skipping unreadable directory: /workspace/qwen-code-no-telemetry/workspace/my-project (Directory does not exist: /workspace/qwen-code-no-telemetry/workspace/my-project)

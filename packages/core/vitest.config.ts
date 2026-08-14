@@ -38,14 +38,20 @@ export default defineConfig({
         __dirname,
         '../../node_modules/mime/dist/src/index_lite.js',
       ),
-      'fdir': path.resolve(
-        __dirname,
-        '../../node_modules/fdir/dist/index.mjs',
-      ),
+      fdir: path.resolve(__dirname, '../../node_modules/fdir/dist/index.mjs'),
     },
   },
   test: {
+    // Raise the per-test ceiling above vitest's 5s default: the self-hosted
+    // CI runners are heavily oversubscribed, and I/O-
+    // or WASM-load-bound tests (e.g. the web-tree-sitter lazy runtime, tar
+    // extraction) blow 5s purely under contention, not from any logic fault.
+    // Assertions still fail instantly; only the timeout ceiling grows.
     testTimeout: 15000,
+    // ECS hosts run several jobs at once; leave capacity for neighboring jobs.
+    maxWorkers: process.env['RUNNER_NAME']?.startsWith('ecs-qwen-')
+      ? '25%'
+      : undefined,
     reporters: ['default', 'junit'],
     silent: true,
     setupFiles: ['./test-setup.ts'],
@@ -91,12 +97,6 @@ export default defineConfig({
         'cobertura',
         ['json-summary', { outputFile: 'coverage-summary.json' }],
       ],
-    },
-    poolOptions: {
-      threads: {
-        minThreads: 8,
-        maxThreads: 16,
-      },
     },
   },
 });
