@@ -12,38 +12,38 @@ import type { CommandContext } from '../ui/commands/types.js';
  * object without an unsafe cast. A full `CommandContext` is still assignable.
  */
 type SystemInfoContext = {
-    services: Partial<Pick<CommandContext['services'], 'config' | 'settings'>>;
+  services: Partial<Pick<CommandContext['services'], 'config' | 'settings'>>;
 };
 /**
  * System information interface containing all system-related details
  * that can be collected for debugging and reporting purposes.
  */
 export interface SystemInfo {
-    cliVersion: string;
-    osPlatform: string;
-    osArch: string;
-    osRelease: string;
-    nodeVersion: string;
-    npmVersion: string;
-    sandboxEnv: string;
-    modelVersion: string;
-    selectedAuthType: string;
-    ideClient: string;
-    sessionId: string;
-    proxy?: string;
+  cliVersion: string;
+  osPlatform: string;
+  osArch: string;
+  osRelease: string;
+  nodeVersion: string;
+  npmVersion: string;
+  sandboxEnv: string;
+  modelVersion: string;
+  selectedAuthType: string;
+  ideClient: string;
+  sessionId: string;
+  proxy?: string;
 }
 /**
  * Additional system information for bug reports
  */
 export interface ExtendedSystemInfo extends SystemInfo {
-    memoryUsage: string;
-    baseUrl?: string;
-    apiKeyEnvKey?: string;
-    gitCommit?: string;
-    cliVersionDisplay?: string;
-    proxy?: string;
-    fastModel?: string;
-    lspStatus?: string;
+  memoryUsage: string;
+  baseUrl?: string;
+  apiKeyEnvKey?: string;
+  gitCommit?: string;
+  cliVersionDisplay?: string;
+  proxy?: string;
+  fastModel?: string;
+  lspStatus?: string;
 }
 /**
  * Gets the NPM version, handling cases where npm might not be available.
@@ -61,7 +61,9 @@ export declare function getGitVersion(): Promise<string>;
  * Gets the IDE client name if IDE mode is enabled.
  * Returns empty string if IDE mode is disabled or IDE client is not detected.
  */
-export declare function getIdeClientName(context: SystemInfoContext): Promise<string>;
+export declare function getIdeClientName(
+  context: SystemInfoContext,
+): Promise<string>;
 /**
  * Gets the sandbox environment information.
  * Handles different sandbox types including sandbox-exec and custom sandbox environments.
@@ -78,7 +80,9 @@ export declare function getSandboxEnv(stripPrefix?: boolean): string;
  * @param context - Command context containing config and settings
  * @returns Promise resolving to SystemInfo object with all collected information
  */
-export declare function getSystemInfo(context: SystemInfoContext): Promise<SystemInfo>;
+export declare function getSystemInfo(
+  context: SystemInfoContext,
+): Promise<SystemInfo>;
 /**
  * Collects extended system information for bug reports.
  * Includes all standard system info plus memory usage and optional base URL.
@@ -86,5 +90,7 @@ export declare function getSystemInfo(context: SystemInfoContext): Promise<Syste
  * @param context - Command context containing config and settings
  * @returns Promise resolving to ExtendedSystemInfo object
  */
-export declare function getExtendedSystemInfo(context: SystemInfoContext): Promise<ExtendedSystemInfo>;
+export declare function getExtendedSystemInfo(
+  context: SystemInfoContext,
+): Promise<ExtendedSystemInfo>;
 export {};

@@ -1,24 +1,29 @@
-import { type MarkdownTableMode, type MarkdownContentSource } from '../../customization';
+import {
+  type MarkdownTableMode,
+  type MarkdownContentSource,
+} from '../../customization';
 interface MarkdownProps {
-    content: string;
-    source?: MarkdownContentSource;
-    /**
-     * True while the message is still streaming in. Used to defer expensive,
-     * per-chunk rendering (Mermaid diagrams and Shiki syntax highlighting) until
-     * the content settles, avoiding flicker and wasted re-tokenization.
-     */
-    isStreaming?: boolean;
-    tableMode?: MarkdownTableMode;
+  content: string;
+  source?: MarkdownContentSource;
+  /**
+   * True while the message is still streaming in. Used to defer expensive,
+   * per-chunk rendering (Mermaid diagrams and Shiki syntax highlighting) until
+   * the content settles, avoiding flicker and wasted re-tokenization.
+   */
+  isStreaming?: boolean;
+  tableMode?: MarkdownTableMode;
 }
 export interface ResolvedFenceLanguage {
-    /** What the user typed, in its original case, shown in the code-block header. */
-    label: string;
-    /** Canonical language id (aliases resolved); also used to detect mermaid. */
-    lang: string;
-    /** A supported Shiki language id, or 'text' when unsupported (no highlight). */
-    resolvedLang: string;
+  /** What the user typed, in its original case, shown in the code-block header. */
+  label: string;
+  /** Canonical language id (aliases resolved); also used to detect mermaid. */
+  lang: string;
+  /** A supported Shiki language id, or 'text' when unsupported (no highlight). */
+  resolvedLang: string;
 }
-export declare function resolveFenceLanguage(rawLang: string | undefined): ResolvedFenceLanguage;
+export declare function resolveFenceLanguage(
+  rawLang: string | undefined,
+): ResolvedFenceLanguage;
 export declare function isSafeHref(url: string | undefined): boolean;
 export declare function isSafeImageSrc(url: string | undefined): boolean;
 /**
@@ -34,5 +39,5 @@ export declare function isSafeImageSrc(url: string | undefined): boolean;
  * Every other href keeps the default sanitizer.
  */
 export declare function markdownUrlTransform(url: string): string;
-export declare const Markdown: import("react").NamedExoticComponent<MarkdownProps>;
+export declare const Markdown: import('react').NamedExoticComponent<MarkdownProps>;
 export {};

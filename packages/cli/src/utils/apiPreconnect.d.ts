@@ -11,10 +11,13 @@
  * @param authType - Authentication type (openai, qwen-oauth, anthropic, etc.)
  * @param options - Configuration options
  */
-export declare function preconnectApi(authType: string | undefined, options?: {
+export declare function preconnectApi(
+  authType: string | undefined,
+  options?: {
     resolvedBaseUrl?: string;
     proxy?: string;
-}): void;
+  },
+): void;
 /**
  * Reset preconnect state (for testing only)
  * @internal

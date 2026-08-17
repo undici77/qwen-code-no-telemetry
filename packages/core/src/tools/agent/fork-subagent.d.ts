@@ -1,6 +1,6 @@
 import type { Content } from '@google/genai';
 import type { Config } from '../../config/config.js';
-export declare const FORK_SUBAGENT_TYPE = "fork";
+export declare const FORK_SUBAGENT_TYPE = 'fork';
 /**
  * Forking is an explicit choice — the caller selects it with
  * `subagent_type: "fork"`. Omitting `subagent_type` always resolves to the
@@ -10,15 +10,15 @@ export declare const FORK_SUBAGENT_TYPE = "fork";
  * sessions; headless forks use the background registry so the caller waits for
  * completion and non-interactive permission policy is applied.
  */
-export declare const FORK_BOILERPLATE_TAG = "fork-boilerplate";
-export declare const FORK_DIRECTIVE_PREFIX = "Directive: ";
+export declare const FORK_BOILERPLATE_TAG = 'fork-boilerplate';
+export declare const FORK_DIRECTIVE_PREFIX = 'Directive: ';
 export declare const FORK_AGENT: {
-    name: string;
-    description: string;
-    tools: string[];
-    systemPrompt: string;
-    approvalMode: string;
-    level: "session";
+  name: string;
+  description: string;
+  tools: string[];
+  systemPrompt: string;
+  approvalMode: string;
+  level: 'session';
 };
 export declare const FORK_DEFAULT_MAX_TURNS = 200;
 export declare function runInForkContext<T>(fn: () => Promise<T>): Promise<T>;
@@ -27,19 +27,33 @@ export declare function isInForkExecution(): boolean;
  * Keeps the fork's model-visible declarations cache-identical while removing
  * the main-session-only image renderer from its execution capability.
  */
-export declare function resolveForkExecutionAllowedTools(advertisedToolNames: readonly string[], requestedToolNames: readonly string[] | undefined): string[] | undefined;
+export declare function resolveForkExecutionAllowedTools(
+  advertisedToolNames: readonly string[],
+  requestedToolNames: readonly string[] | undefined,
+): string[] | undefined;
 /**
  * Restores the parent's display schema in a fork registry for prompt-cache
  * parity. Callers must pair this with resolveForkExecutionAllowedTools().
  */
-export declare function registerForkDisplayImageForCache(config: Config, advertisedToolNames: readonly string[]): void;
-export declare const FORK_PLACEHOLDER_RESULT = "Fork started \u2014 processing in background";
-export declare function buildForkExecutionAllowlist(requestedTools: readonly string[] | undefined, declaredTools: readonly string[]): string[];
+export declare function registerForkDisplayImageForCache(
+  config: Config,
+  advertisedToolNames: readonly string[],
+): void;
+export declare const FORK_PLACEHOLDER_RESULT =
+  'Fork started \u2014 processing in background';
+export declare function buildForkExecutionAllowlist(
+  requestedTools: readonly string[] | undefined,
+  declaredTools: readonly string[],
+): string[];
 export type ForkTurns = 'all' | `${number}`;
 export type NormalizedForkTurns = 'all' | number;
 export declare function isValidForkToolWildcard(toolName: string): boolean;
-export declare function validateForkToolList(tools: unknown): string | undefined;
-export declare function normalizeForkTurns(forkTurns: ForkTurns | undefined): NormalizedForkTurns;
+export declare function validateForkToolList(
+  tools: unknown,
+): string | undefined;
+export declare function normalizeForkTurns(
+  forkTurns: ForkTurns | undefined,
+): NormalizedForkTurns;
 /**
  * Build functionResponse parts for every open function call in a model message.
  *
@@ -50,14 +64,17 @@ export declare function normalizeForkTurns(forkTurns: ForkTurns | undefined): No
  * @param assistantMessage - The model message that may contain functionCall parts.
  * @param placeholderOutput - The placeholder string to use as each response's output.
  */
-export declare function buildFunctionResponseParts(assistantMessage: Content, placeholderOutput: string): Array<{
-    functionResponse: {
-        id: string | undefined;
-        name: string | undefined;
-        response: {
-            output: string;
-        };
+export declare function buildFunctionResponseParts(
+  assistantMessage: Content,
+  placeholderOutput: string,
+): Array<{
+  functionResponse: {
+    id: string | undefined;
+    name: string | undefined;
+    response: {
+      output: string;
     };
+  };
 }>;
 /**
  * Select parent conversation history for a fork.
@@ -66,7 +83,10 @@ export declare function buildFunctionResponseParts(assistantMessage: Content, pl
  * reminder. A bounded selection omits synthetic prefixes; the caller can
  * reattach startup context that the fork still needs.
  */
-export declare function selectForkHistory(history: Content[], forkTurns: NormalizedForkTurns): Content[];
+export declare function selectForkHistory(
+  history: Content[],
+  forkTurns: NormalizedForkTurns,
+): Content[];
 /**
  * Build extra history messages for a forked subagent.
  *
@@ -84,7 +104,12 @@ export declare function selectForkHistory(history: Content[], forkTurns: Normali
  * @param assistantMessage - The last model message from the parent history
  * @returns Extra messages to append to history (may be empty)
  */
-export declare function buildForkedMessages(directive: string, assistantMessage: Content, executionAllowedTools?: readonly string[], promptHint?: string): Content[];
+export declare function buildForkedMessages(
+  directive: string,
+  assistantMessage: Content,
+  executionAllowedTools?: readonly string[],
+  promptHint?: string,
+): Content[];
 /**
  * Notice injected into a subagent that has been spun up inside an isolated
  * git worktree (via `AgentTool` `isolation: 'worktree'`). Tells the agent
@@ -94,7 +119,10 @@ export declare function buildForkedMessages(directive: string, assistantMessage:
  * Mirrors claude-code's `buildWorktreeNotice` in
  * `tools/AgentTool/forkSubagent.ts`.
  */
-export declare function buildWorktreeNotice(parentCwd: string, worktreeCwd: string): string;
+export declare function buildWorktreeNotice(
+  parentCwd: string,
+  worktreeCwd: string,
+): string;
 /**
  * Notice for a sub-agent pinned to a caller-owned worktree via `working_dir`.
  *
@@ -106,4 +134,8 @@ export declare function buildWorktreeNotice(parentCwd: string, worktreeCwd: stri
  * translate the parent's paths would contradict the caller's own instructions.
  */
 export declare function buildPinnedWorktreeNotice(worktreeCwd: string): string;
-export declare function buildChildMessage(directive: string, executionAllowedTools?: readonly string[], promptHint?: string): string;
+export declare function buildChildMessage(
+  directive: string,
+  executionAllowedTools?: readonly string[],
+  promptHint?: string,
+): string;

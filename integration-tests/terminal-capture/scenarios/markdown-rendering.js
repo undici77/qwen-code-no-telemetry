@@ -10,38 +10,38 @@ const markdownPrompt = `Output a compact Markdown rendering verification sample 
 
 Do not explain the sample.`;
 export default {
-    name: 'markdown-rendering',
-    spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: {
-        title: 'qwen-code markdown rendering',
-        cwd: '../../..',
-        cols: 140,
-        rows: 42,
+  name: 'markdown-rendering',
+  spawn: ['node', 'dist/cli.js', '--yolo'],
+  terminal: {
+    title: 'qwen-code markdown rendering',
+    cwd: '../../..',
+    cols: 140,
+    rows: 42,
+  },
+  flow: [
+    {
+      type: markdownPrompt,
+      streaming: {
+        delayMs: 3000,
+        intervalMs: 1000,
+        count: 15,
+      },
+      capture: 'markdown-rendered.png',
+      captureFull: 'markdown-rendered-full.png',
     },
-    flow: [
-        {
-            type: markdownPrompt,
-            streaming: {
-                delayMs: 3000,
-                intervalMs: 1000,
-                count: 15,
-            },
-            capture: 'markdown-rendered.png',
-            captureFull: 'markdown-rendered-full.png',
-        },
-        {
-            key: '\x1bm',
-            capture: 'markdown-raw-toggle.png',
-            captureFull: 'markdown-raw-toggle-full.png',
-        },
-        {
-            type: '/copy mermaid 1',
-            capture: 'copy-mermaid-source.png',
-        },
-        {
-            type: '/copy latex 1',
-            capture: 'copy-latex-source.png',
-        },
-    ],
+    {
+      key: '\x1bm',
+      capture: 'markdown-raw-toggle.png',
+      captureFull: 'markdown-raw-toggle-full.png',
+    },
+    {
+      type: '/copy mermaid 1',
+      capture: 'copy-mermaid-source.png',
+    },
+    {
+      type: '/copy latex 1',
+      capture: 'copy-latex-source.png',
+    },
+  ],
 };
 //# sourceMappingURL=markdown-rendering.js.map

@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface MidTurnQueueItem {
-    text: string;
-    images?: unknown[];
-    midTurnState?: 'submitting' | 'queued';
-    midTurnMessageId?: string;
+  text: string;
+  images?: unknown[];
+  midTurnState?: 'submitting' | 'queued';
+  midTurnMessageId?: string;
 }
 export interface MidTurnInjectedBatch {
-    sessionId: string;
-    messages: readonly string[];
-    messageIds?: readonly string[];
-    /** Trusted client id that queued the messages (from the SSE envelope). */
-    originatorClientId?: string;
+  sessionId: string;
+  messages: readonly string[];
+  messageIds?: readonly string[];
+  /** Trusted client id that queued the messages (from the SSE envelope). */
+  originatorClientId?: string;
 }
 /**
  * Reconcile injected mid-turn messages against the local pending queue: remove
@@ -46,4 +46,10 @@ export interface MidTurnInjectedBatch {
  * client-generated ids used by reconciliation; older daemons still need the
  * fallback because they mint their id after the request arrives.
  */
-export declare function removeInjectedFromQueue<T extends MidTurnQueueItem>(prompts: readonly T[], batches: readonly MidTurnInjectedBatch[], sessionId: string, clientId?: string, strictMessageIds?: boolean): T[] | null;
+export declare function removeInjectedFromQueue<T extends MidTurnQueueItem>(
+  prompts: readonly T[],
+  batches: readonly MidTurnInjectedBatch[],
+  sessionId: string,
+  clientId?: string,
+  strictMessageIds?: boolean,
+): T[] | null;

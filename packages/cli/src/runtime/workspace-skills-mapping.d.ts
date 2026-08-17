@@ -13,6 +13,10 @@ import type { SkillDisablement } from '../config/skill-settings.js';
  * `workspace-skills-status` provider so the two skill listings can never
  * drift in shape.
  */
-export declare function mapSkillConfigToStatus(skill: SkillConfig, disablements?: ReadonlyMap<string, SkillDisablement>, opts?: {
+export declare function mapSkillConfigToStatus(
+  skill: SkillConfig,
+  disablements?: ReadonlyMap<string, SkillDisablement>,
+  opts?: {
     disabled?: boolean;
-}): ServeWorkspaceSkillStatus;
+  },
+): ServeWorkspaceSkillStatus;

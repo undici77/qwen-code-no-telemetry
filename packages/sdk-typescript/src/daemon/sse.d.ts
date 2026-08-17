@@ -13,9 +13,12 @@ import type { DaemonEvent } from './types.js';
  * matching on `err.message`.
  */
 export declare class SseFramingError extends Error {
-    constructor(message: string);
+  constructor(message: string);
 }
-export declare function parseSseStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<DaemonEvent>;
+export declare function parseSseStream(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal,
+): AsyncGenerator<DaemonEvent>;
 /**
  * Walk `buf` and pull off every complete frame (either `\n\n` or
  * `\r\n\r\n` separator). Returns the frames + the unconsumed tail.
@@ -24,6 +27,6 @@ export declare function parseSseStream(body: ReadableStream<Uint8Array>, signal?
  * parser) reuse this CRLF-aware boundary scan instead of reimplementing it.
  */
 export declare function consumeFrames(buf: string): {
-    frames: string[];
-    tail: string;
+  frames: string[];
+  tail: string;
 };

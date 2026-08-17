@@ -35,7 +35,9 @@ export declare const MIN_CLAMPED_OUTPUT_TOKENS: TokenCount;
  * a generous margin only trims output in the final approach to compaction,
  * while an under-sized one reintroduces the #5950 400s.
  */
-export declare function outputClampMargin(contextWindowSize: number): TokenCount;
+export declare function outputClampMargin(
+  contextWindowSize: number,
+): TokenCount;
 /**
  * Size an output request to the room actually left in the context window:
  * `min(ceiling, window − prompt − margin)`, floored at
@@ -52,8 +54,14 @@ export declare function outputClampMargin(contextWindowSize: number): TokenCount
  *   count where available (a fresh chars/4 estimate under-counts CJK and
  *   tool-heavy prompts, which is the one way a residual 400 could return).
  */
-export declare function clampOutputTokensToWindow(outputCeiling: number, contextWindowSize: number, promptTokens: number): TokenCount;
-export declare function parsePositiveIntegerEnvValue(raw: string | undefined): number | undefined;
+export declare function clampOutputTokensToWindow(
+  outputCeiling: number,
+  contextWindowSize: number,
+  promptTokens: number,
+): TokenCount;
+export declare function parsePositiveIntegerEnvValue(
+  raw: string | undefined,
+): number | undefined;
 /** Robust normalizer: strips provider prefixes, pipes/colons, date/version suffixes, etc. */
 export declare function normalize(model: string): string;
 /**
@@ -65,7 +73,10 @@ export declare function normalize(model: string): string;
  * @returns true if the model has an explicit output limit definition, false if it uses the default fallback
  */
 export declare function hasExplicitOutputLimit(model: Model): boolean;
-export declare function knownTokenLimit(model: Model, type?: TokenLimitType): TokenCount | undefined;
+export declare function knownTokenLimit(
+  model: Model,
+  type?: TokenLimitType,
+): TokenCount | undefined;
 /**
  * Return the token limit for a model string based on the specified type.
  *
@@ -81,7 +92,10 @@ export declare function knownTokenLimit(model: Model, type?: TokenLimitType): To
  * @param type - The type of token limit ('input' for context window, 'output' for generation)
  * @returns The maximum number of tokens allowed for this model and type
  */
-export declare function tokenLimit(model: Model, type?: TokenLimitType): TokenCount;
+export declare function tokenLimit(
+  model: Model,
+  type?: TokenLimitType,
+): TokenCount;
 /**
  * The default (non-user-configured) output request for a model: its
  * advertised output limit, clipped to OUTPUT_TOKEN_CEILING. This is the one
@@ -98,5 +112,8 @@ export declare function defaultOutputCeiling(model: Model): TokenCount;
  * invariant ("user max_tokens is a ceiling, not an escape hatch") stays in
  * one place so a new provider can't silently reopen it.
  */
-export declare function reconcileMaxTokens(configMaxTokens: number | null | undefined, requestMaxTokens: number | null | undefined): number | undefined;
+export declare function reconcileMaxTokens(
+  configMaxTokens: number | null | undefined,
+  requestMaxTokens: number | null | undefined,
+): number | undefined;
 export {};

@@ -21,27 +21,31 @@ export const LARGE_SCREEN_QUERY = '(min-width: 1024px)';
  * entry points hidden unless a test explicitly opts in.
  */
 export function useIsLargeScreen(query = LARGE_SCREEN_QUERY) {
-    const [isLarge, setIsLarge] = useState(() => matchesQuery(query));
-    useEffect(() => {
-        if (typeof window === 'undefined' ||
-            typeof window.matchMedia !== 'function') {
-            return;
-        }
-        const mql = window.matchMedia(query);
-        // Re-sync in case the viewport changed between the initial render and this
-        // effect running (e.g. a resize during hydration).
-        setIsLarge(mql.matches);
-        const handler = (event) => setIsLarge(event.matches);
-        mql.addEventListener('change', handler);
-        return () => mql.removeEventListener('change', handler);
-    }, [query]);
-    return isLarge;
+  const [isLarge, setIsLarge] = useState(() => matchesQuery(query));
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return;
+    }
+    const mql = window.matchMedia(query);
+    // Re-sync in case the viewport changed between the initial render and this
+    // effect running (e.g. a resize during hydration).
+    setIsLarge(mql.matches);
+    const handler = (event) => setIsLarge(event.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [query]);
+  return isLarge;
 }
 function matchesQuery(query) {
-    if (typeof window === 'undefined' ||
-        typeof window.matchMedia !== 'function') {
-        return false;
-    }
-    return window.matchMedia(query).matches;
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
+    return false;
+  }
+  return window.matchMedia(query).matches;
 }
 //# sourceMappingURL=useIsLargeScreen.js.map

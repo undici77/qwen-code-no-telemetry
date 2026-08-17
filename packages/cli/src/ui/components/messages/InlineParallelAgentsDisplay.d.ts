@@ -26,24 +26,24 @@
 import type React from 'react';
 import type { IndividualToolCallDisplay } from '../../types.js';
 interface InlineParallelAgentsDisplayProps {
-    toolCalls: readonly IndividualToolCallDisplay[];
-    contentWidth: number;
-    /**
-     * Total agent count for the header when `toolCalls` is a subset
-     * (e.g. only terminal agents during the live phase). When omitted,
-     * defaults to the number of agent entries in `toolCalls`.
-     */
-    totalAgentCount?: number;
-    /**
-     * Hard cap on the panel's rendered height (rows). The panel renders
-     * inside the non-`<Static>` live frame; if that frame exceeds the
-     * terminal height, ink clears the whole screen on every repaint
-     * (scroll snap-back / flicker — see ink `shouldClearTerminalForFrame`).
-     * When set, the agent list windows to the most recent rows that fit,
-     * leaving a "+N more" indicator. Omitted → no cap (committed phase,
-     * where the row already lives in `<Static>`).
-     */
-    availableTerminalHeight?: number;
+  toolCalls: readonly IndividualToolCallDisplay[];
+  contentWidth: number;
+  /**
+   * Total agent count for the header when `toolCalls` is a subset
+   * (e.g. only terminal agents during the live phase). When omitted,
+   * defaults to the number of agent entries in `toolCalls`.
+   */
+  totalAgentCount?: number;
+  /**
+   * Hard cap on the panel's rendered height (rows). The panel renders
+   * inside the non-`<Static>` live frame; if that frame exceeds the
+   * terminal height, ink clears the whole screen on every repaint
+   * (scroll snap-back / flicker — see ink `shouldClearTerminalForFrame`).
+   * When set, the agent list windows to the most recent rows that fit,
+   * leaving a "+N more" indicator. Omitted → no cap (committed phase,
+   * where the row already lives in `<Static>`).
+   */
+  availableTerminalHeight?: number;
 }
 export declare const InlineParallelAgentsDisplay: React.FC<InlineParallelAgentsDisplayProps>;
 export {};

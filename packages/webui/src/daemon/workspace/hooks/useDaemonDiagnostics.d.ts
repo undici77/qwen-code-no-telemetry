@@ -5,6 +5,10 @@
  */
 import type { DaemonResourceOptions } from '../types.js';
 export declare function useDaemonDiagnostics(options?: DaemonResourceOptions): {
-    env: import("../types.js").ResourceResult<import("@qwen-code/sdk").DaemonWorkspaceEnvStatus>;
-    preflight: import("../types.js").ResourceResult<import("@qwen-code/sdk").DaemonWorkspacePreflightStatus>;
+  env: import('../types.js').ResourceResult<
+    import('@qwen-code/sdk').DaemonWorkspaceEnvStatus
+  >;
+  preflight: import('../types.js').ResourceResult<
+    import('@qwen-code/sdk').DaemonWorkspacePreflightStatus
+  >;
 };

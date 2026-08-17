@@ -18,10 +18,16 @@ import type { DaemonSessionGroupPresetColor } from '@qwen-code/sdk/daemon';
  * the chip stays distinguishable from other panes' chips even in the icon-only
  * compact state — where every workspace would otherwise show the same folder.
  */
-export declare function WorkspaceIndicator({ name, title, ariaLabel, color, compact, }: {
-    name: string;
-    title: string;
-    ariaLabel: string;
-    color?: DaemonSessionGroupPresetColor;
-    compact?: boolean;
-}): import("react/jsx-runtime").JSX.Element;
+export declare function WorkspaceIndicator({
+  name,
+  title,
+  ariaLabel,
+  color,
+  compact,
+}: {
+  name: string;
+  title: string;
+  ariaLabel: string;
+  color?: DaemonSessionGroupPresetColor;
+  compact?: boolean;
+}): import('react/jsx-runtime').JSX.Element;

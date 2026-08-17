@@ -7,21 +7,21 @@
 export type AuditOutcome = 'yielded' | 'dry' | 'unknown';
 /** A retired chunk skipped this round, with the receipts that earned it. */
 export interface RetiredChunk {
-    chunkId: number;
-    /** The two most recent audit rounds — both substantive dry receipts. */
-    dryRounds: [number, number];
-    /** The next round whose parity puts the chunk back under audit. */
-    nextColdCheck: number;
+  chunkId: number;
+  /** The two most recent audit rounds — both substantive dry receipts. */
+  dryRounds: [number, number];
+  /** The next round whose parity puts the chunk back under audit. */
+  nextColdCheck: number;
 }
 export interface RoundSchedule {
-    /** Chunk ids to build this round, in the order the caller gave them. */
-    due: number[];
-    /** The subset of `due` that is a retired chunk's alternating cold check. */
-    coldChecks: number[];
-    /** Retired chunks NOT due this round — the retirement note names these. */
-    skipped: RetiredChunk[];
-    /** Every chunk is retired and none is due: the audit has converged. */
-    converged: boolean;
+  /** Chunk ids to build this round, in the order the caller gave them. */
+  due: number[];
+  /** The subset of `due` that is a retired chunk's alternating cold check. */
+  coldChecks: number[];
+  /** Retired chunks NOT due this round — the retirement note names these. */
+  skipped: RetiredChunk[];
+  /** Every chunk is retired and none is due: the audit has converged. */
+  converged: boolean;
 }
 /**
  * The diff lines a record's prompt points its chunk at, 1-based and
@@ -46,7 +46,10 @@ export interface RoundSchedule {
  * transcript classifies `unknown`, and no chunk retires — the territory is
  * never consulted.
  */
-export declare function bakedRanges(prompt: string, diffPath: string | undefined): Array<[number, number]>;
+export declare function bakedRanges(
+  prompt: string,
+  diffPath: string | undefined,
+): Array<[number, number]>;
 /**
  * Whether any of the transcript's reads lands in the chunk's baked
  * territory. Overlap is the bar, not containment: an honest auditor pages
@@ -54,7 +57,10 @@ export declare function bakedRanges(prompt: string, diffPath: string | undefined
  * single read holds it all. A read with no line range (a `read_file` with
  * no limit) proves no lines at all and overlaps nothing.
  */
-export declare function openedTheTerritory(diffReads: Array<[number, number]>, territory: Array<[number, number]>): boolean;
+export declare function openedTheTerritory(
+  diffReads: Array<[number, number]>,
+  territory: Array<[number, number]>,
+): boolean;
 /**
  * Which chunks round `round` owes an auditor, from the audit history the
  * harness and the prompt records agree on.
@@ -73,4 +79,10 @@ export declare function openedTheTerritory(diffReads: Array<[number, number]>, t
  * because the right degradation — build every chunk — is a build decision,
  * not a schedule.
  */
-export declare function scheduleReverseAuditRound(planPath: string, chunkIds: number[], round: number, env?: NodeJS.ProcessEnv, diffPath?: string): RoundSchedule;
+export declare function scheduleReverseAuditRound(
+  planPath: string,
+  chunkIds: number[],
+  round: number,
+  env?: NodeJS.ProcessEnv,
+  diffPath?: string,
+): RoundSchedule;

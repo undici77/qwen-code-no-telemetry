@@ -29,14 +29,14 @@ export declare function stripExportMeta(source: string): string;
  * `/workflows` listing and the phase-tree UI can read it directly.
  */
 export interface WorkflowMeta {
-    name: string;
-    description: string;
-    whenToUse?: string;
-    phases?: Array<{
-        title: string;
-        detail?: string;
-        model?: string;
-    }>;
+  name: string;
+  description: string;
+  whenToUse?: string;
+  phases?: Array<{
+    title: string;
+    detail?: string;
+    model?: string;
+  }>;
 }
 /**
  * Strip `export const meta = {...}` from the script AND extract the meta
@@ -68,11 +68,11 @@ export interface WorkflowMeta {
  * 2.1.168 verbatim so script authors see one consistent error text.
  */
 export declare function extractAndStripMeta(source: string): {
-    stripped: string;
-    meta: WorkflowMeta | null;
+  stripped: string;
+  meta: WorkflowMeta | null;
 };
 import type { WorkflowDispatchScheduler } from './workflow-dispatch-scheduler.js';
-export declare const debugLogger: import("../../utils/debugLogger.js").DebugLogger;
+export declare const debugLogger: import('../../utils/debugLogger.js').DebugLogger;
 /**
  * WorkflowAgentOpts — structured options for the `agent()` global.
  *
@@ -83,21 +83,21 @@ export declare const debugLogger: import("../../utils/debugLogger.js").DebugLogg
  * like `scema` before they reach dispatch.
  */
 export interface WorkflowAgentOpts {
-    label?: string;
-    phase?: string;
-    schema?: object;
-    model?: string;
-    isolation?: 'worktree' | 'remote';
-    agentType?: string;
-    /**
-     * P-stall: per-call stall-watchdog timeout in milliseconds. The dispatch
-     * is aborted + retried (up to 3 attempts) after this many ms of no
-     * subagent progress (with no tool in flight). Defaults to 60_000 (env
-     * override `QWEN_CODE_WORKFLOW_STALL_SECONDS`). `0` disables the watchdog
-     * for this call.
-     */
-    stallMs?: number;
-    [key: string]: unknown;
+  label?: string;
+  phase?: string;
+  schema?: object;
+  model?: string;
+  isolation?: 'worktree' | 'remote';
+  agentType?: string;
+  /**
+   * P-stall: per-call stall-watchdog timeout in milliseconds. The dispatch
+   * is aborted + retried (up to 3 attempts) after this many ms of no
+   * subagent progress (with no tool in flight). Defaults to 60_000 (env
+   * override `QWEN_CODE_WORKFLOW_STALL_SECONDS`). `0` disables the watchdog
+   * for this call.
+   */
+  stallMs?: number;
+  [key: string]: unknown;
 }
 /**
  * Agent dispatch return type. P1/P2 was `string` (the subagent's final text
@@ -114,9 +114,9 @@ export type WorkflowAgentResult = string | object;
  * spent()/remaining() throw). P5 will inject a real tracker.
  */
 export interface WorkflowBudget {
-    total: number | null;
-    spent(): number;
-    remaining(): number;
+  total: number | null;
+  spent(): number;
+  remaining(): number;
 }
 /**
  * P4b: host-side live-event channel for the orchestrator and sandbox to
@@ -134,146 +134,161 @@ export interface WorkflowBudget {
  * workflow does not flood the registry with thousands of events.
  */
 export interface WorkflowOrchestratorEmitter {
-    /** Sandbox `phase(title)` was called. */
-    phaseStarted?(title: string): void;
-    /** Sandbox `log(...)` produced one line of output (or `console.log`). */
-    logAppended?(line: string): void;
-    /** Orchestrator's `countedDispatch` is about to invoke `dispatch(...)`. */
-    agentDispatched?(label?: string): void;
-    /** `dispatch(...)` settled (success or thrown). `error` set on rejection. */
-    agentCompleted?(label?: string, error?: string): void;
-    /**
-     * P5: cumulative `spent` re-snapshot after each successful agent
-     * completion. `total` is `null` when no per-run cap is set
-     * (`QWEN_CODE_MAX_TOKENS_PER_WORKFLOW` unset). Caller (the
-     * `WorkflowTool`) mirrors this into the `WorkflowRunRegistry` so the
-     * pill / dialog / detail body surface the live token usage. The
-     * orchestrator only fires this when a `budget` was passed to
-     * `WorkflowRunRequest.budget`.
-     */
-    budgetUpdated?(spent: number, total: number | null): void;
+  /** Sandbox `phase(title)` was called. */
+  phaseStarted?(title: string): void;
+  /** Sandbox `log(...)` produced one line of output (or `console.log`). */
+  logAppended?(line: string): void;
+  /** Orchestrator's `countedDispatch` is about to invoke `dispatch(...)`. */
+  agentDispatched?(label?: string): void;
+  /** `dispatch(...)` settled (success or thrown). `error` set on rejection. */
+  agentCompleted?(label?: string, error?: string): void;
+  /**
+   * P5: cumulative `spent` re-snapshot after each successful agent
+   * completion. `total` is `null` when no per-run cap is set
+   * (`QWEN_CODE_MAX_TOKENS_PER_WORKFLOW` unset). Caller (the
+   * `WorkflowTool`) mirrors this into the `WorkflowRunRegistry` so the
+   * pill / dialog / detail body surface the live token usage. The
+   * orchestrator only fires this when a `budget` was passed to
+   * `WorkflowRunRequest.budget`.
+   */
+  budgetUpdated?(spent: number, total: number | null): void;
 }
 export interface SandboxOptions {
-    /** Value bound to the `args` global inside the script. */
-    args: unknown;
-    /**
-     * The owning run's id. Stamped onto every dispatch rejection that
-     * crosses the vm boundary so the adoption-escape hook (see `run()`)
-     * attributes a process-level unhandledRejection to THIS run when
-     * multiple runs share one process (background runs). Omitted by
-     * bare-sandbox tests.
-     */
-    runId?: string;
-    /**
-     * Function called by the script's `agent(prompt, opts)` global. Returns the
-     * agent's final text. Injected so tests can mock without spawning an LLM.
-     */
-    dispatch: (prompt: string, opts: WorkflowAgentOpts) => Promise<WorkflowAgentResult>;
-    /**
-     * Forward-compatibility injection seams for P2 (parallel / pipeline) and
-     * P5 (budget). When omitted the sandbox falls back to throwing stubs.
-     */
-    parallel?: (thunks: Array<() => Promise<unknown>>) => Promise<unknown[]>;
-    pipeline?: (items: unknown[], ...stages: Array<(prev: unknown, item: unknown, idx: number) => Promise<unknown>>) => Promise<unknown[]>;
-    /**
-     * Host-side `workflow(nameOrRef, args)` implementation. When provided, the
-     * sandbox exposes the `workflow` global that resolves a saved workflow
-     * (by name from `.qwen/workflows/<name>.js`, or by `{scriptPath}`) and runs
-     * it as a nested orchestration sharing this run's agent-count cap and token
-     * budget. When omitted the sandbox falls back to a throwing stub — this is
-     * also how single-level nesting is enforced: the orchestrator injects
-     * `workflow` only at the top level, so a nested workflow's sandbox has no
-     * `workflow` impl and a second-level `workflow()` call throws.
-     */
-    workflow?: (nameOrRef: string | {
-        scriptPath: string;
-    }, args: unknown) => Promise<unknown>;
-    budget?: WorkflowBudget;
-    /**
-     * T23 (PR #4732 R2): async wall-clock cap (ms) covering the entire script
-     * including awaits. The vm `timeout` option only covers the synchronous
-     * portion; once the IIFE yields its first `await`, the watchdog is
-     * disarmed and `return new Promise(() => {})` would hang forever.
-     *
-     * Defaults to 30 minutes, override via `QWEN_CODE_MAX_WORKFLOW_SECONDS`
-     * env var, or pass an explicit value here (tests use small values for
-     * fast verification).
-     *
-     * This stays a permanent defense even after P5's `budget` ships:
-     * budget caps tokens, but a 0-token hang (`new Promise(() => {})`) only
-     * a wall-clock can catch.
-     */
-    maxWallClockMs?: number;
-    /**
-     * T40 (PR #4732 R4): completes the R2 wall-clock defense. When the timer
-     * fires, the sandbox `abort()`s this controller BEFORE rejecting. The
-     * caller threads the same controller's `signal` into the dispatch
-     * function (via `createProductionDispatch`) so in-flight subagents see
-     * the abort and stop. Without this, the workflow user-side rejects but
-     * the subagent keeps burning tokens until its own `max_time_minutes`
-     * limit (10 min default).
-     *
-     * The caller is responsible for cleanup on natural completion (call
-     * `abort()` in a `finally` block to cancel any straggler dispatch).
-     */
-    abortOnTimeout?: AbortController;
-    /**
-     * P4b: optional host-side event channel. When provided, the sandbox's
-     * `safePhase` / `safeLog` closures fire `phaseStarted` / `logAppended`
-     * on every accepted entry (after the per-cap truncation guard). The
-     * caller (typically `WorkflowTool` via `WorkflowOrchestrator`) wires
-     * these into the `WorkflowRunRegistry` so the UI surfaces (pill /
-     * dialog / detail body) can re-render without polling `getPhases()`.
-     */
-    emitter?: WorkflowOrchestratorEmitter;
-    /**
-     * The run's dispatch scheduler. When provided, the async wall-clock
-     * watchdog suspends only while the scheduler is `paused`: by then no
-     * dispatch is in flight or being issued, so paused time must neither
-     * burn wall-clock budget nor let the timer kill the run mid-pause
-     * (resume would then be impossible). During `pausing` the backstop
-     * stays armed because an in-flight dispatch is typically still
-     * executing real work. Known limitation: an in-flight dispatch parked
-     * on a tool approval waits on the user rather than executing, but
-     * `pausing` time still burns wall-clock budget until the approval is
-     * answered (the watchdog cannot suspend on `pausing` without losing
-     * the backstop for genuinely executing dispatches, and `resume()`
-     * only works from `paused`).
-     *
-     * The guarantee covers dispatch-gated code only: script awaits outside
-     * a scheduler gate keep executing while paused and are not covered by
-     * the wall-clock backstop until resume.
-     */
-    scheduler?: WorkflowDispatchScheduler;
+  /** Value bound to the `args` global inside the script. */
+  args: unknown;
+  /**
+   * The owning run's id. Stamped onto every dispatch rejection that
+   * crosses the vm boundary so the adoption-escape hook (see `run()`)
+   * attributes a process-level unhandledRejection to THIS run when
+   * multiple runs share one process (background runs). Omitted by
+   * bare-sandbox tests.
+   */
+  runId?: string;
+  /**
+   * Function called by the script's `agent(prompt, opts)` global. Returns the
+   * agent's final text. Injected so tests can mock without spawning an LLM.
+   */
+  dispatch: (
+    prompt: string,
+    opts: WorkflowAgentOpts,
+  ) => Promise<WorkflowAgentResult>;
+  /**
+   * Forward-compatibility injection seams for P2 (parallel / pipeline) and
+   * P5 (budget). When omitted the sandbox falls back to throwing stubs.
+   */
+  parallel?: (thunks: Array<() => Promise<unknown>>) => Promise<unknown[]>;
+  pipeline?: (
+    items: unknown[],
+    ...stages: Array<
+      (prev: unknown, item: unknown, idx: number) => Promise<unknown>
+    >
+  ) => Promise<unknown[]>;
+  /**
+   * Host-side `workflow(nameOrRef, args)` implementation. When provided, the
+   * sandbox exposes the `workflow` global that resolves a saved workflow
+   * (by name from `.qwen/workflows/<name>.js`, or by `{scriptPath}`) and runs
+   * it as a nested orchestration sharing this run's agent-count cap and token
+   * budget. When omitted the sandbox falls back to a throwing stub — this is
+   * also how single-level nesting is enforced: the orchestrator injects
+   * `workflow` only at the top level, so a nested workflow's sandbox has no
+   * `workflow` impl and a second-level `workflow()` call throws.
+   */
+  workflow?: (
+    nameOrRef:
+      | string
+      | {
+          scriptPath: string;
+        },
+    args: unknown,
+  ) => Promise<unknown>;
+  budget?: WorkflowBudget;
+  /**
+   * T23 (PR #4732 R2): async wall-clock cap (ms) covering the entire script
+   * including awaits. The vm `timeout` option only covers the synchronous
+   * portion; once the IIFE yields its first `await`, the watchdog is
+   * disarmed and `return new Promise(() => {})` would hang forever.
+   *
+   * Defaults to 30 minutes, override via `QWEN_CODE_MAX_WORKFLOW_SECONDS`
+   * env var, or pass an explicit value here (tests use small values for
+   * fast verification).
+   *
+   * This stays a permanent defense even after P5's `budget` ships:
+   * budget caps tokens, but a 0-token hang (`new Promise(() => {})`) only
+   * a wall-clock can catch.
+   */
+  maxWallClockMs?: number;
+  /**
+   * T40 (PR #4732 R4): completes the R2 wall-clock defense. When the timer
+   * fires, the sandbox `abort()`s this controller BEFORE rejecting. The
+   * caller threads the same controller's `signal` into the dispatch
+   * function (via `createProductionDispatch`) so in-flight subagents see
+   * the abort and stop. Without this, the workflow user-side rejects but
+   * the subagent keeps burning tokens until its own `max_time_minutes`
+   * limit (10 min default).
+   *
+   * The caller is responsible for cleanup on natural completion (call
+   * `abort()` in a `finally` block to cancel any straggler dispatch).
+   */
+  abortOnTimeout?: AbortController;
+  /**
+   * P4b: optional host-side event channel. When provided, the sandbox's
+   * `safePhase` / `safeLog` closures fire `phaseStarted` / `logAppended`
+   * on every accepted entry (after the per-cap truncation guard). The
+   * caller (typically `WorkflowTool` via `WorkflowOrchestrator`) wires
+   * these into the `WorkflowRunRegistry` so the UI surfaces (pill /
+   * dialog / detail body) can re-render without polling `getPhases()`.
+   */
+  emitter?: WorkflowOrchestratorEmitter;
+  /**
+   * The run's dispatch scheduler. When provided, the async wall-clock
+   * watchdog suspends only while the scheduler is `paused`: by then no
+   * dispatch is in flight or being issued, so paused time must neither
+   * burn wall-clock budget nor let the timer kill the run mid-pause
+   * (resume would then be impossible). During `pausing` the backstop
+   * stays armed because an in-flight dispatch is typically still
+   * executing real work. Known limitation: an in-flight dispatch parked
+   * on a tool approval waits on the user rather than executing, but
+   * `pausing` time still burns wall-clock budget until the approval is
+   * answered (the watchdog cannot suspend on `pausing` without losing
+   * the backstop for genuinely executing dispatches, and `resume()`
+   * only works from `paused`).
+   *
+   * The guarantee covers dispatch-gated code only: script awaits outside
+   * a scheduler gate keep executing while paused and are not covered by
+   * the wall-clock backstop until resume.
+   */
+  scheduler?: WorkflowDispatchScheduler;
 }
 export interface WorkflowSandbox {
-    /**
-     * Execute the user-authored script source. The script is wrapped as an async
-     * IIFE so it may use top-level `await` and `return`. Returns the script's
-     * top-level return value.
-     *
-     * `export const meta = {...}` is extracted before parsing and exposed via
-     * `getMeta()` — the script body sees the meta-stripped source.
-     */
-    run(scriptSource: string): Promise<unknown>;
-    /** Phase titles announced by the script in order. */
-    getPhases(): string[];
-    /** Log lines emitted by the script in order. */
-    getLogs(): string[];
-    /**
-     * Append a log line produced by a nested workflow run. Nested logs
-     * reach no production surface on their own (the nested sandbox's
-     * buffer is never read by the orchestrator), so the orchestrator
-     * merges them into the parent run's logs at nested settlement —
-     * including the nested unconsumed-rejection mirror lines.
-     */
-    appendLog(line: string): void;
-    /**
-     * The script's `export const meta = {...}` declaration, validated and
-     * extracted before the script body runs. `null` when the script omits
-     * the declaration. Throws (during `run`) when the declaration is
-     * present but malformed.
-     */
-    getMeta(): WorkflowMeta | null;
+  /**
+   * Execute the user-authored script source. The script is wrapped as an async
+   * IIFE so it may use top-level `await` and `return`. Returns the script's
+   * top-level return value.
+   *
+   * `export const meta = {...}` is extracted before parsing and exposed via
+   * `getMeta()` — the script body sees the meta-stripped source.
+   */
+  run(scriptSource: string): Promise<unknown>;
+  /** Phase titles announced by the script in order. */
+  getPhases(): string[];
+  /** Log lines emitted by the script in order. */
+  getLogs(): string[];
+  /**
+   * Append a log line produced by a nested workflow run. Nested logs
+   * reach no production surface on their own (the nested sandbox's
+   * buffer is never read by the orchestrator), so the orchestrator
+   * merges them into the parent run's logs at nested settlement —
+   * including the nested unconsumed-rejection mirror lines.
+   */
+  appendLog(line: string): void;
+  /**
+   * The script's `export const meta = {...}` declaration, validated and
+   * extracted before the script body runs. `null` when the script omits
+   * the declaration. Throws (during `run`) when the declaration is
+   * present but malformed.
+   */
+  getMeta(): WorkflowMeta | null;
 }
-export declare function createWorkflowSandbox(opts: SandboxOptions): WorkflowSandbox;
+export declare function createWorkflowSandbox(
+  opts: SandboxOptions,
+): WorkflowSandbox;

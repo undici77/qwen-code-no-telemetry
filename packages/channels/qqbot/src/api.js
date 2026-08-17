@@ -16,25 +16,25 @@ const FETCH_TIMEOUT = 15_000;
  * Throws on HTTP errors or missing token in the response.
  */
 export async function fetchAccessToken(appId, appSecret) {
-    const resp = await fetch(TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId, clientSecret: appSecret }),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-    if (!resp.ok) {
-        await resp.body?.cancel().catch(() => { });
-        process.stderr.write(`[QQ] Token request failed (HTTP ${resp.status})\n`);
-        throw new Error(`QQ Bot token request failed (HTTP ${resp.status})`);
-    }
-    const data = (await resp.json());
-    if (!data.access_token) {
-        throw new Error('QQ Bot token response missing access_token');
-    }
-    return {
-        accessToken: data.access_token,
-        expiresIn: data.expires_in ?? 7200,
-    };
+  const resp = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ appId, clientSecret: appSecret }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+  });
+  if (!resp.ok) {
+    await resp.body?.cancel().catch(() => {});
+    process.stderr.write(`[QQ] Token request failed (HTTP ${resp.status})\n`);
+    throw new Error(`QQ Bot token request failed (HTTP ${resp.status})`);
+  }
+  const data = await resp.json();
+  if (!data.access_token) {
+    throw new Error('QQ Bot token response missing access_token');
+  }
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in ?? 7200,
+  };
 }
 /**
  * Validate the WebSocket Gateway URL to enforce TLS and known hostname.
@@ -48,64 +48,67 @@ export async function fetchAccessToken(appId, appSecret) {
  * if /gateway is tampered with or misdirected.
  */
 export function validateGatewayUrl(url) {
-    try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'wss:') {
-            throw new Error(`QQ Bot gateway URL must use wss:// protocol, got: ${parsed.protocol}`);
-        }
-        // Hard reject: only allow documented QQ gateway hostnames
-        if (!parsed.hostname.toLowerCase().endsWith('.qq.com')) {
-            throw new Error(`QQ Bot gateway URL has unexpected hostname: ${parsed.hostname} (expected *.qq.com)`);
-        }
-        const clean = new URL(url);
-        clean.username = '';
-        clean.password = '';
-        return clean.href;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'wss:') {
+      throw new Error(
+        `QQ Bot gateway URL must use wss:// protocol, got: ${parsed.protocol}`,
+      );
     }
-    catch (e) {
-        if (e instanceof TypeError) {
-            throw new Error('QQ Bot gateway URL is not a valid URL');
-        }
-        throw e;
+    // Hard reject: only allow documented QQ gateway hostnames
+    if (!parsed.hostname.toLowerCase().endsWith('.qq.com')) {
+      throw new Error(
+        `QQ Bot gateway URL has unexpected hostname: ${parsed.hostname} (expected *.qq.com)`,
+      );
     }
+    const clean = new URL(url);
+    clean.username = '';
+    clean.password = '';
+    return clean.href;
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error('QQ Bot gateway URL is not a valid URL');
+    }
+    throw e;
+  }
 }
 /**
  * Resolve the WebSocket Gateway URL.
  * Throws on HTTP errors or missing URL in the response.
  */
 export async function fetchGatewayUrl(accessToken, sandbox) {
-    const gw = sandbox ? `${SANDBOX_HOST}/gateway` : `${API_HOST}/gateway`;
-    const resp = await fetch(gw, {
-        headers: { Authorization: `QQBot ${accessToken}` },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-    if (!resp.ok) {
-        await resp.body?.cancel().catch(() => { });
-        throw new Error(`QQ Bot gateway request failed (HTTP ${resp.status})`);
-    }
-    const data = (await resp.json());
-    if (!data['url']) {
-        throw new Error('QQ Bot gateway response missing WebSocket URL');
-    }
-    return validateGatewayUrl(data['url']);
+  const gw = sandbox ? `${SANDBOX_HOST}/gateway` : `${API_HOST}/gateway`;
+  const resp = await fetch(gw, {
+    headers: { Authorization: `QQBot ${accessToken}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+  });
+  if (!resp.ok) {
+    await resp.body?.cancel().catch(() => {});
+    throw new Error(`QQ Bot gateway request failed (HTTP ${resp.status})`);
+  }
+  const data = await resp.json();
+  if (!data['url']) {
+    throw new Error('QQ Bot gateway response missing WebSocket URL');
+  }
+  return validateGatewayUrl(data['url']);
 }
 /** Determine the API base URL from the sandbox flag. */
 export function getApiBase(sandbox) {
-    return sandbox ? SANDBOX_HOST : API_HOST;
+  return sandbox ? SANDBOX_HOST : API_HOST;
 }
 /**
  * Send a message chunk to a QQ chat.
  * Resolves on success; caller should handle errors and msg_seq tracking.
  */
 export async function sendQQMessage(base, path, accessToken, body) {
-    return fetch(`${base}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `QQBot ${accessToken}`,
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
+  return fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `QQBot ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+  });
 }
 //# sourceMappingURL=api.js.map

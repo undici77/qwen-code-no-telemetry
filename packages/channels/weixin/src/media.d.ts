@@ -10,7 +10,10 @@
  */
 export declare function parseAesKey(aesKeyBase64: string): Buffer;
 /** Download encrypted media from CDN and decrypt it. */
-export declare function downloadAndDecrypt(encryptQueryParam: string, aesKey: string): Promise<Buffer>;
+export declare function downloadAndDecrypt(
+  encryptQueryParam: string,
+  aesKey: string,
+): Promise<Buffer>;
 /** AES-128-ECB encryption for CDN upload. */
 export declare function encryptAesEcb(plaintext: Buffer, key: Buffer): Buffer;
 /** Compute MD5 hash of a buffer, returning hex string. */

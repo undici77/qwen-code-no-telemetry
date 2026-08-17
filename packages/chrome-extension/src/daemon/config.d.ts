@@ -10,13 +10,13 @@
  * both fields are overridable via `chrome.storage.local`.
  */
 export interface DaemonConfig {
-    /** Daemon base URL, e.g. `http://127.0.0.1:4170`. */
-    baseUrl: string;
-    /** Bearer token; omitted for loopback (auth-free) daemons. */
-    token?: string;
+  /** Daemon base URL, e.g. `http://127.0.0.1:4170`. */
+  baseUrl: string;
+  /** Bearer token; omitted for loopback (auth-free) daemons. */
+  token?: string;
 }
 /** `qwen serve`'s default bind (see `qwen serve --port`, default 4170). */
-export declare const DEFAULT_DAEMON_BASE_URL = "http://127.0.0.1:4170";
+export declare const DEFAULT_DAEMON_BASE_URL = 'http://127.0.0.1:4170';
 /** Whether a URL points at the local loopback interface. */
 export declare function isLoopbackUrl(baseUrl: string): boolean;
 /**
@@ -30,4 +30,6 @@ export declare function isLoopbackUrl(baseUrl: string): boolean;
  */
 export declare function getDaemonConfig(): Promise<DaemonConfig>;
 /** Persist a partial daemon config override. */
-export declare function setDaemonConfig(config: Partial<DaemonConfig>): Promise<void>;
+export declare function setDaemonConfig(
+  config: Partial<DaemonConfig>,
+): Promise<void>;

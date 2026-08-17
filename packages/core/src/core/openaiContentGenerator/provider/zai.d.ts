@@ -15,16 +15,23 @@ import { DefaultOpenAICompatibleProvider } from './default.js';
  * Hostname-gated so the reshape never leaks to an unrelated strict
  * OpenAI-compatible backend matched only by model name.
  */
-export declare function isZaiHostname(contentGeneratorConfig: ContentGeneratorConfig): boolean;
+export declare function isZaiHostname(
+  contentGeneratorConfig: ContentGeneratorConfig,
+): boolean;
 /**
  * Broader routing check: hostname OR a `glm-*` model name. Only the hostname
  * gate drives the wire reshape (see buildRequest); the model-name fallback just
  * routes obviously-GLM configs through this provider.
  */
-export declare function isZaiProvider(contentGeneratorConfig: ContentGeneratorConfig): boolean;
+export declare function isZaiProvider(
+  contentGeneratorConfig: ContentGeneratorConfig,
+): boolean;
 export declare class ZaiOpenAICompatibleProvider extends DefaultOpenAICompatibleProvider {
-    static isZaiProvider: typeof isZaiProvider;
-    static isZaiHostname: typeof isZaiHostname;
-    private nonZaiHostnameFlattenWarned;
-    buildRequest(request: OpenAI.Chat.ChatCompletionCreateParams, userPromptId: string): OpenAI.Chat.ChatCompletionCreateParams;
+  static isZaiProvider: typeof isZaiProvider;
+  static isZaiHostname: typeof isZaiHostname;
+  private nonZaiHostnameFlattenWarned;
+  buildRequest(
+    request: OpenAI.Chat.ChatCompletionCreateParams,
+    userPromptId: string,
+  ): OpenAI.Chat.ChatCompletionCreateParams;
 }

@@ -10,6 +10,4 @@
  */
 export declare const HIDDEN_COMPOSER_MODEL_IDS: Set<string>;
 /** Whether a model may appear in the composer's model picker. */
-export declare function isVisibleComposerModel(model: {
-    id: string;
-}): boolean;
+export declare function isVisibleComposerModel(model: { id: string }): boolean;

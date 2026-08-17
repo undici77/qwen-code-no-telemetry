@@ -12,15 +12,15 @@ import React from 'react';
 export declare const MINIMUM_MAX_HEIGHT = 2;
 export declare function setMaxSizedBoxDebugging(value: boolean): void;
 interface MaxSizedBoxProps {
-    children?: React.ReactNode;
-    maxWidth?: number;
-    maxHeight: number | undefined;
-    overflowDirection?: 'top' | 'bottom';
-    additionalHiddenLinesCount?: number;
-    sourceBoundaries?: ReadonlyArray<{
-        kind: 'soft' | 'hard';
-        joiner: string;
-    }>;
+  children?: React.ReactNode;
+  maxWidth?: number;
+  maxHeight: number | undefined;
+  overflowDirection?: 'top' | 'bottom';
+  additionalHiddenLinesCount?: number;
+  sourceBoundaries?: ReadonlyArray<{
+    kind: 'soft' | 'hard';
+    joiner: string;
+  }>;
 }
 /**
  * A React component that constrains the size of its children and provides

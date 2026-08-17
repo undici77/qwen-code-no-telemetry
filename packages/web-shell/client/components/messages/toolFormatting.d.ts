@@ -18,21 +18,39 @@ export declare function formatToolDisplayName(toolName: string): string;
  * translator returns the key verbatim, in which case we fall back to the
  * English {@link formatToolDisplayName}. Pass the `t` from `useI18n()`.
  */
-export declare function localizeToolDisplayName(toolName: string, t: (key: string, vars?: Record<string, string | number>) => string): string;
+export declare function localizeToolDisplayName(
+  toolName: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string;
 export declare function isAskUserQuestionToolName(toolName: string): boolean;
 export declare function truncateText(text: string, max: number): string;
-export declare function getToolDescription(tool: ACPToolCall, workspaceCwd?: string): string;
-export declare function getToolSummaryDescription(tool: ACPToolCall, workspaceCwd?: string): string;
-export declare function getShellToolSemanticDescription(tool: ACPToolCall): string;
+export declare function getToolDescription(
+  tool: ACPToolCall,
+  workspaceCwd?: string,
+): string;
+export declare function getToolSummaryDescription(
+  tool: ACPToolCall,
+  workspaceCwd?: string,
+): string;
+export declare function getShellToolSemanticDescription(
+  tool: ACPToolCall,
+): string;
 export declare function extractText(tool: ACPToolCall): string | null;
 export declare function getToolResultSummary(tool: ACPToolCall): string;
 export declare function isShellToolName(name: string): boolean;
 export declare function isSkillToolName(name: string): boolean;
-export declare function toolContainsCallId(tool: ACPToolCall, toolCallId: string): boolean;
-export declare function getTaskExecutionRecord(rawOutput: unknown): Record<string, unknown> | undefined;
+export declare function toolContainsCallId(
+  tool: ACPToolCall,
+  toolCallId: string,
+): boolean;
+export declare function getTaskExecutionRecord(
+  rawOutput: unknown,
+): Record<string, unknown> | undefined;
 export declare function getAgentCancellationReason(agent: ACPToolCall): string;
 export declare function isAgentCancelled(agent: ACPToolCall): boolean;
-export declare function getAgentDisplayStatus(agent: ACPToolCall): ACPToolCall['status'];
+export declare function getAgentDisplayStatus(
+  agent: ACPToolCall,
+): ACPToolCall['status'];
 export declare function formatTokenCount(tokens: number): string;
 export declare function getAgentType(agent: ACPToolCall): string;
 export declare function isDefaultAgentType(agentType: string): boolean;
@@ -41,6 +59,12 @@ export declare function isDefaultAgentType(agentType: string): boolean;
  * (case-insensitive) via the translator; falls back to the raw name
  * for user-defined agents that have no i18n entry.
  */
-export declare function localizeAgentTypeName(agentType: string, t: (key: string, vars?: Record<string, string | number>) => string): string;
+export declare function localizeAgentTypeName(
+  agentType: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string;
 export declare function getAgentDescription(agent: ACPToolCall): string;
-export declare function getAgentCurrentToolHint(agent: ACPToolCall, t: (key: string, vars?: Record<string, string | number>) => string): string;
+export declare function getAgentCurrentToolHint(
+  agent: ACPToolCall,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string;

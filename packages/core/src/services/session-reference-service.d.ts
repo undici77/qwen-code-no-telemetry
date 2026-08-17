@@ -6,16 +6,16 @@
 /** Default token budget for an injected slimmed session reference. */
 export declare const SESSION_REF_TOKEN_BUDGET = 8000;
 export interface SlimmedSessionReference {
-    /** Labeled, budget-trimmed block ready to inject as a text part. */
-    text: string;
-    meta: {
-        sessionId: string;
-        title: string;
-        messageCount: number;
-        approxTokens: number;
-    };
-    /** True when older turns were dropped to fit the budget. */
-    truncated: boolean;
+  /** Labeled, budget-trimmed block ready to inject as a text part. */
+  text: string;
+  meta: {
+    sessionId: string;
+    title: string;
+    messageCount: number;
+    approxTokens: number;
+  };
+  /** True when older turns were dropped to fit the budget. */
+  truncated: boolean;
 }
 /**
  * Loads a prior chat session and turns it into a deterministically slimmed,
@@ -32,23 +32,31 @@ export interface SlimmedSessionReference {
  *   the oldest turns first but always keeping at least the newest line.
  */
 export declare class SessionReferenceService {
-    private readonly sessionService;
-    constructor(cwd: string);
-    protected loadSession(sessionId: string): Promise<import("./sessionService.js").ResumedSessionData | undefined>;
-    resolve(sessionId: string, opts?: {
-        budgetTokens?: number;
-        title?: string;
-    }): Promise<SlimmedSessionReference | {
+  private readonly sessionService;
+  constructor(cwd: string);
+  protected loadSession(
+    sessionId: string,
+  ): Promise<import('./sessionService.js').ResumedSessionData | undefined>;
+  resolve(
+    sessionId: string,
+    opts?: {
+      budgetTokens?: number;
+      title?: string;
+    },
+  ): Promise<
+    | SlimmedSessionReference
+    | {
         notFound: true;
-    }>;
-    private estimate;
-    private recordsToLines;
-    private visibleText;
-    private visibleUserText;
-    private visibleTextParts;
-    private static readonly TITLE_MAX_LENGTH;
-    private deriveTitle;
-    /** Names of every `functionResponse` part in a record (parallel tool calls
-     * each yield their own line; a single tool call yields one). */
-    private functionResponseNames;
+      }
+  >;
+  private estimate;
+  private recordsToLines;
+  private visibleText;
+  private visibleUserText;
+  private visibleTextParts;
+  private static readonly TITLE_MAX_LENGTH;
+  private deriveTitle;
+  /** Names of every `functionResponse` part in a record (parallel tool calls
+   * each yield their own line; a single tool call yields one). */
+  private functionResponseNames;
 }

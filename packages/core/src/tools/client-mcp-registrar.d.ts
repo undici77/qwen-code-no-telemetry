@@ -40,24 +40,26 @@ export declare const CLIENT_MCP_MESSAGE_TIMEOUT_MS = 30000;
  * frame (the `type` discriminator is owned by the WS layer, not core).
  */
 export interface ClientMcpFrame {
-    /** Correlation id; the response frame MUST echo it back. */
-    id: string;
-    /** Logical MCP server name the client advertised via `mcp_register`. */
-    server: string;
-    /** The raw JSON-RPC MCP message to deliver to the client-hosted server. */
-    payload: JSONRPCMessage;
+  /** Correlation id; the response frame MUST echo it back. */
+  id: string;
+  /** Logical MCP server name the client advertised via `mcp_register`. */
+  server: string;
+  /** The raw JSON-RPC MCP message to deliver to the client-hosted server. */
+  payload: JSONRPCMessage;
 }
 /**
  * Caller-supplied sink that puts an outbound frame on the wire. Throwing (or
  * a rejected promise) fails the originating `sendSdkMcpMessage` call so the
  * agent's MCP client sees a transport error rather than hanging.
  */
-export type ClientMcpFrameSink = (frame: ClientMcpFrame) => void | Promise<void>;
+export type ClientMcpFrameSink = (
+  frame: ClientMcpFrame,
+) => void | Promise<void>;
 export interface ClientMcpRegistrarOptions {
-    /** Puts an outbound `mcp_message` frame on the wire. */
-    sendFrame: ClientMcpFrameSink;
-    /** Per-message round-trip timeout. Defaults to {@link CLIENT_MCP_MESSAGE_TIMEOUT_MS}. */
-    messageTimeoutMs?: number;
+  /** Puts an outbound `mcp_message` frame on the wire. */
+  sendFrame: ClientMcpFrameSink;
+  /** Per-message round-trip timeout. Defaults to {@link CLIENT_MCP_MESSAGE_TIMEOUT_MS}. */
+  messageTimeoutMs?: number;
 }
 /**
  * Owns the request/response correlation for one wire (one daemon WS client).
@@ -66,54 +68,57 @@ export interface ClientMcpRegistrarOptions {
  * wholesale (on WS close).
  */
 export declare class ClientMcpRegistrar {
-    private readonly sendFrame;
-    private readonly messageTimeoutMs;
-    /** Pending in-flight requests, keyed by correlation id. */
-    private readonly pending;
-    /** Registered server names (advertised via `mcp_register`). */
-    private readonly servers;
-    private nextId;
-    private closed;
-    constructor(options: ClientMcpRegistrarOptions);
-    /**
-     * Mark a server name as advertised by this client. Idempotent.
-     */
-    registerServer(serverName: string): void;
-    /**
-     * Drop a server name and reject any in-flight requests targeting it. Returns
-     * `true` if the name was registered. Idempotent for unknown names.
-     */
-    unregisterServer(serverName: string): boolean;
-    /** True if the server name has been advertised and not torn down. */
-    hasServer(serverName: string): boolean;
-    /** Snapshot of currently-registered server names. */
-    registeredServers(): string[];
-    /** Count of currently-registered server names (for per-connection caps). */
-    serverCount(): number;
-    /** Count of in-flight `mcp_message` round-trips (for tests / accounting). */
-    pendingCount(): number;
-    /**
-     * The `SendSdkMcpMessage`-shaped callback to hand to `McpClientManager`
-     * (via `addRuntimeMcpServer` with an `isSdkMcpServerConfig`-true config).
-     *
-     * Sends the JSON-RPC message as an outbound frame and resolves when the
-     * client returns the correlated response frame.
-     */
-    readonly sendSdkMcpMessage: (serverName: string, message: JSONRPCMessage) => Promise<JSONRPCMessage>;
-    /**
-     * Deliver a response frame from the client. Resolves the matching pending
-     * request. Unknown ids are ignored (late response after timeout, or a
-     * client→daemon-initiated request the daemon doesn't track — see the
-     * architecture note: server→client requests are rare and out of MVP scope).
-     *
-     * Returns `true` if a pending request was resolved.
-     */
-    resolveMessage(id: string, payload: JSONRPCMessage): boolean;
-    /**
-     * Tear the whole channel down (WS close). Rejects every pending request and
-     * forgets all server names. Idempotent.
-     */
-    close(reason?: string): void;
-    private failPending;
-    private rejectPendingFor;
+  private readonly sendFrame;
+  private readonly messageTimeoutMs;
+  /** Pending in-flight requests, keyed by correlation id. */
+  private readonly pending;
+  /** Registered server names (advertised via `mcp_register`). */
+  private readonly servers;
+  private nextId;
+  private closed;
+  constructor(options: ClientMcpRegistrarOptions);
+  /**
+   * Mark a server name as advertised by this client. Idempotent.
+   */
+  registerServer(serverName: string): void;
+  /**
+   * Drop a server name and reject any in-flight requests targeting it. Returns
+   * `true` if the name was registered. Idempotent for unknown names.
+   */
+  unregisterServer(serverName: string): boolean;
+  /** True if the server name has been advertised and not torn down. */
+  hasServer(serverName: string): boolean;
+  /** Snapshot of currently-registered server names. */
+  registeredServers(): string[];
+  /** Count of currently-registered server names (for per-connection caps). */
+  serverCount(): number;
+  /** Count of in-flight `mcp_message` round-trips (for tests / accounting). */
+  pendingCount(): number;
+  /**
+   * The `SendSdkMcpMessage`-shaped callback to hand to `McpClientManager`
+   * (via `addRuntimeMcpServer` with an `isSdkMcpServerConfig`-true config).
+   *
+   * Sends the JSON-RPC message as an outbound frame and resolves when the
+   * client returns the correlated response frame.
+   */
+  readonly sendSdkMcpMessage: (
+    serverName: string,
+    message: JSONRPCMessage,
+  ) => Promise<JSONRPCMessage>;
+  /**
+   * Deliver a response frame from the client. Resolves the matching pending
+   * request. Unknown ids are ignored (late response after timeout, or a
+   * client→daemon-initiated request the daemon doesn't track — see the
+   * architecture note: server→client requests are rare and out of MVP scope).
+   *
+   * Returns `true` if a pending request was resolved.
+   */
+  resolveMessage(id: string, payload: JSONRPCMessage): boolean;
+  /**
+   * Tear the whole channel down (WS close). Rejects every pending request and
+   * forgets all server names. Idempotent.
+   */
+  close(reason?: string): void;
+  private failPending;
+  private rejectPendingFor;
 }

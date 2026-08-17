@@ -35,48 +35,50 @@ export declare const isDeletionKey: (key: Key) => boolean;
  */
 export declare function isPrintableSearchChar(key: Key): boolean;
 export interface UseSessionSearchInputOptions {
-    /**
-     * Called when the search frame should yield back to list mode —
-     * fires synchronously when a non-empty → empty query transition
-     * occurs (Esc, Ctrl+U/L, or the last Backspace), detected via a
-     * ref-backed setter. The parent typically maps this to
-     * `setViewMode('list')`.
-     *
-     * **Timing note**: `onExitToList` fires from within the state
-     * updater, *before* React re-renders. At callback invocation time
-     * `searchQueryRef.current` is already the new (empty) value, but
-     * the `searchQuery` state variable still holds the old value. Parents
-     * should rely on their own state for the current query, not on the
-     * `searchQuery` return value.
-     */
-    onExitToList: () => void;
+  /**
+   * Called when the search frame should yield back to list mode —
+   * fires synchronously when a non-empty → empty query transition
+   * occurs (Esc, Ctrl+U/L, or the last Backspace), detected via a
+   * ref-backed setter. The parent typically maps this to
+   * `setViewMode('list')`.
+   *
+   * **Timing note**: `onExitToList` fires from within the state
+   * updater, *before* React re-renders. At callback invocation time
+   * `searchQueryRef.current` is already the new (empty) value, but
+   * the `searchQuery` state variable still holds the old value. Parents
+   * should rely on their own state for the current query, not on the
+   * `searchQuery` return value.
+   */
+  onExitToList: () => void;
 }
 export interface UseSessionSearchInputResult {
-    /** Current query text. */
-    searchQuery: string;
-    /**
-     * Imperative setter — the parent uses this for "implicit entry"
-     * (typing in list mode seeds the query) without going through
-     * `handleSearchKey`. Functional updaters are supported and
-     * recommended whenever the new value depends on the previous one.
-     *
-     * **Side effect**: when called with a value that transitions the
-     * query from non-empty to empty, synchronously calls
-     * `onExitToList()` via a ref-backed check *before* React re-renders.
-     * The `searchQuery` state still holds the old value inside the
-     * callback; parents should rely on their own state for the current
-     * query value.
-     */
-    setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-    /**
-     * Process a key event that arrived while the picker is in search
-     * mode. Always treated as the final handler for that key — the
-     * search input has exclusive ownership of the keyboard while
-     * focused, so anything this function doesn't recognize is
-     * intentionally swallowed by the caller. (Mode-independent
-     * shortcuts that need to fire in search mode — Enter, ↑/↓,
-     * Ctrl+C — are routed by the parent before this delegate.)
-     */
-    handleSearchKey: (key: Key) => void;
+  /** Current query text. */
+  searchQuery: string;
+  /**
+   * Imperative setter — the parent uses this for "implicit entry"
+   * (typing in list mode seeds the query) without going through
+   * `handleSearchKey`. Functional updaters are supported and
+   * recommended whenever the new value depends on the previous one.
+   *
+   * **Side effect**: when called with a value that transitions the
+   * query from non-empty to empty, synchronously calls
+   * `onExitToList()` via a ref-backed check *before* React re-renders.
+   * The `searchQuery` state still holds the old value inside the
+   * callback; parents should rely on their own state for the current
+   * query value.
+   */
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  /**
+   * Process a key event that arrived while the picker is in search
+   * mode. Always treated as the final handler for that key — the
+   * search input has exclusive ownership of the keyboard while
+   * focused, so anything this function doesn't recognize is
+   * intentionally swallowed by the caller. (Mode-independent
+   * shortcuts that need to fire in search mode — Enter, ↑/↓,
+   * Ctrl+C — are routed by the parent before this delegate.)
+   */
+  handleSearchKey: (key: Key) => void;
 }
-export declare function useSessionSearchInput(options: UseSessionSearchInputOptions): UseSessionSearchInputResult;
+export declare function useSessionSearchInput(
+  options: UseSessionSearchInputOptions,
+): UseSessionSearchInputResult;

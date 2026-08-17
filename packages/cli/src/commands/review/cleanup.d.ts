@@ -6,22 +6,22 @@
 import type { CommandModule } from 'yargs';
 /** An issue comment, as listed by `GET /issues/{n}/comments`. */
 export interface RawIssueComment {
-    id: number;
-    user?: {
-        login: string;
-    } | null;
-    body?: string | null;
-    created_at?: string;
-    updated_at?: string;
-    html_url?: string;
+  id: number;
+  user?: {
+    login: string;
+  } | null;
+  body?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  html_url?: string;
 }
 export interface WindowWrites {
-    /** Created inside the window by the reviewing account — the incident shape. */
-    posted: RawIssueComment[];
-    /** Created before the window but edited inside it. Reactions do NOT bump
-     * an issue comment's `updated_at` (verified empirically), so an entry here
-     * is a real body edit. */
-    edited: RawIssueComment[];
+  /** Created inside the window by the reviewing account — the incident shape. */
+  posted: RawIssueComment[];
+  /** Created before the window but edited inside it. Reactions do NOT bump
+   * an issue comment's `updated_at` (verified empirically), so an entry here
+   * is a real body edit. */
+  edited: RawIssueComment[];
 }
 /**
  * Issue-comment writes by the reviewing account inside the review window.
@@ -45,16 +45,20 @@ export interface WindowWrites {
  * anywhere noticed. Prose bans are exactly what compression loses, so the
  * detection has to live in the deterministic layer that always runs.
  */
-export declare function findUnsanctionedIssueComments(comments: RawIssueComment[], reviewer: string, sinceIso: string): WindowWrites;
+export declare function findUnsanctionedIssueComments(
+  comments: RawIssueComment[],
+  reviewer: string,
+  sinceIso: string,
+): WindowWrites;
 /** A review, as listed by `GET /pulls/{n}/reviews`. */
 export interface RawReview {
-    id: number;
-    user?: {
-        login: string;
-    } | null;
-    state?: string;
-    submitted_at?: string;
-    html_url?: string;
+  id: number;
+  user?: {
+    login: string;
+  } | null;
+  state?: string;
+  submitted_at?: string;
+  html_url?: string;
 }
 /**
  * Reviews the reviewing account submitted inside the window that the submit
@@ -68,6 +72,11 @@ export interface RawReview {
  * vouches for nothing: with zero sanctioned writes recorded, every in-window
  * review by the account is flagged (fail-safe).
  */
-export declare function findUnsanctionedReviews(reviews: RawReview[], reviewer: string, sinceIso: string, receiptReviewIds: ReadonlySet<number>): RawReview[];
+export declare function findUnsanctionedReviews(
+  reviews: RawReview[],
+  reviewer: string,
+  sinceIso: string,
+  receiptReviewIds: ReadonlySet<number>,
+): RawReview[];
 export declare function runCleanup(target: string): void;
 export declare const cleanupCommand: CommandModule;

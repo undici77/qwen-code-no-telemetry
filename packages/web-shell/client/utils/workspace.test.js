@@ -4,81 +4,98 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from 'vitest';
-import { hasMultipleWorkspaces, isNonPrimaryWorkspaceSession, mergeSessionsById, workspaceBasename, workspaceLabel, workspaceLabelForCwd, } from './workspace';
+import {
+  hasMultipleWorkspaces,
+  isNonPrimaryWorkspaceSession,
+  mergeSessionsById,
+  workspaceBasename,
+  workspaceLabel,
+  workspaceLabelForCwd,
+} from './workspace';
 function caps(workspaces) {
-    return {
-        v: 1,
-        mode: 'native',
-        features: [],
-        modelServices: [],
-        ...(workspaces ? { workspaces } : {}),
-    };
+  return {
+    v: 1,
+    mode: 'native',
+    features: [],
+    modelServices: [],
+    ...(workspaces ? { workspaces } : {}),
+  };
 }
 function ws(cwd) {
-    return { id: cwd, cwd, primary: false, trusted: true };
+  return { id: cwd, cwd, primary: false, trusted: true };
 }
 function session(id, cwd) {
-    return { sessionId: id, workspaceCwd: cwd };
+  return { sessionId: id, workspaceCwd: cwd };
 }
 describe('workspaceBasename', () => {
-    it('returns the last path segment', () => {
-        expect(workspaceBasename('/home/me/projects/api')).toBe('api');
-        expect(workspaceBasename('/home/me/projects/api/')).toBe('api');
-        expect(workspaceBasename('C:\\Users\\me\\web')).toBe('web');
-    });
-    it('falls back to the whole string when there are no segments', () => {
-        expect(workspaceBasename('/')).toBe('/');
-        expect(workspaceBasename('')).toBe('');
-    });
+  it('returns the last path segment', () => {
+    expect(workspaceBasename('/home/me/projects/api')).toBe('api');
+    expect(workspaceBasename('/home/me/projects/api/')).toBe('api');
+    expect(workspaceBasename('C:\\Users\\me\\web')).toBe('web');
+  });
+  it('falls back to the whole string when there are no segments', () => {
+    expect(workspaceBasename('/')).toBe('/');
+    expect(workspaceBasename('')).toBe('');
+  });
 });
 describe('workspaceLabel', () => {
-    it('prefers a display name and falls back to the cwd basename', () => {
-        expect(workspaceLabel({ cwd: '/work/payments', displayName: 'Payments API' })).toBe('Payments API');
-        expect(workspaceLabel({ cwd: '/work/payments' })).toBe('payments');
-    });
-    it('looks up a display name by cwd and falls back when unregistered', () => {
-        const workspaces = [{ cwd: '/work/payments', displayName: 'Payments API' }];
-        expect(workspaceLabelForCwd('/work/payments', workspaces)).toBe('Payments API');
-        expect(workspaceLabelForCwd('/work/web', workspaces)).toBe('web');
-    });
+  it('prefers a display name and falls back to the cwd basename', () => {
+    expect(
+      workspaceLabel({ cwd: '/work/payments', displayName: 'Payments API' }),
+    ).toBe('Payments API');
+    expect(workspaceLabel({ cwd: '/work/payments' })).toBe('payments');
+  });
+  it('looks up a display name by cwd and falls back when unregistered', () => {
+    const workspaces = [{ cwd: '/work/payments', displayName: 'Payments API' }];
+    expect(workspaceLabelForCwd('/work/payments', workspaces)).toBe(
+      'Payments API',
+    );
+    expect(workspaceLabelForCwd('/work/web', workspaces)).toBe('web');
+  });
 });
 describe('hasMultipleWorkspaces', () => {
-    it('is false without a workspaces list or with a single entry', () => {
-        expect(hasMultipleWorkspaces(undefined)).toBe(false);
-        expect(hasMultipleWorkspaces(caps())).toBe(false);
-        expect(hasMultipleWorkspaces(caps([ws('/w')]))).toBe(false);
-    });
-    it('is true with more than one workspace', () => {
-        expect(hasMultipleWorkspaces(caps([ws('/w'), ws('/b')]))).toBe(true);
-    });
+  it('is false without a workspaces list or with a single entry', () => {
+    expect(hasMultipleWorkspaces(undefined)).toBe(false);
+    expect(hasMultipleWorkspaces(caps())).toBe(false);
+    expect(hasMultipleWorkspaces(caps([ws('/w')]))).toBe(false);
+  });
+  it('is true with more than one workspace', () => {
+    expect(hasMultipleWorkspaces(caps([ws('/w'), ws('/b')]))).toBe(true);
+  });
 });
 describe('isNonPrimaryWorkspaceSession', () => {
-    it('is true only when both cwds are known and differ', () => {
-        expect(isNonPrimaryWorkspaceSession('/b', '/w')).toBe(true);
-        expect(isNonPrimaryWorkspaceSession('/w', '/w')).toBe(false);
-        expect(isNonPrimaryWorkspaceSession(undefined, '/w')).toBe(false);
-        expect(isNonPrimaryWorkspaceSession('/b', undefined)).toBe(false);
-    });
+  it('is true only when both cwds are known and differ', () => {
+    expect(isNonPrimaryWorkspaceSession('/b', '/w')).toBe(true);
+    expect(isNonPrimaryWorkspaceSession('/w', '/w')).toBe(false);
+    expect(isNonPrimaryWorkspaceSession(undefined, '/w')).toBe(false);
+    expect(isNonPrimaryWorkspaceSession('/b', undefined)).toBe(false);
+  });
 });
 describe('mergeSessionsById', () => {
-    it('returns the primary list unchanged (same ref) when there are no others', () => {
-        const primary = [session('a', '/w')];
-        expect(mergeSessionsById(primary, [])).toBe(primary);
-    });
-    it('appends other-workspace sessions', () => {
-        const merged = mergeSessionsById([session('a', '/w')], [session('b', '/b')]);
-        expect(merged.map((s) => s.sessionId)).toEqual(['a', 'b']);
-    });
-    it('returns only other-workspace sessions when the primary list is empty', () => {
-        // The primary workspace may have no live sessions while a non-primary one
-        // does — the early same-ref return is skipped and every other is inserted.
-        const merged = mergeSessionsById([], [session('b', '/b')]);
-        expect(merged.map((s) => s.sessionId)).toEqual(['b']);
-    });
-    it('keeps the primary entry on an id collision', () => {
-        const merged = mergeSessionsById([session('a', '/w')], [session('a', '/b')]);
-        expect(merged).toHaveLength(1);
-        expect(merged[0].workspaceCwd).toBe('/w');
-    });
+  it('returns the primary list unchanged (same ref) when there are no others', () => {
+    const primary = [session('a', '/w')];
+    expect(mergeSessionsById(primary, [])).toBe(primary);
+  });
+  it('appends other-workspace sessions', () => {
+    const merged = mergeSessionsById(
+      [session('a', '/w')],
+      [session('b', '/b')],
+    );
+    expect(merged.map((s) => s.sessionId)).toEqual(['a', 'b']);
+  });
+  it('returns only other-workspace sessions when the primary list is empty', () => {
+    // The primary workspace may have no live sessions while a non-primary one
+    // does — the early same-ref return is skipped and every other is inserted.
+    const merged = mergeSessionsById([], [session('b', '/b')]);
+    expect(merged.map((s) => s.sessionId)).toEqual(['b']);
+  });
+  it('keeps the primary entry on an id collision', () => {
+    const merged = mergeSessionsById(
+      [session('a', '/w')],
+      [session('a', '/b')],
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0].workspaceCwd).toBe('/w');
+  });
 });
 //# sourceMappingURL=workspace.test.js.map

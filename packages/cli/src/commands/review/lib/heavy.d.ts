@@ -12,12 +12,12 @@ import type { PathKind } from './diff-plan.js';
  * 399/1000 rounds to 0.40 and would clear a 0.40 threshold it does not meet.
  */
 export declare function classifyHeavy(input: {
-    preLines: number;
-    fileLines: number;
-    changedLines: number;
-    binary: boolean;
-    kind: PathKind;
+  preLines: number;
+  fileLines: number;
+  changedLines: number;
+  binary: boolean;
+  kind: PathKind;
 }): {
-    rewriteRatio: number;
-    heavy: boolean;
+  rewriteRatio: number;
+  heavy: boolean;
 };

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 type BrowserLaunchOptions = {
-    allowFile?: boolean;
-    allowedFilePaths?: string[];
+  allowFile?: boolean;
+  allowedFilePaths?: string[];
 };
 /**
  * Opens a URL in the user's default browser securely.
@@ -18,7 +18,10 @@ type BrowserLaunchOptions = {
  * @param browserOptions.allowFile - Allow file:// URLs for locally generated reports.
  * @returns A promise that resolves when the attempt is made (whether successful or logged).
  */
-export declare function openBrowserSecurely(url: string, browserOptions?: BrowserLaunchOptions): Promise<void>;
+export declare function openBrowserSecurely(
+  url: string,
+  browserOptions?: BrowserLaunchOptions,
+): Promise<void>;
 /**
  * Checks if the current environment should attempt to launch a browser.
  * This is the same logic as in browser.ts for consistency.

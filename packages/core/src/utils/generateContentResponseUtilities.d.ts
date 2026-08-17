@@ -3,8 +3,14 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { GenerateContentResponse, Part, FunctionCall } from '@google/genai';
-export declare function getResponseTextFromParts(parts: Part[]): string | undefined;
+import type {
+  GenerateContentResponse,
+  Part,
+  FunctionCall,
+} from '@google/genai';
+export declare function getResponseTextFromParts(
+  parts: Part[],
+): string | undefined;
 /**
  * Default `output` string `convertToFunctionResponse` (in `coreToolScheduler`)
  * writes when a tool returned no text (e.g. media-only / empty results).
@@ -13,7 +19,7 @@ export declare function getResponseTextFromParts(parts: Part[]): string | undefi
  * non-informative and falls back to media placeholders / the summary
  * `resultDisplay` instead of surfacing the literal.
  */
-export declare const TOOL_SUCCEEDED_OUTPUT = "Tool execution succeeded.";
+export declare const TOOL_SUCCEEDED_OUTPUT = 'Tool execution succeeded.';
 /**
  * Extract the FULL tool-result text for display (Ctrl+O transcript full detail),
  * from the persisted `functionResponse` parts.
@@ -36,10 +42,24 @@ export declare const TOOL_SUCCEEDED_OUTPUT = "Tool execution succeeded.";
  * Does NOT apply any character cap — the bound is whatever core already applied
  * (truncateToolOutput / per-tool paging). Full-detail semantics, §4.9.
  */
-export declare function getToolResponseDisplayText(parts: Part[] | undefined): string | undefined;
-export declare function getFunctionCalls(response: GenerateContentResponse): FunctionCall[] | undefined;
-export declare function getFunctionCallsFromParts(parts: Part[]): FunctionCall[] | undefined;
-export declare function getFunctionCallsAsJson(response: GenerateContentResponse): string | undefined;
-export declare function getFunctionCallsFromPartsAsJson(parts: Part[]): string | undefined;
-export declare function getStructuredResponse(response: GenerateContentResponse): string | undefined;
-export declare function getStructuredResponseFromParts(parts: Part[]): string | undefined;
+export declare function getToolResponseDisplayText(
+  parts: Part[] | undefined,
+): string | undefined;
+export declare function getFunctionCalls(
+  response: GenerateContentResponse,
+): FunctionCall[] | undefined;
+export declare function getFunctionCallsFromParts(
+  parts: Part[],
+): FunctionCall[] | undefined;
+export declare function getFunctionCallsAsJson(
+  response: GenerateContentResponse,
+): string | undefined;
+export declare function getFunctionCallsFromPartsAsJson(
+  parts: Part[],
+): string | undefined;
+export declare function getStructuredResponse(
+  response: GenerateContentResponse,
+): string | undefined;
+export declare function getStructuredResponseFromParts(
+  parts: Part[],
+): string | undefined;

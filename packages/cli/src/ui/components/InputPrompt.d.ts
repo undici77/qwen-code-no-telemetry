@@ -13,9 +13,9 @@ import { ApprovalMode, type Config } from '@qwen-code/qwen-code-core';
  * Represents an attachment (e.g., pasted image) displayed above the input prompt
  */
 export interface Attachment {
-    id: string;
-    path: string;
-    filename: string;
+  id: string;
+  path: string;
+  filename: string;
 }
 /**
  * Classify a pasted blob as image-file-path(s).
@@ -33,55 +33,61 @@ export interface Attachment {
  *   promote a pure image-path paste without swallowing mixed text.
  */
 export declare function classifyPastedImagePaths(pasted: string): {
-    imagePaths: string[];
-    allImages: boolean;
+  imagePaths: string[];
+  allImages: boolean;
 };
-export declare function expandPendingPastePlaceholders(value: string, pendingPastes: ReadonlyMap<string, string>): string;
+export declare function expandPendingPastePlaceholders(
+  value: string,
+  pendingPastes: ReadonlyMap<string, string>,
+): string;
 export interface InputPromptProps {
-    buffer: TextBuffer;
-    onSubmit: (value: string, options?: {
-        deferUntilIdle?: boolean;
-        submittedPrompt?: string;
-    }) => void;
-    userMessages: readonly string[];
-    onClearScreen: () => void;
-    config: Config;
-    slashCommands: readonly SlashCommand[];
-    commandContext: CommandContext;
-    recentSlashCommands?: RecentSlashCommands;
-    placeholder?: string;
-    focus?: boolean;
-    inputWidth: number;
-    suggestionsWidth: number;
-    shellModeActive: boolean;
-    setShellModeActive: (value: boolean) => void;
-    approvalMode: ApprovalMode;
-    onEscapePromptChange?: (showPrompt: boolean) => void;
-    onToggleShortcuts?: () => void;
-    showShortcuts?: boolean;
-    /**
-     * Reports autocomplete-dropdown visibility specifically. Composer uses
-     * this to hide the Footer / KeyboardShortcuts when the dropdown would
-     * overlap their vertical space. Must stay narrow — followup suggestions
-     * and mid-input ghost text don't take Footer's space and shouldn't hide
-     * it. See #4171 / #4308 review.
-     */
-    onSuggestionsVisibilityChange?: (visible: boolean) => void;
-    /**
-     * Reports whether any input-area handler will consume a Tab keystroke
-     * (autocomplete dropdown, followup prompt suggestion, or mid-input ghost
-     * text). AppContainer feeds this into useAutoAcceptIndicator's
-     * `shouldBlockTab` to suppress the Windows-only "bare Tab cycles approval
-     * mode" fallback. See #4171.
-     */
-    onTabConsumerChange?: (active: boolean) => void;
-    vimHandleInput?: (key: Key) => boolean;
-    isEmbeddedShellFocused?: boolean;
-    /** Prompt suggestion text to display after response completes */
-    promptSuggestion?: string | null;
-    /** Called when prompt suggestion is dismissed (user typed) */
-    onPromptSuggestionDismiss?: () => void;
-    clipboardUnavailableShownRef?: React.MutableRefObject<boolean>;
+  buffer: TextBuffer;
+  onSubmit: (
+    value: string,
+    options?: {
+      deferUntilIdle?: boolean;
+      submittedPrompt?: string;
+    },
+  ) => void;
+  userMessages: readonly string[];
+  onClearScreen: () => void;
+  config: Config;
+  slashCommands: readonly SlashCommand[];
+  commandContext: CommandContext;
+  recentSlashCommands?: RecentSlashCommands;
+  placeholder?: string;
+  focus?: boolean;
+  inputWidth: number;
+  suggestionsWidth: number;
+  shellModeActive: boolean;
+  setShellModeActive: (value: boolean) => void;
+  approvalMode: ApprovalMode;
+  onEscapePromptChange?: (showPrompt: boolean) => void;
+  onToggleShortcuts?: () => void;
+  showShortcuts?: boolean;
+  /**
+   * Reports autocomplete-dropdown visibility specifically. Composer uses
+   * this to hide the Footer / KeyboardShortcuts when the dropdown would
+   * overlap their vertical space. Must stay narrow — followup suggestions
+   * and mid-input ghost text don't take Footer's space and shouldn't hide
+   * it. See #4171 / #4308 review.
+   */
+  onSuggestionsVisibilityChange?: (visible: boolean) => void;
+  /**
+   * Reports whether any input-area handler will consume a Tab keystroke
+   * (autocomplete dropdown, followup prompt suggestion, or mid-input ghost
+   * text). AppContainer feeds this into useAutoAcceptIndicator's
+   * `shouldBlockTab` to suppress the Windows-only "bare Tab cycles approval
+   * mode" fallback. See #4171.
+   */
+  onTabConsumerChange?: (active: boolean) => void;
+  vimHandleInput?: (key: Key) => boolean;
+  isEmbeddedShellFocused?: boolean;
+  /** Prompt suggestion text to display after response completes */
+  promptSuggestion?: string | null;
+  /** Called when prompt suggestion is dismissed (user typed) */
+  onPromptSuggestionDismiss?: () => void;
+  clipboardUnavailableShownRef?: React.MutableRefObject<boolean>;
 }
 export { calculatePromptWidths } from '../utils/layoutUtils.js';
 export declare const InputPrompt: React.FC<InputPromptProps>;

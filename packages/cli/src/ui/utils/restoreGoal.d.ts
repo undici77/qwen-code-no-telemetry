@@ -3,13 +3,20 @@
  * Copyright 2026 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { type ChatRecord, type Config, type GoalTerminalEvent } from '@qwen-code/qwen-code-core';
-import { type HistoryItemGoalStatus, type HistoryItemWithoutId } from '../types.js';
+import {
+  type ChatRecord,
+  type Config,
+  type GoalTerminalEvent,
+} from '@qwen-code/qwen-code-core';
+import {
+  type HistoryItemGoalStatus,
+  type HistoryItemWithoutId,
+} from '../types.js';
 export interface RestorableGoal {
-    condition: string;
-    iterations: number;
-    /** Absent when no card of this goal's run carried one. */
-    setAt?: number;
+  condition: string;
+  iterations: number;
+  /** Absent when no card of this goal's run carried one. */
+  setAt?: number;
 }
 /**
  * Finds the most recent `goal_status` history item. Returns the active
@@ -27,7 +34,9 @@ export interface RestorableGoal {
  * written with a `setAt` — so we keep scanning back through this same run's
  * cards for it, stopping at the terminal card that ends the previous run.
  */
-export declare function findGoalToRestore(history: readonly HistoryItemWithoutId[]): RestorableGoal | null;
+export declare function findGoalToRestore(
+  history: readonly HistoryItemWithoutId[],
+): RestorableGoal | null;
 /**
  * Finds the most recent terminal (achieved / failed / aborted) goal_status item in
  * the transcript. Sentinel-style entries (`set`, `cleared`, `checking`) are
@@ -36,7 +45,9 @@ export declare function findGoalToRestore(history: readonly HistoryItemWithoutId
  * continue;`). Used on resume to repopulate the in-memory "last completed
  * goal" cache so empty `/goal` after a reload still shows the summary card.
  */
-export declare function findLastTerminalGoal(history: readonly HistoryItemWithoutId[]): GoalTerminalEvent | null;
+export declare function findLastTerminalGoal(
+  history: readonly HistoryItemWithoutId[],
+): GoalTerminalEvent | null;
 export type GoalStatusItem = Omit<HistoryItemGoalStatus, 'id'>;
 type AddGoalStatusItem = (item: GoalStatusItem, timestamp: number) => void;
 /**
@@ -44,7 +55,9 @@ type AddGoalStatusItem = (item: GoalStatusItem, timestamp: number) => void;
  * A transcript is a file: an entry may be any JSON value, and only a plain
  * object is safely indexable.
  */
-export declare function isTranscriptItemRecord(item: unknown): item is Record<string, unknown>;
+export declare function isTranscriptItemRecord(
+  item: unknown,
+): item is Record<string, unknown>;
 /**
  * Rebuilds a goal card from one persisted `outputHistoryItems` entry, or
  * returns null when the entry is not a well-formed goal card. Transcripts are
@@ -52,27 +65,41 @@ export declare function isTranscriptItemRecord(item: unknown): item is Record<st
  * array — so the shape is checked before any field is read, and then every
  * field is re-validated rather than cast.
  */
-export declare function parseGoalStatusItem(item: unknown): GoalStatusItem | null;
+export declare function parseGoalStatusItem(
+  item: unknown,
+): GoalStatusItem | null;
 /**
  * Extracts the goal cards a transcript persisted inside its `system` /
  * `slash_command` records, oldest first. This is the daemon-side counterpart to
  * the TUI's in-memory `HistoryItem[]`: on the ACP path no `HistoryItem[]` ever
  * exists, so `findGoalToRestore` / `findLastTerminalGoal` are fed from here.
  */
-export declare function collectGoalStatusItemsFromRecords(records: readonly ChatRecord[]): GoalStatusItem[];
-export declare function goalTerminalEventToHistoryItem(event: GoalTerminalEvent): GoalStatusItem;
-export declare function recordGoalStatusItem(config: Config, item: GoalStatusItem, rawCommand?: string): void;
+export declare function collectGoalStatusItemsFromRecords(
+  records: readonly ChatRecord[],
+): GoalStatusItem[];
+export declare function goalTerminalEventToHistoryItem(
+  event: GoalTerminalEvent,
+): GoalStatusItem;
+export declare function recordGoalStatusItem(
+  config: Config,
+  item: GoalStatusItem,
+  rawCommand?: string,
+): void;
 export declare function installGoalTerminalObserver(args: {
-    sessionId: string;
-    config: Config;
-    addItem: AddGoalStatusItem;
+  sessionId: string;
+  config: Config;
+  addItem: AddGoalStatusItem;
 }): void;
 /**
  * Why a transcript's active goal could not be put back under a live Stop hook.
  * `condition-invalid` covers a transcript that no longer describes a goal
  * `/goal` itself would accept.
  */
-export type GoalRestoreBlockedReason = 'untrusted-folder' | 'hooks-disabled' | 'no-hook-system' | 'condition-invalid';
+export type GoalRestoreBlockedReason =
+  | 'untrusted-folder'
+  | 'hooks-disabled'
+  | 'no-hook-system'
+  | 'condition-invalid';
 /**
  * The environment half of `/goal`'s gates, as a pure function of `config`.
  *
@@ -80,7 +107,9 @@ export type GoalRestoreBlockedReason = 'untrusted-folder' | 'hooks-disabled' | '
  * a client derives "there is an active goal" from the newest replayed goal
  * card, so a card that is about to be refused must not be replayed as active.
  */
-export declare function goalRestoreBlockedBy(config: Config): Exclude<GoalRestoreBlockedReason, 'condition-invalid'> | null;
+export declare function goalRestoreBlockedBy(
+  config: Config,
+): Exclude<GoalRestoreBlockedReason, 'condition-invalid'> | null;
 /**
  * Mirrors the gates `/goal` applies to a condition at set time.
  *
@@ -88,14 +117,18 @@ export declare function goalRestoreBlockedBy(config: Config): Exclude<GoalRestor
  * capping here would silently destroy a long goal the user legitimately set —
  * refused on restore, and dropped from the replay so they never see why.
  */
-export declare function goalConditionBlockedBy(condition: string): 'condition-invalid' | null;
-export type RestoreGoalResult = {
-    restored: true;
-    condition: string;
-} | {
-    restored: false;
-    blockedBy?: GoalRestoreBlockedReason;
-};
+export declare function goalConditionBlockedBy(
+  condition: string,
+): 'condition-invalid' | null;
+export type RestoreGoalResult =
+  | {
+      restored: true;
+      condition: string;
+    }
+  | {
+      restored: false;
+      blockedBy?: GoalRestoreBlockedReason;
+    };
 /**
  * On session resume, restores the active /goal hook if the transcript ended
  * with an unsatisfied goal. Idempotent — safe to call on a fresh session.
@@ -109,5 +142,9 @@ export type RestoreGoalResult = {
  * Note that every `{ restored: false }` path unregisters, which clears the
  * session's goal-terminal observer as a side effect. ACP callers reinstall it.
  */
-export declare function restoreGoalFromHistory(history: readonly HistoryItemWithoutId[], config: Config, addItem?: AddGoalStatusItem): RestoreGoalResult;
+export declare function restoreGoalFromHistory(
+  history: readonly HistoryItemWithoutId[],
+  config: Config,
+  addItem?: AddGoalStatusItem,
+): RestoreGoalResult;
 export {};

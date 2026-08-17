@@ -34,8 +34,12 @@ export declare function isTransientNetworkError(error: unknown): boolean;
  *                  original error if it is not transient, or an
  *                  AbortError if the signal fires during backoff.
  */
-export declare function retryWithBackoff<T>(fn: () => Promise<T>, label: string, opts?: {
+export declare function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  label: string,
+  opts?: {
     maxRetries?: number;
     baseDelayMs?: number;
     signal?: AbortSignal;
-}): Promise<T>;
+  },
+): Promise<T>;

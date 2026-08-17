@@ -10,14 +10,17 @@
  * Build a Feishu interactive card JSON structure with markdown content.
  * Uses a clean design with header, streaming indicator, and optional stop button.
  */
-export declare function buildCardContent(markdown: string, options?: {
+export declare function buildCardContent(
+  markdown: string,
+  options?: {
     title?: string;
     showStopButton?: boolean;
     isStreaming?: boolean;
     statusLabel?: string;
     collapsible?: boolean;
     collapsibleThreshold?: number;
-}): Record<string, unknown>;
+  },
+): Record<string, unknown>;
 /** Extract a short title from the first line of markdown. */
 export declare function extractTitle(text: string): string;
 /**

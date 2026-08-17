@@ -19,6 +19,8 @@
  * ACP integrations (VS Code companion, Electron desktop, third parties)
  * spawn the same command line.
  */
-export declare const QWEN_CODE_SERVE_ENV = "QWEN_CODE_SERVE";
-export declare const QWEN_CODE_DESKTOP_ENV = "QWEN_CODE_DESKTOP";
-export declare function resolveAcpChannelFallback(env?: NodeJS.ProcessEnv): string;
+export declare const QWEN_CODE_SERVE_ENV = 'QWEN_CODE_SERVE';
+export declare const QWEN_CODE_DESKTOP_ENV = 'QWEN_CODE_DESKTOP';
+export declare function resolveAcpChannelFallback(
+  env?: NodeJS.ProcessEnv,
+): string;

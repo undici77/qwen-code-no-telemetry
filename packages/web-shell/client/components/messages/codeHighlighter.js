@@ -3,7 +3,7 @@
  * Copyright 2026 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { createHighlighter, } from 'shiki';
+import { createHighlighter } from 'shiki';
 // A single, lazily-created highlighter shared by all code blocks. It uses
 // Shiki's default Oniguruma (WASM) engine — the same engine `main` highlights
 // with — and loads languages on demand, so each language/grammar is fetched at
@@ -23,68 +23,66 @@ const failedLanguages = new Set();
 export const SHIKI_CACHE_MAX = 128;
 const shikiCache = new Map();
 function cacheKey(code, lang, theme) {
-    return `${lang}\0${theme}\0${code}`;
+  return `${lang}\0${theme}\0${code}`;
 }
 function setCache(key, html) {
-    if (shikiCache.size >= SHIKI_CACHE_MAX) {
-        const first = shikiCache.keys().next().value;
-        if (first !== undefined)
-            shikiCache.delete(first);
-    }
-    shikiCache.set(key, html);
+  if (shikiCache.size >= SHIKI_CACHE_MAX) {
+    const first = shikiCache.keys().next().value;
+    if (first !== undefined) shikiCache.delete(first);
+  }
+  shikiCache.set(key, html);
 }
 /** Returns previously-highlighted HTML for this exact code/lang/theme, or null. */
 export function getCachedHtml(code, lang, theme) {
-    return shikiCache.get(cacheKey(code, lang, theme)) ?? null;
+  return shikiCache.get(cacheKey(code, lang, theme)) ?? null;
 }
 function getHighlighter() {
-    if (!highlighterPromise) {
-        highlighterPromise = createHighlighter({
-            langs: [],
-            themes: THEMES,
-        })
-            .then((highlighter) => {
-            highlighterInstance = highlighter;
-            return highlighter;
-        })
-            .catch((err) => {
-            // Don't cache a rejected promise: a transient failure (e.g. a dynamic
-            // import hiccup) would otherwise permanently disable highlighting for
-            // the whole session. Reset so the next call retries.
-            highlighterPromise = null;
-            throw err;
-        });
-    }
-    return highlighterPromise;
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      langs: [],
+      themes: THEMES,
+    })
+      .then((highlighter) => {
+        highlighterInstance = highlighter;
+        return highlighter;
+      })
+      .catch((err) => {
+        // Don't cache a rejected promise: a transient failure (e.g. a dynamic
+        // import hiccup) would otherwise permanently disable highlighting for
+        // the whole session. Reset so the next call retries.
+        highlighterPromise = null;
+        throw err;
+      });
+  }
+  return highlighterPromise;
 }
 /** Returns the shared highlighter with `lang` loaded (lazily, cached). */
 export async function getCodeHighlighter(lang) {
-    const highlighter = await getHighlighter();
-    if (loadedLanguages.has(lang))
-        return highlighter;
-    if (failedLanguages.has(lang)) {
-        throw new Error(`shiki: language "${lang}" previously failed to load`);
-    }
-    // Dedupe concurrent loads of the same language: without this, two callers
-    // can both pass the `has` check and call `loadLanguage` twice.
-    let pending = pendingLanguages.get(lang);
-    if (!pending) {
-        pending = highlighter
-            .loadLanguage(lang)
-            .then(() => {
-            loadedLanguages.add(lang);
-        })
-            .catch((err) => {
-            failedLanguages.add(lang);
-            throw err;
-        })
-            .finally(() => {
-            pendingLanguages.delete(lang);
-        });
-        pendingLanguages.set(lang, pending);
-    }
-    await pending;
-    return highlighter;
+  const highlighter = await getHighlighter();
+  if (loadedLanguages.has(lang)) return highlighter;
+  if (failedLanguages.has(lang)) {
+    throw new Error(`shiki: language "${lang}" previously failed to load`);
+  }
+  // Dedupe concurrent loads of the same language: without this, two callers
+  // can both pass the `has` check and call `loadLanguage` twice.
+  let pending = pendingLanguages.get(lang);
+  if (!pending) {
+    pending = highlighter
+      .loadLanguage(lang)
+      .then(() => {
+        loadedLanguages.add(lang);
+      })
+      .catch((err) => {
+        failedLanguages.add(lang);
+        throw err;
+      })
+      .finally(() => {
+        pendingLanguages.delete(lang);
+      });
+    pendingLanguages.set(lang, pending);
+  }
+  await pending;
+  return highlighter;
 }
 // Even with the Oniguruma engine, TextMate tokenization of a very long,
 // unbroken line is roughly O(n²) and runs synchronously on the main thread, so
@@ -95,19 +93,17 @@ export async function getCodeHighlighter(lang) {
 export const MAX_HIGHLIGHT_TOTAL_CHARS = 100_000;
 export const MAX_HIGHLIGHT_LINE_CHARS = 20_000;
 export function isTooLargeToHighlight(code) {
-    if (code.length > MAX_HIGHLIGHT_TOTAL_CHARS)
-        return true;
-    // Bail if any single line exceeds the per-line limit (short-circuits early).
-    let lineStart = 0;
-    const len = code.length;
-    for (let i = 0; i <= len; i++) {
-        if (i === len || code.charCodeAt(i) === 10 /* \n */) {
-            if (i - lineStart > MAX_HIGHLIGHT_LINE_CHARS)
-                return true;
-            lineStart = i + 1;
-        }
+  if (code.length > MAX_HIGHLIGHT_TOTAL_CHARS) return true;
+  // Bail if any single line exceeds the per-line limit (short-circuits early).
+  let lineStart = 0;
+  const len = code.length;
+  for (let i = 0; i <= len; i++) {
+    if (i === len || code.charCodeAt(i) === 10 /* \n */) {
+      if (i - lineStart > MAX_HIGHLIGHT_LINE_CHARS) return true;
+      lineStart = i + 1;
     }
-    return false;
+  }
+  return false;
 }
 /**
  * Synchronously highlights code to HTML *iff* the highlighter and language are
@@ -118,29 +114,27 @@ export function isTooLargeToHighlight(code) {
  * gates before reaching this function — so it is not re-checked here.
  */
 export function highlightToHtmlSync(code, lang, theme, persist = true) {
-    if (highlighterInstance && loadedLanguages.has(lang)) {
-        try {
-            const html = highlighterInstance.codeToHtml(code, { lang, theme });
-            if (persist)
-                setCache(cacheKey(code, lang, theme), html);
-            return html;
-        }
-        catch (err) {
-            // Fall back to the async path rather than crashing the render tree, and
-            // log it (the async path logs too) so a failing grammar isn't silent.
-            console.warn('[web-shell] sync highlight failed for lang=%s', lang, err);
-            return null;
-        }
+  if (highlighterInstance && loadedLanguages.has(lang)) {
+    try {
+      const html = highlighterInstance.codeToHtml(code, { lang, theme });
+      if (persist) setCache(cacheKey(code, lang, theme), html);
+      return html;
+    } catch (err) {
+      // Fall back to the async path rather than crashing the render tree, and
+      // log it (the async path logs too) so a failing grammar isn't silent.
+      console.warn('[web-shell] sync highlight failed for lang=%s', lang, err);
+      return null;
     }
-    return null;
+  }
+  return null;
 }
 /** Resets all module-level highlighter state (incl. the HTML cache). Tests only. */
 export function __resetForTesting() {
-    highlighterPromise = null;
-    highlighterInstance = null;
-    loadedLanguages.clear();
-    pendingLanguages.clear();
-    failedLanguages.clear();
-    shikiCache.clear();
+  highlighterPromise = null;
+  highlighterInstance = null;
+  loadedLanguages.clear();
+  pendingLanguages.clear();
+  failedLanguages.clear();
+  shikiCache.clear();
 }
 //# sourceMappingURL=codeHighlighter.js.map

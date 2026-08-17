@@ -40,7 +40,10 @@ export declare function skillArgsDir(sessionId?: string): string;
  * because the skill name becomes a filename: `../../etc/passwd` must not choose
  * where the CLI writes.
  */
-export declare function skillArgsPath(skillName: string, sessionId?: string): string;
+export declare function skillArgsPath(
+  skillName: string,
+  sessionId?: string,
+): string;
 /**
  * Write a skill's raw arguments to its args file. Returns the path, or null if
  * the write failed.
@@ -51,7 +54,10 @@ export declare function skillArgsPath(skillName: string, sessionId?: string): st
  * conversation), which is worse but not broken, so a failure here is logged and
  * swallowed rather than taking the invocation down with it.
  */
-export declare function writeSkillArgs(skillName: string, args: string): string | null;
+export declare function writeSkillArgs(
+  skillName: string,
+  args: string,
+): string | null;
 /**
  * Remove this skill's args file for the session.
  *

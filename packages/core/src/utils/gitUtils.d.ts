@@ -13,7 +13,9 @@
  * imports `gitDiff.ts` — exporting it from there would close an import cycle.
  * This module imports nothing but node builtins, so it can be shared freely.
  */
-export declare function readFirstLineNoFollow(filePath: string): Promise<string | null>;
+export declare function readFirstLineNoFollow(
+  filePath: string,
+): Promise<string | null>;
 /**
  * Checks if a directory is within a git repository
  * @param directory The directory to check

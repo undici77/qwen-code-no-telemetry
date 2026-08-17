@@ -28,7 +28,9 @@ export declare const REASONING_EFFORT_RANKS: Record<ReasoningEffort, number>;
  * few common aliases (`x-high`, `extra-high`, `maximum`). Returns `undefined`
  * for anything unrecognized so callers can surface a helpful error.
  */
-export declare function normalizeReasoningEffort(raw?: string | null): ReasoningEffort | undefined;
+export declare function normalizeReasoningEffort(
+  raw?: string | null,
+): ReasoningEffort | undefined;
 /**
  * Clamp a requested tier to the nearest tier a model/provider actually supports.
  *
@@ -41,7 +43,10 @@ export declare function normalizeReasoningEffort(raw?: string | null): Reasoning
  *
  * `supported` defaults to the full ladder (no clamping).
  */
-export declare function clampReasoningEffort(requested: ReasoningEffort, supported?: readonly ReasoningEffort[]): ReasoningEffort;
+export declare function clampReasoningEffort(
+  requested: ReasoningEffort,
+  supported?: readonly ReasoningEffort[],
+): ReasoningEffort;
 /**
  * Set `effort` and read it back to confirm the config actually accepted it.
  * `Config.setReasoningEffort` is a documented no-op when thinking is
@@ -50,4 +55,7 @@ export declare function clampReasoningEffort(requested: ReasoningEffort, support
  * instead of reporting success. Clearing the override (`undefined`) always
  * reports true.
  */
-export declare function applyReasoningEffort(config: Config, effort: ReasoningEffort | undefined): boolean;
+export declare function applyReasoningEffort(
+  config: Config,
+  effort: ReasoningEffort | undefined,
+): boolean;

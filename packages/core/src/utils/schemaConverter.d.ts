@@ -12,7 +12,10 @@ export type SchemaComplianceMode = 'auto' | 'openapi_30';
 /**
  * Converts a JSON Schema to be compatible with the specified compliance mode.
  */
-export declare function convertSchema(schema: Record<string, unknown>, mode?: SchemaComplianceMode): Record<string, unknown>;
+export declare function convertSchema(
+  schema: Record<string, unknown>,
+  mode?: SchemaComplianceMode,
+): Record<string, unknown>;
 /**
  * Relaxes a tool-parameter JSON Schema for the OpenAI-compatible wire
  * format (#7315).
@@ -39,4 +42,6 @@ export declare function convertSchema(schema: Record<string, unknown>, mode?: Sc
  *
  * Pure: returns new objects, never mutates the input.
  */
-export declare function relaxSchemaForFunctionCalling(schema: Record<string, unknown>): Record<string, unknown>;
+export declare function relaxSchemaForFunctionCalling(
+  schema: Record<string, unknown>,
+): Record<string, unknown>;

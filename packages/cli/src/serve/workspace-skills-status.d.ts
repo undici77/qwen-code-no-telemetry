@@ -5,10 +5,12 @@
  */
 import type { ServeWorkspaceSkillsStatus } from '@qwen-code/acp-bridge/status';
 export interface WorkspaceSkillsStatusProvider {
-    (workspaceCwd: string): Promise<ServeWorkspaceSkillsStatus>;
-    invalidate?(workspaceCwd: string): void;
+  (workspaceCwd: string): Promise<ServeWorkspaceSkillsStatus>;
+  invalidate?(workspaceCwd: string): void;
 }
 export interface WorkspaceSkillsStatusProviderOptions {
-    workspaceTrusted?: boolean;
+  workspaceTrusted?: boolean;
 }
-export declare function createWorkspaceSkillsStatusProvider(options?: WorkspaceSkillsStatusProviderOptions): WorkspaceSkillsStatusProvider;
+export declare function createWorkspaceSkillsStatusProvider(
+  options?: WorkspaceSkillsStatusProviderOptions,
+): WorkspaceSkillsStatusProvider;

@@ -5,16 +5,16 @@
  */
 export declare const MAX_REGISTERED_WORKSPACES = 25;
 export declare class DuplicateWorkspaceInputError extends Error {
-    constructor(workspace: string);
+  constructor(workspace: string);
 }
 export declare class NestedWorkspaceInputError extends Error {
-    constructor(parent: string, child: string);
+  constructor(parent: string, child: string);
 }
 export declare class MultipleWorkspaceInputError extends Error {
-    constructor();
+  constructor();
 }
 export declare class MissingWorkspaceInputError extends Error {
-    constructor();
+  constructor();
 }
 export declare function resolveWorkspaceInputs(workspace: unknown): string[];
 export declare function resolveSingleWorkspaceInput(workspace: unknown): string;

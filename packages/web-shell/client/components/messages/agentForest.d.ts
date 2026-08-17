@@ -34,26 +34,26 @@
  * serializer guarantees it), which is what `parentAgentId` references.
  */
 export interface AgentForestNode {
-    kind: string;
-    id?: string;
-    parentAgentId?: string | null;
-    isBackgrounded?: boolean;
+  kind: string;
+  id?: string;
+  parentAgentId?: string | null;
+  isBackgrounded?: boolean;
 }
 /** Per-agent tree metadata for row rendering. */
 export interface AgentTreeInfo {
-    /**
-     * Structural depth among the *visible* entries (0 = rendered at root
-     * level). An agent whose ancestors left the snapshot renders closer to
-     * the root than its launch depth — the tree indents only what the user
-     * can actually see, so connectors never dangle.
-     */
-    visibleDepth: number;
-    /**
-     * True when the entry claims a parent (`parentAgentId` set) that is not
-     * in the visible set — the row is promoted to root level and annotated
-     * ("from <parent>") instead of indented under nothing.
-     */
-    orphaned: boolean;
+  /**
+   * Structural depth among the *visible* entries (0 = rendered at root
+   * level). An agent whose ancestors left the snapshot renders closer to
+   * the root than its launch depth — the tree indents only what the user
+   * can actually see, so connectors never dangle.
+   */
+  visibleDepth: number;
+  /**
+   * True when the entry claims a parent (`parentAgentId` set) that is not
+   * in the visible set — the row is promoted to root level and annotated
+   * ("from <parent>") instead of indented under nothing.
+   */
+  orphaned: boolean;
 }
 export declare const TREE_INDENT_MAX_LEVELS = 3;
 /**
@@ -64,7 +64,9 @@ export declare const TREE_INDENT_MAX_LEVELS = 3;
  * parent-cycle) keep their original relative order as roots; siblings keep
  * their original relative order under their parent.
  */
-export declare function reorderChildrenUnderParents<T extends AgentForestNode>(entries: readonly T[]): T[];
+export declare function reorderChildrenUnderParents<T extends AgentForestNode>(
+  entries: readonly T[],
+): T[];
 /** How an ancestor walk ended — see {@link ancestorChain}. */
 export type AncestorTermination = 'root' | 'missing' | 'cycle';
 /**
@@ -75,15 +77,20 @@ export type AncestorTermination = 'root' | 'missing' | 'cycle';
  * repeated id (`'cycle'`). Single home of the eviction/cycle policy shared
  * by tree depth and the `[blocking]` verdict.
  */
-export declare function ancestorChain<T extends AgentForestNode>(node: AgentForestNode, lookup: (id: string) => T | undefined): {
-    chain: T[];
-    terminatedBy: AncestorTermination;
+export declare function ancestorChain<T extends AgentForestNode>(
+  node: AgentForestNode,
+  lookup: (id: string) => T | undefined,
+): {
+  chain: T[];
+  terminatedBy: AncestorTermination;
 };
 /**
  * Computes {@link AgentTreeInfo} for every agent entry in the visible set.
  * Depth is the length of the parent chain that is actually present.
  */
-export declare function computeAgentTreeInfo(entries: readonly AgentForestNode[]): Map<string, AgentTreeInfo>;
+export declare function computeAgentTreeInfo(
+  entries: readonly AgentForestNode[],
+): Map<string, AgentTreeInfo>;
 /**
  * The agent ids whose cancellation would end the USER's current turn — a
  * foreground entry whose entire ancestor chain is foreground up to the
@@ -93,4 +100,6 @@ export declare function computeAgentTreeInfo(entries: readonly AgentForestNode[]
  * chain cannot be proven (departed ancestor, cycle), the entry is not
  * tagged — a missing warning is a milder failure than a wrong one.
  */
-export declare function computeUserBlockingIds(entries: readonly AgentForestNode[]): Set<string>;
+export declare function computeUserBlockingIds(
+  entries: readonly AgentForestNode[],
+): Set<string>;

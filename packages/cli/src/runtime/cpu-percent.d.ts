@@ -10,4 +10,9 @@
  * no delta and callers that only advance successful baselines cannot create a
  * phantom spike.
  */
-export declare function computeCpuPercent(prev: NodeJS.CpuUsage | null, cur: NodeJS.CpuUsage | null, elapsedMs: number, coreCount: number): number;
+export declare function computeCpuPercent(
+  prev: NodeJS.CpuUsage | null,
+  cur: NodeJS.CpuUsage | null,
+  elapsedMs: number,
+  coreCount: number,
+): number;

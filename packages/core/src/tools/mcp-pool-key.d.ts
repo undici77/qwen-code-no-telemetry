@@ -33,7 +33,10 @@ export declare const POOLED_TRANSPORTS_DEFAULT: ReadonlySet<McpTransportKind>;
  * SDK MCP servers always bypass (per-session by design); other
  * transports gated on the operator's `pooledTransports` selection.
  */
-export declare function isPoolable(cfg: MCPServerConfig, pooledTransports: ReadonlySet<McpTransportKind>): boolean;
+export declare function isPoolable(
+  cfg: MCPServerConfig,
+  pooledTransports: ReadonlySet<McpTransportKind>,
+): boolean;
 /**
  * Normalize OAuth config so functionally-equivalent shapes collapse
  * to the same fingerprint. `undefined`, `null`, `{}`, `{enabled: false}`
@@ -53,7 +56,9 @@ export declare function isPoolable(cfg: MCPServerConfig, pooledTransports: Reado
  * session's transport. Especially load-bearing for `clientSecret`
  * (confidential client) and `audiences` (multi-audience tokens).
  */
-export declare function canonicalOAuth(o?: MCPOAuthConfig | null): Record<string, unknown> | null;
+export declare function canonicalOAuth(
+  o?: MCPOAuthConfig | null,
+): Record<string, unknown> | null;
 /**
  * Compute the pool fingerprint for an MCP server config. Two configs
  * with identical transport semantics + auth + env produce the same
@@ -84,13 +89,16 @@ export declare function fingerprint(cfg: MCPServerConfig): PoolKey;
  * distinct ConnectionIds — see global state coexistence for how
  * the global `serverStatuses` Map handles multi-entry name collisions.
  */
-export declare function connectionIdOf(serverName: string, cfg: MCPServerConfig): ConnectionId;
+export declare function connectionIdOf(
+  serverName: string,
+  cfg: MCPServerConfig,
+): ConnectionId;
 /**
  * Parse a ConnectionId back into its components. Useful for status
  * routes that need to surface the (serverName, entryIndex) pair
  * without exposing the raw fingerprint to clients.
  */
 export declare function parseConnectionId(id: ConnectionId): {
-    serverName: string;
-    fingerprint: PoolKey;
+  serverName: string;
+  fingerprint: PoolKey;
 };

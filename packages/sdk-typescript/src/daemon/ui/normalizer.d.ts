@@ -5,7 +5,10 @@
  */
 import type { DaemonEvent } from '../types.js';
 import type { DaemonUiEvent, NormalizeDaemonEventOptions } from './types.js';
-export declare function normalizeDaemonEvent(event: DaemonEvent, opts?: NormalizeDaemonEventOptions): DaemonUiEvent[];
+export declare function normalizeDaemonEvent(
+  event: DaemonEvent,
+  opts?: NormalizeDaemonEventOptions,
+): DaemonUiEvent[];
 /**
  * Extract daemon-authoritative timestamp from envelope. Looks at known
  * candidate locations in order:
@@ -19,8 +22,12 @@ export declare function normalizeDaemonEvent(event: DaemonEvent, opts?: Normaliz
  * Forward-compat: SDK reads whichever location the daemon eventually emits
  * without requiring a coordinated SDK release.
  */
-export declare function extractServerTimestamp(event: DaemonEvent): number | undefined;
-export declare function getSessionUpdatePayload(value: unknown): Record<string, unknown> | undefined;
+export declare function extractServerTimestamp(
+  event: DaemonEvent,
+): number | undefined;
+export declare function getSessionUpdatePayload(
+  value: unknown,
+): Record<string, unknown> | undefined;
 /**
  * Known closed-set of `DaemonAuthDeviceFlowErrorKind` values, exported as
  * documentation of the canonical kinds the daemon emits today.
@@ -39,4 +46,11 @@ export declare function getSessionUpdatePayload(value: unknown): Record<string, 
  * known-set arms cover the listed kinds. The known set is referenced
  * here in code only so it surfaces in IDE hovers / type-doc tooling.
  */
-export declare const KNOWN_DEVICE_FLOW_ERROR_KINDS: readonly ["expired_token", "access_denied", "invalid_grant", "upstream_error", "persist_failed", "not_found_or_evicted"];
+export declare const KNOWN_DEVICE_FLOW_ERROR_KINDS: readonly [
+  'expired_token',
+  'access_denied',
+  'invalid_grant',
+  'upstream_error',
+  'persist_failed',
+  'not_found_or_evicted',
+];

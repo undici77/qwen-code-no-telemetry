@@ -20,8 +20,20 @@
  * Terminals without OSC 8 support ignore the escapes and print the visible
  * label as-is.
  */
-import { osc8Hyperlink, sanitizeForOsc, supportsHyperlinks, wrapForMultiplexer, HYPERLINK_ENV_KEYS } from '@qwen-code/qwen-code-core';
-export { osc8Hyperlink, sanitizeForOsc, supportsHyperlinks, wrapForMultiplexer, HYPERLINK_ENV_KEYS, };
+import {
+  osc8Hyperlink,
+  sanitizeForOsc,
+  supportsHyperlinks,
+  wrapForMultiplexer,
+  HYPERLINK_ENV_KEYS,
+} from '@qwen-code/qwen-code-core';
+export {
+  osc8Hyperlink,
+  sanitizeForOsc,
+  supportsHyperlinks,
+  wrapForMultiplexer,
+  HYPERLINK_ENV_KEYS,
+};
 /**
  * Open half of an OSC 8 hyperlink envelope. Pair with `osc8Close()` to wrap
  * a styled label without losing the surrounding SGR resets — OSC 8 and SGR
@@ -50,7 +62,10 @@ export declare function isSafeOscScheme(url: string): boolean;
  * the URL so URLs that legitimately end with `)` (Wikipedia disambiguation,
  * MSDN) aren't truncated.
  */
-export declare function trimTrailingUrlPunctuation(url: string, nextCharacter?: string): string;
+export declare function trimTrailingUrlPunctuation(
+  url: string,
+  nextCharacter?: string,
+): string;
 /**
  * Inline link pattern allowing one level of balanced parens in the URL
  * group so `[wiki](https://en.wikipedia.org/wiki/Foo_(bar))` isn't truncated
@@ -88,5 +103,8 @@ export declare const BARE_URL_PATTERN: string;
  * Centralizing the predicate keeps the React renderer and the ANSI table
  * renderer in lockstep; if a future scheme is allowlisted, both pick it up.
  */
-export declare function shouldWrapMarkdownLink(url: string, canHyperlink: boolean): boolean;
+export declare function shouldWrapMarkdownLink(
+  url: string,
+  canHyperlink: boolean,
+): boolean;
 export declare function labelMayDeceive(label: string, url: string): boolean;

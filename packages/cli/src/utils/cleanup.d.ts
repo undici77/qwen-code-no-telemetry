@@ -3,14 +3,18 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-export declare function registerCleanup(fn: (() => void) | (() => Promise<void>)): () => void;
+export declare function registerCleanup(
+  fn: (() => void) | (() => Promise<void>),
+): () => void;
 export interface RunExitCleanupOptions {
-    /** TEST ONLY — override per-cleanup-function timeout (default 2s). */
-    _testPerFnTimeoutMs?: number;
-    /** TEST ONLY — override overall wall-clock timeout (default 5s). */
-    _testOverallTimeoutMs?: number;
+  /** TEST ONLY — override per-cleanup-function timeout (default 2s). */
+  _testPerFnTimeoutMs?: number;
+  /** TEST ONLY — override overall wall-clock timeout (default 5s). */
+  _testOverallTimeoutMs?: number;
 }
-export declare function runExitCleanup(options?: RunExitCleanupOptions): Promise<void>;
+export declare function runExitCleanup(
+  options?: RunExitCleanupOptions,
+): Promise<void>;
 /**
  * Test-only: clear the registered cleanup functions array. Module-private
  * state otherwise leaks across vitest cases — the previous test isolation

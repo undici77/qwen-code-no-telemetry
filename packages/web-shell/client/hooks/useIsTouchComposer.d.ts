@@ -9,7 +9,8 @@
  * laptops (hover-capable trackpad + touchscreen), which keep the desktop
  * CodeMirror editor.
  */
-export declare const TOUCH_COMPOSER_QUERY = "(hover: none) and (pointer: coarse)";
+export declare const TOUCH_COMPOSER_QUERY =
+  '(hover: none) and (pointer: coarse)';
 /**
  * Raw device detection, ignoring the URL override. Used to gate programmatic
  * (non-gesture) `view.focus()` calls: on iOS, focusing an editable element

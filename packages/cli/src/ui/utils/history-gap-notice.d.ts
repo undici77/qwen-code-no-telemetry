@@ -18,4 +18,6 @@ export declare function formatHistoryGapNotice(_gap: HistoryGap): string;
  * before a given record. Shared by the terminal `/resume` builder and the ACP
  * replayer so both surfaces key the divider off the same field.
  */
-export declare function indexGapsByChild(gaps: readonly HistoryGap[] | undefined): Map<string, HistoryGap>;
+export declare function indexGapsByChild(
+  gaps: readonly HistoryGap[] | undefined,
+): Map<string, HistoryGap>;

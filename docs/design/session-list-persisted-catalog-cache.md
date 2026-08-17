@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+
 # Session List persisted catalog cache
 
 ## Problem
@@ -32,6 +33,7 @@ Request spans distinguish physical scans, cache hits, and single-flight waiters 
 This change does not alter public protocols, Web Shell polling, the session-info scan, cross-workspace scan scheduling, core filesystem APIs, or daemon timeout policy. The outer lifecycle timeout fix remains necessary for a single slow cold scan.
 ||||||| 4d6246bd8
 =======
+
 # Session List persisted catalog cache
 
 ## Problem
@@ -67,4 +69,5 @@ Request spans distinguish physical scans, cache hits, and single-flight waiters 
 ## Out of scope
 
 This change does not alter public protocols, Web Shell polling, the session-info scan, cross-workspace scan scheduling, or daemon timeout policy. It does not add per-request ACP cancellation, fixed scan deadlines, asynchronous directory enumeration, concurrent stat calls, worker threads, or cancellation for CLI resume and picker callers.
->>>>>>> main
+
+> > > > > > > main

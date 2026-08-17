@@ -5,11 +5,11 @@
  */
 import { type FC, type ReactNode } from 'react';
 interface CollapsibleOutputProps {
-    children: ReactNode;
-    isCollapsible: boolean;
-    collapsedHeight?: number;
-    fadeStart?: number;
-    className?: string;
+  children: ReactNode;
+  isCollapsible: boolean;
+  collapsedHeight?: number;
+  fadeStart?: number;
+  className?: string;
 }
 /**
  * Renderer-agnostic wrapper for long tool output.

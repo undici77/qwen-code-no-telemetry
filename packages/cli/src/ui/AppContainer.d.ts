@@ -17,41 +17,74 @@ import { type UseMessageQueueReturn } from './hooks/useMessageQueue.js';
 import { type RenderMode } from './contexts/RenderModeContext.js';
 export declare function isRenderModeToggleKey(key: Key): boolean;
 export declare function getNextRenderMode(current: RenderMode): RenderMode;
-export declare function handleRenderModeToggleKey(key: Key, setRenderMode: Dispatch<SetStateAction<RenderMode>>): boolean;
-export declare function isInputActiveForState({ initError, isProcessing, hasPendingCompression, streamingState, }: {
-    initError: unknown;
-    isProcessing: boolean;
-    hasPendingCompression: boolean;
-    streamingState: StreamingState;
+export declare function handleRenderModeToggleKey(
+  key: Key,
+  setRenderMode: Dispatch<SetStateAction<RenderMode>>,
+): boolean;
+export declare function isInputActiveForState({
+  initError,
+  isProcessing,
+  hasPendingCompression,
+  streamingState,
+}: {
+  initError: unknown;
+  isProcessing: boolean;
+  hasPendingCompression: boolean;
+  streamingState: StreamingState;
 }): boolean;
-export declare function shouldDrainMessageQueue({ isConfigInitialized, streamingState, isProcessing, dialogsVisible, messageQueueLength, }: {
-    isConfigInitialized: boolean;
-    streamingState: StreamingState;
-    isProcessing: boolean;
-    dialogsVisible: boolean;
-    messageQueueLength: number;
+export declare function shouldDrainMessageQueue({
+  isConfigInitialized,
+  streamingState,
+  isProcessing,
+  dialogsVisible,
+  messageQueueLength,
+}: {
+  isConfigInitialized: boolean;
+  streamingState: StreamingState;
+  isProcessing: boolean;
+  dialogsVisible: boolean;
+  messageQueueLength: number;
 }): boolean;
-export declare function useQueuedSubmissionDrain({ config, isConfigInitialized, streamingState, isProcessing, dialogsVisible, pendingSubmissionCount, getPendingSubmissionCount, popNextSubmission, enqueueGoalTurn, restoreMessages, submitQuery, submissionInFlightRef, submissionSettledRevision, }: {
-    config: Config;
-    isConfigInitialized: boolean;
-    streamingState: StreamingState;
-    isProcessing: boolean;
-    dialogsVisible: boolean;
-    pendingSubmissionCount: number;
-    getPendingSubmissionCount: UseMessageQueueReturn['getPendingSubmissionCount'];
-    popNextSubmission: UseMessageQueueReturn['popNextSubmission'];
-    enqueueGoalTurn: UseMessageQueueReturn['enqueueGoalTurn'];
-    restoreMessages: UseMessageQueueReturn['restoreMessages'];
-    submitQuery: ReturnType<typeof useGeminiStream>['submitQuery'];
-    submissionInFlightRef: RefObject<boolean>;
-    submissionSettledRevision: number;
+export declare function useQueuedSubmissionDrain({
+  config,
+  isConfigInitialized,
+  streamingState,
+  isProcessing,
+  dialogsVisible,
+  pendingSubmissionCount,
+  getPendingSubmissionCount,
+  popNextSubmission,
+  enqueueGoalTurn,
+  restoreMessages,
+  submitQuery,
+  submissionInFlightRef,
+  submissionSettledRevision,
+}: {
+  config: Config;
+  isConfigInitialized: boolean;
+  streamingState: StreamingState;
+  isProcessing: boolean;
+  dialogsVisible: boolean;
+  pendingSubmissionCount: number;
+  getPendingSubmissionCount: UseMessageQueueReturn['getPendingSubmissionCount'];
+  popNextSubmission: UseMessageQueueReturn['popNextSubmission'];
+  enqueueGoalTurn: UseMessageQueueReturn['enqueueGoalTurn'];
+  restoreMessages: UseMessageQueueReturn['restoreMessages'];
+  submitQuery: ReturnType<typeof useGeminiStream>['submitQuery'];
+  submissionInFlightRef: RefObject<boolean>;
+  submissionSettledRevision: number;
 }): void;
 export declare function getSpeculativeToolResult(response: unknown): {
-    text: string;
-    status: ToolCallStatus;
+  text: string;
+  status: ToolCallStatus;
 };
-export declare function dedupeNewestFirst(messages: readonly string[]): string[];
-export declare function mergeStartupWarnings(currentWarnings: readonly string[], nextWarnings: readonly string[]): string[];
+export declare function dedupeNewestFirst(
+  messages: readonly string[],
+): string[];
+export declare function mergeStartupWarnings(
+  currentWarnings: readonly string[],
+  nextWarnings: readonly string[],
+): string[];
 /**
  * Whether the skill-review dialog should auto-open. Exported for tests.
  *
@@ -62,27 +95,29 @@ export declare function mergeStartupWarnings(currentWarnings: readonly string[],
  * where the flag is being toggled).
  */
 export declare function shouldAutoOpenSkillReview(args: {
-    pending: UIState['skillReviewPending'];
-    streamingState: StreamingState;
-    isMemoryDialogOpen: boolean;
-    autoSkillEnabled: boolean;
-    dismissedTaskIds: ReadonlySet<string>;
+  pending: UIState['skillReviewPending'];
+  streamingState: StreamingState;
+  isMemoryDialogOpen: boolean;
+  autoSkillEnabled: boolean;
+  dismissedTaskIds: ReadonlySet<string>;
 }): boolean;
 interface AppContainerProps {
-    config: Config;
-    settings: LoadedSettings;
-    startupWarnings?: string[];
-    version: string;
-    initializationResult: InitializationResult;
-    initialUseVirtualViewport?: boolean;
-    extensionRefreshState?: ExtensionRefreshState;
-    /**
-     * VP wake/SIGCONT repaint: clear the viewport and replay the last frame
-     * (Ink skips unchanged-output redraws, so a bare clear would blank the
-     * screen). Absent under QWEN_CODE_LEGACY_RESIZE_ERASE: the VP wake path
-     * stays write-free (static remount bump only), matching pre-PR behavior.
-     */
-    repaintViewport?: () => void;
+  config: Config;
+  settings: LoadedSettings;
+  startupWarnings?: string[];
+  version: string;
+  initializationResult: InitializationResult;
+  initialUseVirtualViewport?: boolean;
+  extensionRefreshState?: ExtensionRefreshState;
+  /**
+   * VP wake/SIGCONT repaint: clear the viewport and replay the last frame
+   * (Ink skips unchanged-output redraws, so a bare clear would blank the
+   * screen). Absent under QWEN_CODE_LEGACY_RESIZE_ERASE: the VP wake path
+   * stays write-free (static remount bump only), matching pre-PR behavior.
+   */
+  repaintViewport?: () => void;
 }
-export declare const AppContainer: (props: AppContainerProps) => import("react/jsx-runtime").JSX.Element;
+export declare const AppContainer: (
+  props: AppContainerProps,
+) => import('react/jsx-runtime').JSX.Element;
 export {};

@@ -22,7 +22,10 @@ export declare function parse(yamlString: string): Record<string, unknown>;
  * `lineWidth: 0` disables automatic line wrapping so multi-line strings are
  * preserved as-is, matching the stable-output posture the test suite assumes.
  */
-export declare function stringify(obj: Record<string, unknown>, options?: {
+export declare function stringify(
+  obj: Record<string, unknown>,
+  options?: {
     lineWidth?: number;
     minContentWidth?: number;
-}): string;
+  },
+): string;

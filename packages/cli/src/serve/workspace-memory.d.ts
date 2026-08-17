@@ -38,34 +38,38 @@ import type { WorkspaceRegistry } from './workspace-registry.js';
  * with PR 24's `--redact-errors` policy work, not in PR 16.
  */
 export interface WorkspaceMemoryRouteDeps {
-    bridge: AcpSessionBridge;
-    boundWorkspace: string;
-    collectStatus?: typeof collectWorkspaceMemoryStatus;
-    /**
-     * `mutate({ strict: true })`-style middleware factory from PR 15.
-     * Passed in so `server.ts` stays the single composition root for
-     * the mutation-gate decisions.
-     */
-    mutate: (opts?: {
-        strict?: boolean;
-    }) => RequestHandler;
-    /**
-     * Pre-validated client id parser. Returns `undefined` for absent
-     * headers, the parsed id for valid ones, and `null` after sending
-     * its own 400 response (so the route handler must short-circuit).
-     * Re-uses `parseClientIdHeader` from `server.ts`.
-     */
-    parseClientId: (req: Request, res: Response) => string | undefined | null;
-    /** `safeBody` from `server.ts` — strips prototype-pollution keys. */
-    safeBody: (req: Request) => Record<string, unknown>;
-    isWorkspaceTrusted?: () => boolean;
-    captureGenerationAssertion?: () => (() => void) | undefined;
+  bridge: AcpSessionBridge;
+  boundWorkspace: string;
+  collectStatus?: typeof collectWorkspaceMemoryStatus;
+  /**
+   * `mutate({ strict: true })`-style middleware factory from PR 15.
+   * Passed in so `server.ts` stays the single composition root for
+   * the mutation-gate decisions.
+   */
+  mutate: (opts?: { strict?: boolean }) => RequestHandler;
+  /**
+   * Pre-validated client id parser. Returns `undefined` for absent
+   * headers, the parsed id for valid ones, and `null` after sending
+   * its own 400 response (so the route handler must short-circuit).
+   * Re-uses `parseClientIdHeader` from `server.ts`.
+   */
+  parseClientId: (req: Request, res: Response) => string | undefined | null;
+  /** `safeBody` from `server.ts` — strips prototype-pollution keys. */
+  safeBody: (req: Request) => Record<string, unknown>;
+  isWorkspaceTrusted?: () => boolean;
+  captureGenerationAssertion?: () => (() => void) | undefined;
 }
 /** Mount the two memory routes on the supplied Express app. */
-export declare function mountWorkspaceMemoryRoutes(app: Application, deps: WorkspaceMemoryRouteDeps): void;
-export declare function mountWorkspaceQualifiedMemoryRoutes(app: Application, deps: Omit<WorkspaceMemoryRouteDeps, 'bridge' | 'boundWorkspace'> & {
+export declare function mountWorkspaceMemoryRoutes(
+  app: Application,
+  deps: WorkspaceMemoryRouteDeps,
+): void;
+export declare function mountWorkspaceQualifiedMemoryRoutes(
+  app: Application,
+  deps: Omit<WorkspaceMemoryRouteDeps, 'bridge' | 'boundWorkspace'> & {
     workspaceRegistry: WorkspaceRegistry;
-}): void;
+  },
+): void;
 /**
  * Filesystem-only discovery of explicit `QWEN.md` / `AGENTS.md`
  * files reachable from the daemon's bound workspace plus the user's
@@ -80,4 +84,6 @@ export declare function mountWorkspaceQualifiedMemoryRoutes(app: Application, de
  * 16.5's responsibility per scope decision in issue #4175. Path-
  * based rules (`.qwen/rules/`) are also out of scope for v1.
  */
-export declare function collectWorkspaceMemoryStatus(boundWorkspace: string): Promise<ServeWorkspaceMemoryStatus>;
+export declare function collectWorkspaceMemoryStatus(
+  boundWorkspace: string,
+): Promise<ServeWorkspaceMemoryStatus>;

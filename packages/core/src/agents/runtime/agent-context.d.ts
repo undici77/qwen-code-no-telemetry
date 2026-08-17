@@ -3,13 +3,23 @@
  * Copyright 2025 Qwen
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { ContentGenerator, ContentGeneratorConfig } from '../../core/contentGenerator.js';
+import type {
+  ContentGenerator,
+  ContentGeneratorConfig,
+} from '../../core/contentGenerator.js';
 export interface RuntimeContentGeneratorView {
-    readonly contentGenerator: ContentGenerator;
-    readonly contentGeneratorConfig: ContentGeneratorConfig;
+  readonly contentGenerator: ContentGenerator;
+  readonly contentGeneratorConfig: ContentGeneratorConfig;
 }
-export declare function runWithAgentContext<T>(agentId: string, fn: () => Promise<T>, depthOverride?: number): Promise<T>;
-export declare function runWithRuntimeContentGenerator<T>(view: RuntimeContentGeneratorView, fn: () => Promise<T>): Promise<T>;
+export declare function runWithAgentContext<T>(
+  agentId: string,
+  fn: () => Promise<T>,
+  depthOverride?: number,
+): Promise<T>;
+export declare function runWithRuntimeContentGenerator<T>(
+  view: RuntimeContentGeneratorView,
+  fn: () => Promise<T>,
+): Promise<T>;
 export declare function getCurrentAgentId(): string | null;
 /**
  * Returns the depth of the current agent context frame. 0 means we're
@@ -25,7 +35,9 @@ export declare function getCurrentAgentId(): string | null;
  * Review wenshao @ #4410 (DeepSeek bot 3290820381).
  */
 export declare function getCurrentAgentDepth(): number;
-export declare function getRuntimeContentGenerator(): RuntimeContentGeneratorView | undefined;
+export declare function getRuntimeContentGenerator():
+  | RuntimeContentGeneratorView
+  | undefined;
 /**
  * Runs `fn` with NO agent frame on the async-local stack, so
  * `Config.getModel()` / `getContentGeneratorConfig()` resolve to the main
@@ -87,4 +99,6 @@ export declare function canSpawnNestedAgent(maxDepth: number): boolean;
  * agent frame (it only ever serves agents), while `execute()` must allow
  * the top-level session — that is the normal spawn path.
  */
-export declare function spawnBlockReason(maxDepth: number): 'depth' | 'teammate' | 'fork' | null;
+export declare function spawnBlockReason(
+  maxDepth: number,
+): 'depth' | 'teammate' | 'fork' | null;

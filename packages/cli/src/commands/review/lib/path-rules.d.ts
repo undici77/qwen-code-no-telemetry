@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface PathRule {
-    /** Named in the brief, so an agent can say which rule it applied. */
-    title: string;
-    /** Does this rule govern `path`? */
-    matches(path: string): boolean;
-    /** The checklist, agent-facing. */
-    checklist: string;
+  /** Named in the brief, so an agent can say which rule it applied. */
+  title: string;
+  /** Does this rule govern `path`? */
+  matches(path: string): boolean;
+  /** The checklist, agent-facing. */
+  checklist: string;
 }
 /** Every rule, in the order their checklists are appended. */
 export declare const PATH_RULES: PathRule[];

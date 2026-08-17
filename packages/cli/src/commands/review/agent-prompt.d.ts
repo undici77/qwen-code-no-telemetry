@@ -7,17 +7,17 @@ import type { CommandModule } from 'yargs';
 import { type RoleId } from './lib/agent-briefs.js';
 /** The plan report, as far as this command needs it. */
 interface PlanReport {
-    diffPathAbsolute?: unknown;
-    chunks?: unknown;
-    files?: unknown;
-    prNumber?: unknown;
-    ownerRepo?: unknown;
-    worktreePath?: unknown;
-    mergeBaseSha?: unknown;
-    repositoryContext?: unknown;
-    budget?: {
-        agentToolBudget?: unknown;
-    };
+  diffPathAbsolute?: unknown;
+  chunks?: unknown;
+  files?: unknown;
+  prNumber?: unknown;
+  ownerRepo?: unknown;
+  worktreePath?: unknown;
+  mergeBaseSha?: unknown;
+  repositoryContext?: unknown;
+  budget?: {
+    agentToolBudget?: unknown;
+  };
 }
 /**
  * The launch prompt for the agent that owns `chunk`.
@@ -26,7 +26,11 @@ interface PlanReport {
  * every real launch: the diff path is in it, the read call is in it, and the
  * agent is not handed a sentence to recite when it finds nothing.
  */
-export declare function buildChunkAgentPrompt(report: PlanReport, id: number, rules?: string): string;
+export declare function buildChunkAgentPrompt(
+  report: PlanReport,
+  id: number,
+  rules?: string,
+): string;
 /**
  * The launch prompt for a territory agent: short, and it points at the brief.
  *
@@ -43,7 +47,11 @@ export declare function buildChunkAgentPrompt(report: PlanReport, id: number, ru
  * that defines its territory. Coverage is computed from those — from the prompt the
  * harness recorded, not from anything the agent says afterwards — so they stay.
  */
-export declare function buildChunkLaunchPrompt(report: PlanReport, id: number, briefFile: string): string;
+export declare function buildChunkLaunchPrompt(
+  report: PlanReport,
+  id: number,
+  briefFile: string,
+): string;
 /**
  * The block every review agent that is NOT a territory agent must be launched
  * with — the Step-3A dimension agents, and 3B's whole-diff agents (removed
@@ -64,7 +72,10 @@ export declare function buildChunkLaunchPrompt(report: PlanReport, id: number, b
  * coverage gate could not see it, because it only ever asked the question of agents
  * whose prompt said `chunk N of M`.
  */
-export declare function buildWholeDiffBlock(report: PlanReport, rules?: string): string;
+export declare function buildWholeDiffBlock(
+  report: PlanReport,
+  rules?: string,
+): string;
 /**
  * The launch prompt for any role that is not a territory agent.
  *
@@ -74,12 +85,16 @@ export declare function buildWholeDiffBlock(report: PlanReport, rules?: string):
  * and Agent 0 was not launched at all — which nothing could see, because an
  * omission leaves no transcript to inspect.
  */
-export declare function buildRoleBrief(report: PlanReport, role: RoleId, opts?: {
+export declare function buildRoleBrief(
+  report: PlanReport,
+  role: RoleId,
+  opts?: {
     rules?: string;
     file?: string;
     planPath?: string;
     chunk?: number;
-}): string;
+  },
+): string;
 /**
  * The launch prompt for a role: short, and it points at the brief.
  *
@@ -96,11 +111,16 @@ export declare function buildRoleBrief(report: PlanReport, role: RoleId, opts?: 
  * characters — something it will actually carry — and *whether the agent read its
  * brief* stops being a hope and becomes a line in the harness's transcript.
  */
-export declare function buildRoleLaunchPrompt(report: PlanReport, role: RoleId, briefFile: string, opts?: {
+export declare function buildRoleLaunchPrompt(
+  report: PlanReport,
+  role: RoleId,
+  briefFile: string,
+  opts?: {
     file?: string;
     chunk?: number;
     round?: number;
-}): string;
+  },
+): string;
 /**
  * The findings section folded above a verify / reverse-audit launch prompt, so
  * the caller pastes one thing instead of hand-assembling it.
@@ -130,6 +150,10 @@ export declare function buildRoleLaunchPrompt(report: PlanReport, role: RoleId, 
  * for any role not hunting gaps. (Same reasoning as the no-role guard message, which
  * also derives from `acceptsFindings` so a new role cannot leave it stale.)
  */
-export declare function findingsSection(role: RoleId, content: string, findingsFile: string | null): string;
+export declare function findingsSection(
+  role: RoleId,
+  content: string,
+  findingsFile: string | null,
+): string;
 export declare const agentPromptCommand: CommandModule;
 export {};

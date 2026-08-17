@@ -7,10 +7,12 @@ import type React from 'react';
 import type { IndividualToolCallDisplay } from '../../types.js';
 import { ToolCallStatus } from '../../types.js';
 interface CompactToolGroupDisplayProps {
-    toolCalls: IndividualToolCallDisplay[];
-    contentWidth: number;
+  toolCalls: IndividualToolCallDisplay[];
+  contentWidth: number;
 }
-export declare function getOverallStatus(toolCalls: IndividualToolCallDisplay[]): ToolCallStatus;
+export declare function getOverallStatus(
+  toolCalls: IndividualToolCallDisplay[],
+): ToolCallStatus;
 /**
  * Whether a tool is information-gathering (read/search/list) vs mutation/action.
  *
@@ -37,7 +39,13 @@ export declare function isCollapsibleTool(toolName: string): boolean;
  * Falls back to count format when description is missing, cleans to empty,
  * or parses as a JSON object or array (e.g. error args).
  */
-export declare function buildToolSummary(toolCalls: IndividualToolCallDisplay[], isActive: boolean): string;
-export declare function estimateCompactToolGroupHeight(toolCalls: IndividualToolCallDisplay[], contentWidth: number): number;
+export declare function buildToolSummary(
+  toolCalls: IndividualToolCallDisplay[],
+  isActive: boolean,
+): string;
+export declare function estimateCompactToolGroupHeight(
+  toolCalls: IndividualToolCallDisplay[],
+  contentWidth: number,
+): number;
 export declare const CompactToolGroupDisplay: React.FC<CompactToolGroupDisplayProps>;
 export {};

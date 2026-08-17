@@ -5,6 +5,6 @@
  */
 import type { Terminal } from '@xterm/headless';
 export type XtermHeadlessModule = {
-    Terminal: typeof Terminal;
+  Terminal: typeof Terminal;
 };
 export declare function loadXtermHeadless(): Promise<XtermHeadlessModule>;

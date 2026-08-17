@@ -5,27 +5,27 @@
  */
 export declare const CLEAR_WINDOW_MS = 600;
 export interface ResizeReflowOptions {
-    /** VP / alternate-screen mode: the shrink clear may blank the viewport. */
-    virtualViewport?: boolean;
+  /** VP / alternate-screen mode: the shrink clear may blank the viewport. */
+  virtualViewport?: boolean;
 }
 export interface TerminalResizeReflowHandle {
-    restore: () => void;
-    /**
-     * Clear the viewport and replay the last frame that reached the terminal.
-     * Ink skips redraws whose output is unchanged, so a wake/SIGCONT repaint
-     * cannot rely on React alone after an external clear. Only the wake path
-     * may call this — ordinary refreshStatic callers must stay write-free in
-     * VP (replaying the pre-change frame would flash stale content). Absent
-     * under QWEN_CODE_LEGACY_RESIZE_ERASE: the VP wake path then stays
-     * write-free (static remount bump only), matching pre-PR behavior.
-     */
-    repaint?: () => void;
+  restore: () => void;
+  /**
+   * Clear the viewport and replay the last frame that reached the terminal.
+   * Ink skips redraws whose output is unchanged, so a wake/SIGCONT repaint
+   * cannot rely on React alone after an external clear. Only the wake path
+   * may call this — ordinary refreshStatic callers must stay write-free in
+   * VP (replaying the pre-change frame would flash stale content). Absent
+   * under QWEN_CODE_LEGACY_RESIZE_ERASE: the VP wake path then stays
+   * write-free (static remount bump only), matching pre-PR behavior.
+   */
+  repaint?: () => void;
 }
 export interface WakeRepaintDeps {
-    isVP: boolean;
-    repaintViewport?: () => void;
-    refreshStatic: () => void;
-    remountStaticHistory: () => void;
+  isVP: boolean;
+  repaintViewport?: () => void;
+  refreshStatic: () => void;
+  remountStaticHistory: () => void;
 }
 /**
  * Wake/SIGCONT selection, extracted for unit coverage: VP repaints by
@@ -56,4 +56,7 @@ export declare function buildWakeRepaint(deps: WakeRepaintDeps): () => void;
  *   plus Ink's cursor-below line); walking further up would eat committed
  *   scrollback, so the count stays conservative there.
  */
-export declare function installTerminalResizeReflow(stdout: NodeJS.WriteStream, options?: ResizeReflowOptions): TerminalResizeReflowHandle;
+export declare function installTerminalResizeReflow(
+  stdout: NodeJS.WriteStream,
+  options?: ResizeReflowOptions,
+): TerminalResizeReflowHandle;

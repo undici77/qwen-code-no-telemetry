@@ -37,53 +37,58 @@ import { type MCPServerConfig } from '@qwen-code/qwen-code-core';
  * test files don't see drift.
  */
 export declare const DEFAULT_REPO_ROOT: string;
-export declare const DEFAULT_TOKEN = "integration-test-token";
+export declare const DEFAULT_TOKEN = 'integration-test-token';
 export declare const DEFAULT_CLI_BIN: string;
 export interface SpawnDaemonOptions {
-    /**
-     * Workspace path the daemon binds to (`--workspace`). Defaults to repo
-     * root. Tests measuring MCP amplification or wanting their own settings
-     * file should pass a temp dir created via `prepareWorkspace`.
-     */
-    workspaceCwd?: string;
-    /** Bearer token. Defaults to the same string the existing tests use. */
-    token?: string;
-    /** CLI binary path. Defaults to `TEST_CLI_PATH` env or `dist/cli.js`. */
-    cliBin?: string;
-    /** Boot deadline for the listening-on regex parse. Default 10s. */
-    bootTimeoutMs?: number;
-    /** Extra args appended after the standard ones. */
-    extraArgs?: string[];
-    /** Optional env additions for the spawned daemon. */
-    env?: Record<string, string>;
+  /**
+   * Workspace path the daemon binds to (`--workspace`). Defaults to repo
+   * root. Tests measuring MCP amplification or wanting their own settings
+   * file should pass a temp dir created via `prepareWorkspace`.
+   */
+  workspaceCwd?: string;
+  /** Bearer token. Defaults to the same string the existing tests use. */
+  token?: string;
+  /** CLI binary path. Defaults to `TEST_CLI_PATH` env or `dist/cli.js`. */
+  cliBin?: string;
+  /** Boot deadline for the listening-on regex parse. Default 10s. */
+  bootTimeoutMs?: number;
+  /** Extra args appended after the standard ones. */
+  extraArgs?: string[];
+  /** Optional env additions for the spawned daemon. */
+  env?: Record<string, string>;
 }
 export interface SpawnedDaemon {
-    client: DaemonClient;
-    daemon: ChildProcess;
-    port: number;
-    base: string;
-    workspaceCwd: string;
-    token: string;
-    /** Drain stdout into this buffer for post-mortem if a test fails. */
-    stdoutBuf: {
-        value: string;
-    };
-    /** Drain stderr similarly — surface on dispose if exit code != 0. */
-    stderrBuf: {
-        value: string;
-    };
-    /** Idempotent. Sends SIGTERM, awaits exit (up to 5s). */
-    dispose: () => Promise<void>;
+  client: DaemonClient;
+  daemon: ChildProcess;
+  port: number;
+  base: string;
+  workspaceCwd: string;
+  token: string;
+  /** Drain stdout into this buffer for post-mortem if a test fails. */
+  stdoutBuf: {
+    value: string;
+  };
+  /** Drain stderr similarly — surface on dispose if exit code != 0. */
+  stderrBuf: {
+    value: string;
+  };
+  /** Idempotent. Sends SIGTERM, awaits exit (up to 5s). */
+  dispose: () => Promise<void>;
 }
 export declare const LISTENING_LINE_RE: RegExp;
-export declare function spawnDaemon(opts?: SpawnDaemonOptions): Promise<SpawnedDaemon>;
+export declare function spawnDaemon(
+  opts?: SpawnDaemonOptions,
+): Promise<SpawnedDaemon>;
 /**
  * Write a `.qwen/settings.json` into `workspaceCwd` so the daemon picks up
  * `mcpServers` (and any other settings) at boot. Caller is responsible for
  * cleaning up the temp dir if they created one. Returns the absolute
  * settings file path for visibility in test output.
  */
-export declare function writeWorkspaceSettings(workspaceCwd: string, settings: Record<string, unknown>): string;
+export declare function writeWorkspaceSettings(
+  workspaceCwd: string,
+  settings: Record<string, unknown>,
+): string;
 /**
  * Pre-approve gated (workspace / project scope, #4615) MCP servers for
  * `workspaceCwd` so the daemon's `qwen --acp` child connects them instead of
@@ -100,7 +105,10 @@ export declare function writeWorkspaceSettings(workspaceCwd: string, settings: R
  * so the plain settings config is sufficient. Mirrors the pre-approval pattern
  * in `simple-mcp-server.test.ts`.
  */
-export declare function approveWorkspaceMcpServers(workspaceCwd: string, servers: Record<string, MCPServerConfig>): Record<string, string>;
+export declare function approveWorkspaceMcpServers(
+  workspaceCwd: string,
+  servers: Record<string, MCPServerConfig>,
+): Record<string, string>;
 /**
  * One-shot RSS read via `ps -o rss= -p <pid>`. Returns megabytes (rounded
  * to 1 decimal). Returns NaN if the process is gone or `ps` errored — call
@@ -108,15 +116,18 @@ export declare function approveWorkspaceMcpServers(workspaceCwd: string, servers
  */
 export declare function getRssMB(pid: number): number;
 export interface RssSample {
-    tMs: number;
-    rssMB: number;
+  tMs: number;
+  rssMB: number;
 }
 export interface RssPoller {
-    samples: RssSample[];
-    droppedSamples: number;
-    stop(): void;
+  samples: RssSample[];
+  droppedSamples: number;
+  stop(): void;
 }
-export declare function startRssPolling(pid: number, intervalMs?: number): RssPoller;
+export declare function startRssPolling(
+  pid: number,
+  intervalMs?: number,
+): RssPoller;
 /**
  * Walk daemon → ACP child → MCP descendants via `pgrep -P` calls.
  * Pattern starts with the existing inline approach at
@@ -135,14 +146,17 @@ export declare function startRssPolling(pid: number, intervalMs?: number): RssPo
  * the sum.
  */
 export interface DescendantCount {
-    acpChildren: number[];
-    mcpGrandchildren: number[];
-    total: number;
+  acpChildren: number[];
+  mcpGrandchildren: number[];
+  total: number;
 }
-export declare function countDescendants(daemonPid: number, pgrepOpts?: {
+export declare function countDescendants(
+  daemonPid: number,
+  pgrepOpts?: {
     acpFilter?: string;
     mcpFilter?: string;
-}): DescendantCount;
+  },
+): DescendantCount;
 /**
  * Compute p50 / p90 / p99 / mean / min / max from a numeric array. Uses
  * nearest-rank percentile (no interpolation) to keep behavior predictable
@@ -150,13 +164,13 @@ export declare function countDescendants(daemonPid: number, pgrepOpts?: {
  * than throwing — callers handle the "no samples" case downstream.
  */
 export interface Percentiles {
-    count: number;
-    p50: number;
-    p90: number;
-    p99: number;
-    mean: number;
-    min: number;
-    max: number;
+  count: number;
+  p50: number;
+  p90: number;
+  p99: number;
+  mean: number;
+  min: number;
+  max: number;
 }
 export declare function percentiles(values: number[]): Percentiles;
 /**
@@ -172,26 +186,33 @@ export declare function percentiles(values: number[]): Percentiles;
  * `maxEvents` cap.
  */
 export interface ConsumeSseResult {
-    received: number;
-    /** The last non-undefined `ev.id` observed (for `Last-Event-ID` reconnect). */
-    lastSeenId?: number;
-    evictedAt?: number;
-    evictionReason?: string;
-    elapsedMs: number;
+  received: number;
+  /** The last non-undefined `ev.id` observed (for `Last-Event-ID` reconnect). */
+  lastSeenId?: number;
+  evictedAt?: number;
+  evictionReason?: string;
+  elapsedMs: number;
 }
-export declare function consumeSseEvents(client: DaemonClient, sessionId: string, opts?: {
+export declare function consumeSseEvents(
+  client: DaemonClient,
+  sessionId: string,
+  opts?: {
     maxEvents?: number;
     consumerDelayMs?: number;
     timeoutMs?: number;
     subscribe?: SubscribeOptions;
-}): Promise<ConsumeSseResult>;
+  },
+): Promise<ConsumeSseResult>;
 export declare function sleep(ms: number): Promise<void>;
 export declare function gitHead(timeoutMs?: number): string | null;
-export declare function makeTempWorkspace(label: string, prefix?: string): string;
+export declare function makeTempWorkspace(
+  label: string,
+  prefix?: string,
+): string;
 export interface ScenarioResult {
-    name: string;
-    status: 'passed' | 'failed' | 'skipped';
-    durationMs: number;
-    error?: string;
-    metrics?: Record<string, unknown>;
+  name: string;
+  status: 'passed' | 'failed' | 'skipped';
+  durationMs: number;
+  error?: string;
+  metrics?: Record<string, unknown>;
 }

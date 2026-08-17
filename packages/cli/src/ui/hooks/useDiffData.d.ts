@@ -3,12 +3,15 @@
  * Copyright 2025 Qwen Code
  * SPDX-License-Identifier: Apache-2.0
  */
-import { type GitDiffHunk, type GitDiffResult } from '@qwen-code/qwen-code-core';
+import {
+  type GitDiffHunk,
+  type GitDiffResult,
+} from '@qwen-code/qwen-code-core';
 export interface CurrentDiffData {
-    /** `null` ⇒ not a git repo / HEAD missing / mid-rebase / etc. */
-    result: GitDiffResult | null;
-    hunks: Map<string, GitDiffHunk[]>;
-    loading: boolean;
+  /** `null` ⇒ not a git repo / HEAD missing / mid-rebase / etc. */
+  result: GitDiffResult | null;
+  hunks: Map<string, GitDiffHunk[]>;
+  loading: boolean;
 }
 /**
  * Loads "working tree vs HEAD" stats and hunks **once at mount**. Mirrors

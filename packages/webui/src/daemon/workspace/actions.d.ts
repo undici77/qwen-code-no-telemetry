@@ -6,9 +6,14 @@
 import { type DaemonClient } from '@qwen-code/sdk/daemon';
 import type { DaemonWorkspaceActions } from './types.js';
 export interface CreateDaemonWorkspaceActionsArgs {
-    getClient: () => DaemonClient | undefined;
-    getWorkspaceCwd: () => string | undefined;
-    baseUrl: string;
-    token?: string;
+  getClient: () => DaemonClient | undefined;
+  getWorkspaceCwd: () => string | undefined;
+  baseUrl: string;
+  token?: string;
 }
-export declare function createDaemonWorkspaceActions({ getClient, getWorkspaceCwd, baseUrl, token, }: CreateDaemonWorkspaceActionsArgs): DaemonWorkspaceActions;
+export declare function createDaemonWorkspaceActions({
+  getClient,
+  getWorkspaceCwd,
+  baseUrl,
+  token,
+}: CreateDaemonWorkspaceActionsArgs): DaemonWorkspaceActions;

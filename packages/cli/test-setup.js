@@ -7,18 +7,18 @@
 // Without FORCE_COLOR, ink auto-detects the terminal; since ink-testing-library uses a fake
 // non-TTY stdout, colors are disabled, giving plain-text output that assertions can check easily.
 if (process.env['FORCE_COLOR'] !== undefined) {
-    delete process.env['FORCE_COLOR'];
+  delete process.env['FORCE_COLOR'];
 }
 if (process.env['NO_COLOR'] !== undefined) {
-    delete process.env['NO_COLOR'];
+  delete process.env['NO_COLOR'];
 }
 // Avoid writing per-session debug log files during CLI tests.
 // Individual tests can still opt in by overriding this env var explicitly.
 if (process.env['QWEN_DEBUG_LOG_FILE'] === undefined) {
-    process.env['QWEN_DEBUG_LOG_FILE'] = '0';
+  process.env['QWEN_DEBUG_LOG_FILE'] = '0';
 }
 if (process.env['QWEN_SERVE_NO_PERSISTENT_REGISTRATION'] === undefined) {
-    process.env['QWEN_SERVE_NO_PERSISTENT_REGISTRATION'] = '1';
+  process.env['QWEN_SERVE_NO_PERSISTENT_REGISTRATION'] = '1';
 }
 import './src/test-utils/customMatchers.js';
 // Lowlight is loaded asynchronously in production to keep it out of the
@@ -30,12 +30,14 @@ import './src/test-utils/customMatchers.js';
 // prime does not perturb any other test's module graph.
 import { loadLowlight } from './src/ui/utils/lowlightLoader.js';
 try {
-    await loadLowlight();
-}
-catch (err) {
-    // Don't crash the entire test run if lowlight fails to import; snapshot
-    // tests that hit a code block will then render the plain-text fallback.
-    console.warn('[test-setup] Failed to prime lowlight cache, snapshot tests may ' +
-        'show plain-text fallback:', String(err));
+  await loadLowlight();
+} catch (err) {
+  // Don't crash the entire test run if lowlight fails to import; snapshot
+  // tests that hit a code block will then render the plain-text fallback.
+  console.warn(
+    '[test-setup] Failed to prime lowlight cache, snapshot tests may ' +
+      'show plain-text fallback:',
+    String(err),
+  );
 }
 //# sourceMappingURL=test-setup.js.map

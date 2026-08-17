@@ -5,10 +5,10 @@
  */
 import type { CommandModule } from 'yargs';
 interface SetArgs {
-    names?: string[];
-    'daemon-url'?: string;
-    token?: string;
-    timeout?: number;
+  names?: string[];
+  'daemon-url'?: string;
+  token?: string;
+  timeout?: number;
 }
 export declare const setCommand: CommandModule<unknown, SetArgs>;
 export {};

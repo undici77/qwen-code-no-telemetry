@@ -13,4 +13,7 @@ import type { NormalizedSelection } from './selection-state.js';
  * unambiguous soft boundary contributes its source joiner instead of a visual
  * newline; hard or ambiguous boundaries retain the newline.
  */
-export declare function getSelectedText(frame: ReadonlyFrame | null, selection: NormalizedSelection): string;
+export declare function getSelectedText(
+  frame: ReadonlyFrame | null,
+  selection: NormalizedSelection,
+): string;

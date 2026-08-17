@@ -10,33 +10,48 @@
  * subprotocol is verified by the daemon's ACP upgrade listener in
  * `serve/acp-http/index.ts`.
  */
-export type VoiceCaptureStatus = 'idle' | 'connecting' | 'recording' | 'transcribing' | 'error';
+export type VoiceCaptureStatus =
+  | 'idle'
+  | 'connecting'
+  | 'recording'
+  | 'transcribing'
+  | 'error';
 export interface VoiceCaptureTarget {
-    ownerKey: string;
-    streamPath: string;
+  ownerKey: string;
+  streamPath: string;
 }
 export interface VoiceUnexpectedClose {
-    code: number;
-    reason: string;
+  code: number;
+  reason: string;
 }
 export interface UseVoiceCaptureOptions {
-    baseUrl: string;
-    token?: string;
-    target: VoiceCaptureTarget | undefined;
-    /** Called with the final transcript (may be empty). */
-    onFinal: (text: string) => void;
-    onError?: (message: string) => void;
-    onUnexpectedClose?: (event: VoiceUnexpectedClose) => void;
+  baseUrl: string;
+  token?: string;
+  target: VoiceCaptureTarget | undefined;
+  /** Called with the final transcript (may be empty). */
+  onFinal: (text: string) => void;
+  onError?: (message: string) => void;
+  onUnexpectedClose?: (event: VoiceUnexpectedClose) => void;
 }
 export interface UseVoiceCaptureReturn {
-    status: VoiceCaptureStatus;
-    interimText: string;
-    /** Recent input level, 0..1, for a live meter. */
-    audioLevel: number;
-    errorMessage: string | undefined;
-    start: () => void;
-    stop: () => void;
-    abort: () => void;
+  status: VoiceCaptureStatus;
+  interimText: string;
+  /** Recent input level, 0..1, for a live meter. */
+  audioLevel: number;
+  errorMessage: string | undefined;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
 }
-export declare function toVoiceWebSocketUrl(baseUrl: string, streamPath: string): string;
-export declare function useVoiceCapture({ baseUrl, token, target, onFinal, onError, onUnexpectedClose, }: UseVoiceCaptureOptions): UseVoiceCaptureReturn;
+export declare function toVoiceWebSocketUrl(
+  baseUrl: string,
+  streamPath: string,
+): string;
+export declare function useVoiceCapture({
+  baseUrl,
+  token,
+  target,
+  onFinal,
+  onError,
+  onUnexpectedClose,
+}: UseVoiceCaptureOptions): UseVoiceCaptureReturn;

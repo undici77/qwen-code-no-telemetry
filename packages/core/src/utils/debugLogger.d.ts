@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface DebugLogSession {
-    getSessionId: () => string;
+  getSessionId: () => string;
 }
 export interface DebugLogger {
-    isEnabled: () => boolean;
-    debug: (...args: unknown[]) => void;
-    info: (...args: unknown[]) => void;
-    warn: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
+  isEnabled: () => boolean;
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
 }
 export declare function isDebugLogFileEnabled(): boolean;
 /**
@@ -30,14 +30,19 @@ export declare function resetDebugLoggingState(): void;
  * This is the default session used when there is no async-local session bound
  * via runWithDebugLogSession().
  */
-export declare function setDebugLogSession(session: DebugLogSession | null | undefined): void;
+export declare function setDebugLogSession(
+  session: DebugLogSession | null | undefined,
+): void;
 /**
  * Runs a function with a session bound to the current async context.
  *
  * This is optional; createDebugLogger() falls back to the process-wide session
  * set via setDebugLogSession().
  */
-export declare function runWithDebugLogSession<T>(session: DebugLogSession, fn: () => T): T;
+export declare function runWithDebugLogSession<T>(
+  session: DebugLogSession,
+  fn: () => T,
+): T;
 export declare function runWithoutDebugLogSession<T>(fn: () => T): T;
 /**
  * Creates a debug logger that writes to the current debug log session.

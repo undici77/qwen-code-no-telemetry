@@ -5,10 +5,12 @@
  */
 import type { ReasoningEffort } from '@qwen-code/qwen-code-core';
 export interface ModelReasoningConfiguration {
-    readonly thinking: true;
-    readonly efforts: readonly ReasoningEffort[];
-    readonly defaultEffort: ReasoningEffort;
+  readonly thinking: true;
+  readonly efforts: readonly ReasoningEffort[];
+  readonly defaultEffort: ReasoningEffort;
 }
-export declare function getModelConfiguration(modelId: string | undefined): {
-    readonly reasoning?: ModelReasoningConfiguration;
-} | undefined;
+export declare function getModelConfiguration(modelId: string | undefined):
+  | {
+      readonly reasoning?: ModelReasoningConfiguration;
+    }
+  | undefined;

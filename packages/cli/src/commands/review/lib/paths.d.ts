@@ -12,7 +12,7 @@ export declare const REVIEW_CACHE_DIR: string;
  * workflow's cleanup sweep deletes leases by glob — the sweep pattern and
  * the lease writer must share one definition (the cleanup spec pins both).
  */
-export declare const LEASE_PREFIX = "qwen-review-lease-";
+export declare const LEASE_PREFIX = 'qwen-review-lease-';
 /**
  * Where the skill tees `qwen review parse-args`'s verdict (SKILL Step 0). A fixed,
  * conventional name so a capture command can read back the effort the parser

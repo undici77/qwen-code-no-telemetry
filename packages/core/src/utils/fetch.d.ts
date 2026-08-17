@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export declare class FetchError extends Error {
-    code?: string | undefined;
-    constructor(message: string, code?: string | undefined);
+  code?: string | undefined;
+  constructor(message: string, code?: string | undefined);
 }
 export declare function isConnectionLevelError(error: unknown): boolean;
 export declare function isPrivateIp(url: string): boolean;
@@ -19,34 +19,37 @@ export declare function isPrivateHost(url: string): boolean;
  * following a cross-host redirect would fetch from a domain the user
  * never approved.
  */
-export declare function isPermittedRedirect(originalUrl: string, redirectUrl: string): boolean;
+export declare function isPermittedRedirect(
+  originalUrl: string,
+  redirectUrl: string,
+): boolean;
 export interface FetchPolicyOptions {
-    /** Budget for the entire transfer — headers AND body. */
-    timeoutMs: number;
-    /** Reject responses larger than this, before or during body read. */
-    maxBytes: number;
-    /** Same-host redirect hops to follow before erroring. */
-    maxRedirects: number;
-    headers?: Record<string, string>;
-    /** Caller cancellation (e.g. the tool's abort signal). */
-    signal?: AbortSignal;
+  /** Budget for the entire transfer — headers AND body. */
+  timeoutMs: number;
+  /** Reject responses larger than this, before or during body read. */
+  maxBytes: number;
+  /** Same-host redirect hops to follow before erroring. */
+  maxRedirects: number;
+  headers?: Record<string, string>;
+  /** Caller cancellation (e.g. the tool's abort signal). */
+  signal?: AbortSignal;
 }
 export interface FetchPolicyResponse {
-    kind: 'response';
-    status: number;
-    statusText: string;
-    contentType: string;
-    /** Content-Disposition header, if any — carries the server's filename. */
-    contentDisposition: string;
-    body: Buffer;
-    /** URL after any followed same-host redirects. */
-    finalUrl: string;
+  kind: 'response';
+  status: number;
+  statusText: string;
+  contentType: string;
+  /** Content-Disposition header, if any — carries the server's filename. */
+  contentDisposition: string;
+  body: Buffer;
+  /** URL after any followed same-host redirects. */
+  finalUrl: string;
 }
 export interface FetchPolicyRedirect {
-    kind: 'cross-host-redirect';
-    originalUrl: string;
-    redirectUrl: string;
-    status: number;
+  kind: 'cross-host-redirect';
+  originalUrl: string;
+  redirectUrl: string;
+  status: number;
 }
 export type FetchPolicyResult = FetchPolicyResponse | FetchPolicyRedirect;
 /**
@@ -56,7 +59,13 @@ export type FetchPolicyResult = FetchPolicyResponse | FetchPolicyRedirect;
  * fetch so the process-wide proxy dispatcher (setGlobalDispatcher) applies.
  * The timeout budget spans both attempts.
  */
-export declare function fetchWithPolicy(url: string, options: FetchPolicyOptions): Promise<FetchPolicyResult>;
-export declare function formatFetchErrorForUser(error: unknown, options?: {
+export declare function fetchWithPolicy(
+  url: string,
+  options: FetchPolicyOptions,
+): Promise<FetchPolicyResult>;
+export declare function formatFetchErrorForUser(
+  error: unknown,
+  options?: {
     url?: string;
-}): string;
+  },
+): string;

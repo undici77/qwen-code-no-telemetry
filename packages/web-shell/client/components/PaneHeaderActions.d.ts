@@ -5,10 +5,10 @@
  */
 import { type ReactNode } from 'react';
 export interface PaneHeaderActionsProps {
-    /** Host-provided actions for this pane; omit or null when none. */
-    children?: ReactNode;
-    /** Built-in trailing controls (e.g. close) that stay outside the overflow. */
-    trailing?: ReactNode;
+  /** Host-provided actions for this pane; omit or null when none. */
+  children?: ReactNode;
+  /** Built-in trailing controls (e.g. close) that stay outside the overflow. */
+  trailing?: ReactNode;
 }
 /**
  * Renders pane-header host actions inline when they fit, otherwise collapses
@@ -20,4 +20,7 @@ export interface PaneHeaderActionsProps {
  * menu proxies clicks to the interactive descendant inside that slot so opaque
  * host components do not need to forward internal props.
  */
-export declare function PaneHeaderActions({ children, trailing, }: PaneHeaderActionsProps): import("react/jsx-runtime").JSX.Element;
+export declare function PaneHeaderActions({
+  children,
+  trailing,
+}: PaneHeaderActionsProps): import('react/jsx-runtime').JSX.Element;

@@ -6,15 +6,15 @@
  * No extended syntax (L, W, ?, name aliases).
  */
 interface CronFields {
-    minute: Set<number>;
-    hour: Set<number>;
-    dayOfMonth: Set<number>;
-    month: Set<number>;
-    dayOfWeek: Set<number>;
-    /** True when the day-of-month field starts with '*' (Vixie wildcard flag). */
-    domIsWild: boolean;
-    /** True when the day-of-week field starts with '*' (Vixie wildcard flag). */
-    dowIsWild: boolean;
+  minute: Set<number>;
+  hour: Set<number>;
+  dayOfMonth: Set<number>;
+  month: Set<number>;
+  dayOfWeek: Set<number>;
+  /** True when the day-of-month field starts with '*' (Vixie wildcard flag). */
+  domIsWild: boolean;
+  /** True when the day-of-week field starts with '*' (Vixie wildcard flag). */
+  dowIsWild: boolean;
 }
 /**
  * Parses a 5-field cron expression into structured fields.

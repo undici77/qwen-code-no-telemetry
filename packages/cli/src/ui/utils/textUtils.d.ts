@@ -15,7 +15,11 @@
 export declare const getAsciiArtWidth: (asciiArt: string) => number;
 export declare function toCodePoints(str: string): string[];
 export declare function cpLen(str: string): number;
-export declare function cpSlice(str: string, start: number, end?: number): string;
+export declare function cpSlice(
+  str: string,
+  start: number,
+  end?: number,
+): string;
 /**
  * Strip characters that can break terminal rendering.
  *
@@ -48,13 +52,13 @@ export declare const getCachedStringWidth: (str: string) => number;
  */
 export declare function truncateToWidth(text: string, maxWidth: number): string;
 export interface VisualHeightSlice {
-    text: string;
-    hiddenLinesCount: number;
+  text: string;
+  hiddenLinesCount: number;
 }
 interface SliceTextByVisualHeightOptions {
-    minHeight?: number;
-    reservedRows?: number;
-    overflowDirection?: 'top' | 'bottom';
+  minHeight?: number;
+  reservedRows?: number;
+  overflowDirection?: 'top' | 'bottom';
 }
 /**
  * Bounds text by terminal visual rows before it reaches Ink/Yoga layout.
@@ -64,7 +68,12 @@ interface SliceTextByVisualHeightOptions {
  * useful for streaming logs; `"bottom"` keeps the beginning, which is useful
  * for task prompts.
  */
-export declare function sliceTextByVisualHeight(text: string, maxHeight: number | undefined, maxWidth: number, options?: SliceTextByVisualHeightOptions): VisualHeightSlice;
+export declare function sliceTextByVisualHeight(
+  text: string,
+  maxHeight: number | undefined,
+  maxWidth: number,
+  options?: SliceTextByVisualHeightOptions,
+): VisualHeightSlice;
 /**
  * Clear the string width cache
  */
@@ -87,7 +96,10 @@ export declare function escapeAnsiCtrlCodes<T>(obj: T): T;
  * @param maxLength Maximum length of the output text (default: 200)
  * @returns Sanitized and truncated text
  */
-export declare function sanitizeSensitiveText(text: string, maxLength?: number): string;
+export declare function sanitizeSensitiveText(
+  text: string,
+  maxLength?: number,
+): string;
 /**
  * Make a git-supplied filename safe to drop into a TUI text node or a
  * stdout / log line. Strips both multi-byte ANSI sequences (via

@@ -7,53 +7,55 @@ export declare const LOOP_TASK_FILE_MAX_BYTES = 25000;
 /** Which candidate a found loop.md came from. The caller maps this to a label
  * (an exhaustive map fails closed if a new candidate is added). */
 export type LoopTaskFileSource = 'project' | 'home';
-export type LoopTaskFileResult = {
-    status: 'found';
-    path: string;
-    source: LoopTaskFileSource;
-    content: string;
-    truncated: boolean;
-} | {
-    status: 'missing';
-    checkedPaths: string[];
-};
+export type LoopTaskFileResult =
+  | {
+      status: 'found';
+      path: string;
+      source: LoopTaskFileSource;
+      content: string;
+      truncated: boolean;
+    }
+  | {
+      status: 'missing';
+      checkedPaths: string[];
+    };
 export interface ReadLoopTaskFileOptions {
-    projectRoot: string;
-    /**
-     * Confinement root for the home candidate's resolved (symlink-followed)
-     * target — a target escaping this dir (e.g. `-> /etc/passwd`) is refused while
-     * an in-root dotfile symlink is followed. Pass `$QWEN_HOME` when set, else
-     * `$HOME` (see `homeQwenDir`).
-     */
-    homeDir: string;
-    /**
-     * Directory holding the home/global `loop.md` candidate (`<homeQwenDir>/loop.md`).
-     * Pass the QWEN_HOME-aware global dir (`Storage.getGlobalQwenDir()`) so a
-     * relocated config home is honored instead of always reading the real OS home.
-     * Defaults to `<homeDir>/.qwen` so a direct barrel caller keeps the `~/.qwen`
-     * layout.
-     */
-    homeQwenDir?: string;
-    /**
-     * When false, the project `.qwen/loop.md` candidate is skipped entirely — it
-     * is repo-controlled, so an untrusted workspace must not read it and feed it
-     * to the model (mirrors the folder-trust gate on project hooks). The
-     * home/global `~/.qwen/loop.md` is user-owned and always allowed.
-     *
-     * Defaults to false (fail-secure): this function is re-exported from the core
-     * barrel, so a caller that omits the option must NOT silently read an
-     * untrusted workspace's repo-controlled file — callers opt IN by passing the
-     * trust-derived value explicitly.
-     */
-    allowProjectFile?: boolean;
-    /**
-     * Per-resolver cache for the boundary `fs.realpath()` results. LoopTickResolver
-     * passes its own instance-scoped Map so the cache lifetime is tied to the
-     * resolver (rebuilt on `/cd`, cleared by `resetCache()`) instead of living
-     * forever at module scope. Omitted by direct barrel callers, who fall back to a
-     * process-lifetime cache. Eviction-on-failure is preserved either way.
-     */
-    realDirCache?: Map<string, Promise<string>>;
+  projectRoot: string;
+  /**
+   * Confinement root for the home candidate's resolved (symlink-followed)
+   * target — a target escaping this dir (e.g. `-> /etc/passwd`) is refused while
+   * an in-root dotfile symlink is followed. Pass `$QWEN_HOME` when set, else
+   * `$HOME` (see `homeQwenDir`).
+   */
+  homeDir: string;
+  /**
+   * Directory holding the home/global `loop.md` candidate (`<homeQwenDir>/loop.md`).
+   * Pass the QWEN_HOME-aware global dir (`Storage.getGlobalQwenDir()`) so a
+   * relocated config home is honored instead of always reading the real OS home.
+   * Defaults to `<homeDir>/.qwen` so a direct barrel caller keeps the `~/.qwen`
+   * layout.
+   */
+  homeQwenDir?: string;
+  /**
+   * When false, the project `.qwen/loop.md` candidate is skipped entirely — it
+   * is repo-controlled, so an untrusted workspace must not read it and feed it
+   * to the model (mirrors the folder-trust gate on project hooks). The
+   * home/global `~/.qwen/loop.md` is user-owned and always allowed.
+   *
+   * Defaults to false (fail-secure): this function is re-exported from the core
+   * barrel, so a caller that omits the option must NOT silently read an
+   * untrusted workspace's repo-controlled file — callers opt IN by passing the
+   * trust-derived value explicitly.
+   */
+  allowProjectFile?: boolean;
+  /**
+   * Per-resolver cache for the boundary `fs.realpath()` results. LoopTickResolver
+   * passes its own instance-scoped Map so the cache lifetime is tied to the
+   * resolver (rebuilt on `/cd`, cleared by `resetCache()`) instead of living
+   * forever at module scope. Omitted by direct barrel callers, who fall back to a
+   * process-lifetime cache. Eviction-on-failure is preserved either way.
+   */
+  realDirCache?: Map<string, Promise<string>>;
 }
 /**
  * Reads `.qwen/loop.md`, project before home, byte-capped at 25 KB. A missing,
@@ -81,4 +83,10 @@ export interface ReadLoopTaskFileOptions {
  * can't hang the tick and an escaping symlink (e.g. `-> /etc/passwd`) can't be
  * exfiltrated.
  */
-export declare function readLoopTaskFile({ projectRoot, homeDir, homeQwenDir, allowProjectFile, realDirCache, }: ReadLoopTaskFileOptions): Promise<LoopTaskFileResult>;
+export declare function readLoopTaskFile({
+  projectRoot,
+  homeDir,
+  homeQwenDir,
+  allowProjectFile,
+  realDirCache,
+}: ReadLoopTaskFileOptions): Promise<LoopTaskFileResult>;

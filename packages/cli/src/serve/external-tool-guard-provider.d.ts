@@ -9,9 +9,9 @@ export declare const DEFAULT_EXTERNAL_TOOL_GUARD_TIMEOUT_MS = 3000;
 export declare const MIN_EXTERNAL_TOOL_GUARD_TIMEOUT_MS = 100;
 export declare const MAX_EXTERNAL_TOOL_GUARD_TIMEOUT_MS = 30000;
 export interface RequiredExternalToolGuardOptions {
-    endpoint: string;
-    token: string;
-    timeoutMs?: number;
+  endpoint: string;
+  token: string;
+  timeoutMs?: number;
 }
 /**
  * Small direct HTTP(S) client. It intentionally does not use global fetch:
@@ -20,12 +20,12 @@ export interface RequiredExternalToolGuardOptions {
  * inherit proxy routing or redirect behavior.
  */
 export declare class RequiredExternalToolGuard {
-    private readonly endpoint;
-    private readonly token;
-    private readonly timeoutMs;
-    private initialized;
-    constructor(options: RequiredExternalToolGuardOptions);
-    initialize(): Promise<void>;
-    readonly prepare: ExternalToolGuardHandler;
-    private request;
+  private readonly endpoint;
+  private readonly token;
+  private readonly timeoutMs;
+  private initialized;
+  constructor(options: RequiredExternalToolGuardOptions);
+  initialize(): Promise<void>;
+  readonly prepare: ExternalToolGuardHandler;
+  private request;
 }

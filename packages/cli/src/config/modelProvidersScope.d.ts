@@ -11,18 +11,24 @@ export declare function hasOwnModelProviders(settingsObj: unknown): boolean;
  *
  * Note: Workspace scope is only considered when the workspace is trusted.
  */
-export declare function getModelProvidersOwnerScope(settings: LoadedSettings): SettingScope | undefined;
+export declare function getModelProvidersOwnerScope(
+  settings: LoadedSettings,
+): SettingScope | undefined;
 /**
  * Choose the settings scope to persist a model selection.
  * Prefer persisting back to the scope that contains the effective modelProviders
  * config, otherwise fall back to the legacy trust-based heuristic.
  */
-export declare function getPersistScopeForModelSelection(settings: LoadedSettings): SettingScope;
+export declare function getPersistScopeForModelSelection(
+  settings: LoadedSettings,
+): SettingScope;
 /**
  * The writable scopes that contribute to the effective (merged) config, highest
  * precedence first. Workspace is only writable/honored when trusted.
  */
-export declare function getWritableScopes(settings: LoadedSettings): SettingScope[];
+export declare function getWritableScopes(
+  settings: LoadedSettings,
+): SettingScope[];
 /**
  * Returns the highest-precedence writable scope that explicitly owns `key`
  * (top-level settings key), or `undefined` when no writable scope sets it.
@@ -30,4 +36,7 @@ export declare function getWritableScopes(settings: LoadedSettings): SettingScop
  * keys like `modelFallbacks` / `model` are independently scoped from
  * `modelProviders`.
  */
-export declare function getOwnKeyScope(settings: LoadedSettings, key: string): SettingScope | undefined;
+export declare function getOwnKeyScope(
+  settings: LoadedSettings,
+  key: string,
+): SettingScope | undefined;

@@ -21,8 +21,13 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * single-session CLI behavior is unchanged.
  */
 export declare const sessionIdContext: AsyncLocalStorage<string>;
-export declare function registerSessionProjectDir(sessionId: string, projectDir: string): void;
-export declare function getSessionProjectDir(sessionId: string): string | undefined;
+export declare function registerSessionProjectDir(
+  sessionId: string,
+  projectDir: string,
+): void;
+export declare function getSessionProjectDir(
+  sessionId: string,
+): string | undefined;
 /**
  * Drop a session's entry when it ends.
  *
@@ -31,7 +36,10 @@ export declare function getSessionProjectDir(sessionId: string): string | undefi
  * needs to, since the process is the session.
  */
 export declare function unregisterSessionProjectDir(sessionId: string): void;
-export declare function registerSessionModel(sessionId: string, model: string): void;
+export declare function registerSessionModel(
+  sessionId: string,
+  model: string,
+): void;
 export declare function getSessionModel(sessionId: string): string | undefined;
 /**
  * Drop a session's entry when it ends, for the same reason as

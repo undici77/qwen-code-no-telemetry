@@ -9,16 +9,16 @@
  * belongs only to the HTTP request that initiated it.
  */
 export declare class GenerationStreamQueue<T> implements AsyncIterable<T> {
-    private readonly capacity;
-    private readonly values;
-    private waiter;
-    private closed;
-    private failure;
-    constructor(capacity: number);
-    push(value: T): boolean;
-    close(): void;
-    fail(error: unknown): void;
-    private settleWaiter;
-    private next;
-    [Symbol.asyncIterator](): AsyncIterator<T>;
+  private readonly capacity;
+  private readonly values;
+  private waiter;
+  private closed;
+  private failure;
+  constructor(capacity: number);
+  push(value: T): boolean;
+  close(): void;
+  fail(error: unknown): void;
+  private settleWaiter;
+  private next;
+  [Symbol.asyncIterator](): AsyncIterator<T>;
 }

@@ -34,6 +34,7 @@ git log -3 --oneline                          # recent commits context
 | UI display version                 | **LOW**     | Keep -no-telemetry suffix for clarity                     |
 
 **Resolution strategy:**
+
 - For **test files**: keep origin/main (upstream changes) unless they test telemetry behavior — then revert to no-telemetry defaults
 - For **config/schema files**: keep fork defaults (`gitCoAuthor: false`, `enableAutoUpdate: false`)
 - For **package-lock.json**: keep origin/main, then regenerate via `npm install`
@@ -62,6 +63,7 @@ npm test    # parallel across all workspaces, ~18000+ tests
 ```
 
 Known pre-existing failures when running as root (skip these):
+
 - `src/tools/edit.test.ts` — file permission checks bypassed by root
 - `src/utils/pathReader.test.ts` — file permission checks bypassed by root
 - `packages/cli/src/utils/housekeeping/cleanup.test.ts` — directory write restrictions bypassed by root
@@ -117,6 +119,7 @@ When resolving a conflicted file, ask:
 ### Post-Merge Commit
 
 After successful verification:
+
 ```bash
 git add -A
 git commit -m "chore: merge from main [upstream-commit-hash]"

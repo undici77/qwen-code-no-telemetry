@@ -5,9 +5,9 @@
  */
 import type { Config } from '../config/config.js';
 export interface SubagentGeneratedContent {
-    name: string;
-    description: string;
-    systemPrompt: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
 }
 /**
  * Generates subagent configuration content using LLM.
@@ -17,4 +17,8 @@ export interface SubagentGeneratedContent {
  * @param abortSignal - AbortSignal for cancelling the request
  * @returns Promise resolving to generated subagent content
  */
-export declare function subagentGenerator(userDescription: string, config: Config, abortSignal: AbortSignal): Promise<SubagentGeneratedContent>;
+export declare function subagentGenerator(
+  userDescription: string,
+  config: Config,
+  abortSignal: AbortSignal,
+): Promise<SubagentGeneratedContent>;

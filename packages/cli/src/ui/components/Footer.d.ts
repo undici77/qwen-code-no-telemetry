@@ -7,7 +7,7 @@ import type React from 'react';
 import { type RefObject } from 'react';
 import { type DOMElement } from 'ink';
 interface FooterProps {
-    containerRef?: RefObject<DOMElement | null>;
+  containerRef?: RefObject<DOMElement | null>;
 }
 export declare const Footer: React.FC<FooterProps>;
 export {};

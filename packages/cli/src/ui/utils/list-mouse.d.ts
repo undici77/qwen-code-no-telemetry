@@ -22,20 +22,26 @@
  * positive value must be (a shorter-than-screen frame is top-anchored, not
  * bottom-anchored).
  */
-export declare function frameAnchor(terminalHeight: number, frameHeight: number): number;
+export declare function frameAnchor(
+  terminalHeight: number,
+  frameHeight: number,
+): number;
 /**
  * Convert a 1-based terminal mouse row into a 0-based layout row (directly
  * comparable to a measured element's `y`), via the frame anchor.
  */
-export declare function terminalRowToLayoutRow(terminalRow1Based: number, anchor: number): number;
+export declare function terminalRowToLayoutRow(
+  terminalRow1Based: number,
+  anchor: number,
+): number;
 /** A visible list item's layout-space vertical span (rows). */
 export interface VisibleItemRect {
-    /** Index into the full items array (not the visible slice). */
-    index: number;
-    /** Top row of the item, in the same 0-based space as the click row. */
-    top: number;
-    /** Item height in rows (>= 1; multi-line items span several rows). */
-    height: number;
+  /** Index into the full items array (not the visible slice). */
+  index: number;
+  /** Top row of the item, in the same 0-based space as the click row. */
+  top: number;
+  /** Item height in rows (>= 1; multi-line items span several rows). */
+  height: number;
 }
 /**
  * Find the item whose row span contains `layoutRow`, or null if the row falls
@@ -43,4 +49,7 @@ export interface VisibleItemRect {
  * rects so multi-line items and inter-item gaps are handled without assuming a
  * uniform row height.
  */
-export declare function findItemAtLayoutRow(rects: VisibleItemRect[], layoutRow: number): number | null;
+export declare function findItemAtLayoutRow(
+  rects: VisibleItemRect[],
+  layoutRow: number,
+): number | null;

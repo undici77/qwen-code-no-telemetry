@@ -21,7 +21,11 @@ export declare function startEarlyStartupPrefetches(config: Config): void;
  * affect `startInteractiveUI()` success. `connectIde` is opt-in so headless,
  * stream-json, and ACP/Zed paths can keep their awaited IDE startup semantics.
  */
-export declare function startPostRenderPrefetches(config: Config, settings: LoadedSettings, options?: {
+export declare function startPostRenderPrefetches(
+  config: Config,
+  settings: LoadedSettings,
+  options?: {
     connectIde?: boolean;
     initializeTelemetry?: boolean;
-}): void;
+  },
+): void;

@@ -24,59 +24,65 @@ import type { LoadedSettings } from '../../config/settings.js';
  * ControlService (programmatic API).
  */
 export interface IControlContext {
-    readonly config: Config;
-    readonly streamJson: StreamJsonOutputAdapter;
-    readonly sessionId: string;
-    readonly abortSignal: AbortSignal;
-    readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
-    readonly debugMode: boolean;
-    readonly settings: LoadedSettings;
-    permissionMode: PermissionMode;
-    sdkCanUseToolTimeoutMs?: number;
-    sdkMcpServers: Set<string>;
-    mcpClients: Map<string, {
-        client: Client;
-        config: MCPServerConfig;
-    }>;
-    inputClosed: boolean;
-    onInterrupt?: () => void;
-    /**
-     * Continue the most recent unfinished turn (continue_last_turn control
-     * request). Resolves with `{ accepted, interruption }`; the resumed
-     * turn's output flows through the regular stream afterwards.
-     */
-    onContinueLastTurn?: () => Promise<Record<string, unknown>>;
+  readonly config: Config;
+  readonly streamJson: StreamJsonOutputAdapter;
+  readonly sessionId: string;
+  readonly abortSignal: AbortSignal;
+  readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+  readonly debugMode: boolean;
+  readonly settings: LoadedSettings;
+  permissionMode: PermissionMode;
+  sdkCanUseToolTimeoutMs?: number;
+  sdkMcpServers: Set<string>;
+  mcpClients: Map<
+    string,
+    {
+      client: Client;
+      config: MCPServerConfig;
+    }
+  >;
+  inputClosed: boolean;
+  onInterrupt?: () => void;
+  /**
+   * Continue the most recent unfinished turn (continue_last_turn control
+   * request). Resolves with `{ accepted, interruption }`; the resumed
+   * turn's output flows through the regular stream afterwards.
+   */
+  onContinueLastTurn?: () => Promise<Record<string, unknown>>;
 }
 /**
  * Control Context implementation
  */
 export declare class ControlContext implements IControlContext {
-    readonly config: Config;
-    readonly streamJson: StreamJsonOutputAdapter;
-    readonly sessionId: string;
-    readonly abortSignal: AbortSignal;
-    readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
-    readonly debugMode: boolean;
-    readonly settings: LoadedSettings;
-    permissionMode: PermissionMode;
-    sdkCanUseToolTimeoutMs?: number;
-    sdkMcpServers: Set<string>;
-    mcpClients: Map<string, {
-        client: Client;
-        config: MCPServerConfig;
-    }>;
-    inputClosed: boolean;
+  readonly config: Config;
+  readonly streamJson: StreamJsonOutputAdapter;
+  readonly sessionId: string;
+  readonly abortSignal: AbortSignal;
+  readonly getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+  readonly debugMode: boolean;
+  readonly settings: LoadedSettings;
+  permissionMode: PermissionMode;
+  sdkCanUseToolTimeoutMs?: number;
+  sdkMcpServers: Set<string>;
+  mcpClients: Map<
+    string,
+    {
+      client: Client;
+      config: MCPServerConfig;
+    }
+  >;
+  inputClosed: boolean;
+  onInterrupt?: () => void;
+  onContinueLastTurn?: () => Promise<Record<string, unknown>>;
+  constructor(options: {
+    config: Config;
+    streamJson: StreamJsonOutputAdapter;
+    sessionId: string;
+    abortSignal: AbortSignal;
+    getActiveTurnAbortSignal?: () => AbortSignal | undefined;
+    settings: LoadedSettings;
+    permissionMode?: PermissionMode;
     onInterrupt?: () => void;
     onContinueLastTurn?: () => Promise<Record<string, unknown>>;
-    constructor(options: {
-        config: Config;
-        streamJson: StreamJsonOutputAdapter;
-        sessionId: string;
-        abortSignal: AbortSignal;
-        getActiveTurnAbortSignal?: () => AbortSignal | undefined;
-        settings: LoadedSettings;
-        permissionMode?: PermissionMode;
-        onInterrupt?: () => void;
-        onContinueLastTurn?: () => Promise<Record<string, unknown>>;
-    });
+  });
 }

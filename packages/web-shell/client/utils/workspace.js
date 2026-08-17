@@ -9,15 +9,15 @@
  * it has no segments.
  */
 export function workspaceBasename(cwd) {
-    const parts = cwd.split(/[\\/]+/).filter(Boolean);
-    return parts.at(-1) ?? cwd;
+  const parts = cwd.split(/[\\/]+/).filter(Boolean);
+  return parts.at(-1) ?? cwd;
 }
 export function workspaceLabel(workspace) {
-    return workspace.displayName?.trim() || workspaceBasename(workspace.cwd);
+  return workspace.displayName?.trim() || workspaceBasename(workspace.cwd);
 }
 export function workspaceLabelForCwd(cwd, workspaces) {
-    const workspace = workspaces?.find((entry) => entry.cwd === cwd);
-    return workspace ? workspaceLabel(workspace) : workspaceBasename(cwd);
+  const workspace = workspaces?.find((entry) => entry.cwd === cwd);
+  return workspace ? workspaceLabel(workspace) : workspaceBasename(cwd);
 }
 /**
  * True when the daemon advertises more than one registered workspace — i.e. the
@@ -26,7 +26,7 @@ export function workspaceLabelForCwd(cwd, workspaces) {
  * every workspace-scoped affordance stays hidden and the UI is unchanged.
  */
 export function hasMultipleWorkspaces(capabilities) {
-    return (capabilities?.workspaces?.length ?? 0) > 1;
+  return (capabilities?.workspaces?.length ?? 0) > 1;
 }
 /**
  * Whether a session belongs to a workspace other than the primary one. Both cwds
@@ -34,7 +34,7 @@ export function hasMultipleWorkspaces(capabilities) {
  * when either cwd is unknown (treat as primary) so single-workspace never tags.
  */
 export function isNonPrimaryWorkspaceSession(workspaceCwd, primaryCwd) {
-    return !!workspaceCwd && !!primaryCwd && workspaceCwd !== primaryCwd;
+  return !!workspaceCwd && !!primaryCwd && workspaceCwd !== primaryCwd;
 }
 /**
  * Merge the primary workspace's sessions with the sessions collected from other
@@ -43,15 +43,12 @@ export function isNonPrimaryWorkspaceSession(workspaceCwd, primaryCwd) {
  * are no other-workspace sessions, so the single-workspace path is a no-op.
  */
 export function mergeSessionsById(primary, others) {
-    if (others.length === 0)
-        return primary;
-    const byId = new Map();
-    for (const session of primary)
-        byId.set(session.sessionId, session);
-    for (const session of others) {
-        if (!byId.has(session.sessionId))
-            byId.set(session.sessionId, session);
-    }
-    return [...byId.values()];
+  if (others.length === 0) return primary;
+  const byId = new Map();
+  for (const session of primary) byId.set(session.sessionId, session);
+  for (const session of others) {
+    if (!byId.has(session.sessionId)) byId.set(session.sessionId, session);
+  }
+  return [...byId.values()];
 }
 //# sourceMappingURL=workspace.js.map

@@ -3,10 +3,23 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { Config, OutputUpdateHandler, ToolCallRequestInfo, SessionMetrics } from '@qwen-code/qwen-code-core';
+import type {
+  Config,
+  OutputUpdateHandler,
+  ToolCallRequestInfo,
+  SessionMetrics,
+} from '@qwen-code/qwen-code-core';
 import type { Part, PartListUnion } from '@google/genai';
-import type { CLIUserMessage, Usage, PermissionMode, CLISystemMessage } from '../nonInteractive/types.js';
-import type { JsonOutputAdapterInterface, MessageEmitter } from '../nonInteractive/io/BaseJsonOutputAdapter.js';
+import type {
+  CLIUserMessage,
+  Usage,
+  PermissionMode,
+  CLISystemMessage,
+} from '../nonInteractive/types.js';
+import type {
+  JsonOutputAdapterInterface,
+  MessageEmitter,
+} from '../nonInteractive/io/BaseJsonOutputAdapter.js';
 /**
  * Normalizes various part list formats into a consistent Part[] array.
  *
@@ -20,7 +33,9 @@ export declare function normalizePartList(parts: PartListUnion | null): Part[];
  * @param message - User message sourced from the CLI protocol layer
  * @returns Extracted parts or null if the message lacks textual content
  */
-export declare function extractPartsFromUserMessage(message: CLIUserMessage | undefined): PartListUnion | null;
+export declare function extractPartsFromUserMessage(
+  message: CLIUserMessage | undefined,
+): PartListUnion | null;
 /**
  * Computes Usage information from SessionMetrics using computeSessionStats.
  * Aggregates token usage across all models in the session.
@@ -30,7 +45,10 @@ export declare function extractPartsFromUserMessage(message: CLIUserMessage | un
  */
 export declare function computeUsageFromMetrics(metrics: SessionMetrics): Usage;
 export declare function buildInitialSystemReminders(config: Config): Part[];
-export declare function insertAfterFunctionResponses(parts: Part[], additions: Part[]): Part[];
+export declare function insertAfterFunctionResponses(
+  parts: Part[],
+  additions: Part[],
+): Part[];
 /**
  * Build system message for SDK
  *
@@ -48,7 +66,11 @@ export declare function insertAfterFunctionResponses(parts: Part[], additions: P
  * @param permissionMode - Current permission/approval mode
  * @returns Promise resolving to CLISystemMessage
  */
-export declare function buildSystemMessage(config: Config, sessionId: string, permissionMode: PermissionMode): Promise<CLISystemMessage>;
+export declare function buildSystemMessage(
+  config: Config,
+  sessionId: string,
+  permissionMode: PermissionMode,
+): Promise<CLISystemMessage>;
 /**
  * Creates a generic output update handler for tools with canUpdateOutput=true.
  * This handler forwards MCP progress data (McpToolProgressData) and shell
@@ -60,8 +82,11 @@ export declare function buildSystemMessage(config: Config, sessionId: string, pe
  * @param adapter - The adapter instance for emitting messages
  * @returns An object containing the output update handler
  */
-export declare function createToolProgressHandler(request: ToolCallRequestInfo, adapter: MessageEmitter): {
-    handler: OutputUpdateHandler;
+export declare function createToolProgressHandler(
+  request: ToolCallRequestInfo,
+  adapter: MessageEmitter,
+): {
+  handler: OutputUpdateHandler;
 };
 /**
  * Creates an output update handler specifically for Agent tool subagent execution.
@@ -74,8 +99,12 @@ export declare function createToolProgressHandler(request: ToolCallRequestInfo, 
  * @param adapter - The unified adapter instance (JsonOutputAdapter or StreamJsonOutputAdapter)
  * @returns An object containing the output update handler
  */
-export declare function createAgentToolProgressHandler(config: Config, agentToolCallId: string, adapter: JsonOutputAdapterInterface): {
-    handler: OutputUpdateHandler;
+export declare function createAgentToolProgressHandler(
+  config: Config,
+  agentToolCallId: string,
+  adapter: JsonOutputAdapterInterface,
+): {
+  handler: OutputUpdateHandler;
 };
 /**
  * Converts function response parts to a string representation.

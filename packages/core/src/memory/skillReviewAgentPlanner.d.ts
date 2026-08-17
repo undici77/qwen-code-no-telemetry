@@ -5,7 +5,7 @@
  */
 import type { Content } from '@google/genai';
 import type { Config } from '../config/config.js';
-export declare const SKILL_REVIEW_AGENT_NAME: "managed-skill-extractor";
+export declare const SKILL_REVIEW_AGENT_NAME: 'managed-skill-extractor';
 export declare const DEFAULT_AUTO_SKILL_MAX_TURNS = 8;
 export declare const DEFAULT_AUTO_SKILL_TIMEOUT_MS = 120000;
 /**
@@ -17,12 +17,15 @@ export declare const DEFAULT_AUTO_SKILL_TIMEOUT_MS = 120000;
  * (`SkillManager`) is prefix-agnostic, and the `source: auto-skill`
  * frontmatter marker remains the file-level signal for edit protection.
  */
-export declare const AUTO_SKILL_DIR_PREFIX: "auto-skill-";
+export declare const AUTO_SKILL_DIR_PREFIX: 'auto-skill-';
 export interface SkillReviewExecutionResult {
-    touchedSkillFiles: string[];
-    systemMessage?: string;
+  touchedSkillFiles: string[];
+  systemMessage?: string;
 }
-export declare function createSkillScopedAgentConfig(config: Config, projectRoot: string): Config;
+export declare function createSkillScopedAgentConfig(
+  config: Config,
+  projectRoot: string,
+): Config;
 export declare const SKILL_REVIEW_SYSTEM_PROMPT: string;
 /**
  * Enumerate active project skill directory names.
@@ -31,7 +34,9 @@ export declare const SKILL_REVIEW_SYSTEM_PROMPT: string;
  * failure downgrades enumeration rather than aborting the task. Exported for
  * tests.
  */
-export declare function listExistingSkillDirNames(projectRoot: string): Promise<string[]>;
+export declare function listExistingSkillDirNames(
+  projectRoot: string,
+): Promise<string[]>;
 /**
  * Exported for tests. The "(do not reuse these names)" line is the soft
  * guard for #4437 — the hard guard is `evaluateScopedDecision`'s WRITE_FILE
@@ -43,11 +48,11 @@ export declare function listExistingSkillDirNames(projectRoot: string): Promise<
  */
 export declare function buildTaskPrompt(projectRoot: string): Promise<string>;
 export declare function runSkillReviewByAgent(params: {
-    config: Config;
-    projectRoot: string;
-    history: Content[];
-    /** Per-call turn override; the shared memory setting is used otherwise. */
-    maxTurns?: number;
-    /** Per-call timeout override; the shared memory setting is used otherwise. */
-    timeoutMs?: number;
+  config: Config;
+  projectRoot: string;
+  history: Content[];
+  /** Per-call turn override; the shared memory setting is used otherwise. */
+  maxTurns?: number;
+  /** Per-call timeout override; the shared memory setting is used otherwise. */
+  timeoutMs?: number;
 }): Promise<SkillReviewExecutionResult>;

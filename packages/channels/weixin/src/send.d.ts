@@ -16,14 +16,17 @@ export declare function detectImageMime(data: Buffer): string;
  * @param workspaceDirs  Additional directories to allow (typically the cwd).
  * @returns Resolved absolute realpath if valid.
  */
-export declare function validateImagePath(imagePath: string, workspaceDirs?: string[]): string;
+export declare function validateImagePath(
+  imagePath: string,
+  workspaceDirs?: string[],
+): string;
 /** Send a text message */
 export declare function sendText(params: {
-    to: string;
-    text: string;
-    baseUrl: string;
-    token: string;
-    contextToken: string;
+  to: string;
+  text: string;
+  baseUrl: string;
+  token: string;
+  contextToken: string;
 }): Promise<void>;
 /**
  * Send an image message via the four-step CDN upload flow:
@@ -33,11 +36,11 @@ export declare function sendText(params: {
  *   4. Send message with image_item referencing the CDN media
  */
 export declare function sendImage(params: {
-    to: string;
-    imagePath: string;
-    baseUrl: string;
-    token: string;
-    contextToken: string;
-    /** Workspace directories to allow for image paths. */
-    workspaceDirs?: string[];
+  to: string;
+  imagePath: string;
+  baseUrl: string;
+  token: string;
+  contextToken: string;
+  /** Workspace directories to allow for image paths. */
+  workspaceDirs?: string[];
 }): Promise<void>;

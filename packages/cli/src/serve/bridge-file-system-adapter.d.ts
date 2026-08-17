@@ -6,8 +6,8 @@
 import type { BridgeFileSystem } from '@qwen-code/acp-bridge';
 import type { WorkspaceFileSystemFactory } from './fs/workspace-file-system.js';
 interface BridgeFileSystemAdapterOptions {
-    /** Same-host daemon wiring only; generic adapters must leave this disabled. */
-    allowSameHostToolWritesOutsideWorkspace?: boolean;
+  /** Same-host daemon wiring only; generic adapters must leave this disabled. */
+  allowSameHostToolWritesOutsideWorkspace?: boolean;
 }
 /**
  * Adapter factory. Pass the existing `WorkspaceFileSystemFactory`
@@ -15,5 +15,8 @@ interface BridgeFileSystemAdapterOptions {
  * HTTP fs routes) — delegated operations share the same `fsAuditEmit` channel
  * + trust gate snapshot.
  */
-export declare function createBridgeFileSystemAdapter(factory: WorkspaceFileSystemFactory, options?: BridgeFileSystemAdapterOptions): BridgeFileSystem;
+export declare function createBridgeFileSystemAdapter(
+  factory: WorkspaceFileSystemFactory,
+  options?: BridgeFileSystemAdapterOptions,
+): BridgeFileSystem;
 export {};

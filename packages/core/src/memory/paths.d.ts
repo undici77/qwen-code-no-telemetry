@@ -4,24 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { AutoMemoryType } from './types.js';
-export declare const AUTO_MEMORY_DIRNAME = "memory";
-export declare const AUTO_MEMORY_INDEX_FILENAME = "MEMORY.md";
-export declare const AUTO_MEMORY_PINNED_DIRNAME = "pinned";
-export declare const AUTO_MEMORY_METADATA_FILENAME = "meta.json";
-export declare const AUTO_MEMORY_EXTRACT_CURSOR_FILENAME = "extract-cursor.json";
-export declare const AUTO_MEMORY_CONSOLIDATION_LOCK_FILENAME = "consolidation.lock";
+export declare const AUTO_MEMORY_DIRNAME = 'memory';
+export declare const AUTO_MEMORY_INDEX_FILENAME = 'MEMORY.md';
+export declare const AUTO_MEMORY_PINNED_DIRNAME = 'pinned';
+export declare const AUTO_MEMORY_METADATA_FILENAME = 'meta.json';
+export declare const AUTO_MEMORY_EXTRACT_CURSOR_FILENAME =
+  'extract-cursor.json';
+export declare const AUTO_MEMORY_CONSOLIDATION_LOCK_FILENAME =
+  'consolidation.lock';
 /**
  * Top-level directory name (under getMemoryBaseDir()) for the user-level
  * auto-memory layer — cross-project facts about the user (preferences,
  * working style, background). Mirror layout of the per-project memory dir.
  */
-export declare const USER_AUTO_MEMORY_DIRNAME = "memories";
+export declare const USER_AUTO_MEMORY_DIRNAME = 'memories';
 /**
  * Directory name (under the repo's `.qwen/`) for the team auto-memory layer —
  * project memory shared with every collaborator. Unlike the private layers it
  * lives INSIDE the repository and is tracked by git, which is the sync transport.
  */
-export declare const TEAM_AUTO_MEMORY_DIRNAME = "team-memory";
+export declare const TEAM_AUTO_MEMORY_DIRNAME = 'team-memory';
 export { MEMORY_PROJECT_SCOPES, type MemoryProjectScope } from './scopes.js';
 /**
  * Returns the base directory for all auto-memory storage.
@@ -53,7 +55,9 @@ export declare function getAutoMemoryTrustedAnchor(projectRoot: string): string;
  * This is the parent of getAutoMemoryRoot(), so memory/ stays clean:
  * only MEMORY.md and topic files live inside it.
  */
-export declare function getAutoMemoryProjectStateDir(projectRoot: string): string;
+export declare function getAutoMemoryProjectStateDir(
+  projectRoot: string,
+): string;
 /**
  * Returns true if the given absolute path is inside the auto-memory root for
  * the given project.
@@ -62,14 +66,29 @@ export declare function getAutoMemoryProjectStateDir(projectRoot: string): strin
  * platform path-separator differences (e.g. Windows backslash vs forward
  * slash) and to be resilient against path-traversal edge cases.
  */
-export declare function isAutoMemPath(absolutePath: string, projectRoot: string): boolean;
+export declare function isAutoMemPath(
+  absolutePath: string,
+  projectRoot: string,
+): boolean;
 export declare function getAutoMemoryIndexPath(projectRoot: string): string;
 export declare function getAutoMemoryMetadataPath(projectRoot: string): string;
-export declare function getAutoMemoryExtractCursorPath(projectRoot: string): string;
-export declare function getAutoMemoryConsolidationLockPath(projectRoot: string): string;
-export declare function getAutoMemoryTopicFilename(type: AutoMemoryType): string;
-export declare function getAutoMemoryTopicPath(projectRoot: string, type: AutoMemoryType): string;
-export declare function getAutoMemoryFilePath(projectRoot: string, relativePath: string): string;
+export declare function getAutoMemoryExtractCursorPath(
+  projectRoot: string,
+): string;
+export declare function getAutoMemoryConsolidationLockPath(
+  projectRoot: string,
+): string;
+export declare function getAutoMemoryTopicFilename(
+  type: AutoMemoryType,
+): string;
+export declare function getAutoMemoryTopicPath(
+  projectRoot: string,
+  type: AutoMemoryType,
+): string;
+export declare function getAutoMemoryFilePath(
+  projectRoot: string,
+  relativePath: string,
+): string;
 /**
  * Returns the user-level (cross-project) auto-memory root.
  * Lives at `${getMemoryBaseDir()}/memories/` — typically `~/.qwen/memories/`.
@@ -78,7 +97,9 @@ export declare function getAutoMemoryFilePath(projectRoot: string, relativePath:
  */
 export declare function getUserAutoMemoryRoot(): string;
 export declare function getUserAutoMemoryIndexPath(): string;
-export declare function getUserAutoMemoryTopicPath(type: AutoMemoryType): string;
+export declare function getUserAutoMemoryTopicPath(
+  type: AutoMemoryType,
+): string;
 /**
  * Returns true if the given absolute path is inside the user-level
  * auto-memory root. Uses path.relative() (not startsWith) so platform
@@ -97,7 +118,10 @@ export declare function getTeamAutoMemoryIndexPath(projectRoot: string): string;
  * given project. Uses path.relative() (not startsWith) so platform
  * path-separator differences and path-traversal edge cases are handled.
  */
-export declare function isTeamAutoMemPath(absolutePath: string, projectRoot: string): boolean;
+export declare function isTeamAutoMemPath(
+  absolutePath: string,
+  projectRoot: string,
+): boolean;
 /**
  * Returns true when the resolved file lives in any managed-memory layer.
  *
@@ -106,7 +130,11 @@ export declare function isTeamAutoMemPath(absolutePath: string, projectRoot: str
  * Resolving the nearest existing path prevents a symlink inside a memory root
  * from protecting content that actually lives outside that root.
  */
-export declare function isManagedMemoryPath(filePath: string, projectRoot: string, baseDir?: string): boolean;
+export declare function isManagedMemoryPath(
+  filePath: string,
+  projectRoot: string,
+  baseDir?: string,
+): boolean;
 /**
  * True if the path lives in EITHER the project-level memory root for the
  * given project OR the user-level memory root. Used by the extraction
@@ -116,4 +144,7 @@ export declare function isManagedMemoryPath(filePath: string, projectRoot: strin
  * to the repo and shared with collaborators, so its writes must stay 'ask' and
  * never be auto-approved through this predicate. Do not add team paths here.
  */
-export declare function isAnyAutoMemPath(absolutePath: string, projectRoot: string): boolean;
+export declare function isAnyAutoMemPath(
+  absolutePath: string,
+  projectRoot: string,
+): boolean;

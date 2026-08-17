@@ -6,18 +6,18 @@
 import { type MutableRefObject } from 'react';
 import { type DOMElement } from 'ink';
 export interface RowMouseControllerProps {
-    /** Outer list container node — bounds interactions horizontally. */
-    containerRef: MutableRefObject<DOMElement | null>;
-    /** Visible item nodes, indexed by visible position (0..visibleCount-1). */
-    itemRefs: MutableRefObject<Array<DOMElement | null>>;
-    /** Index of the first visible item within the full list. */
-    scrollOffset: number;
-    /** Optional: indices that are non-interactive (skipped for hover/select). */
-    isDisabled?: (index: number) => boolean;
-    /** Highlight the row under the pointer (hover). */
-    onHoverIndex: (index: number) => void;
-    /** Select the row under the pointer (click). */
-    onSelectIndex: (index: number) => void;
+  /** Outer list container node — bounds interactions horizontally. */
+  containerRef: MutableRefObject<DOMElement | null>;
+  /** Visible item nodes, indexed by visible position (0..visibleCount-1). */
+  itemRefs: MutableRefObject<Array<DOMElement | null>>;
+  /** Index of the first visible item within the full list. */
+  scrollOffset: number;
+  /** Optional: indices that are non-interactive (skipped for hover/select). */
+  isDisabled?: (index: number) => boolean;
+  /** Highlight the row under the pointer (hover). */
+  onHoverIndex: (index: number) => void;
+  /** Select the row under the pointer (click). */
+  onSelectIndex: (index: number) => void;
 }
 /**
  * Headless mouse layer for a vertical list of rows — shared by select menus
@@ -43,4 +43,11 @@ export interface RowMouseControllerProps {
  * mounts this layer in alternate-screen mode; inline mode, where the live region
  * floats, is intentionally unsupported here.
  */
-export declare function RowMouseController({ containerRef, itemRefs, scrollOffset, isDisabled, onHoverIndex, onSelectIndex, }: RowMouseControllerProps): null;
+export declare function RowMouseController({
+  containerRef,
+  itemRefs,
+  scrollOffset,
+  isDisabled,
+  onHoverIndex,
+  onSelectIndex,
+}: RowMouseControllerProps): null;

@@ -6,8 +6,8 @@
 import type { ScreenSelection } from 'ink';
 /** A point in composited-frame coordinates: column `x`, grid row `y`. */
 export interface Point {
-    x: number;
-    y: number;
+  x: number;
+  y: number;
 }
 /**
  * Selection granularity. `char` follows the pointer; `word` and `line` snap the
@@ -23,22 +23,22 @@ export type NormalizedSelection = ScreenSelection;
  * is cleared on scroll, so frame coordinates are sufficient.
  */
 export declare class SelectionState {
-    anchor: Point | null;
-    focus: Point | null;
-    dragging: boolean;
-    mode: SelectionMode;
-    start(point: Point, mode?: SelectionMode): void;
-    extend(point: Point): void;
-    finish(): void;
-    clear(): void;
-    get isEmpty(): boolean;
-    /** True when the selection is a single point (a click with no drag). */
-    get isCollapsed(): boolean;
-    /**
-     * A collapsed range is a real single-cell span in word/line mode, but only a
-     * bare click in char mode.
-     */
-    get isBareClick(): boolean;
-    /** Anchor/focus ordered into reading order, or null when empty. */
-    normalized(): NormalizedSelection | null;
+  anchor: Point | null;
+  focus: Point | null;
+  dragging: boolean;
+  mode: SelectionMode;
+  start(point: Point, mode?: SelectionMode): void;
+  extend(point: Point): void;
+  finish(): void;
+  clear(): void;
+  get isEmpty(): boolean;
+  /** True when the selection is a single point (a click with no drag). */
+  get isCollapsed(): boolean;
+  /**
+   * A collapsed range is a real single-cell span in word/line mode, but only a
+   * bare click in char mode.
+   */
+  get isBareClick(): boolean;
+  /** Anchor/focus ordered into reading order, or null when empty. */
+  normalized(): NormalizedSelection | null;
 }

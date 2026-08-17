@@ -34,5 +34,8 @@ export type TokenLimitType = 'input' | 'output';
  * @param type  - 'input' for context window, 'output' for generation limit
  * @returns Maximum token count for the model and type
  */
-export declare function tokenLimit(model: string, type?: TokenLimitType): TokenCount;
+export declare function tokenLimit(
+  model: string,
+  type?: TokenLimitType,
+): TokenCount;
 export {};

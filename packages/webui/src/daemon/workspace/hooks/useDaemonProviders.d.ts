@@ -10,11 +10,13 @@ import type { DaemonResourceOptions } from '../types.js';
  * bump the settings version, so the model list stays in sync.
  */
 export declare function useDaemonProviders(options?: DaemonResourceOptions): {
-    status: import("@qwen-code/sdk").DaemonWorkspaceProvidersStatus | undefined;
-    providers: import("@qwen-code/sdk").DaemonWorkspaceProviderStatus[];
-    current: import("@qwen-code/sdk").DaemonWorkspaceProviderCurrent | undefined;
-    reload: () => Promise<import("@qwen-code/sdk").DaemonWorkspaceProvidersStatus | undefined>;
-    data: import("@qwen-code/sdk").DaemonWorkspaceProvidersStatus | undefined;
-    loading: boolean;
-    error: Error | undefined;
+  status: import('@qwen-code/sdk').DaemonWorkspaceProvidersStatus | undefined;
+  providers: import('@qwen-code/sdk').DaemonWorkspaceProviderStatus[];
+  current: import('@qwen-code/sdk').DaemonWorkspaceProviderCurrent | undefined;
+  reload: () => Promise<
+    import('@qwen-code/sdk').DaemonWorkspaceProvidersStatus | undefined
+  >;
+  data: import('@qwen-code/sdk').DaemonWorkspaceProvidersStatus | undefined;
+  loading: boolean;
+  error: Error | undefined;
 };

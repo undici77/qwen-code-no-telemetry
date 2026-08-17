@@ -8,12 +8,14 @@
  * retention limits cannot drift between the main and split views.
  */
 export declare const SESSION_LIST_PAGE_SIZE = 1000;
-export declare const SESSION_ORGANIZATION_FEATURE = "session_organization";
-export declare const SESSION_TRANSCRIPT_PAGINATION_FEATURE = "session_transcript_pagination";
-export declare const SESSION_MONITOR_TOOL_CORRELATION_FEATURE = "session_monitor_tool_correlation";
-export declare const SESSION_SIDE_TASK_FEATURE = "session_side_task";
-export declare const WEB_SHELL_SESSION_SOURCE_TYPE = "default";
-export declare const WEB_SHELL_SIDE_TASK_SOURCE_TYPE = "side_task";
+export declare const SESSION_ORGANIZATION_FEATURE = 'session_organization';
+export declare const SESSION_TRANSCRIPT_PAGINATION_FEATURE =
+  'session_transcript_pagination';
+export declare const SESSION_MONITOR_TOOL_CORRELATION_FEATURE =
+  'session_monitor_tool_correlation';
+export declare const SESSION_SIDE_TASK_FEATURE = 'session_side_task';
+export declare const WEB_SHELL_SESSION_SOURCE_TYPE = 'default';
+export declare const WEB_SHELL_SIDE_TASK_SOURCE_TYPE = 'side_task';
 export declare const WEB_SHELL_HISTORY_PAGE_SIZE = 100;
 export declare const WEB_SHELL_TRANSCRIPT_RELOAD_BLOCKS = 500;
 /**

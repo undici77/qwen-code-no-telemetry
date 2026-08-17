@@ -17,7 +17,11 @@ export declare const MAX_SPLIT_PANES = 6;
  * `/session/<id>` deep-link is stripped while preserving any deployment base
  * path, so no single session competes with the split.
  */
-export declare function buildSplitUrl(sessionIds: string[], currentHref: string, token?: string): string;
+export declare function buildSplitUrl(
+  sessionIds: string[],
+  currentHref: string,
+  token?: string,
+): string;
 /** Read the session ids from a `?split=a,b,c` query string (empty when absent). */
 export declare function parseSplitSessionIds(search: string): string[];
 /**

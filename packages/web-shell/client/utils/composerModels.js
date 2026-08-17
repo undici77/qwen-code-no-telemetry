@@ -11,6 +11,6 @@
 export const HIDDEN_COMPOSER_MODEL_IDS = new Set(['coder-model(qwen-oauth)']);
 /** Whether a model may appear in the composer's model picker. */
 export function isVisibleComposerModel(model) {
-    return !HIDDEN_COMPOSER_MODEL_IDS.has(model.id);
+  return !HIDDEN_COMPOSER_MODEL_IDS.has(model.id);
 }
 //# sourceMappingURL=composerModels.js.map

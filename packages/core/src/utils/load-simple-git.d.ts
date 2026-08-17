@@ -5,7 +5,7 @@
  */
 import type { CheckRepoActions, SimpleGitFactory } from 'simple-git';
 export type SimpleGitModule = {
-    CheckRepoActions: typeof CheckRepoActions;
-    simpleGit: SimpleGitFactory;
+  CheckRepoActions: typeof CheckRepoActions;
+  simpleGit: SimpleGitFactory;
 };
 export declare function loadSimpleGit(): Promise<SimpleGitModule>;

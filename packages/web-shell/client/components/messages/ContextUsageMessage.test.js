@@ -1,4 +1,4 @@
-import { jsx as _jsx } from "react/jsx-runtime";
+import { jsx as _jsx } from 'react/jsx-runtime';
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -8,78 +8,88 @@ import { ContextUsageMessage } from './ContextUsageMessage';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const mounted = [];
 afterEach(() => {
-    for (const { root, container } of mounted.splice(0)) {
-        act(() => root.unmount());
-        container.remove();
-    }
+  for (const { root, container } of mounted.splice(0)) {
+    act(() => root.unmount());
+    container.remove();
+  }
 });
 function makeStatus(totalTokens, isEstimated) {
-    return {
-        v: 1,
-        sessionId: 'session-1',
-        workspaceCwd: '/workspace',
-        formattedText: '',
-        usage: {
-            modelName: 'test-model',
-            totalTokens,
-            contextWindowSize: 100,
-            breakdown: {
-                systemPrompt: 20,
-                builtinTools: 10,
-                mcpTools: 0,
-                memoryFiles: 5,
-                skills: 5,
-                messages: Math.max(0, totalTokens - 40),
-                freeSpace: Math.max(0, 100 - totalTokens),
-                autocompactBuffer: 10,
-            },
-            builtinTools: [],
-            mcpTools: [],
-            memoryFiles: [],
-            skills: [],
-            isEstimated,
-        },
-    };
+  return {
+    v: 1,
+    sessionId: 'session-1',
+    workspaceCwd: '/workspace',
+    formattedText: '',
+    usage: {
+      modelName: 'test-model',
+      totalTokens,
+      contextWindowSize: 100,
+      breakdown: {
+        systemPrompt: 20,
+        builtinTools: 10,
+        mcpTools: 0,
+        memoryFiles: 5,
+        skills: 5,
+        messages: Math.max(0, totalTokens - 40),
+        freeSpace: Math.max(0, 100 - totalTokens),
+        autocompactBuffer: 10,
+      },
+      builtinTools: [],
+      mcpTools: [],
+      memoryFiles: [],
+      skills: [],
+      isEstimated,
+    },
+  };
 }
 function render(status) {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    act(() => {
-        root.render(_jsx(I18nProvider, { language: "en", children: _jsx(ContextUsageMessage, { status: status }) }));
-    });
-    mounted.push({ root, container });
-    return container;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      _jsx(I18nProvider, {
+        language: 'en',
+        children: _jsx(ContextUsageMessage, { status: status }),
+      }),
+    );
+  });
+  mounted.push({ root, container });
+  return container;
 }
 describe('ContextUsageMessage', () => {
-    it('keeps numeric usage visible when the provider count is estimated', () => {
-        const container = render(makeStatus(120, true));
-        expect(container.textContent).toContain('Token usage is estimated until provider usage is received.');
-        expect(container.textContent).toContain('Context exceeds limit!');
-        expect(container.textContent).toContain('Used');
-        expect(container.textContent).toContain('Messages');
-        expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
-    });
-    it('escalates the progress-bar color at the shared thresholds', () => {
-        // The panel and the composer ring consume the same threshold helper;
-        // this pins the panel half of that contract (the ring half lives in
-        // ChatEditor.test.tsx). Both thresholds are strict `>`.
-        const filledClass = (container) => container
-            .querySelector('[aria-hidden="true"]')
-            .querySelector('span')
-            .getAttribute('class') ?? '';
-        expect(filledClass(render(makeStatus(60, false)))).toContain('accent');
-        expect(filledClass(render(makeStatus(61, false)))).toContain('warning');
-        expect(filledClass(render(makeStatus(80, false)))).toContain('warning');
-        expect(filledClass(render(makeStatus(81, false)))).toContain('error');
-    });
-    it('uses the pre-conversation view before any token count is available', () => {
-        const container = render(makeStatus(0, true));
-        expect(container.textContent).toContain('No API response yet.');
-        expect(container.textContent).toContain('Estimated pre-conversation overhead');
-        expect(container.textContent).not.toContain('Messages');
-        expect(container.textContent).not.toContain('Used');
-        expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
-    });
+  it('keeps numeric usage visible when the provider count is estimated', () => {
+    const container = render(makeStatus(120, true));
+    expect(container.textContent).toContain(
+      'Token usage is estimated until provider usage is received.',
+    );
+    expect(container.textContent).toContain('Context exceeds limit!');
+    expect(container.textContent).toContain('Used');
+    expect(container.textContent).toContain('Messages');
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+  });
+  it('escalates the progress-bar color at the shared thresholds', () => {
+    // The panel and the composer ring consume the same threshold helper;
+    // this pins the panel half of that contract (the ring half lives in
+    // ChatEditor.test.tsx). Both thresholds are strict `>`.
+    const filledClass = (container) =>
+      container
+        .querySelector('[aria-hidden="true"]')
+        .querySelector('span')
+        .getAttribute('class') ?? '';
+    expect(filledClass(render(makeStatus(60, false)))).toContain('accent');
+    expect(filledClass(render(makeStatus(61, false)))).toContain('warning');
+    expect(filledClass(render(makeStatus(80, false)))).toContain('warning');
+    expect(filledClass(render(makeStatus(81, false)))).toContain('error');
+  });
+  it('uses the pre-conversation view before any token count is available', () => {
+    const container = render(makeStatus(0, true));
+    expect(container.textContent).toContain('No API response yet.');
+    expect(container.textContent).toContain(
+      'Estimated pre-conversation overhead',
+    );
+    expect(container.textContent).not.toContain('Messages');
+    expect(container.textContent).not.toContain('Used');
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
 });
 //# sourceMappingURL=ContextUsageMessage.test.js.map

@@ -10,4 +10,8 @@
  * @param isPaused Whether the timer should pause without resetting elapsed time.
  * @returns The elapsed time in seconds.
  */
-export declare const useTimer: (isActive: boolean, resetKey: unknown, isPaused?: boolean) => number;
+export declare const useTimer: (
+  isActive: boolean,
+  resetKey: unknown,
+  isPaused?: boolean,
+) => number;

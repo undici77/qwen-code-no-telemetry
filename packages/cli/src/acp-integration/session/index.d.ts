@@ -14,7 +14,14 @@
  * The key benefit is that all event emission goes through the same emitters,
  * ensuring consistency between normal flow, history replay, and sub-agent events.
  */
-export type { SessionContext, SessionUpdateSender, ToolCallStartParams, ToolCallResultParams, TodoItem, ResolvedToolMetadata, } from './types.js';
+export type {
+  SessionContext,
+  SessionUpdateSender,
+  ToolCallStartParams,
+  ToolCallResultParams,
+  TodoItem,
+  ResolvedToolMetadata,
+} from './types.js';
 export { BaseEmitter } from './emitters/base-emitter.js';
 export { MessageEmitter } from './emitters/MessageEmitter.js';
 export { PlanEmitter } from './emitters/PlanEmitter.js';

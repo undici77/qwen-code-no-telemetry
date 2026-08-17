@@ -15,42 +15,42 @@
  * All sends are serialized — the next block waits for the previous send to complete.
  */
 export interface BlockStreamerOptions {
-    /** Minimum characters before emitting a block. Default: 400. */
-    minChars: number;
-    /** Force-emit when buffer exceeds this size. Default: 1000. */
-    maxChars: number;
-    /** Emit buffered text after this many ms of inactivity. Default: 1500. */
-    idleMs: number;
-    /** Callback to deliver a completed block. Called with trimmed text. */
-    send: (text: string) => Promise<void>;
+  /** Minimum characters before emitting a block. Default: 400. */
+  minChars: number;
+  /** Force-emit when buffer exceeds this size. Default: 1000. */
+  maxChars: number;
+  /** Emit buffered text after this many ms of inactivity. Default: 1500. */
+  idleMs: number;
+  /** Callback to deliver a completed block. Called with trimmed text. */
+  send: (text: string) => Promise<void>;
 }
 export declare class BlockStreamer {
-    private buffer;
-    private idleTimer;
-    private sending;
-    private opts;
-    /** Number of blocks emitted so far. */
-    blockCount: number;
-    constructor(opts: BlockStreamerOptions);
-    /** Feed a new text chunk from the agent stream. */
-    push(chunk: string): void;
-    /** Flush all remaining buffered text. Awaits all pending sends. */
-    flush(): Promise<void>;
-    /** Drop buffered text and cancel future idle emission. */
-    stop(): void;
-    private checkEmit;
-    private onIdle;
-    private emitBlock;
-    /**
-     * Find the last paragraph boundary (\n\n) in the buffer.
-     * Returns the position after the boundary, or -1 if no suitable boundary
-     * exists at or after minChars.
-     */
-    private findBlockBoundary;
-    /**
-     * Find the best break point at or before maxPos.
-     * Prefers paragraph break > newline > space > maxPos.
-     */
-    private findBreakPoint;
-    private clearIdleTimer;
+  private buffer;
+  private idleTimer;
+  private sending;
+  private opts;
+  /** Number of blocks emitted so far. */
+  blockCount: number;
+  constructor(opts: BlockStreamerOptions);
+  /** Feed a new text chunk from the agent stream. */
+  push(chunk: string): void;
+  /** Flush all remaining buffered text. Awaits all pending sends. */
+  flush(): Promise<void>;
+  /** Drop buffered text and cancel future idle emission. */
+  stop(): void;
+  private checkEmit;
+  private onIdle;
+  private emitBlock;
+  /**
+   * Find the last paragraph boundary (\n\n) in the buffer.
+   * Returns the position after the boundary, or -1 if no suitable boundary
+   * exists at or after minChars.
+   */
+  private findBlockBoundary;
+  /**
+   * Find the best break point at or before maxPos.
+   * Prefers paragraph break > newline > space > maxPos.
+   */
+  private findBreakPoint;
+  private clearIdleTimer;
 }

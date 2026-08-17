@@ -5,13 +5,23 @@
  */
 import { type ScannedAutoMemoryDocument } from './scan.js';
 import type { AutoMemoryMetadata } from './types.js';
-export declare function buildManagedAutoMemoryIndex(docs: ScannedAutoMemoryDocument[], _metadata?: Pick<AutoMemoryMetadata, 'updatedAt' | 'lastDreamAt' | 'lastDreamSessionId'>): string;
+export declare function buildManagedAutoMemoryIndex(
+  docs: ScannedAutoMemoryDocument[],
+  _metadata?: Pick<
+    AutoMemoryMetadata,
+    'updatedAt' | 'lastDreamAt' | 'lastDreamSessionId'
+  >,
+): string;
 /**
  * Build the team index with cross-author dedup: entries sharing a description
  * collapse into one line. See {@link groupTeamDocsByDescription}.
  */
-export declare function buildTeamAutoMemoryIndex(docs: ScannedAutoMemoryDocument[]): string;
-export declare function rebuildManagedAutoMemoryIndex(projectRoot: string): Promise<string>;
+export declare function buildTeamAutoMemoryIndex(
+  docs: ScannedAutoMemoryDocument[],
+): string;
+export declare function rebuildManagedAutoMemoryIndex(
+  projectRoot: string,
+): Promise<string>;
 /**
  * Rebuild the MEMORY.md index for the user-level (cross-project) memory dir.
  * Mirrors {@link rebuildManagedAutoMemoryIndex} but uses the global root
@@ -28,7 +38,7 @@ export declare function rebuildUserAutoMemoryIndex(): Promise<string>;
  * gate legitimate sync.
  */
 export declare class TeamMemoryRootSecurityError extends Error {
-    constructor(message: string);
+  constructor(message: string);
 }
 /**
  * Rebuild the team (in-repo, git-tracked) MEMORY.md index from the saved memory
@@ -40,4 +50,6 @@ export declare class TeamMemoryRootSecurityError extends Error {
  * docs are ordered by path (not mtime) so the committed file is deterministic
  * across machines and does not churn after a git checkout.
  */
-export declare function rebuildTeamAutoMemoryIndex(projectRoot: string): Promise<string | null>;
+export declare function rebuildTeamAutoMemoryIndex(
+  projectRoot: string,
+): Promise<string | null>;

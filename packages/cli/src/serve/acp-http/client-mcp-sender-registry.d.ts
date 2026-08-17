@@ -47,7 +47,10 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import type { ClientMcpMessageSender } from '@qwen-code/acp-bridge/bridgeOptions';
 import type { ClientMcpServerProvider } from './client-mcp-ws.js';
 /** The `sendSdkMcpMessage`-shaped callback a WS connection registers. */
-export type WsClientMcpSender = (serverName: string, message: JSONRPCMessage) => Promise<JSONRPCMessage>;
+export type WsClientMcpSender = (
+  serverName: string,
+  message: JSONRPCMessage,
+) => Promise<JSONRPCMessage>;
 /**
  * Process-scoped registry mapping an advertised client-hosted MCP server name
  * to the WS connection's `sendSdkMcpMessage`. One instance per daemon, shared
@@ -67,36 +70,41 @@ export type WsClientMcpSender = (serverName: string, message: JSONRPCMessage) =>
  * breaking B's live tools.
  */
 export declare class ClientMcpSenderRegistry {
-    private readonly senders;
-    private readonly sessionSenders;
-    private readonly sessionScopedServerNames;
-    /**
-     * Record a server's WS sender, owned by `owner` (the registering
-     * connection's stable client id). Idempotent; last writer wins and takes
-     * ownership, so the new owner's `delete` is the one that takes effect.
-     */
-    set(serverName: string, sender: WsClientMcpSender, owner: string): void;
-    /**
-     * Forget a server's WS sender — but only when `owner` still owns the entry.
-     * Idempotent. The ownership guard stops a disconnecting connection from
-     * clobbering an entry a later connection re-registered under the same name.
-     */
-    delete(serverName: string, owner: string): void;
-    /** Whether `owner` currently owns the entry for `serverName`. */
-    owns(serverName: string, owner: string): boolean;
-    setSession(serverName: string, sessionId: string, sender: (payload: unknown) => Promise<unknown>, owner: string): void;
-    ownsSession(serverName: string, sessionId: string, owner: string): boolean;
-    deleteSession(serverName: string, sessionId: string, owner: string): boolean;
-    /** Currently-registered server names (tests / accounting). */
-    serverNames(): string[];
-    /**
-     * The {@link ClientMcpMessageSender} the bridge consumes. Returns a
-     * `(payload) => Promise<payload>` bound to the named server, or `undefined`
-     * when no client currently hosts it. The bridge passes a `JSONRPCMessage` as
-     * `payload`; we keep the public type `unknown` to match the bridge's
-     * SDK-free contract.
-     */
-    readonly lookup: ClientMcpMessageSender;
+  private readonly senders;
+  private readonly sessionSenders;
+  private readonly sessionScopedServerNames;
+  /**
+   * Record a server's WS sender, owned by `owner` (the registering
+   * connection's stable client id). Idempotent; last writer wins and takes
+   * ownership, so the new owner's `delete` is the one that takes effect.
+   */
+  set(serverName: string, sender: WsClientMcpSender, owner: string): void;
+  /**
+   * Forget a server's WS sender — but only when `owner` still owns the entry.
+   * Idempotent. The ownership guard stops a disconnecting connection from
+   * clobbering an entry a later connection re-registered under the same name.
+   */
+  delete(serverName: string, owner: string): void;
+  /** Whether `owner` currently owns the entry for `serverName`. */
+  owns(serverName: string, owner: string): boolean;
+  setSession(
+    serverName: string,
+    sessionId: string,
+    sender: (payload: unknown) => Promise<unknown>,
+    owner: string,
+  ): void;
+  ownsSession(serverName: string, sessionId: string, owner: string): boolean;
+  deleteSession(serverName: string, sessionId: string, owner: string): boolean;
+  /** Currently-registered server names (tests / accounting). */
+  serverNames(): string[];
+  /**
+   * The {@link ClientMcpMessageSender} the bridge consumes. Returns a
+   * `(payload) => Promise<payload>` bound to the named server, or `undefined`
+   * when no client currently hosts it. The bridge passes a `JSONRPCMessage` as
+   * `payload`; we keep the public type `unknown` to match the bridge's
+   * SDK-free contract.
+   */
+  readonly lookup: ClientMcpMessageSender;
 }
 /**
  * Minimal slice of the bridge the provider needs: add / remove a runtime MCP
@@ -105,15 +113,25 @@ export declare class ClientMcpSenderRegistry {
  * bridge surface (and easy to fake in tests).
  */
 export interface ClientMcpBridge {
-    addRuntimeMcpServer(name: string, config: Record<string, unknown>, originatorClientId: string): Promise<{
+  addRuntimeMcpServer(
+    name: string,
+    config: Record<string, unknown>,
+    originatorClientId: string,
+  ): Promise<
+    | {
         toolCount: number;
         [k: string]: unknown;
-    } | {
+      }
+    | {
         skipped: true;
         reason: string;
         [k: string]: unknown;
-    }>;
-    removeRuntimeMcpServer(name: string, originatorClientId: string): Promise<unknown>;
+      }
+  >;
+  removeRuntimeMcpServer(
+    name: string,
+    originatorClientId: string,
+  ): Promise<unknown>;
 }
 /**
  * Build the `ClientMcpServerProvider` the WS connection injects. Wires the
@@ -126,4 +144,8 @@ export interface ClientMcpBridge {
  * @param originatorClientId stable client id for this WS connection — used as
  *        the runtime-MCP mutation originator (audit / event attribution).
  */
-export declare function createClientMcpServerProvider(registry: ClientMcpSenderRegistry, bridge: ClientMcpBridge, originatorClientId: string): ClientMcpServerProvider;
+export declare function createClientMcpServerProvider(
+  registry: ClientMcpSenderRegistry,
+  bridge: ClientMcpBridge,
+  originatorClientId: string,
+): ClientMcpServerProvider;

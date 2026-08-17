@@ -9,7 +9,7 @@
  * horizontal room to make managing several sessions at once worthwhile, and the
  * sidebar collapses to a mobile drawer (see the 760px breakpoint in App.tsx).
  */
-export declare const LARGE_SCREEN_QUERY = "(min-width: 1024px)";
+export declare const LARGE_SCREEN_QUERY = '(min-width: 1024px)';
 /**
  * Tracks whether the viewport currently matches a large-screen media query.
  *

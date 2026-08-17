@@ -18,4 +18,8 @@ export declare function __resetSessionSuggestionCacheForTest(): void;
  * @param nowMs Injected clock for the cache TTL (defaults to Date.now()).
  *   Exposed for deterministic tests.
  */
-export declare function getSessionSuggestions(cwd: string, pattern: string, nowMs?: number): Promise<Suggestion[]>;
+export declare function getSessionSuggestions(
+  cwd: string,
+  pattern: string,
+  nowMs?: number,
+): Promise<Suggestion[]>;

@@ -13,7 +13,9 @@ export { resolveWebShellDir } from './web-shell-resolver.js';
  * Chrome side panel (issue #5626); X-Frame-Options is dropped in that case
  * since it can't express an allowlist.
  */
-export declare function buildWebShellCsp(frameAncestors?: readonly string[]): string;
+export declare function buildWebShellCsp(
+  frameAncestors?: readonly string[],
+): string;
 /** Default (no-framing) Web Shell CSP. */
 export declare const WEB_SHELL_CSP: string;
 /**
@@ -56,7 +58,11 @@ export declare function isPreAuthWebShellRequest(req: Request): boolean;
  *
  * Caller must have already verified `webShellDir` exists.
  */
-export declare function mountWebShellAssets(app: Application, webShellDir: string, frameAncestors?: readonly string[]): void;
+export declare function mountWebShellAssets(
+  app: Application,
+  webShellDir: string,
+  frameAncestors?: readonly string[],
+): void;
 /**
  * Mount the SPA deep-link fallback for routes not explicitly mounted above.
  * Registered AFTER all API routes — just before the error handler — so real
@@ -78,4 +84,8 @@ export declare function mountWebShellAssets(app: Application, webShellDir: strin
  * `Accept: application/json`, fail `isDocumentNavigation`, and fall through to
  * the standard JSON 404.
  */
-export declare function mountWebShellSpaFallback(app: Application, webShellDir: string, frameAncestors?: readonly string[]): void;
+export declare function mountWebShellSpaFallback(
+  app: Application,
+  webShellDir: string,
+  frameAncestors?: readonly string[],
+): void;

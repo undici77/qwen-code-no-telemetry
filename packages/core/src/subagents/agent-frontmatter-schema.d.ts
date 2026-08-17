@@ -19,10 +19,26 @@
  * its semantics would break existing `.qwen/agents/*.md` files.
  */
 /** Permission mode enum (DL7 `$E` / `kc` constant). */
-export declare const PERMISSION_MODE_VALUES: readonly ["acceptEdits", "auto", "bypassPermissions", "default", "dontAsk", "plan"];
+export declare const PERMISSION_MODE_VALUES: readonly [
+  'acceptEdits',
+  'auto',
+  'bypassPermissions',
+  'default',
+  'dontAsk',
+  'plan',
+];
 export type PermissionModeValue = (typeof PERMISSION_MODE_VALUES)[number];
 /** Color allowlist (DL7 `_Y` constant). Values outside this list are silently dropped. */
-export declare const COLOR_VALUES: readonly ["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"];
+export declare const COLOR_VALUES: readonly [
+  'red',
+  'blue',
+  'green',
+  'yellow',
+  'purple',
+  'orange',
+  'pink',
+  'cyan',
+];
 export type ColorValue = (typeof COLOR_VALUES)[number];
 /**
  * Map a Claude Code `permissionMode` frontmatter value to a qwen-code
@@ -34,14 +50,18 @@ export type ColorValue = (typeof COLOR_VALUES)[number];
  * wrong symbol via IDE auto-complete would silently return `undefined` for
  * every qwen enum value, hence the longer name.
  */
-export declare function claudePermissionModeToApprovalMode(permissionMode: string | undefined): string | undefined;
+export declare function claudePermissionModeToApprovalMode(
+  permissionMode: string | undefined,
+): string | undefined;
 /**
  * Parse a maxTurns value. Accepts a positive integer number or numeric string.
  * Returns `undefined` for anything else (matches DL7 `W46`).
  */
 export declare function parseMaxTurns(value: unknown): number | undefined;
 /** Type guard: value is a valid PERMISSION_MODE_VALUES literal. */
-export declare function isPermissionMode(value: unknown): value is PermissionModeValue;
+export declare function isPermissionMode(
+  value: unknown,
+): value is PermissionModeValue;
 /** Type guard: value is a valid COLOR_VALUES literal. */
 export declare function isColor(value: unknown): value is ColorValue;
 /**
@@ -62,7 +82,9 @@ export declare function isColor(value: unknown): value is ColorValue;
  * registration time. Drop-the-whole-field is preferred over throw so a
  * malformed mcpServers block doesn't kill the entire agent.
  */
-export declare function parseAgentMcpServers(value: unknown): Record<string, unknown> | undefined;
+export declare function parseAgentMcpServers(
+  value: unknown,
+): Record<string, unknown> | undefined;
 /**
  * Parse a frontmatter `hooks` value into the record-of-event-matchers shape
  * qwen-code's hook layer expects. Matches CC `TKO` / `_u`'s shallow
@@ -78,4 +100,6 @@ export declare function parseAgentMcpServers(value: unknown): Record<string, unk
  * union for command/http/function/prompt). Drop-the-whole-field is preferred
  * over throw, matching the rest of the DL7 lenient posture.
  */
-export declare function parseAgentHooks(value: unknown): Record<string, unknown> | undefined;
+export declare function parseAgentHooks(
+  value: unknown,
+): Record<string, unknown> | undefined;

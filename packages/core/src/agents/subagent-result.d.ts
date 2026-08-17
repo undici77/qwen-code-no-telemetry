@@ -5,4 +5,7 @@
  */
 import { AgentTerminateMode } from './runtime/agent-types.js';
 /** Keeps successful subagent scratchpad tags out of the parent model context. */
-export declare function toModelVisibleSubagentResult(text: string, terminateMode?: AgentTerminateMode): string;
+export declare function toModelVisibleSubagentResult(
+  text: string,
+  terminateMode?: AgentTerminateMode,
+): string;

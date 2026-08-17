@@ -4,5 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { CommandModule } from 'yargs';
-export declare function extractCodeReviewSection(content: string): string | null;
+export declare function extractCodeReviewSection(
+  content: string,
+): string | null;
 export declare const loadRulesCommand: CommandModule;

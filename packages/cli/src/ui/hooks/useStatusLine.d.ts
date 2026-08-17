@@ -10,67 +10,70 @@ import { type StatusLinePresetConfig } from '../statusLinePresets.js';
  * (model, token usage, session, etc.) without running extra queries.
  */
 export interface StatusLineCommandInput {
-    session_id: string;
-    version: string;
-    model: {
-        display_name: string;
-    };
-    context_window: {
-        context_window_size: number;
-        used_percentage: number;
-        remaining_percentage: number;
-        current_usage: number;
-        total_input_tokens: number;
-        total_output_tokens: number;
-    };
-    workspace: {
-        current_dir: string;
-    };
-    git?: {
-        branch: string;
-    };
-    /**
-     * Present when the session is inside an active worktree (created by
-     * `enter_worktree`). Field names mirror claude-code's StatusLine payload
-     * so users can share statusline scripts across both CLIs.
-     */
-    worktree?: {
-        name: string;
-        path: string;
-        branch: string;
-        original_cwd: string;
-        original_branch: string;
-    };
-    metrics: {
-        models: Record<string, {
-            api: {
-                total_requests: number;
-                total_errors: number;
-                total_latency_ms: number;
-            };
-            tokens: {
-                prompt: number;
-                completion: number;
-                total: number;
-                cached: number;
-                thoughts: number;
-            };
-        }>;
-        files: {
-            total_lines_added: number;
-            total_lines_removed: number;
+  session_id: string;
+  version: string;
+  model: {
+    display_name: string;
+  };
+  context_window: {
+    context_window_size: number;
+    used_percentage: number;
+    remaining_percentage: number;
+    current_usage: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+  };
+  workspace: {
+    current_dir: string;
+  };
+  git?: {
+    branch: string;
+  };
+  /**
+   * Present when the session is inside an active worktree (created by
+   * `enter_worktree`). Field names mirror claude-code's StatusLine payload
+   * so users can share statusline scripts across both CLIs.
+   */
+  worktree?: {
+    name: string;
+    path: string;
+    branch: string;
+    original_cwd: string;
+    original_branch: string;
+  };
+  metrics: {
+    models: Record<
+      string,
+      {
+        api: {
+          total_requests: number;
+          total_errors: number;
+          total_latency_ms: number;
         };
+        tokens: {
+          prompt: number;
+          completion: number;
+          total: number;
+          cached: number;
+          thoughts: number;
+        };
+      }
+    >;
+    files: {
+      total_lines_added: number;
+      total_lines_removed: number;
     };
-    vim?: {
-        mode: string;
-    };
+  };
+  vim?: {
+    mode: string;
+  };
 }
 interface StatusLineCommandConfig {
-    type: 'command';
-    command: string;
-    refreshInterval?: number;
-    respectUserColors?: boolean;
-    hideContextIndicator?: boolean;
+  type: 'command';
+  command: string;
+  refreshInterval?: number;
+  respectUserColors?: boolean;
+  hideContextIndicator?: boolean;
 }
 /**
  * Resolves the tri-state `hideContextIndicator` setting:
@@ -81,7 +84,11 @@ interface StatusLineCommandConfig {
  * - when unset for a `command` status line, the indicator stays visible — the
  *   command output is opaque, so we never guess what it contains.
  */
-export declare function resolveHideContextIndicator(config: StatusLineConfig | undefined, isContextOverLimit?: boolean, keepAutomaticIndicator?: boolean): boolean;
+export declare function resolveHideContextIndicator(
+  config: StatusLineConfig | undefined,
+  isContextOverLimit?: boolean,
+  keepAutomaticIndicator?: boolean,
+): boolean;
 type StatusLineConfig = StatusLineCommandConfig | StatusLinePresetConfig;
 export declare const MAX_STATUS_LINES = 2;
 /**
@@ -95,10 +102,13 @@ export declare const MAX_STATUS_LINES = 2;
  * on a timer so external data (git branch, quota, clock) stays fresh even
  * when no Agent state has changed.
  */
-export declare function useStatusLine(keepAutomaticContextIndicator?: boolean, availableWidth?: number): {
-    lines: string[];
-    useThemeColors: boolean;
-    respectUserColors: boolean;
-    hideContextIndicator: boolean;
+export declare function useStatusLine(
+  keepAutomaticContextIndicator?: boolean,
+  availableWidth?: number,
+): {
+  lines: string[];
+  useThemeColors: boolean;
+  respectUserColors: boolean;
+  hideContextIndicator: boolean;
 };
 export {};

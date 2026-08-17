@@ -8,12 +8,14 @@
  * Every condition must hold; any one being unmet holds the queue.
  */
 export function canDrainQueue(gate) {
-    return (!gate.draining &&
-        !gate.awaitingTurnStart &&
-        gate.connected &&
-        !gate.streaming &&
-        !gate.interactionBlocked &&
-        !gate.pendingApproval &&
-        gate.queueLength > 0);
+  return (
+    !gate.draining &&
+    !gate.awaitingTurnStart &&
+    gate.connected &&
+    !gate.streaming &&
+    !gate.interactionBlocked &&
+    !gate.pendingApproval &&
+    gate.queueLength > 0
+  );
 }
 //# sourceMappingURL=queueDrain.js.map

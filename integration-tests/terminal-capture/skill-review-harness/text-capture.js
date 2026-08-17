@@ -1,5 +1,5 @@
 #!/usr/bin/env npx tsx
-import { jsx as _jsx } from "react/jsx-runtime";
+import { jsx as _jsx } from 'react/jsx-runtime';
 /**
  * Browser-free capture of the real SkillReviewDialog render (before/after),
  * using ink-testing-library so it works without Playwright/Chromium. Prints the
@@ -53,135 +53,146 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms));
  * fs.readFile and can capture a stale "Loading preview…" frame.
  */
 async function waitForFrame(getFrame, needle, timeoutMs = 5000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        if ((getFrame() ?? '').includes(needle))
-            return;
-        await delay(50);
-    }
-    throw new Error(`Timed out (${timeoutMs}ms) waiting for frame to contain ${JSON.stringify(needle)}`);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if ((getFrame() ?? '').includes(needle)) return;
+    await delay(50);
+  }
+  throw new Error(
+    `Timed out (${timeoutMs}ms) waiting for frame to contain ${JSON.stringify(needle)}`,
+  );
 }
 function banner(title) {
-    const bar = '═'.repeat(74);
-    console.log(`\n${bar}\n  ${title}\n${bar}`);
+  const bar = '═'.repeat(74);
+  console.log(`\n${bar}\n  ${title}\n${bar}`);
 }
-const noop = () => { };
+const noop = () => {};
 class CaptureStdout extends EventEmitter {
-    columns = 100;
-    rows = 30;
-    last;
-    write = (frame) => {
-        this.last = String(frame);
-    };
-    lastFrame = () => this.last;
+  columns = 100;
+  rows = 30;
+  last;
+  write = (frame) => {
+    this.last = String(frame);
+  };
+  lastFrame = () => this.last;
 }
 class CaptureStdin extends EventEmitter {
-    isTTY = true;
-    data = null;
-    write = (data) => {
-        this.data = data;
-        this.emit('readable');
-        this.emit('data', data);
-    };
-    setEncoding() { }
-    setRawMode() { }
-    resume() { }
-    pause() { }
-    ref() { }
-    unref() { }
-    read = () => {
-        const data = this.data;
-        this.data = null;
-        return data;
-    };
+  isTTY = true;
+  data = null;
+  write = (data) => {
+    this.data = data;
+    this.emit('readable');
+    this.emit('data', data);
+  };
+  setEncoding() {}
+  setRawMode() {}
+  resume() {}
+  pause() {}
+  ref() {}
+  unref() {}
+  read = () => {
+    const data = this.data;
+    this.data = null;
+    return data;
+  };
 }
 async function findGlobalInteractiveChunk(chunksDir) {
-    for (const entry of await fs.readdir(chunksDir)) {
-        if (!entry.endsWith('.js'))
-            continue;
-        const filePath = path.join(chunksDir, entry);
-        const content = await fs.readFile(filePath, 'utf-8');
-        if (content.includes('var SkillReviewDialog') &&
-            content.includes('Esc to decide later') &&
-            content.includes('startInteractiveUI')) {
-            return { filePath, content };
-        }
+  for (const entry of await fs.readdir(chunksDir)) {
+    if (!entry.endsWith('.js')) continue;
+    const filePath = path.join(chunksDir, entry);
+    const content = await fs.readFile(filePath, 'utf-8');
+    if (
+      content.includes('var SkillReviewDialog') &&
+      content.includes('Esc to decide later') &&
+      content.includes('startInteractiveUI')
+    ) {
+      return { filePath, content };
     }
-    throw new Error(`Could not find bundled SkillReviewDialog in ${chunksDir}`);
+  }
+  throw new Error(`Could not find bundled SkillReviewDialog in ${chunksDir}`);
 }
 async function renderGlobalBefore(skills) {
-    const npmRoot = execFileSync('npm', ['root', '-g'], {
-        encoding: 'utf-8',
-    }).trim();
-    const packageRoot = process.env['QWEN_GLOBAL_PACKAGE_ROOT'] ??
-        path.join(npmRoot, '@qwen-code', 'qwen-code');
-    const packageJson = JSON.parse(await fs.readFile(path.join(packageRoot, 'package.json'), 'utf-8'));
-    const chunksDir = path.join(packageRoot, 'chunks');
-    const { content } = await findGlobalInteractiveChunk(chunksDir);
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'qwen-before-bundle-'));
-    try {
-        for (const entry of await fs.readdir(chunksDir)) {
-            await fs.symlink(path.join(chunksDir, entry), path.join(tmp, entry));
-        }
-        const exportNeedle = 'export {\n  startInteractiveUI\n};';
-        const patched = content.replace(exportNeedle, [
-            'export {',
-            '  startInteractiveUI,',
-            '  SkillReviewDialog,',
-            '  KeypressProvider,',
-            '  render_default,',
-            '  require_jsx_runtime',
-            '};',
-        ].join('\n'));
-        if (patched === content) {
-            throw new Error('Could not patch global qwen bundle exports');
-        }
-        const patchedPath = path.join(tmp, 'startInteractiveUI-before-export.js');
-        await fs.writeFile(patchedPath, patched);
-        const mod = (await import(pathToFileURL(patchedPath).href));
-        const jsx = mod.require_jsx_runtime();
-        const stdout = new CaptureStdout();
-        const stderr = new CaptureStdout();
-        const stdin = new CaptureStdin();
-        const element = jsx.jsx(mod.KeypressProvider, {
-            kittyProtocolEnabled: false,
-            children: jsx.jsx(mod.SkillReviewDialog, {
-                skills,
-                onAccept: noop,
-                onReject: noop,
-                onClose: noop,
-                onDismiss: noop,
-            }),
-        });
-        const instance = mod.render_default(element, {
-            stdout,
-            stderr,
-            stdin,
-            debug: true,
-            patchConsole: false,
-            exitOnCtrlC: false,
-        });
-        await waitForFrame(() => stdout.lastFrame(), 'run-e2e-headless');
-        const frame = stdout.lastFrame();
-        instance.unmount();
-        instance.cleanup?.();
-        if (!frame)
-            throw new Error('Global qwen before render produced no frame');
-        return { frame, version: packageJson.version ?? 'unknown' };
+  const npmRoot = execFileSync('npm', ['root', '-g'], {
+    encoding: 'utf-8',
+  }).trim();
+  const packageRoot =
+    process.env['QWEN_GLOBAL_PACKAGE_ROOT'] ??
+    path.join(npmRoot, '@qwen-code', 'qwen-code');
+  const packageJson = JSON.parse(
+    await fs.readFile(path.join(packageRoot, 'package.json'), 'utf-8'),
+  );
+  const chunksDir = path.join(packageRoot, 'chunks');
+  const { content } = await findGlobalInteractiveChunk(chunksDir);
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'qwen-before-bundle-'));
+  try {
+    for (const entry of await fs.readdir(chunksDir)) {
+      await fs.symlink(path.join(chunksDir, entry), path.join(tmp, entry));
     }
-    finally {
-        await fs.rm(tmp, { recursive: true, force: true });
+    const exportNeedle = 'export {\n  startInteractiveUI\n};';
+    const patched = content.replace(
+      exportNeedle,
+      [
+        'export {',
+        '  startInteractiveUI,',
+        '  SkillReviewDialog,',
+        '  KeypressProvider,',
+        '  render_default,',
+        '  require_jsx_runtime',
+        '};',
+      ].join('\n'),
+    );
+    if (patched === content) {
+      throw new Error('Could not patch global qwen bundle exports');
     }
+    const patchedPath = path.join(tmp, 'startInteractiveUI-before-export.js');
+    await fs.writeFile(patchedPath, patched);
+    const mod = await import(pathToFileURL(patchedPath).href);
+    const jsx = mod.require_jsx_runtime();
+    const stdout = new CaptureStdout();
+    const stderr = new CaptureStdout();
+    const stdin = new CaptureStdin();
+    const element = jsx.jsx(mod.KeypressProvider, {
+      kittyProtocolEnabled: false,
+      children: jsx.jsx(mod.SkillReviewDialog, {
+        skills,
+        onAccept: noop,
+        onReject: noop,
+        onClose: noop,
+        onDismiss: noop,
+      }),
+    });
+    const instance = mod.render_default(element, {
+      stdout,
+      stderr,
+      stdin,
+      debug: true,
+      patchConsole: false,
+      exitOnCtrlC: false,
+    });
+    await waitForFrame(() => stdout.lastFrame(), 'run-e2e-headless');
+    const frame = stdout.lastFrame();
+    instance.unmount();
+    instance.cleanup?.();
+    if (!frame) throw new Error('Global qwen before render produced no frame');
+    return { frame, version: packageJson.version ?? 'unknown' };
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
 }
 async function main() {
-    const mode = process.argv[2] ?? 'all';
-    const shouldPrint = (name) => mode === 'all' || mode === name;
-    // Redirect @qwen-code/qwen-code-core to its TypeScript source so the harness
-    // runs without a build and can never pick up a stale dist. Registered before
-    // the dynamic imports below, which is what routes them through the hook.
-    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-    const coreSrcUrl = pathToFileURL(path.join(repoRoot, 'packages', 'core', 'index.ts')).href;
-    const loader = `
+  const mode = process.argv[2] ?? 'all';
+  const shouldPrint = (name) => mode === 'all' || mode === name;
+  // Redirect @qwen-code/qwen-code-core to its TypeScript source so the harness
+  // runs without a build and can never pick up a stale dist. Registered before
+  // the dynamic imports below, which is what routes them through the hook.
+  const repoRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../..',
+  );
+  const coreSrcUrl = pathToFileURL(
+    path.join(repoRoot, 'packages', 'core', 'index.ts'),
+  ).href;
+  const loader = `
     export function resolve(specifier, context, nextResolve) {
       if (specifier === '@qwen-code/qwen-code-core') {
         return { shortCircuit: true, url: '${coreSrcUrl}', format: 'module' };
@@ -189,120 +200,156 @@ async function main() {
       return nextResolve(specifier, context);
     }
   `;
-    register(`data:text/javascript,${encodeURIComponent(loader)}`);
-    // Import core-dependent modules ONLY after the loader is registered. The
-    // dialog under review is deliberately NOT imported here — `before` mode must
-    // not depend on (or execute) the implementation being reviewed, so a
-    // regression in the new dialog can never break the baseline capture.
-    const [{ KeypressProvider }, { ConfigContext }, { SettingsContext }] = await Promise.all([
-        import('../../../packages/cli/src/ui/contexts/KeypressContext.js'),
-        import('../../../packages/cli/src/ui/contexts/ConfigContext.js'),
-        import('../../../packages/cli/src/ui/contexts/SettingsContext.js'),
+  register(`data:text/javascript,${encodeURIComponent(loader)}`);
+  // Import core-dependent modules ONLY after the loader is registered. The
+  // dialog under review is deliberately NOT imported here — `before` mode must
+  // not depend on (or execute) the implementation being reviewed, so a
+  // regression in the new dialog can never break the baseline capture.
+  const [{ KeypressProvider }, { ConfigContext }, { SettingsContext }] =
+    await Promise.all([
+      import('../../../packages/cli/src/ui/contexts/KeypressContext.js'),
+      import('../../../packages/cli/src/ui/contexts/ConfigContext.js'),
+      import('../../../packages/cli/src/ui/contexts/SettingsContext.js'),
     ]);
-    const fakeConfig = {
-        setAutoSkillEnabled: () => { },
-        getBareMode: () => false,
-        isSafeMode: () => false,
-    };
-    const fakeSettings = {
-        setValue: () => { },
-        merged: { general: {}, memory: { enableAutoSkill: true } },
-    };
-    const wrap = (node) => (_jsx(KeypressProvider, { kittyProtocolEnabled: false, children: _jsx(ConfigContext.Provider, { value: fakeConfig, children: _jsx(SettingsContext.Provider, { value: fakeSettings, children: node }) }) }));
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-textcap-'));
-    // try/finally so a failed render or frame-wait doesn't leak the temp dir.
-    try {
-        const alphaPath = path.join(dir, 'run-e2e-headless', 'SKILL.md');
-        const betaPath = path.join(dir, 'vitest-mock-hoisting', 'SKILL.md');
-        await fs.mkdir(path.dirname(alphaPath), { recursive: true });
-        await fs.mkdir(path.dirname(betaPath), { recursive: true });
-        await fs.writeFile(alphaPath, ALPHA);
-        await fs.writeFile(betaPath, BETA);
-        const skills = [
-            {
-                name: 'run-e2e-headless',
-                description: 'Run the Qwen CLI headlessly against a mock model and inspect API traffic.',
-                stagedManifestPath: alphaPath,
-            },
-            {
-                name: 'vitest-mock-hoisting',
-                description: 'Hoist vi.mock factories in CLI tests so mocks apply at load time.',
-                stagedManifestPath: betaPath,
-            },
-        ];
-        // ── BEFORE ────────────────────────────────────────────────────────────────
-        if (shouldPrint('before')) {
-            try {
-                const before = await renderGlobalBefore(skills);
-                banner(`BEFORE — global qwen ${before.version} dialog (name + description only)`);
-                console.log(before.frame);
-            }
-            catch (err) {
-                // The baseline must come from the globally installed qwen or not at
-                // all — a hand-maintained pre-change fixture can silently drift from
-                // what actually shipped, so there is deliberately no local fallback.
-                const reason = err instanceof Error ? err.message : String(err);
-                banner('BEFORE — unavailable: could not render the global qwen dialog');
-                console.log(`${reason}\nInstall it first: npm install -g @qwen-code/qwen-code`);
-                if (mode === 'before')
-                    throw err;
-            }
-        }
-        // ── AFTER: skipped entirely in `before` mode so the baseline capture never
-        // executes the implementation under review.
-        if (mode === 'all' || mode.startsWith('after-')) {
-            const { SkillReviewDialog } = await import('../../../packages/cli/src/ui/components/SkillReviewDialog.js');
-            function AfterHarness({ dialogSkills, }) {
-                const [open, setOpen] = React.useState(true);
-                if (!open) {
-                    return (_jsx(Text, { children: "Auto-skill turned off. Re-enable it any time from /memory." }));
-                }
-                return (_jsx(SkillReviewDialog, { skills: dialogSkills, onAccept: noop, onReject: noop, onClose: () => setOpen(false), onDismiss: () => setOpen(false) }));
-            }
-            // The preview and turn-off frames showcase the COMMON single-skill case
-            // (1/1, no bulk options); the advance frame needs a two-skill batch. They
-            // use separate dialog instances so `all` can show both — a single-skill
-            // dialog closes on its first decision and could never reach a second
-            // skill (this exact mismatch once made default-mode runs time out).
-            if (mode !== 'after-second') {
-                const single = render(wrap(_jsx(AfterHarness, { dialogSkills: [skills[0]] })));
-                // Wait for body-only text from the skill's preview (not its name or
-                // description, which show before the async read resolves).
-                await waitForFrame(() => single.lastFrame(), 'OPENAI_BASE_URL');
-                if (shouldPrint('after-preview')) {
-                    banner('AFTER — common 1/1 review with inline preview and visible turn-off option');
-                    console.log(single.lastFrame());
-                }
-                if (shouldPrint('after-turn-off')) {
-                    // Select "Turn off auto-generated skills" — in the single-skill case
-                    // the options are keep / discard / turn-off, so numeric quick-select
-                    // "3" picks it.
-                    single.stdin.write('3');
-                    await waitForFrame(() => single.lastFrame(), 'turned off');
-                    banner('AFTER — after selecting "Turn off auto-generated skills": batch closed');
-                    console.log(single.lastFrame());
-                }
-                single.unmount();
-            }
-            if (shouldPrint('after-second')) {
-                const batch = render(wrap(_jsx(AfterHarness, { dialogSkills: skills })));
-                await waitForFrame(() => batch.lastFrame(), 'OPENAI_BASE_URL');
-                // Drive Enter (keep skill 1 → advance to skill 2), then wait for body-only
-                // text from the SECOND skill's preview so we never capture "Loading preview…".
-                batch.stdin.write('\r');
-                await waitForFrame(() => batch.lastFrame(), 'vi.hoisted');
-                banner('AFTER — 2/2 final batch item hides bulk options');
-                console.log(batch.lastFrame());
-                batch.unmount();
-            }
-        }
+  const fakeConfig = {
+    setAutoSkillEnabled: () => {},
+    getBareMode: () => false,
+    isSafeMode: () => false,
+  };
+  const fakeSettings = {
+    setValue: () => {},
+    merged: { general: {}, memory: { enableAutoSkill: true } },
+  };
+  const wrap = (node) =>
+    _jsx(KeypressProvider, {
+      kittyProtocolEnabled: false,
+      children: _jsx(ConfigContext.Provider, {
+        value: fakeConfig,
+        children: _jsx(SettingsContext.Provider, {
+          value: fakeSettings,
+          children: node,
+        }),
+      }),
+    });
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-textcap-'));
+  // try/finally so a failed render or frame-wait doesn't leak the temp dir.
+  try {
+    const alphaPath = path.join(dir, 'run-e2e-headless', 'SKILL.md');
+    const betaPath = path.join(dir, 'vitest-mock-hoisting', 'SKILL.md');
+    await fs.mkdir(path.dirname(alphaPath), { recursive: true });
+    await fs.mkdir(path.dirname(betaPath), { recursive: true });
+    await fs.writeFile(alphaPath, ALPHA);
+    await fs.writeFile(betaPath, BETA);
+    const skills = [
+      {
+        name: 'run-e2e-headless',
+        description:
+          'Run the Qwen CLI headlessly against a mock model and inspect API traffic.',
+        stagedManifestPath: alphaPath,
+      },
+      {
+        name: 'vitest-mock-hoisting',
+        description:
+          'Hoist vi.mock factories in CLI tests so mocks apply at load time.',
+        stagedManifestPath: betaPath,
+      },
+    ];
+    // ── BEFORE ────────────────────────────────────────────────────────────────
+    if (shouldPrint('before')) {
+      try {
+        const before = await renderGlobalBefore(skills);
+        banner(
+          `BEFORE — global qwen ${before.version} dialog (name + description only)`,
+        );
+        console.log(before.frame);
+      } catch (err) {
+        // The baseline must come from the globally installed qwen or not at
+        // all — a hand-maintained pre-change fixture can silently drift from
+        // what actually shipped, so there is deliberately no local fallback.
+        const reason = err instanceof Error ? err.message : String(err);
+        banner('BEFORE — unavailable: could not render the global qwen dialog');
+        console.log(
+          `${reason}\nInstall it first: npm install -g @qwen-code/qwen-code`,
+        );
+        if (mode === 'before') throw err;
+      }
     }
-    finally {
-        await fs.rm(dir, { recursive: true, force: true });
+    // ── AFTER: skipped entirely in `before` mode so the baseline capture never
+    // executes the implementation under review.
+    if (mode === 'all' || mode.startsWith('after-')) {
+      const { SkillReviewDialog } = await import(
+        '../../../packages/cli/src/ui/components/SkillReviewDialog.js'
+      );
+      function AfterHarness({ dialogSkills }) {
+        const [open, setOpen] = React.useState(true);
+        if (!open) {
+          return _jsx(Text, {
+            children:
+              'Auto-skill turned off. Re-enable it any time from /memory.',
+          });
+        }
+        return _jsx(SkillReviewDialog, {
+          skills: dialogSkills,
+          onAccept: noop,
+          onReject: noop,
+          onClose: () => setOpen(false),
+          onDismiss: () => setOpen(false),
+        });
+      }
+      // The preview and turn-off frames showcase the COMMON single-skill case
+      // (1/1, no bulk options); the advance frame needs a two-skill batch. They
+      // use separate dialog instances so `all` can show both — a single-skill
+      // dialog closes on its first decision and could never reach a second
+      // skill (this exact mismatch once made default-mode runs time out).
+      if (mode !== 'after-second') {
+        const single = render(
+          wrap(_jsx(AfterHarness, { dialogSkills: [skills[0]] })),
+        );
+        // Wait for body-only text from the skill's preview (not its name or
+        // description, which show before the async read resolves).
+        await waitForFrame(() => single.lastFrame(), 'OPENAI_BASE_URL');
+        if (shouldPrint('after-preview')) {
+          banner(
+            'AFTER — common 1/1 review with inline preview and visible turn-off option',
+          );
+          console.log(single.lastFrame());
+        }
+        if (shouldPrint('after-turn-off')) {
+          // Select "Turn off auto-generated skills" — in the single-skill case
+          // the options are keep / discard / turn-off, so numeric quick-select
+          // "3" picks it.
+          single.stdin.write('3');
+          await waitForFrame(() => single.lastFrame(), 'turned off');
+          banner(
+            'AFTER — after selecting "Turn off auto-generated skills": batch closed',
+          );
+          console.log(single.lastFrame());
+        }
+        single.unmount();
+      }
+      if (shouldPrint('after-second')) {
+        const batch = render(
+          wrap(_jsx(AfterHarness, { dialogSkills: skills })),
+        );
+        await waitForFrame(() => batch.lastFrame(), 'OPENAI_BASE_URL');
+        // Drive Enter (keep skill 1 → advance to skill 2), then wait for body-only
+        // text from the SECOND skill's preview so we never capture "Loading preview…".
+        batch.stdin.write('\r');
+        await waitForFrame(() => batch.lastFrame(), 'vi.hoisted');
+        banner('AFTER — 2/2 final batch item hides bulk options');
+        console.log(batch.lastFrame());
+        batch.unmount();
+      }
     }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 }
-void main().then(() => process.exit(0), (e) => {
+void main().then(
+  () => process.exit(0),
+  (e) => {
     console.error(e);
     process.exit(1);
-});
+  },
+);
 //# sourceMappingURL=text-capture.js.map

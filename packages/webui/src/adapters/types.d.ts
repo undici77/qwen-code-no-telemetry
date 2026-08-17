@@ -10,63 +10,67 @@ import type { FileContext } from '../components/messages/UserMessage.js';
 /**
  * Unified message type used by all webui components
  */
-export type UnifiedMessageType = 'user' | 'assistant' | 'tool_call' | 'thinking';
+export type UnifiedMessageType =
+  | 'user'
+  | 'assistant'
+  | 'tool_call'
+  | 'thinking';
 /**
  * Unified message format - normalized from ACP or JSONL sources
  */
 export interface UnifiedMessage {
-    /** Unique identifier */
-    id: string;
-    /** Message type */
-    type: UnifiedMessageType;
-    /** Timestamp in milliseconds */
-    timestamp: number;
-    /** Text content (for user/assistant/thinking messages) */
-    content?: string;
-    /** Tool call data (for tool_call type) */
-    toolCall?: ToolCallData;
-    /** Whether this is the first item in an AI response sequence */
-    isFirst: boolean;
-    /** Whether this is the last item in an AI response sequence */
-    isLast: boolean;
-    /** File context for user messages */
-    fileContext?: FileContext[];
+  /** Unique identifier */
+  id: string;
+  /** Message type */
+  type: UnifiedMessageType;
+  /** Timestamp in milliseconds */
+  timestamp: number;
+  /** Text content (for user/assistant/thinking messages) */
+  content?: string;
+  /** Tool call data (for tool_call type) */
+  toolCall?: ToolCallData;
+  /** Whether this is the first item in an AI response sequence */
+  isFirst: boolean;
+  /** Whether this is the last item in an AI response sequence */
+  isLast: boolean;
+  /** File context for user messages */
+  fileContext?: FileContext[];
 }
 export type { FileContext };
 /**
  * JSONL chat message format (ChatViewer input)
  */
 export interface JSONLMessage {
-    uuid: string;
-    parentUuid?: string | null;
-    sessionId?: string;
-    timestamp: string;
-    type: 'user' | 'assistant' | 'system' | 'tool_call';
-    message?: {
-        role?: string;
-        parts?: Array<{
-            text: string;
-        }>;
-        content?: string | unknown[];
-    };
-    systemPayload?: unknown;
-    model?: string;
-    toolCall?: ToolCallData;
+  uuid: string;
+  parentUuid?: string | null;
+  sessionId?: string;
+  timestamp: string;
+  type: 'user' | 'assistant' | 'system' | 'tool_call';
+  message?: {
+    role?: string;
+    parts?: Array<{
+      text: string;
+    }>;
+    content?: string | unknown[];
+  };
+  systemPayload?: unknown;
+  model?: string;
+  toolCall?: ToolCallData;
 }
 /**
  * ACP message format (vscode-ide-companion input)
  */
 export interface ACPMessage {
-    type: 'message' | 'in-progress-tool-call' | 'completed-tool-call';
-    data: ACPMessageData | ToolCallData;
+  type: 'message' | 'in-progress-tool-call' | 'completed-tool-call';
+  data: ACPMessageData | ToolCallData;
 }
 /**
  * ACP text message data
  */
 export interface ACPMessageData {
-    role: 'user' | 'assistant' | 'thinking';
-    content: string;
-    timestamp?: number;
-    fileContext?: FileContext[];
+  role: 'user' | 'assistant' | 'thinking';
+  content: string;
+  timestamp?: number;
+  fileContext?: FileContext[];
 }
 export type { ToolCallData };

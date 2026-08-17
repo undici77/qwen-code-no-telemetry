@@ -10,7 +10,8 @@
  * visually identical names/text compare differently. ASCII C0/DEL (incl. CR/LF)
  * are stripped by each caller.
  */
-export const PROMPT_UNSAFE_INVISIBLES = /[\u0080-\u009f\p{Cf}\u2028\u2029]|\p{Variation_Selector}/gu;
+export const PROMPT_UNSAFE_INVISIBLES =
+  /[\u0080-\u009f\p{Cf}\u2028\u2029]|\p{Variation_Selector}/gu;
 /**
  * Truncate to at most `max` Unicode CODE POINTS (not UTF-16 code units). A cap
  * applied with `.slice` counts code units, so one landing mid-surrogate-pair
@@ -18,8 +19,8 @@ export const PROMPT_UNSAFE_INVISIBLES = /[\u0080-\u009f\p{Cf}\u2028\u2029]|\p{Va
  * `Array.from` iterates by code point, so slicing it never splits a pair.
  */
 export function truncateCodePoints(str, max) {
-    const cp = Array.from(str);
-    return cp.length > max ? cp.slice(0, max).join('') : str;
+  const cp = Array.from(str);
+  return cp.length > max ? cp.slice(0, max).join('') : str;
 }
 /**
  * Neutralize a platform display name before embedding it in a `[name]` prompt
@@ -30,17 +31,17 @@ export function truncateCodePoints(str, max) {
  * self-prefix (e.g. QQ), so the rules stay identical everywhere.
  */
 export function sanitizeSenderName(name) {
-    // A name made entirely of strippable chars collapses to all-spaces; trim()-ing
-    // it to '' lets the `|| 'unknown'` fallback fire so the [name] tag is never an
-    // anonymous `[]`. Both callers embed the result with no fallback of their own.
-    const cleaned = name
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001f\u007f]/g, ' ')
-        .replace(/[[\]\r\n]/g, ' ');
-    // Truncate on code-point boundaries so an emoji nick capped mid-pair can't
-    // leave a lone surrogate (renders as `�`).
-    return truncateCodePoints(cleaned, 64).trim() || 'unknown';
+  // A name made entirely of strippable chars collapses to all-spaces; trim()-ing
+  // it to '' lets the `|| 'unknown'` fallback fire so the [name] tag is never an
+  // anonymous `[]`. Both callers embed the result with no fallback of their own.
+  const cleaned = name
+    .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[[\]\r\n]/g, ' ');
+  // Truncate on code-point boundaries so an emoji nick capped mid-pair can't
+  // leave a lone surrogate (renders as `�`).
+  return truncateCodePoints(cleaned, 64).trim() || 'unknown';
 }
 /**
  * Neutralize attacker-controlled text embedded inside a `"..."` prompt wrapper
@@ -52,25 +53,27 @@ export function sanitizeSenderName(name) {
  * silently ending mid-token.
  */
 export function sanitizeQuotedText(text, maxLen) {
-    const cleaned = text
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001f\u007f]/g, ' ')
-        .replace(/["[\]]/g, ' ');
-    // Count/slice by CODE POINT, not UTF-16 unit, so a cap landing mid-surrogate-
-    // pair can't leave a lone surrogate (`�`). On truncation keep maxLen-1 code
-    // points + the single-char ellipsis, so the result stays within maxLen.
-    const cp = Array.from(cleaned);
-    return cp.length > maxLen ? cp.slice(0, maxLen - 1).join('') + '…' : cleaned;
+  const cleaned = text
+    .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/["[\]]/g, ' ');
+  // Count/slice by CODE POINT, not UTF-16 unit, so a cap landing mid-surrogate-
+  // pair can't leave a lone surrogate (`�`). On truncation keep maxLen-1 code
+  // points + the single-char ellipsis, so the result stays within maxLen.
+  const cp = Array.from(cleaned);
+  return cp.length > maxLen ? cp.slice(0, maxLen - 1).join('') + '…' : cleaned;
 }
 export function sanitizePromptText(text) {
-    return (text
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        .replace(/^([ \t]*)\[([^\]\r\n]{1,64})\](:?)/gm, '$1$2$3')
-        // Fold ASCII C0/DEL, including CR/LF/TAB, so attacker-controlled group
-        // text cannot create prompt lines outside the adapter's sender attribution.
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001f\u007f]/g, ' '));
+  return (
+    text
+      .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+      .replace(/^([ \t]*)\[([^\]\r\n]{1,64})\](:?)/gm, '$1$2$3')
+      // Fold ASCII C0/DEL, including CR/LF/TAB, so attacker-controlled group
+      // text cannot create prompt lines outside the adapter's sender attribution.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, ' ')
+  );
 }
 /**
  * Neutralize attacker-controlled text that is surfaced VERBATIM to users
@@ -83,11 +86,11 @@ export function sanitizePromptText(text) {
  * rendered to a human, not parsed as prompt structure.
  */
 export function sanitizeDisplayText(text, maxLen) {
-    const cleaned = text
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ');
-    return truncateCodePoints(cleaned, maxLen);
+  const cleaned = text
+    .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ');
+  return truncateCodePoints(cleaned, maxLen);
 }
 /**
  * Neutralize an attacker-influenced filesystem path before rendering it on
@@ -104,12 +107,12 @@ export function sanitizeDisplayText(text, maxLen) {
  * pathological attacker filename from ballooning the prompt unboundedly.
  */
 export function sanitizePromptPath(path) {
-    const cleaned = path
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001f\u007f]/g, ' ');
-    // Cap by code point so a path ending in an emoji can't be split mid-pair.
-    return truncateCodePoints(cleaned, 1024);
+  const cleaned = path
+    .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, ' ');
+  // Cap by code point so a path ending in an emoji can't be split mid-pair.
+  return truncateCodePoints(cleaned, 1024);
 }
 /**
  * Neutralize attacker-controlled text before it is written to a single-line
@@ -123,12 +126,14 @@ export function sanitizePromptPath(path) {
  * ANSI/OSC). Shared by every audit-log site so the strip set can't drift apart.
  */
 export function sanitizeLogText(text, maxLen) {
-    return (truncateCodePoints(text, maxLen)
-        // Render real newlines visibly BEFORE the control strip, so the common
-        // ASCII-newline case shows as `\n` rather than collapsing to a space.
-        .replace(/\n/g, '\\n')
-        .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001f\u007f]/g, ' '));
+  return (
+    truncateCodePoints(text, maxLen)
+      // Render real newlines visibly BEFORE the control strip, so the common
+      // ASCII-newline case shows as `\n` rather than collapsing to a space.
+      .replace(/\n/g, '\\n')
+      .replace(PROMPT_UNSAFE_INVISIBLES, ' ')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, ' ')
+  );
 }
 //# sourceMappingURL=sanitize.js.map

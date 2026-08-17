@@ -22,28 +22,28 @@ import type { ChatRecord } from '../services/chatRecordingService.js';
  * write-side metadata and is tracked separately.
  */
 export interface HistoryGap {
-    /** The record whose parent was missing (the UI anchors the marker here). */
-    childUuid: string;
-    /** The parentUuid value that could not be found in the file. */
-    missingParentUuid: string;
+  /** The record whose parent was missing (the UI anchors the marker here). */
+  childUuid: string;
+  /** The parentUuid value that could not be found in the file. */
+  missingParentUuid: string;
 }
 export interface OrderedChainResult {
-    /** Uuids in root→leaf order (the reachable tail island only). */
-    uuids: string[];
-    /** Detected chain breaks. Empty for healthy sessions. */
-    gaps: HistoryGap[];
+  /** Uuids in root→leaf order (the reachable tail island only). */
+  uuids: string[];
+  /** Detected chain breaks. Empty for healthy sessions. */
+  gaps: HistoryGap[];
 }
 export interface BuildOrderedChainOptions {
-    /** Start the walk from this uuid instead of the last physical record. */
-    leafUuid?: string;
-    /**
-     * When true, a walk that stops on a physically-missing parent records a
-     * {@link HistoryGap} so the surface can surface a marker. It does NOT stitch
-     * an earlier island back on — see the HistoryGap docstring for why that is
-     * unsafe read-side. Off by default so callers that want the raw active branch
-     * (e.g. fork) keep today's behavior exactly.
-     */
-    detectGaps?: boolean;
+  /** Start the walk from this uuid instead of the last physical record. */
+  leafUuid?: string;
+  /**
+   * When true, a walk that stops on a physically-missing parent records a
+   * {@link HistoryGap} so the surface can surface a marker. It does NOT stitch
+   * an earlier island back on — see the HistoryGap docstring for why that is
+   * unsafe read-side. Off by default so callers that want the raw active branch
+   * (e.g. fork) keep today's behavior exactly.
+   */
+  detectGaps?: boolean;
 }
 /**
  * Linearizes tree-structured session records into an ordered uuid chain by
@@ -53,4 +53,7 @@ export interface BuildOrderedChainOptions {
  * `detectGaps` it additionally records the break so the caller can mark it;
  * it never guesses an earlier island to reconnect.
  */
-export declare function buildOrderedUuidChain(records: ChatRecord[], opts?: BuildOrderedChainOptions): OrderedChainResult;
+export declare function buildOrderedUuidChain(
+  records: ChatRecord[],
+  opts?: BuildOrderedChainOptions,
+): OrderedChainResult;

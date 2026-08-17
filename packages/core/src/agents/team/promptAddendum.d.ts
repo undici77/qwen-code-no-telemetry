@@ -17,7 +17,12 @@
  * @param teamName - The team name.
  * @param leaderName - The leader's display name.
  */
-export declare function buildTeammatePromptAddendum(teammateName: string, teamName: string, leaderName: string, options?: {
+export declare function buildTeammatePromptAddendum(
+  teammateName: string,
+  teamName: string,
+  leaderName: string,
+  options?: {
     planModeRequired?: boolean;
     readOnly?: boolean;
-}): string;
+  },
+): string;

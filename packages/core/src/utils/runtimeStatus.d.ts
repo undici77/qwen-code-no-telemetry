@@ -37,22 +37,22 @@
 export declare const RUNTIME_STATUS_SCHEMA_VERSION = 1;
 /** Snapshot of a live Qwen Code session process for external observers. */
 export interface RuntimeStatus {
-    schemaVersion: number;
-    pid: number;
-    sessionId: string;
-    workDir: string;
-    hostname: string;
-    /** Epoch seconds (with sub-second precision). Matches kimi-cli's format. */
-    startedAt: number;
-    qwenVersion: string | null;
+  schemaVersion: number;
+  pid: number;
+  sessionId: string;
+  workDir: string;
+  hostname: string;
+  /** Epoch seconds (with sub-second precision). Matches kimi-cli's format. */
+  startedAt: number;
+  qwenVersion: string | null;
 }
 export interface WriteRuntimeStatusFields {
-    sessionId: string;
-    workDir: string;
-    /** Defaults to `process.pid`. */
-    pid?: number;
-    /** Defaults to `null`. Pass the value of `getCliVersion()`. */
-    qwenVersion?: string | null;
+  sessionId: string;
+  workDir: string;
+  /** Defaults to `process.pid`. */
+  pid?: number;
+  /** Defaults to `null`. Pass the value of `getCliVersion()`. */
+  qwenVersion?: string | null;
 }
 /**
  * Write the runtime status file at `filePath`.
@@ -61,7 +61,10 @@ export interface WriteRuntimeStatusFields {
  * the caller; callers that want best-effort semantics should wrap in
  * a try/catch.
  */
-export declare function writeRuntimeStatus(filePath: string, fields: WriteRuntimeStatusFields): Promise<string>;
+export declare function writeRuntimeStatus(
+  filePath: string,
+  fields: WriteRuntimeStatusFields,
+): Promise<string>;
 /**
  * Read the runtime status file at `filePath`, if present.
  *
@@ -76,9 +79,12 @@ export declare function writeRuntimeStatus(filePath: string, fields: WriteRuntim
  * or crash). Consumers must verify liveness themselves before treating
  * the record as a currently-running session.
  */
-export declare function readRuntimeStatus(filePath: string, options?: {
+export declare function readRuntimeStatus(
+  filePath: string,
+  options?: {
     signal?: AbortSignal;
-}): Promise<RuntimeStatus | null>;
+  },
+): Promise<RuntimeStatus | null>;
 /**
  * Remove the runtime status file at `filePath`, if present.
  *

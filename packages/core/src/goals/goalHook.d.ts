@@ -17,9 +17,15 @@ export declare const MAX_GOAL_ITERATIONS = 50;
 export declare const GOAL_JUDGE_TIMEOUT_MS = 25000;
 export declare const GOAL_HOOK_TIMEOUT_SECONDS = 30;
 export declare const GOAL_HOOK_TIMEOUT_MS: number;
-export declare const GOAL_HOOK_ID_OUTPUT_KEY = "qwenGoalHookId";
-export declare function getStopHookContinuationReason(output: Pick<HookOutput, 'stopReason' | 'reason' | 'hookSpecificOutput'>): string;
-export declare function abortGoalForStopHookCap(config: Config, sessionId: string, systemMessage: string): boolean;
+export declare const GOAL_HOOK_ID_OUTPUT_KEY = 'qwenGoalHookId';
+export declare function getStopHookContinuationReason(
+  output: Pick<HookOutput, 'stopReason' | 'reason' | 'hookSpecificOutput'>,
+): string;
+export declare function abortGoalForStopHookCap(
+  config: Config,
+  sessionId: string,
+  systemMessage: string,
+): boolean;
 /**
  * Builds the Function hook callback that, on every Stop event, asks a fast
  * model whether the goal condition holds.
@@ -29,10 +35,10 @@ export declare function abortGoalForStopHookCap(config: Config, sessionId: strin
  * as the next user prompt, looping the agent toward the goal.
  */
 export declare function createGoalStopHookCallback(args: {
-    config: Config;
-    sessionId: string;
-    condition: string;
-    getExpectedHookId?: () => string | undefined;
+  config: Config;
+  sessionId: string;
+  condition: string;
+  getExpectedHookId?: () => string | undefined;
 }): FunctionHookCallback;
 /**
  * Removes any existing /goal hook for the session (idempotent) and the
@@ -40,7 +46,10 @@ export declare function createGoalStopHookCallback(args: {
  *
  * Safe to call when no goal is set.
  */
-export declare function unregisterGoalHook(config: Config, sessionId: string): ActiveGoal | undefined;
+export declare function unregisterGoalHook(
+  config: Config,
+  sessionId: string,
+): ActiveGoal | undefined;
 /**
  * Registers (or replaces) the /goal Stop hook for this session, primes the
  * activeGoal store, and returns the freshly stored goal. Throws when the
@@ -48,22 +57,22 @@ export declare function unregisterGoalHook(config: Config, sessionId: string): A
  * before invoking.
  */
 export declare function registerGoalHook(args: {
-    config: Config;
-    sessionId: string;
-    condition: string;
-    tokensAtStart: number;
-    /**
-     * Iteration count to resume from. Used on session resume so the
-     * MAX_GOAL_ITERATIONS safety cap survives a reload instead of resetting to
-     * zero (which would let an unreachable goal auto-loop another full budget
-     * every resume). Defaults to 0 for a freshly set goal.
-     */
-    initialIterations?: number;
-    /**
-     * Wall-clock start of the goal, carried across resume so elapsed time keeps
-     * measuring from the original `/goal` rather than from the reload. A
-     * transcript is a file, so a non-finite or non-positive value is ignored
-     * rather than trusted. Defaults to now for a freshly set goal.
-     */
-    initialSetAt?: number;
+  config: Config;
+  sessionId: string;
+  condition: string;
+  tokensAtStart: number;
+  /**
+   * Iteration count to resume from. Used on session resume so the
+   * MAX_GOAL_ITERATIONS safety cap survives a reload instead of resetting to
+   * zero (which would let an unreachable goal auto-loop another full budget
+   * every resume). Defaults to 0 for a freshly set goal.
+   */
+  initialIterations?: number;
+  /**
+   * Wall-clock start of the goal, carried across resume so elapsed time keeps
+   * measuring from the original `/goal` rather than from the reload. A
+   * transcript is a file, so a non-finite or non-positive value is ignored
+   * rather than trusted. Defaults to now for a freshly set goal.
+   */
+  initialSetAt?: number;
 }): ActiveGoal;

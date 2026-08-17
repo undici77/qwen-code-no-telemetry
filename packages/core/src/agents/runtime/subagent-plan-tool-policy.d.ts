@@ -9,14 +9,33 @@ export declare const SUBAGENT_PLAN_LIFECYCLE_TOOLS: ReadonlySet<string>;
 export declare const READ_ONLY_INSPECTION_TOOLS: readonly string[];
 export declare function isSubagentLikeExecutionContext(): boolean;
 export declare function isPlanRequiredTeammateContext(): boolean;
-export declare function isPlanRequiredTeammateAwaitingApproval(config: Config): boolean;
-export declare function isPlanLifecycleToolUnavailableInSubagent(toolName: string): boolean;
+export declare function isPlanRequiredTeammateAwaitingApproval(
+  config: Config,
+): boolean;
+export declare function isPlanLifecycleToolUnavailableInSubagent(
+  toolName: string,
+): boolean;
 export declare function shouldUsePlanOnlyReminderInSubagentContext(): boolean;
-export declare function isLeaderOnlyToolUnavailableInSubagent(toolName: string): boolean;
-export declare function getLeaderOnlyToolUnavailableMessage(toolName: string): string;
-export declare function getPlanRequiredTeammatePreApprovalMessage(toolName: string): string;
-export declare function isPlanRequiredTeammatePreApprovalAllowedTool(toolName: string, params: unknown): boolean;
-export declare function getSubagentPlanToolUnavailableMessage(toolName: string): string;
-export declare function buildSubagentPlanToolBlockedResult(toolName: string, logTag: string, logger: {
+export declare function isLeaderOnlyToolUnavailableInSubagent(
+  toolName: string,
+): boolean;
+export declare function getLeaderOnlyToolUnavailableMessage(
+  toolName: string,
+): string;
+export declare function getPlanRequiredTeammatePreApprovalMessage(
+  toolName: string,
+): string;
+export declare function isPlanRequiredTeammatePreApprovalAllowedTool(
+  toolName: string,
+  params: unknown,
+): boolean;
+export declare function getSubagentPlanToolUnavailableMessage(
+  toolName: string,
+): string;
+export declare function buildSubagentPlanToolBlockedResult(
+  toolName: string,
+  logTag: string,
+  logger: {
     warn(message: string): void;
-}): ToolResult;
+  },
+): ToolResult;

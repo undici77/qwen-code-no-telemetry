@@ -11,7 +11,11 @@
  * for internal CLI code (nonInteractiveCli, session managers, etc.).
  */
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import type { MCPServerConfig, TeammateApprovalRequestEvent, WorkflowApproval } from '@qwen-code/qwen-code-core';
+import type {
+  MCPServerConfig,
+  TeammateApprovalRequestEvent,
+  WorkflowApproval,
+} from '@qwen-code/qwen-code-core';
 import type { PermissionSuggestion } from '../../types.js';
 /**
  * Permission Service API
@@ -20,33 +24,40 @@ import type { PermissionSuggestion } from '../../types.js';
  * permission suggestions, and tool call monitoring callbacks.
  */
 export interface PermissionServiceAPI {
-    /**
-     * Build UI suggestions for tool confirmation dialogs
-     *
-     * Creates actionable permission suggestions based on tool confirmation details,
-     * helping host applications present appropriate approval/denial options.
-     *
-     * @param confirmationDetails - Tool confirmation details (type, title, metadata)
-     * @returns Array of permission suggestions or null if details are invalid
-     */
-    buildPermissionSuggestions(confirmationDetails: unknown): PermissionSuggestion[] | null;
-    /**
-     * Get callback for monitoring tool call status updates
-     *
-     * Returns a callback function that should be passed to executeToolCall
-     * to enable integration with CoreToolScheduler updates. This callback
-     * handles outgoing permission requests for tools awaiting approval.
-     *
-     * @returns Callback function that processes tool call updates
-     */
-    getToolCallUpdateCallback(): (toolCalls: unknown[]) => void;
-    /**
-     * Handle a teammate tool approval request routed via the
-     * TEAMMATE_APPROVAL_REQUEST team event. Stream-json sessions ask the
-     * SDK host for permission; other modes are handled by the caller.
-     */
-    handleTeammateApproval(event: TeammateApprovalRequestEvent): Promise<void>;
-    handleWorkflowApproval(runId: string, approval: WorkflowApproval, rawArgs: Record<string, unknown>, approvalSignal: AbortSignal): Promise<void>;
+  /**
+   * Build UI suggestions for tool confirmation dialogs
+   *
+   * Creates actionable permission suggestions based on tool confirmation details,
+   * helping host applications present appropriate approval/denial options.
+   *
+   * @param confirmationDetails - Tool confirmation details (type, title, metadata)
+   * @returns Array of permission suggestions or null if details are invalid
+   */
+  buildPermissionSuggestions(
+    confirmationDetails: unknown,
+  ): PermissionSuggestion[] | null;
+  /**
+   * Get callback for monitoring tool call status updates
+   *
+   * Returns a callback function that should be passed to executeToolCall
+   * to enable integration with CoreToolScheduler updates. This callback
+   * handles outgoing permission requests for tools awaiting approval.
+   *
+   * @returns Callback function that processes tool call updates
+   */
+  getToolCallUpdateCallback(): (toolCalls: unknown[]) => void;
+  /**
+   * Handle a teammate tool approval request routed via the
+   * TEAMMATE_APPROVAL_REQUEST team event. Stream-json sessions ask the
+   * SDK host for permission; other modes are handled by the caller.
+   */
+  handleTeammateApproval(event: TeammateApprovalRequestEvent): Promise<void>;
+  handleWorkflowApproval(
+    runId: string,
+    approval: WorkflowApproval,
+    rawArgs: Record<string, unknown>,
+    approvalSignal: AbortSignal,
+  ): Promise<void>;
 }
 /**
  * System Service API
@@ -58,17 +69,17 @@ export interface PermissionServiceAPI {
  * regardless of whether the control system is available.
  */
 export interface SystemServiceAPI {
-    /**
-     * Get control capabilities
-     *
-     * Returns the control capabilities object indicating what control
-     * features are available. Used exclusively for the initialize control
-     * response. System messages do not include capabilities as they are
-     * independent of the control system.
-     *
-     * @returns Control capabilities object
-     */
-    getControlCapabilities(): Record<string, unknown>;
+  /**
+   * Get control capabilities
+   *
+   * Returns the control capabilities object indicating what control
+   * features are available. Used exclusively for the initialize control
+   * response. System messages do not include capabilities as they are
+   * independent of the control system.
+   *
+   * @returns Control capabilities object
+   */
+  getControlCapabilities(): Record<string, unknown>;
 }
 /**
  * MCP Service API
@@ -77,30 +88,30 @@ export interface SystemServiceAPI {
  * lazy client initialization and server discovery.
  */
 export interface McpServiceAPI {
-    /**
-     * Get or create MCP client for a server (lazy initialization)
-     *
-     * Returns an existing client from cache or creates a new connection
-     * if this is the first request for the server. Handles connection
-     * lifecycle and error recovery.
-     *
-     * @param serverName - Name of the MCP server to connect to
-     * @returns Promise resolving to client instance and server configuration
-     * @throws Error if server is not configured or connection fails
-     */
-    getMcpClient(serverName: string): Promise<{
-        client: Client;
-        config: MCPServerConfig;
-    }>;
-    /**
-     * List all available MCP servers
-     *
-     * Returns names of both SDK-managed and CLI-managed MCP servers
-     * that are currently configured or connected.
-     *
-     * @returns Array of server names
-     */
-    listServers(): string[];
+  /**
+   * Get or create MCP client for a server (lazy initialization)
+   *
+   * Returns an existing client from cache or creates a new connection
+   * if this is the first request for the server. Handles connection
+   * lifecycle and error recovery.
+   *
+   * @param serverName - Name of the MCP server to connect to
+   * @returns Promise resolving to client instance and server configuration
+   * @throws Error if server is not configured or connection fails
+   */
+  getMcpClient(serverName: string): Promise<{
+    client: Client;
+    config: MCPServerConfig;
+  }>;
+  /**
+   * List all available MCP servers
+   *
+   * Returns names of both SDK-managed and CLI-managed MCP servers
+   * that are currently configured or connected.
+   *
+   * @returns Array of server names
+   */
+  listServers(): string[];
 }
 /**
  * Hook Service API
@@ -108,5 +119,5 @@ export interface McpServiceAPI {
  * Provides hook callback processing (placeholder for future expansion).
  */
 export interface HookServiceAPI {
-    registerHookCallback(callback: unknown): void;
+  registerHookCallback(callback: unknown): void;
 }

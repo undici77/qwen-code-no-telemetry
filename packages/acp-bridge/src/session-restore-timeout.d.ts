@@ -19,7 +19,9 @@ export declare const MAX_RESTORE_RETRY_AFTER_SECONDS = 120;
  */
 export declare function restoreRetryAfterSeconds(timeoutMs: number): number;
 export interface SessionRestoreTimeoutOptions {
-    sessionRestoreTimeoutMs?: number;
-    initializeTimeoutMs?: number;
+  sessionRestoreTimeoutMs?: number;
+  initializeTimeoutMs?: number;
 }
-export declare function resolveSessionRestoreTimeoutMs(opts: SessionRestoreTimeoutOptions): number;
+export declare function resolveSessionRestoreTimeoutMs(
+  opts: SessionRestoreTimeoutOptions,
+): number;

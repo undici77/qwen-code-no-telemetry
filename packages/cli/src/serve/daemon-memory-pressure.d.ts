@@ -28,35 +28,35 @@ export type DaemonMemoryPressureLevel = 'normal' | 'soft' | 'hard' | 'critical';
  */
 export type DaemonMemoryPressureSource = 'rss' | 'heap' | 'unknown';
 export interface DaemonMemoryPressure {
-    level: DaemonMemoryPressureLevel;
-    /** The larger of the two ratios below, which is what `level` classifies. */
-    ratio: number;
-    source: DaemonMemoryPressureSource;
-    rssBytes: number;
-    rssRatio: number;
-    /**
-     * Bytes the daemon tree may use: the cgroup limit, else host memory.
-     *
-     * Those two are not equally trustworthy as a denominator, and
-     * `limits.memory.availableMemorySource` is what tells them apart. Under a
-     * cgroup (`constrained`) this is exactly the number the OOM killer watches,
-     * so `rssRatio` is the real thing. On bare metal (`host`) it is the size of
-     * the machine, and the daemon is killed when the *machine* runs out — which
-     * depends on every other process on the box. A daemon at 20% of a 64 GB host
-     * beside a 55 GB neighbour reports `normal` right up until it dies, so under
-     * `source: 'host'` read `rssRatio` as a lower bound on real pressure rather
-     * than as a measurement of it. This is a denominator caveat and is not
-     * covered by the separate one about the thresholds being uncalibrated.
-     */
-    availableBytes: number;
-    heapUsedBytes: number;
-    heapRatio: number;
-    /**
-     * V8's `heap_size_limit` for this process — the whole heap, not only the old
-     * space `--max-old-space-size` names, which is what `heapUsedBytes` measures
-     * against.
-     */
-    heapLimitBytes: number;
+  level: DaemonMemoryPressureLevel;
+  /** The larger of the two ratios below, which is what `level` classifies. */
+  ratio: number;
+  source: DaemonMemoryPressureSource;
+  rssBytes: number;
+  rssRatio: number;
+  /**
+   * Bytes the daemon tree may use: the cgroup limit, else host memory.
+   *
+   * Those two are not equally trustworthy as a denominator, and
+   * `limits.memory.availableMemorySource` is what tells them apart. Under a
+   * cgroup (`constrained`) this is exactly the number the OOM killer watches,
+   * so `rssRatio` is the real thing. On bare metal (`host`) it is the size of
+   * the machine, and the daemon is killed when the *machine* runs out — which
+   * depends on every other process on the box. A daemon at 20% of a 64 GB host
+   * beside a 55 GB neighbour reports `normal` right up until it dies, so under
+   * `source: 'host'` read `rssRatio` as a lower bound on real pressure rather
+   * than as a measurement of it. This is a denominator caveat and is not
+   * covered by the separate one about the thresholds being uncalibrated.
+   */
+  availableBytes: number;
+  heapUsedBytes: number;
+  heapRatio: number;
+  /**
+   * V8's `heap_size_limit` for this process — the whole heap, not only the old
+   * space `--max-old-space-size` names, which is what `heapUsedBytes` measures
+   * against.
+   */
+  heapLimitBytes: number;
 }
 /**
  * Classifies the daemon root's memory pressure against two independent
@@ -72,15 +72,15 @@ export interface DaemonMemoryPressure {
  * this figure must not be read as process-tree pressure.
  */
 export declare function computeDaemonMemoryPressure(input: {
-    /** Bytes, to match the sampler's gauges. Callers holding MB must convert. */
-    rssBytes: number;
-    heapUsedBytes: number;
-    /**
-     * Bytes. `DaemonMemoryBudget.availableMemoryMb` is in **megabytes** — the
-     * one place these two modules meet, and the one place a factor of 1024² can
-     * hide, since either unit produces a plausible-looking ratio.
-     */
-    availableBytes: number;
-    /** Test seam; defaults to this process's real V8 ceiling. */
-    heapLimitBytes?: number;
+  /** Bytes, to match the sampler's gauges. Callers holding MB must convert. */
+  rssBytes: number;
+  heapUsedBytes: number;
+  /**
+   * Bytes. `DaemonMemoryBudget.availableMemoryMb` is in **megabytes** — the
+   * one place these two modules meet, and the one place a factor of 1024² can
+   * hide, since either unit produces a plausible-looking ratio.
+   */
+  availableBytes: number;
+  /** Test seam; defaults to this process's real V8 ceiling. */
+  heapLimitBytes?: number;
 }): DaemonMemoryPressure;

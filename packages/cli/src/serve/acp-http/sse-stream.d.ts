@@ -20,38 +20,41 @@ import type { Response } from 'express';
  * `Last-Event-ID` resume (see `docs/design/daemon-acp-http/sse-resumable-stream.md`).
  */
 export declare class SseStream {
-    private readonly res;
-    private readonly onClose?;
+  private readonly res;
+  private readonly onClose?;
+  /**
+   * Fired on each heartbeat tick while the stream is open. Used to mark the
+   * connection active so a long-running prompt that emits no intermediate
+   * frames for >30 min isn't reaped by the idle-TTL sweep.
+   */
+  private readonly onHeartbeat?;
+  readonly kind: 'sse';
+  private writeChain;
+  private heartbeat;
+  private closed;
+  private cleanupFn;
+  constructor(
+    res: Response,
+    onClose?: (() => void) | undefined,
     /**
      * Fired on each heartbeat tick while the stream is open. Used to mark the
      * connection active so a long-running prompt that emits no intermediate
      * frames for >30 min isn't reaped by the idle-TTL sweep.
      */
-    private readonly onHeartbeat?;
-    readonly kind: "sse";
-    private writeChain;
-    private heartbeat;
-    private closed;
-    private cleanupFn;
-    constructor(res: Response, onClose?: (() => void) | undefined, 
-    /**
-     * Fired on each heartbeat tick while the stream is open. Used to mark the
-     * connection active so a long-running prompt that emits no intermediate
-     * frames for >30 min isn't reaped by the idle-TTL sweep.
-     */
-    onHeartbeat?: (() => void) | undefined);
-    /** Write SSE headers + retry hint and start the heartbeat. */
-    open(): void;
-    /**
-     * Serialize a JSON-RPC message as one SSE frame. When `id` is supplied
-     * (a bus event id) prepend an `id:` line so an EventSource/SSE client
-     * tracks it and resends it as `Last-Event-ID` on reconnect — the resume
-     * cursor for ring replay. Omitted for JSON-RPC responses and synthetic
-     * terminal frames (no bus id), matching REST `formatSseFrame`.
-     */
-    send(message: unknown, id?: number): Promise<void>;
-    get isClosed(): boolean;
-    close(): void;
-    private writeRaw;
-    private doWrite;
+    onHeartbeat?: (() => void) | undefined,
+  );
+  /** Write SSE headers + retry hint and start the heartbeat. */
+  open(): void;
+  /**
+   * Serialize a JSON-RPC message as one SSE frame. When `id` is supplied
+   * (a bus event id) prepend an `id:` line so an EventSource/SSE client
+   * tracks it and resends it as `Last-Event-ID` on reconnect — the resume
+   * cursor for ring replay. Omitted for JSON-RPC responses and synthetic
+   * terminal frames (no bus id), matching REST `formatSseFrame`.
+   */
+  send(message: unknown, id?: number): Promise<void>;
+  get isClosed(): boolean;
+  close(): void;
+  private writeRaw;
+  private doWrite;
 }

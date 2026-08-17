@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
 import * as os from 'node:os';
@@ -289,7 +288,7 @@ export class QwenLogger {
     } as RumPayload;
   }
 
-    flushIfNeeded(): void {
+  flushIfNeeded(): void {
     // No-op for no-telemetry policy
   }
 
@@ -326,10 +325,9 @@ export class QwenLogger {
     return '';
   }
 
-    async flushToRum(): Promise<LogResponse> {
+  async flushToRum(): Promise<LogResponse> {
     // No-op for no-telemetry policy
     return {};
-
   }
 
   // session events

@@ -5,73 +5,73 @@
  */
 import type { CommandModule } from 'yargs';
 /** Why a drive stopped. Every value is a fact about the run, not a verdict. */
-export type DriveOutcome = 
-/** The sentinel was reached; `exitCode` is the driven script's own. */
-'completed'
-/** Readiness never arrived within the budget — nothing was driven. */
- | 'not-ready'
-/** Driven, but the sentinel never appeared before the deadline. */
- | 'timed-out'
-/** Stopped because its output crossed the log cap — no verdict, by design. */
- | 'overflowed'
-/** The harness itself could not run (no tmux, server would not start). */
- | 'unavailable';
+export type DriveOutcome =
+  /** The sentinel was reached; `exitCode` is the driven script's own. */
+  | 'completed'
+  /** Readiness never arrived within the budget — nothing was driven. */
+  | 'not-ready'
+  /** Driven, but the sentinel never appeared before the deadline. */
+  | 'timed-out'
+  /** Stopped because its output crossed the log cap — no verdict, by design. */
+  | 'overflowed'
+  /** The harness itself could not run (no tmux, server would not start). */
+  | 'unavailable';
 export interface DriveReport {
-    outcome: DriveOutcome;
-    /**
-     * True only for `completed`. The gate every reader should branch on, for the
-     * reason `base-tree` has one: an observation from a run that never finished
-     * is not a weaker observation of the same thing, it is a different thing.
-     */
-    observed: boolean;
-    /** The driven script's exit code; null unless the sentinel was reached. */
-    exitCode: number | null;
-    /** Milliseconds spent waiting for readiness — reported even when it arrived. */
-    readyAfterMs: number | null;
-    /** Milliseconds from drive start to sentinel (or to the deadline). */
-    droveForMs: number;
-    /** Everything the pane held, trimmed. Partial unless `observed`. */
-    output: string;
-    /** True when `output` was cut by the capture cap rather than by the sentinel. */
-    truncated: boolean;
-    /** A stale server from an earlier run that this one had to kill first. */
-    killedStale: boolean;
-    note: string;
+  outcome: DriveOutcome;
+  /**
+   * True only for `completed`. The gate every reader should branch on, for the
+   * reason `base-tree` has one: an observation from a run that never finished
+   * is not a weaker observation of the same thing, it is a different thing.
+   */
+  observed: boolean;
+  /** The driven script's exit code; null unless the sentinel was reached. */
+  exitCode: number | null;
+  /** Milliseconds spent waiting for readiness — reported even when it arrived. */
+  readyAfterMs: number | null;
+  /** Milliseconds from drive start to sentinel (or to the deadline). */
+  droveForMs: number;
+  /** Everything the pane held, trimmed. Partial unless `observed`. */
+  output: string;
+  /** True when `output` was cut by the capture cap rather than by the sentinel. */
+  truncated: boolean;
+  /** A stale server from an earlier run that this one had to kill first. */
+  killedStale: boolean;
+  note: string;
 }
 export interface DriveArgs {
-    /** The script to drive. Runs inside the tmux window; its exit code is captured. */
-    script: string;
-    /** Working directory for both the readiness probe and the script. */
-    cwd: string;
-    /**
-     * Shell command polled until it exits 0 — the readiness signal. Omit it and
-     * the drive starts immediately, which is honest for a script that has nothing
-     * to wait for and dishonest for anything that binds a port.
-     */
-    ready?: string;
-    /** Seconds to wait for readiness before giving up. */
-    readyTimeout: number;
-    /** Seconds to wait for the sentinel after the drive starts. */
-    timeout: number;
-    out?: string;
-    /**
-     * tmux server name. Namespaced per run so a leaked server from another PR
-     * cannot be captured from, or killed, by this one.
-     */
-    server: string;
-    /** Test seam — production shells out for real. */
-    exec?: (cmd: string, args: string[], input?: string) => ExecResult;
-    /** Test seam — production derives it from `server`. */
-    logPath?: string;
+  /** The script to drive. Runs inside the tmux window; its exit code is captured. */
+  script: string;
+  /** Working directory for both the readiness probe and the script. */
+  cwd: string;
+  /**
+   * Shell command polled until it exits 0 — the readiness signal. Omit it and
+   * the drive starts immediately, which is honest for a script that has nothing
+   * to wait for and dishonest for anything that binds a port.
+   */
+  ready?: string;
+  /** Seconds to wait for readiness before giving up. */
+  readyTimeout: number;
+  /** Seconds to wait for the sentinel after the drive starts. */
+  timeout: number;
+  out?: string;
+  /**
+   * tmux server name. Namespaced per run so a leaked server from another PR
+   * cannot be captured from, or killed, by this one.
+   */
+  server: string;
+  /** Test seam — production shells out for real. */
+  exec?: (cmd: string, args: string[], input?: string) => ExecResult;
+  /** Test seam — production derives it from `server`. */
+  logPath?: string;
 }
 export interface ExecResult {
-    status: number | null;
-    stdout: string;
-    stderr: string;
+  status: number | null;
+  stdout: string;
+  stderr: string;
 }
 /** Single-quote a path for `bash -lc`, closing over any embedded quote. */
 export declare function shellQuote(v: string): string;
-export declare const DRIVE_SENTINEL = "__QWEN_REVIEW_DRIVE_DONE__";
+export declare const DRIVE_SENTINEL = '__QWEN_REVIEW_DRIVE_DONE__';
 /**
  * The wrapper the driven script runs inside.
  *
@@ -96,13 +96,20 @@ export declare const DRIVE_SENTINEL = "__QWEN_REVIEW_DRIVE_DONE__";
  * problem. Two facts, two channels: the log may be trimmed, the verdict may
  * not.
  */
-export declare function wrapScript(script: string, sentinelPath: string, sentinel?: string): string;
+export declare function wrapScript(
+  script: string,
+  sentinelPath: string,
+  sentinel?: string,
+): string;
 /** Parse the sentinel line back out of a capture. Null when it is not there. */
-export declare function sentinelExitCode(capture: string, sentinel?: string): number | null;
+export declare function sentinelExitCode(
+  capture: string,
+  sentinel?: string,
+): number | null;
 /** Trim a capture to the cap, keeping the TAIL — the end is where the result is. */
 export declare function trimCapture(s: string): {
-    text: string;
-    truncated: boolean;
+  text: string;
+  truncated: boolean;
 };
 export declare function runDrive(args: DriveArgs): DriveReport;
 export declare const driveCommand: CommandModule;

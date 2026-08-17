@@ -12,5 +12,5 @@
  * pulling the core barrel — and its 5 MB+ settings/TOML/glob transitive
  * closure — into bundle-critical paths such as the serve pre-listen root.
  */
-export declare const MEMORY_PROJECT_SCOPES: readonly ["git-root", "workspace"];
+export declare const MEMORY_PROJECT_SCOPES: readonly ['git-root', 'workspace'];
 export type MemoryProjectScope = (typeof MEMORY_PROJECT_SCOPES)[number];

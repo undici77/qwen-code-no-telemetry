@@ -8,7 +8,7 @@
  */
 
 import type { FC } from 'react';
- 
+
 import iconUrl from '../../../../assets/icon.png';
 import { ProviderSetupForm } from './ProviderSetupForm.js';
 

@@ -5,8 +5,8 @@ import { isSubAgentToolCall } from '../adapters/toolClassification';
  * the (unrelated) tool `kind`, which is `think` for this tool.
  */
 export function isTodoWriteToolName(name) {
-    const normalized = name.toLowerCase();
-    return normalized === 'todo_write' || normalized === 'todowrite';
+  const normalized = name.toLowerCase();
+  return normalized === 'todo_write' || normalized === 'todowrite';
 }
 /**
  * The full exit-plan approval rule: the switch_mode frame kind plus the
@@ -14,177 +14,178 @@ export function isTodoWriteToolName(name) {
  * surfaces that gate the revision-bound approval UI never drift.
  */
 export function isExitPlanApprovalRequest(request) {
-    return (request?.toolKind === 'switch_mode' &&
-        request?.toolName?.toLowerCase() === 'exit_plan_mode');
+  return (
+    request?.toolKind === 'switch_mode' &&
+    request?.toolName?.toLowerCase() === 'exit_plan_mode'
+  );
 }
 export function parseTodoItemsFromEntries(entries) {
-    const todos = entries.flatMap((entry, index) => {
-        const item = getRecord(entry);
-        const content = getString(item, 'content');
-        if (!content)
-            return [];
-        const meta = getRecord(item?.['_meta']);
-        const qwenTodo = getRecord(meta?.['qwenTodo']);
-        const blockedBy = getStringArray(qwenTodo, 'blockedBy');
-        return [
-            {
-                id: getString(qwenTodo, 'id') ?? getString(item, 'id') ?? `plan-${index}`,
-                content,
-                status: getTodoStatus(getString(item, 'status')),
-                priority: getTodoPriority(getString(item, 'priority')),
-                ...(blockedBy ? { blockedBy } : {}),
-            },
-        ];
-    });
-    return todos;
+  const todos = entries.flatMap((entry, index) => {
+    const item = getRecord(entry);
+    const content = getString(item, 'content');
+    if (!content) return [];
+    const meta = getRecord(item?.['_meta']);
+    const qwenTodo = getRecord(meta?.['qwenTodo']);
+    const blockedBy = getStringArray(qwenTodo, 'blockedBy');
+    return [
+      {
+        id:
+          getString(qwenTodo, 'id') ?? getString(item, 'id') ?? `plan-${index}`,
+        content,
+        status: getTodoStatus(getString(item, 'status')),
+        priority: getTodoPriority(getString(item, 'priority')),
+        ...(blockedBy ? { blockedBy } : {}),
+      },
+    ];
+  });
+  return todos;
 }
 export function extractTodosFromToolCall(tool) {
-    const isTodoTool = isTodoWriteToolName(tool.toolName);
-    if (!isTodoTool && tool.kind !== 'other') {
-        return undefined;
-    }
-    const rawOutput = getRecord(tool.rawOutput);
-    const hasPlanMetadata = getString(getRecord(rawOutput?.['plan']), 'id') !== undefined;
-    const argsTodos = getTodoArray(tool.args);
-    if (argsTodos) {
-        const todos = parseTodoItemsFromEntries(argsTodos);
-        return todos.length > 0 || isTodoTool ? todos : undefined;
-    }
-    const outputTodos = getTodoArray(rawOutput);
-    if (outputTodos) {
-        const todos = parseTodoItemsFromEntries(outputTodos);
-        return todos.length > 0 || isTodoTool || hasPlanMetadata
-            ? todos
-            : undefined;
-    }
-    const entries = Array.isArray(rawOutput?.['entries'])
-        ? rawOutput['entries']
-        : undefined;
-    if (!entries)
-        return undefined;
-    const todos = parseTodoItemsFromEntries(entries);
-    return todos.length > 0 || isTodoTool || hasPlanMetadata ? todos : undefined;
+  const isTodoTool = isTodoWriteToolName(tool.toolName);
+  if (!isTodoTool && tool.kind !== 'other') {
+    return undefined;
+  }
+  const rawOutput = getRecord(tool.rawOutput);
+  const hasPlanMetadata =
+    getString(getRecord(rawOutput?.['plan']), 'id') !== undefined;
+  const argsTodos = getTodoArray(tool.args);
+  if (argsTodos) {
+    const todos = parseTodoItemsFromEntries(argsTodos);
+    return todos.length > 0 || isTodoTool ? todos : undefined;
+  }
+  const outputTodos = getTodoArray(rawOutput);
+  if (outputTodos) {
+    const todos = parseTodoItemsFromEntries(outputTodos);
+    return todos.length > 0 || isTodoTool || hasPlanMetadata
+      ? todos
+      : undefined;
+  }
+  const entries = Array.isArray(rawOutput?.['entries'])
+    ? rawOutput['entries']
+    : undefined;
+  if (!entries) return undefined;
+  const todos = parseTodoItemsFromEntries(entries);
+  return todos.length > 0 || isTodoTool || hasPlanMetadata ? todos : undefined;
 }
 export function hasActiveTodos(todos) {
-    return todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress');
+  return todos.some(
+    (todo) => todo.status === 'pending' || todo.status === 'in_progress',
+  );
 }
 export function getTodoStatusIcon(status) {
-    switch (status) {
-        case 'completed':
-            return '●';
-        case 'in_progress':
-            return '◐';
-        case 'pending':
-            return '○';
-    }
+  switch (status) {
+    case 'completed':
+      return '●';
+    case 'in_progress':
+      return '◐';
+    case 'pending':
+      return '○';
+  }
 }
 const EMPTY_FLOATING_TODOS = {
-    todos: [],
-    planId: null,
-    allCompleted: false,
-    sourceMessageId: null,
+  todos: [],
+  planId: null,
+  allCompleted: false,
+  sourceMessageId: null,
 };
 export function getFloatingTodos(messages) {
-    let todos = [];
-    let planId = null;
-    let sourceMessageId = null;
-    let userMessageAfter = false;
-    for (const message of messages) {
-        if (message.role === 'user' || message.role === 'user_shell') {
-            userMessageAfter = true;
-            continue;
-        }
-        if (message.role === 'plan') {
-            todos = message.todos;
-            planId = null;
-            sourceMessageId = message.id;
-            userMessageAfter = false;
-            continue;
-        }
-        if (message.role !== 'tool_group')
-            continue;
-        for (const tool of message.tools) {
-            const nextTodos = extractTodosFromToolCall(tool);
-            if (nextTodos) {
-                todos = nextTodos;
-                planId = getTodoPlanId(tool);
-                sourceMessageId = message.id;
-                userMessageAfter = false;
-            }
-        }
+  let todos = [];
+  let planId = null;
+  let sourceMessageId = null;
+  let userMessageAfter = false;
+  for (const message of messages) {
+    if (message.role === 'user' || message.role === 'user_shell') {
+      userMessageAfter = true;
+      continue;
     }
-    if (todos.length === 0)
-        return EMPTY_FLOATING_TODOS;
-    const allCompleted = !hasActiveTodos(todos);
-    if (userMessageAfter)
-        return EMPTY_FLOATING_TODOS;
-    return { todos, planId, allCompleted, sourceMessageId };
+    if (message.role === 'plan') {
+      todos = message.todos;
+      planId = null;
+      sourceMessageId = message.id;
+      userMessageAfter = false;
+      continue;
+    }
+    if (message.role !== 'tool_group') continue;
+    for (const tool of message.tools) {
+      const nextTodos = extractTodosFromToolCall(tool);
+      if (nextTodos) {
+        todos = nextTodos;
+        planId = getTodoPlanId(tool);
+        sourceMessageId = message.id;
+        userMessageAfter = false;
+      }
+    }
+  }
+  if (todos.length === 0) return EMPTY_FLOATING_TODOS;
+  const allCompleted = !hasActiveTodos(todos);
+  if (userMessageAfter) return EMPTY_FLOATING_TODOS;
+  return { todos, planId, allCompleted, sourceMessageId };
 }
 export function getActiveTodosForPlanRevision(messages, revision) {
-    if (!revision)
-        return [];
-    for (const message of messages) {
-        if (message.role !== 'tool_group')
-            continue;
-        for (const tool of message.tools) {
-            if (tool.callId !== revision.sourceCallId ||
-                getTodoPlanId(tool) !== revision.planId) {
-                continue;
-            }
-            const todos = extractTodosFromToolCall(tool) ?? [];
-            return todos;
-        }
+  if (!revision) return [];
+  for (const message of messages) {
+    if (message.role !== 'tool_group') continue;
+    for (const tool of message.tools) {
+      if (
+        tool.callId !== revision.sourceCallId ||
+        getTodoPlanId(tool) !== revision.planId
+      ) {
+        continue;
+      }
+      const todos = extractTodosFromToolCall(tool) ?? [];
+      return todos;
     }
-    return [];
+  }
+  return [];
 }
 export function getAgentToolsForPlan(messages, plan) {
-    if (plan.sourceMessageId === null)
-        return [];
-    const tools = [];
-    const startIndex = messages.findIndex((message) => {
-        if (plan.planId === null)
-            return message.id === plan.sourceMessageId;
-        if (message.role !== 'tool_group')
-            return false;
-        return message.tools.some((tool) => extractTodosFromToolCall(tool) !== undefined &&
-            getTodoPlanId(tool) === plan.planId);
-    });
-    if (startIndex < 0)
-        return [];
-    let planCompleted = false;
-    for (let index = startIndex; index < messages.length; index++) {
-        const message = messages[index];
-        if (index > startIndex &&
-            planCompleted &&
-            (message.role === 'user' || message.role === 'user_shell')) {
-            return tools;
-        }
-        if (message.role === 'plan') {
-            if (index > startIndex)
-                break;
-            planCompleted = !hasActiveTodos(message.todos);
-            continue;
-        }
-        if (message.role !== 'tool_group')
-            continue;
-        for (const tool of message.tools) {
-            const snapshot = extractTodosFromToolCall(tool);
-            if (snapshot !== undefined) {
-                if (index > startIndex &&
-                    (plan.planId === null || getTodoPlanId(tool) !== plan.planId)) {
-                    return tools;
-                }
-                planCompleted = !hasActiveTodos(snapshot);
-                continue;
-            }
-            if (!tool.parentToolCallId && isSubAgentToolCall(tool)) {
-                if (planCompleted)
-                    return tools;
-                tools.push(tool);
-            }
-        }
+  if (plan.sourceMessageId === null) return [];
+  const tools = [];
+  const startIndex = messages.findIndex((message) => {
+    if (plan.planId === null) return message.id === plan.sourceMessageId;
+    if (message.role !== 'tool_group') return false;
+    return message.tools.some(
+      (tool) =>
+        extractTodosFromToolCall(tool) !== undefined &&
+        getTodoPlanId(tool) === plan.planId,
+    );
+  });
+  if (startIndex < 0) return [];
+  let planCompleted = false;
+  for (let index = startIndex; index < messages.length; index++) {
+    const message = messages[index];
+    if (
+      index > startIndex &&
+      planCompleted &&
+      (message.role === 'user' || message.role === 'user_shell')
+    ) {
+      return tools;
     }
-    return tools;
+    if (message.role === 'plan') {
+      if (index > startIndex) break;
+      planCompleted = !hasActiveTodos(message.todos);
+      continue;
+    }
+    if (message.role !== 'tool_group') continue;
+    for (const tool of message.tools) {
+      const snapshot = extractTodosFromToolCall(tool);
+      if (snapshot !== undefined) {
+        if (
+          index > startIndex &&
+          (plan.planId === null || getTodoPlanId(tool) !== plan.planId)
+        ) {
+          return tools;
+        }
+        planCompleted = !hasActiveTodos(snapshot);
+        continue;
+      }
+      if (!tool.parentToolCallId && isSubAgentToolCall(tool)) {
+        if (planCompleted) return tools;
+        tools.push(tool);
+      }
+    }
+  }
+  return tools;
 }
 /**
  * Identity used to track an item across snapshots. Folds content into the key
@@ -211,7 +212,7 @@ export function getAgentToolsForPlan(messages, plan) {
  *   task's detail slot.
  */
 export function todoStateKey(todo) {
-    return JSON.stringify([todo.id, todo.content]);
+  return JSON.stringify([todo.id, todo.content]);
 }
 /**
  * The todo snapshots carried by one message, in order. In the web-shell daemon
@@ -219,24 +220,24 @@ export function todoStateKey(todo) {
  * `plan` messages. Handle both so the timeline works regardless of source.
  */
 function todoSnapshotsOf(message) {
-    if (message.role === 'plan') {
-        return [{ key: message.id, todos: message.todos }];
+  if (message.role === 'plan') {
+    return [{ key: message.id, todos: message.todos }];
+  }
+  if (message.role === 'tool_group') {
+    const snapshots = [];
+    for (const tool of message.tools) {
+      const todos = extractTodosFromToolCall(tool);
+      if (todos) {
+        snapshots.push({
+          key: tool.callId,
+          todos,
+          stats: extractTodoStats(tool),
+        });
+      }
     }
-    if (message.role === 'tool_group') {
-        const snapshots = [];
-        for (const tool of message.tools) {
-            const todos = extractTodosFromToolCall(tool);
-            if (todos) {
-                snapshots.push({
-                    key: tool.callId,
-                    todos,
-                    stats: extractTodoStats(tool),
-                });
-            }
-        }
-        return snapshots;
-    }
-    return [];
+    return snapshots;
+  }
+  return [];
 }
 /**
  * Walk the todo snapshots in order and, for each one, derive what changed
@@ -250,32 +251,33 @@ function todoSnapshotsOf(message) {
  * just happened.
  */
 export function computeTodoTimeline(messages) {
-    const result = new Map();
-    const lastStatus = new Map();
-    for (const message of messages) {
-        for (const { key, todos } of todoSnapshotsOf(message)) {
-            const events = [];
-            for (const todo of todos) {
-                const stateKey = todoStateKey(todo);
-                const prev = lastStatus.get(stateKey);
-                if (todo.status === 'in_progress' && prev !== 'in_progress') {
-                    events.push({ kind: 'started', id: todo.id, content: todo.content });
-                }
-                else if (todo.status === 'completed' &&
-                    prev !== 'completed' &&
-                    prev !== undefined) {
-                    events.push({
-                        kind: 'completed',
-                        id: todo.id,
-                        content: todo.content,
-                    });
-                }
-                lastStatus.set(stateKey, todo.status);
-            }
-            result.set(key, { events });
+  const result = new Map();
+  const lastStatus = new Map();
+  for (const message of messages) {
+    for (const { key, todos } of todoSnapshotsOf(message)) {
+      const events = [];
+      for (const todo of todos) {
+        const stateKey = todoStateKey(todo);
+        const prev = lastStatus.get(stateKey);
+        if (todo.status === 'in_progress' && prev !== 'in_progress') {
+          events.push({ kind: 'started', id: todo.id, content: todo.content });
+        } else if (
+          todo.status === 'completed' &&
+          prev !== 'completed' &&
+          prev !== undefined
+        ) {
+          events.push({
+            kind: 'completed',
+            id: todo.id,
+            content: todo.content,
+          });
         }
+        lastStatus.set(stateKey, todo.status);
+      }
+      result.set(key, { events });
     }
-    return result;
+  }
+  return result;
 }
 /**
  * A cheap signature of the todo snapshots in a transcript: each snapshot's key
@@ -285,13 +287,15 @@ export function computeTodoTimeline(messages) {
  * consumes the timeline).
  */
 export function todoTimelineSignature(messages) {
-    const parts = [];
-    for (const message of messages) {
-        for (const { key, todos } of todoSnapshotsOf(message)) {
-            parts.push(JSON.stringify([key, todos.map((t) => [t.id, t.status, t.content])]));
-        }
+  const parts = [];
+  for (const message of messages) {
+    for (const { key, todos } of todoSnapshotsOf(message)) {
+      parts.push(
+        JSON.stringify([key, todos.map((t) => [t.id, t.status, t.content])]),
+      );
     }
-    return parts.join('\n');
+  }
+  return parts.join('\n');
 }
 /**
  * Like {@link todoTimelineSignature} but folds in everything
@@ -301,26 +305,32 @@ export function todoTimelineSignature(messages) {
  * value stays referentially stable across streaming ticks that touch none of it.
  */
 export function todoDetailSignature(messages) {
-    const parts = [];
-    for (const message of messages) {
-        if (message.role === 'tool_group') {
-            for (const tool of message.tools) {
-                if (!isTodoWriteToolName(tool.toolName) &&
-                    (tool.startTime !== undefined || tool.endTime !== undefined)) {
-                    parts.push(JSON.stringify(['span', tool.callId, tool.startTime, tool.endTime]));
-                }
-            }
+  const parts = [];
+  for (const message of messages) {
+    if (message.role === 'tool_group') {
+      for (const tool of message.tools) {
+        if (
+          !isTodoWriteToolName(tool.toolName) &&
+          (tool.startTime !== undefined || tool.endTime !== undefined)
+        ) {
+          parts.push(
+            JSON.stringify(['span', tool.callId, tool.startTime, tool.endTime]),
+          );
         }
-        for (const { key, todos, stats } of todoSnapshotsOf(message)) {
-            parts.push(JSON.stringify([
-                key,
-                message.timestamp,
-                todos.map((t) => [t.id, t.status, t.content]),
-                stats,
-            ]));
-        }
+      }
     }
-    return parts.join('\n');
+    for (const { key, todos, stats } of todoSnapshotsOf(message)) {
+      parts.push(
+        JSON.stringify([
+          key,
+          message.timestamp,
+          todos.map((t) => [t.id, t.status, t.content]),
+          stats,
+        ]),
+      );
+    }
+  }
+  return parts.join('\n');
 }
 /**
  * Natural-order window of up to maxVisible items anchored on the current
@@ -328,16 +338,16 @@ export function todoDetailSignature(messages) {
  * context above the anchor, the rest of the budget below it.
  */
 export function getTodoWindow(todos, maxVisible) {
-    if (todos.length <= maxVisible)
-        return { start: 0, end: todos.length };
-    const inProgressIdx = todos.findIndex((t) => t.status === 'in_progress');
-    const anchor = inProgressIdx >= 0
-        ? inProgressIdx
-        : todos.findIndex((t) => t.status === 'pending');
-    let start = Math.max(0, Math.max(0, anchor) - 1);
-    const end = Math.min(todos.length, start + maxVisible);
-    start = Math.max(0, end - maxVisible);
-    return { start, end };
+  if (todos.length <= maxVisible) return { start: 0, end: todos.length };
+  const inProgressIdx = todos.findIndex((t) => t.status === 'in_progress');
+  const anchor =
+    inProgressIdx >= 0
+      ? inProgressIdx
+      : todos.findIndex((t) => t.status === 'pending');
+  let start = Math.max(0, Math.max(0, anchor) - 1);
+  const end = Math.min(todos.length, start + maxVisible);
+  start = Math.max(0, end - maxVisible);
+  return { start, end };
 }
 /**
  * Read the cumulative-usage snapshot the agent stamped onto a todo_write tool
@@ -345,32 +355,33 @@ export function getTodoWindow(todos, maxVisible) {
  * stamping, or non-tool todo sources (plain plan messages).
  */
 export function extractTodoStats(tool) {
-    const stats = getRecord(getRecord(tool.rawOutput)?.['stats']);
-    if (!stats)
-        return undefined;
-    const num = (key) => {
-        const value = stats[key];
-        return typeof value === 'number' && Number.isFinite(value)
-            ? value
-            : undefined;
-    };
-    const promptTokens = num('promptTokens');
-    const cachedTokens = num('cachedTokens');
-    const candidateTokens = num('candidateTokens');
-    if (promptTokens === undefined ||
-        cachedTokens === undefined ||
-        candidateTokens === undefined) {
-        return undefined;
-    }
-    // apiTimeMs is the "live-only" field — a snapshot may legitimately omit it
-    // (e.g. a future agent on the replay path). Default it to 0 rather than
-    // dropping the whole snapshot and losing the valid token counts.
-    return {
-        promptTokens,
-        cachedTokens,
-        candidateTokens,
-        apiTimeMs: num('apiTimeMs') ?? 0,
-    };
+  const stats = getRecord(getRecord(tool.rawOutput)?.['stats']);
+  if (!stats) return undefined;
+  const num = (key) => {
+    const value = stats[key];
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : undefined;
+  };
+  const promptTokens = num('promptTokens');
+  const cachedTokens = num('cachedTokens');
+  const candidateTokens = num('candidateTokens');
+  if (
+    promptTokens === undefined ||
+    cachedTokens === undefined ||
+    candidateTokens === undefined
+  ) {
+    return undefined;
+  }
+  // apiTimeMs is the "live-only" field — a snapshot may legitimately omit it
+  // (e.g. a future agent on the replay path). Default it to 0 rather than
+  // dropping the whole snapshot and losing the valid token counts.
+  return {
+    promptTokens,
+    cachedTokens,
+    candidateTokens,
+    apiTimeMs: num('apiTimeMs') ?? 0,
+  };
 }
 /**
  * Wall-clock spans of every non-todo tool call that has both a start and end
@@ -379,23 +390,23 @@ export function extractTodoStats(tool) {
  * window rather than scan every span per task.
  */
 function collectToolSpans(messages) {
-    const spans = [];
-    for (const message of messages) {
-        if (message.role !== 'tool_group')
-            continue;
-        for (const tool of message.tools) {
-            if (isTodoWriteToolName(tool.toolName))
-                continue;
-            const { startTime, endTime } = tool;
-            if (typeof startTime === 'number' &&
-                typeof endTime === 'number' &&
-                endTime >= startTime) {
-                spans.push({ start: startTime, end: endTime });
-            }
-        }
+  const spans = [];
+  for (const message of messages) {
+    if (message.role !== 'tool_group') continue;
+    for (const tool of message.tools) {
+      if (isTodoWriteToolName(tool.toolName)) continue;
+      const { startTime, endTime } = tool;
+      if (
+        typeof startTime === 'number' &&
+        typeof endTime === 'number' &&
+        endTime >= startTime
+      ) {
+        spans.push({ start: startTime, end: endTime });
+      }
     }
-    spans.sort((a, b) => a.start - b.start);
-    return spans;
+  }
+  spans.sort((a, b) => a.start - b.start);
+  return spans;
 }
 /**
  * Total duration of tool spans whose start falls within [startTs, endTs].
@@ -404,31 +415,33 @@ function collectToolSpans(messages) {
  * O(log S + matched) instead of a full scan per task.
  */
 function sumToolTimeInWindow(sortedSpans, startTs, endTs) {
-    let lo = 0;
-    let hi = sortedSpans.length;
-    while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        if (sortedSpans[mid].start < startTs)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    let total = 0;
-    for (let i = lo; i < sortedSpans.length && sortedSpans[i].start <= endTs; i++) {
-        total += sortedSpans[i].end - sortedSpans[i].start;
-    }
-    return total;
+  let lo = 0;
+  let hi = sortedSpans.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sortedSpans[mid].start < startTs) lo = mid + 1;
+    else hi = mid;
+  }
+  let total = 0;
+  for (
+    let i = lo;
+    i < sortedSpans.length && sortedSpans[i].start <= endTs;
+    i++
+  ) {
+    total += sortedSpans[i].end - sortedSpans[i].start;
+  }
+  return total;
 }
 function diffStats(start, end) {
-    // Clamp to zero: snapshots are cumulative, so a smaller end (a reset, or two
-    // snapshots that coincided) must never surface a negative count.
-    const nonNeg = (a, b) => Math.max(0, b - a);
-    return {
-        inputTokens: nonNeg(start.promptTokens, end.promptTokens),
-        cachedTokens: nonNeg(start.cachedTokens, end.cachedTokens),
-        outputTokens: nonNeg(start.candidateTokens, end.candidateTokens),
-        apiTimeMs: nonNeg(start.apiTimeMs, end.apiTimeMs),
-    };
+  // Clamp to zero: snapshots are cumulative, so a smaller end (a reset, or two
+  // snapshots that coincided) must never surface a negative count.
+  const nonNeg = (a, b) => Math.max(0, b - a);
+  return {
+    inputTokens: nonNeg(start.promptTokens, end.promptTokens),
+    cachedTokens: nonNeg(start.cachedTokens, end.cachedTokens),
+    outputTokens: nonNeg(start.candidateTokens, end.candidateTokens),
+    apiTimeMs: nonNeg(start.apiTimeMs, end.apiTimeMs),
+  };
 }
 /**
  * Combine the token snapshot diff and the windowed tool time into the resource
@@ -438,22 +451,23 @@ function diffStats(start, end) {
  * Returns undefined when nothing was measured.
  */
 function buildResources(tokenDiff, toolTimeMs) {
-    const resources = {};
-    if (tokenDiff &&
-        (tokenDiff.inputTokens > 0 ||
-            tokenDiff.outputTokens > 0 ||
-            tokenDiff.cachedTokens > 0 ||
-            tokenDiff.apiTimeMs > 0)) {
-        resources.inputTokens = tokenDiff.inputTokens;
-        resources.cachedTokens = tokenDiff.cachedTokens;
-        resources.outputTokens = tokenDiff.outputTokens;
-        if (tokenDiff.apiTimeMs > 0)
-            resources.apiTimeMs = tokenDiff.apiTimeMs;
-    }
-    if (toolTimeMs !== undefined && toolTimeMs > 0) {
-        resources.toolTimeMs = toolTimeMs;
-    }
-    return Object.keys(resources).length > 0 ? resources : undefined;
+  const resources = {};
+  if (
+    tokenDiff &&
+    (tokenDiff.inputTokens > 0 ||
+      tokenDiff.outputTokens > 0 ||
+      tokenDiff.cachedTokens > 0 ||
+      tokenDiff.apiTimeMs > 0)
+  ) {
+    resources.inputTokens = tokenDiff.inputTokens;
+    resources.cachedTokens = tokenDiff.cachedTokens;
+    resources.outputTokens = tokenDiff.outputTokens;
+    if (tokenDiff.apiTimeMs > 0) resources.apiTimeMs = tokenDiff.apiTimeMs;
+  }
+  if (toolTimeMs !== undefined && toolTimeMs > 0) {
+    resources.toolTimeMs = toolTimeMs;
+  }
+  return Object.keys(resources).length > 0 ? resources : undefined;
 }
 /**
  * Per-todo detail keyed by {@link todoStateKey}: when each item started and
@@ -467,112 +481,111 @@ function buildResources(tokenDiff, toolTimeMs) {
  * as it produces no timeline event.
  */
 export function computeTodoDetails(messages) {
-    const result = new Map();
-    const lastStatus = new Map();
-    const startStatsByKey = new Map();
-    // Keys that have reached `completed`. Going active again afterwards (directly,
-    // or via an intervening `pending`) is a re-activation that must start a fresh
-    // window rather than diff against the prior completion's baseline.
-    const completedKeys = new Set();
-    const toolSpans = collectToolSpans(messages);
-    const ensure = (stateKey) => {
-        let detail = result.get(stateKey);
-        if (!detail) {
-            detail = {};
-            result.set(stateKey, detail);
-        }
-        return detail;
-    };
-    for (const message of messages) {
-        const ts = message.timestamp;
-        for (const { todos, stats } of todoSnapshotsOf(message)) {
-            for (const todo of todos) {
-                const stateKey = todoStateKey(todo);
-                const prev = lastStatus.get(stateKey);
-                if (todo.status === 'in_progress' && prev !== 'in_progress') {
-                    // Re-activated after a completion (a reopened task, or a new task
-                    // reusing a positional `plan-N` id) — reset so its window diffs
-                    // against its own start, not the prior completion's far-earlier
-                    // boundary, which would render a window spanning both with wildly
-                    // inflated token/time numbers. Keyed on "ever completed" so an
-                    // intervening `pending` (completed → pending → in_progress) still
-                    // resets, while a pause/resume that never completed
-                    // (in_progress → pending → in_progress) keeps its first baseline.
-                    if (completedKeys.has(stateKey)) {
-                        completedKeys.delete(stateKey);
-                        startStatsByKey.delete(stateKey);
-                        result.delete(stateKey);
-                    }
-                    // First start *with stats* wins: record the baseline for the resource
-                    // diff even when this message has no timestamp. Checking the stored
-                    // value (not `Map.has`) lets a real snapshot upgrade a baseline that a
-                    // stats-less start (e.g. a plain `plan` message) recorded as
-                    // `undefined`, which `has` would otherwise treat as already set.
-                    if (startStatsByKey.get(stateKey) === undefined) {
-                        startStatsByKey.set(stateKey, stats);
-                        if (ts !== undefined)
-                            ensure(stateKey).startTs = ts;
-                    }
-                }
-                else if (todo.status === 'completed' &&
-                    prev !== 'completed' &&
-                    prev !== undefined) {
-                    const startStats = startStatsByKey.get(stateKey);
-                    const tokenDiff = startStats && stats ? diffStats(startStats, stats) : undefined;
-                    const startTs = result.get(stateKey)?.startTs;
-                    const toolTimeMs = startTs !== undefined && ts !== undefined
-                        ? sumToolTimeInWindow(toolSpans, startTs, ts)
-                        : undefined;
-                    const resources = buildResources(tokenDiff, toolTimeMs);
-                    if (ts !== undefined || resources) {
-                        const detail = ensure(stateKey);
-                        if (ts !== undefined)
-                            detail.endTs = ts;
-                        if (resources)
-                            detail.resources = resources;
-                    }
-                }
-                if (todo.status === 'completed')
-                    completedKeys.add(stateKey);
-                lastStatus.set(stateKey, todo.status);
-            }
-        }
+  const result = new Map();
+  const lastStatus = new Map();
+  const startStatsByKey = new Map();
+  // Keys that have reached `completed`. Going active again afterwards (directly,
+  // or via an intervening `pending`) is a re-activation that must start a fresh
+  // window rather than diff against the prior completion's baseline.
+  const completedKeys = new Set();
+  const toolSpans = collectToolSpans(messages);
+  const ensure = (stateKey) => {
+    let detail = result.get(stateKey);
+    if (!detail) {
+      detail = {};
+      result.set(stateKey, detail);
     }
-    return result;
+    return detail;
+  };
+  for (const message of messages) {
+    const ts = message.timestamp;
+    for (const { todos, stats } of todoSnapshotsOf(message)) {
+      for (const todo of todos) {
+        const stateKey = todoStateKey(todo);
+        const prev = lastStatus.get(stateKey);
+        if (todo.status === 'in_progress' && prev !== 'in_progress') {
+          // Re-activated after a completion (a reopened task, or a new task
+          // reusing a positional `plan-N` id) — reset so its window diffs
+          // against its own start, not the prior completion's far-earlier
+          // boundary, which would render a window spanning both with wildly
+          // inflated token/time numbers. Keyed on "ever completed" so an
+          // intervening `pending` (completed → pending → in_progress) still
+          // resets, while a pause/resume that never completed
+          // (in_progress → pending → in_progress) keeps its first baseline.
+          if (completedKeys.has(stateKey)) {
+            completedKeys.delete(stateKey);
+            startStatsByKey.delete(stateKey);
+            result.delete(stateKey);
+          }
+          // First start *with stats* wins: record the baseline for the resource
+          // diff even when this message has no timestamp. Checking the stored
+          // value (not `Map.has`) lets a real snapshot upgrade a baseline that a
+          // stats-less start (e.g. a plain `plan` message) recorded as
+          // `undefined`, which `has` would otherwise treat as already set.
+          if (startStatsByKey.get(stateKey) === undefined) {
+            startStatsByKey.set(stateKey, stats);
+            if (ts !== undefined) ensure(stateKey).startTs = ts;
+          }
+        } else if (
+          todo.status === 'completed' &&
+          prev !== 'completed' &&
+          prev !== undefined
+        ) {
+          const startStats = startStatsByKey.get(stateKey);
+          const tokenDiff =
+            startStats && stats ? diffStats(startStats, stats) : undefined;
+          const startTs = result.get(stateKey)?.startTs;
+          const toolTimeMs =
+            startTs !== undefined && ts !== undefined
+              ? sumToolTimeInWindow(toolSpans, startTs, ts)
+              : undefined;
+          const resources = buildResources(tokenDiff, toolTimeMs);
+          if (ts !== undefined || resources) {
+            const detail = ensure(stateKey);
+            if (ts !== undefined) detail.endTs = ts;
+            if (resources) detail.resources = resources;
+          }
+        }
+        if (todo.status === 'completed') completedKeys.add(stateKey);
+        lastStatus.set(stateKey, todo.status);
+      }
+    }
+  }
+  return result;
 }
 function getTodoArray(record) {
-    const todos = record?.['todos'];
-    return Array.isArray(todos) ? todos : undefined;
+  const todos = record?.['todos'];
+  return Array.isArray(todos) ? todos : undefined;
 }
 function getTodoStatus(value) {
-    return value === 'completed' || value === 'in_progress' || value === 'pending'
-        ? value
-        : 'pending';
+  return value === 'completed' || value === 'in_progress' || value === 'pending'
+    ? value
+    : 'pending';
 }
 function getTodoPriority(value) {
-    return value === 'high' || value === 'medium' || value === 'low'
-        ? value
-        : undefined;
+  return value === 'high' || value === 'medium' || value === 'low'
+    ? value
+    : undefined;
 }
 function getRecord(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return undefined;
-    }
-    return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  return value;
 }
 function getString(record, key) {
-    const value = record?.[key];
-    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  const value = record?.[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 function getStringArray(record, key) {
-    const value = record?.[key];
-    return Array.isArray(value) && value.every((item) => typeof item === 'string')
-        ? value
-        : undefined;
+  const value = record?.[key];
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? value
+    : undefined;
 }
 export function getTodoPlanId(tool) {
-    const rawOutput = getRecord(tool.rawOutput);
-    const plan = getRecord(rawOutput?.['plan']);
-    return getString(plan, 'id') ?? null;
+  const rawOutput = getRecord(tool.rawOutput);
+  const plan = getRecord(rawOutput?.['plan']);
+  return getString(plan, 'id') ?? null;
 }
 //# sourceMappingURL=todos.js.map

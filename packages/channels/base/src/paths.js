@@ -7,23 +7,26 @@ import * as os from 'node:os';
  * Mirrors Storage.resolvePath() in packages/core.
  */
 export function resolvePath(dir) {
-    let resolved = dir;
-    if (resolved === '~' ||
-        resolved.startsWith('~/') ||
-        resolved.startsWith('~\\')) {
-        const relativeSegments = resolved === '~'
-            ? []
-            : resolved
-                .slice(2)
-                .split(/[/\\]+/)
-                .filter(Boolean);
-        resolved = path.join(os.homedir(), ...relativeSegments);
-    }
-    // Always run through path.resolve: it is a no-op for an already-normal
-    // absolute path but strips trailing separators and collapses `..`/`.`
-    // segments, so equivalent spellings of a path that does not exist on disk
-    // (where the realpath step cannot help) still canonicalize identically.
-    return path.resolve(resolved);
+  let resolved = dir;
+  if (
+    resolved === '~' ||
+    resolved.startsWith('~/') ||
+    resolved.startsWith('~\\')
+  ) {
+    const relativeSegments =
+      resolved === '~'
+        ? []
+        : resolved
+            .slice(2)
+            .split(/[/\\]+/)
+            .filter(Boolean);
+    resolved = path.join(os.homedir(), ...relativeSegments);
+  }
+  // Always run through path.resolve: it is a no-op for an already-normal
+  // absolute path but strips trailing separators and collapses `..`/`.`
+  // segments, so equivalent spellings of a path that does not exist on disk
+  // (where the realpath step cannot help) still canonicalize identically.
+  return path.resolve(resolved);
 }
 /**
  * Returns the global Qwen home directory (config, credentials, etc.).
@@ -34,14 +37,14 @@ export function resolvePath(dir) {
  * from core to avoid cross-package dependencies.
  */
 export function getGlobalQwenDir() {
-    const envDir = process.env['QWEN_HOME'];
-    if (envDir) {
-        return resolvePath(envDir);
-    }
-    const homeDir = os.homedir();
-    return homeDir
-        ? path.join(homeDir, '.qwen')
-        : path.join(os.tmpdir(), '.qwen');
+  const envDir = process.env['QWEN_HOME'];
+  if (envDir) {
+    return resolvePath(envDir);
+  }
+  const homeDir = os.homedir();
+  return homeDir
+    ? path.join(homeDir, '.qwen')
+    : path.join(os.tmpdir(), '.qwen');
 }
 /**
  * Canonicalizes a workspace path for identity purposes: tilde-expand and
@@ -61,13 +64,12 @@ export function getGlobalQwenDir() {
  * starting, so every failure falls back to the resolved spelling.
  */
 export function canonicalizeWorkspacePath(workspaceCwd) {
-    const resolved = resolvePath(workspaceCwd);
-    try {
-        return fs.realpathSync.native(resolved);
-    }
-    catch {
-        return resolved;
-    }
+  const resolved = resolvePath(workspaceCwd);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
 }
 /**
  * Directory name for a workspace-scoped slice of channel state, derived from
@@ -82,16 +84,16 @@ export function canonicalizeWorkspacePath(workspaceCwd) {
  * agreement about which store they address.
  */
 export function getWorkspaceScopeDirName(workspaceCwd) {
-    const resolved = canonicalizeWorkspacePath(workspaceCwd);
-    const hash = crypto
-        .createHash('sha256')
-        .update(resolved)
-        .digest('hex')
-        .slice(0, 12);
-    const base = path
-        .basename(resolved)
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-        .slice(0, 32);
-    return base ? `${base}-${hash}` : hash;
+  const resolved = canonicalizeWorkspacePath(workspaceCwd);
+  const hash = crypto
+    .createHash('sha256')
+    .update(resolved)
+    .digest('hex')
+    .slice(0, 12);
+  const base = path
+    .basename(resolved)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 32);
+  return base ? `${base}-${hash}` : hash;
 }
 //# sourceMappingURL=paths.js.map

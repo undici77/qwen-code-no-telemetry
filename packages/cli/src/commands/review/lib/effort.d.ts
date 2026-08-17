@@ -11,7 +11,9 @@ import type { ReviewEffort } from '../parse-args.js';
  * when neither is available — the roster then fail-safes to the full set, exactly as
  * before, so a missing report never *reduces* coverage.
  */
-export declare function resolveEffort(explicit: string | undefined): ReviewEffort | undefined;
+export declare function resolveEffort(
+  explicit: string | undefined,
+): ReviewEffort | undefined;
 /**
  * The resolved effort shaped for spreading into a capture command's plan:
  * `{ effort }` when a level resolves, `{}` otherwise (roster fail-safes to full).
@@ -19,5 +21,5 @@ export declare function resolveEffort(explicit: string | undefined): ReviewEffor
  * here once rather than being re-spelled at each call site.
  */
 export declare function planEffortField(explicit: string | undefined): {
-    effort?: ReviewEffort;
+  effort?: ReviewEffort;
 };

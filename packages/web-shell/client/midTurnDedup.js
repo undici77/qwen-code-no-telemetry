@@ -33,42 +33,54 @@
  * client-generated ids used by reconciliation; older daemons still need the
  * fallback because they mint their id after the request arrives.
  */
-export function removeInjectedFromQueue(prompts, batches, sessionId, clientId, strictMessageIds = false) {
-    const remaining = [...prompts];
-    const isTextOnly = (prompt) => !prompt.images || prompt.images.length === 0;
-    let changed = false;
-    for (const batch of batches) {
-        if (batch.sessionId !== sessionId)
-            continue;
-        const originatorMatches = batch.originatorClientId === undefined ||
-            batch.originatorClientId === clientId;
-        if (!originatorMatches && !strictMessageIds)
-            continue;
-        for (const [messageIndex, message] of batch.messages.entries()) {
-            const messageId = batch.messageIds?.[messageIndex];
-            // A strict id match wins regardless of position; the text fallback below
-            // only runs for rows the id can't reach (no ids in the batch, or a row
-            // still awaiting its admission id).
-            let index = messageId !== undefined
-                ? remaining.findIndex((prompt) => prompt.midTurnState !== undefined &&
-                    prompt.midTurnMessageId === messageId &&
-                    isTextOnly(prompt))
-                : -1;
-            if (index < 0 && originatorMatches) {
-                index = remaining.findIndex((prompt) => prompt.midTurnState !== undefined &&
-                    (messageId === undefined ||
-                        (prompt.midTurnState === 'submitting' &&
-                            (!strictMessageIds ||
-                                prompt.midTurnMessageId === undefined))) &&
-                    prompt.text === message &&
-                    isTextOnly(prompt));
-            }
-            if (index >= 0) {
-                remaining.splice(index, 1);
-                changed = true;
-            }
-        }
+export function removeInjectedFromQueue(
+  prompts,
+  batches,
+  sessionId,
+  clientId,
+  strictMessageIds = false,
+) {
+  const remaining = [...prompts];
+  const isTextOnly = (prompt) => !prompt.images || prompt.images.length === 0;
+  let changed = false;
+  for (const batch of batches) {
+    if (batch.sessionId !== sessionId) continue;
+    const originatorMatches =
+      batch.originatorClientId === undefined ||
+      batch.originatorClientId === clientId;
+    if (!originatorMatches && !strictMessageIds) continue;
+    for (const [messageIndex, message] of batch.messages.entries()) {
+      const messageId = batch.messageIds?.[messageIndex];
+      // A strict id match wins regardless of position; the text fallback below
+      // only runs for rows the id can't reach (no ids in the batch, or a row
+      // still awaiting its admission id).
+      let index =
+        messageId !== undefined
+          ? remaining.findIndex(
+              (prompt) =>
+                prompt.midTurnState !== undefined &&
+                prompt.midTurnMessageId === messageId &&
+                isTextOnly(prompt),
+            )
+          : -1;
+      if (index < 0 && originatorMatches) {
+        index = remaining.findIndex(
+          (prompt) =>
+            prompt.midTurnState !== undefined &&
+            (messageId === undefined ||
+              (prompt.midTurnState === 'submitting' &&
+                (!strictMessageIds ||
+                  prompt.midTurnMessageId === undefined))) &&
+            prompt.text === message &&
+            isTextOnly(prompt),
+        );
+      }
+      if (index >= 0) {
+        remaining.splice(index, 1);
+        changed = true;
+      }
     }
-    return changed ? remaining : null;
+  }
+  return changed ? remaining : null;
 }
 //# sourceMappingURL=midTurnDedup.js.map

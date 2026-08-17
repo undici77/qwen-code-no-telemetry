@@ -10,7 +10,7 @@ import type { CompletionItem } from '../../types/completionItemTypes.js';
  * Prefix used to distinguish skill completion items from other commands.
  * For example, a skill named "code-review" gets item id "skill:code-review".
  */
-export declare const SKILL_ITEM_ID_PREFIX = "skill:";
+export declare const SKILL_ITEM_ID_PREFIX = 'skill:';
 /**
  * Check whether the current completion query is targeting the secondary
  * skills picker (i.e. the user typed "/skills " followed by optional text).
@@ -28,7 +28,10 @@ export declare function isSkillsSecondaryQuery(query: string): boolean;
  * @returns true when the item represents the /skills command and there are
  * available skills to show
  */
-export declare function shouldOpenSkillsSecondaryPicker(item: CompletionItem, availableSkills: string[]): boolean;
+export declare function shouldOpenSkillsSecondaryPicker(
+  item: CompletionItem,
+  availableSkills: string[],
+): boolean;
 /**
  * Resolve which completion trigger (`@` or `/`), if any, is active immediately
  * before the cursor.
@@ -47,8 +50,11 @@ export declare function shouldOpenSkillsSecondaryPicker(item: CompletionItem, av
  * @returns The active trigger's character, position, and the query following
  * it, or `null` when there is no valid trigger before the cursor.
  */
-export declare function resolveCompletionTrigger(text: string, cursorPosition: number): {
-    char: '@' | '/';
-    pos: number;
-    query: string;
+export declare function resolveCompletionTrigger(
+  text: string,
+  cursorPosition: number,
+): {
+  char: '@' | '/';
+  pos: number;
+  query: string;
 } | null;

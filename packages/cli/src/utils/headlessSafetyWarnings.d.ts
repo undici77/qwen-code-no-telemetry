@@ -17,7 +17,10 @@ export declare const HEADLESS_YOLO_NO_SANDBOX_WARNING: string;
  * The `env` argument is injectable for tests; production callers omit it and
  * fall through to `process.env`.
  */
-export declare function getHeadlessYoloSafetyWarning(config: {
+export declare function getHeadlessYoloSafetyWarning(
+  config: {
     getApprovalMode(): string | undefined;
     getSandbox(): unknown;
-}, env?: NodeJS.ProcessEnv): string | null;
+  },
+  env?: NodeJS.ProcessEnv,
+): string | null;

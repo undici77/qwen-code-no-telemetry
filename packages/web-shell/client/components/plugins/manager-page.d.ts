@@ -1,4 +1,4 @@
 export interface EmbeddedManagerPage {
-    onRoot: () => void;
-    onDetailChange: (open: boolean) => void;
+  onRoot: () => void;
+  onDetailChange: (open: boolean) => void;
 }

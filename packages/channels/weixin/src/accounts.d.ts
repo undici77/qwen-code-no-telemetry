@@ -2,12 +2,12 @@
  * Credential storage for WeChat account.
  * Stores account data in ~/.qwen/channels/weixin/
  */
-export declare const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
+export declare const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com';
 export interface AccountData {
-    token: string;
-    baseUrl: string;
-    userId?: string;
-    savedAt: string;
+  token: string;
+  baseUrl: string;
+  userId?: string;
+  savedAt: string;
 }
 export declare function getStateDir(): string;
 export declare function loadAccount(): AccountData | null;

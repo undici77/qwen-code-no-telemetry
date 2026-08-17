@@ -12,9 +12,9 @@ import type { SettingsWatcher } from './settingsWatcher.js';
  * these govern *whether* to connect, the map governs *which servers and how*.
  */
 export interface McpGating {
-    excluded?: string[];
-    allowed?: string[];
-    pending?: string[];
+  excluded?: string[];
+  allowed?: string[];
+  pending?: string[];
 }
 /**
  * Whether two `mcpServers` maps are equivalent. `fast-deep-equal` is
@@ -22,7 +22,10 @@ export interface McpGating {
  * settings.json is not a false positive) but sensitive to array order (so
  * `args` order — which is semantically meaningful — is). `undefined` ≡ `{}`.
  */
-export declare function mcpServersEqual(a: Record<string, MCPServerConfig> | undefined, b: Record<string, MCPServerConfig> | undefined): boolean;
+export declare function mcpServersEqual(
+  a: Record<string, MCPServerConfig> | undefined,
+  b: Record<string, MCPServerConfig> | undefined,
+): boolean;
 /**
  * Whether two admission-list snapshots are equivalent. `excluded` / `pending`
  * are sets (order-irrelevant) where `undefined` ≡ `[]` (both mean "no entries").
@@ -52,7 +55,13 @@ export declare function mcpGatingEqual(a: McpGating, b: McpGating): boolean;
  * The pending list is always recomputed per #4615 so a hot-reload never
  * connects an unapproved gated server.
  */
-export declare function recomputeMcpGating(settings: LoadedSettings, assembled: Record<string, MCPServerConfig>, cwd: string, bootAllowed: readonly string[] | undefined, isYolo: boolean): McpGating;
+export declare function recomputeMcpGating(
+  settings: LoadedSettings,
+  assembled: Record<string, MCPServerConfig>,
+  cwd: string,
+  bootAllowed: readonly string[] | undefined,
+  isYolo: boolean,
+): McpGating;
 /**
  * Subscribe the running {@link Config} to settings changes so MCP servers
  * reconnect / disconnect / restart without a session restart (issue #3696
@@ -67,4 +76,9 @@ export declare function recomputeMcpGating(settings: LoadedSettings, assembled: 
  * its listeners; re-entrancy during an in-flight reconcile is coalesced inside
  * `Config.reinitializeMcpServers`.
  */
-export declare function registerMcpHotReload(watcher: SettingsWatcher, settings: LoadedSettings, config: Config, topTierMcpServers: Record<string, MCPServerConfig> | undefined): () => void;
+export declare function registerMcpHotReload(
+  watcher: SettingsWatcher,
+  settings: LoadedSettings,
+  config: Config,
+  topTierMcpServers: Record<string, MCPServerConfig> | undefined,
+): () => void;

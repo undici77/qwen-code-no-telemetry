@@ -3,7 +3,11 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { type AgentTask, type Config, type TaskState } from '@qwen-code/qwen-code-core';
+import {
+  type AgentTask,
+  type Config,
+  type TaskState,
+} from '@qwen-code/qwen-code-core';
 /**
  * @deprecated Use {@link AgentTask} from `@qwen-code/qwen-code-core`
  * directly. Kept as a one-release alias while UI consumers migrate.
@@ -17,37 +21,37 @@ export type AgentDialogEntry = AgentTask;
  * (skipped/pending records are filtered out at the source).
  */
 export type DreamDialogEntry = {
-    kind: 'dream';
-    /** MemoryTaskRecord.id — used as React key + lookup. */
-    dreamId: string;
-    status: 'running' | 'completed' | 'failed' | 'cancelled';
-    startTime: number;
-    /**
-     * Wall-clock instant the record's `status` last changed. For
-     * `completed` / `failed` this is when the dream actually finished;
-     * for `cancelled` this is the moment `cancelTask` ran (NOT when
-     * the fork agent finishes unwinding — that can lag by seconds for
-     * agents mid-tool-call). The dialog renders elapsed from this
-     * value, so a freshly-cancelled record snaps to "Stopped · Ns"
-     * even while the underlying fork is still releasing the lock.
-     */
-    endTime?: number;
-    progressText?: string;
-    error?: string;
-    /** Number of sessions the dream is reviewing — populated on schedule. */
-    sessionCount?: number;
-    /** Memory topic files written — populated on completion. */
-    touchedTopics?: readonly string[];
-    /**
-     * Best-effort warnings populated by `runDream` when post-fork
-     * housekeeping fails (gating-metadata write or consolidation-lock
-     * release). The dream itself completed successfully — these are
-     * informational so the user can explain why subsequent dreams may
-     * be silently skipped as `'locked'` or why the scheduler gate
-     * isn't seeing the most recent dream's timestamp.
-     */
-    lockReleaseError?: string;
-    metadataWriteError?: string;
+  kind: 'dream';
+  /** MemoryTaskRecord.id — used as React key + lookup. */
+  dreamId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  startTime: number;
+  /**
+   * Wall-clock instant the record's `status` last changed. For
+   * `completed` / `failed` this is when the dream actually finished;
+   * for `cancelled` this is the moment `cancelTask` ran (NOT when
+   * the fork agent finishes unwinding — that can lag by seconds for
+   * agents mid-tool-call). The dialog renders elapsed from this
+   * value, so a freshly-cancelled record snaps to "Stopped · Ns"
+   * even while the underlying fork is still releasing the lock.
+   */
+  endTime?: number;
+  progressText?: string;
+  error?: string;
+  /** Number of sessions the dream is reviewing — populated on schedule. */
+  sessionCount?: number;
+  /** Memory topic files written — populated on completion. */
+  touchedTopics?: readonly string[];
+  /**
+   * Best-effort warnings populated by `runDream` when post-fork
+   * housekeeping fails (gating-metadata write or consolidation-lock
+   * release). The dream itself completed successfully — these are
+   * informational so the user can explain why subsequent dreams may
+   * be silently skipped as `'locked'` or why the scheduler gate
+   * isn't seeing the most recent dream's timestamp.
+   */
+  lockReleaseError?: string;
+  metadataWriteError?: string;
 };
 /**
  * A unified view-model entry the dialog/pill/context render against.
@@ -62,7 +66,7 @@ export type DreamDialogEntry = {
  */
 export type DialogEntry = TaskState | DreamDialogEntry;
 export interface UseBackgroundTaskViewResult {
-    entries: readonly DialogEntry[];
+  entries: readonly DialogEntry[];
 }
 /**
  * Two-bucket roster ordering so "new OR running tasks should appear at the
@@ -85,15 +89,20 @@ export interface UseBackgroundTaskViewResult {
  * a capped child list can't hide a running child behind older completed
  * siblings.
  */
-export declare function compareActiveThenTerminal(a: {
+export declare function compareActiveThenTerminal(
+  a: {
     status: string;
     startTime: number;
     endTime?: number;
-}, b: {
+  },
+  b: {
     status: string;
     startTime: number;
     endTime?: number;
-}): number;
+  },
+): number;
 /** Stable id of an entry regardless of kind — used as React key + lookup. */
 export declare function entryId(entry: DialogEntry): string;
-export declare function useBackgroundTaskView(config: Config | null): UseBackgroundTaskViewResult;
+export declare function useBackgroundTaskView(
+  config: Config | null,
+): UseBackgroundTaskViewResult;

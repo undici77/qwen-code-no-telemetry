@@ -1,1 +1,3 @@
-export declare function resolveSessionDetailsCollisionBoundary(sidebar: HTMLElement | null): HTMLElement | null;
+export declare function resolveSessionDetailsCollisionBoundary(
+  sidebar: HTMLElement | null,
+): HTMLElement | null;

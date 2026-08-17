@@ -1,5 +1,18 @@
-import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, } from 'react';
+import {
+  jsx as _jsx,
+  jsxs as _jsxs,
+  Fragment as _Fragment,
+} from 'react/jsx-runtime';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTheme } from '../../themeContext';
 import { useTranscriptRenderMode } from '../../transcriptRenderMode';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
@@ -7,124 +20,124 @@ import { isMarkdownFenceClosed } from '@datafe-open/markdown-chart';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { getCachedHtml, getCodeHighlighter, highlightToHtmlSync, isTooLargeToHighlight, } from './codeHighlighter';
+import {
+  getCachedHtml,
+  getCodeHighlighter,
+  highlightToHtmlSync,
+  isTooLargeToHighlight,
+} from './codeHighlighter';
 import { useI18n } from '../../i18n';
-import { useWebShellCustomization, } from '../../customization';
+import { useWebShellCustomization } from '../../customization';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { EnhancedMarkdownTable } from './EnhancedMarkdownTable';
-import { DEFAULT_WEB_SHELL_MARKDOWN_CHART, WebShellMarkdownChartProvider, createWebShellMarkdownChartPre, } from './MarkdownChartRenderer';
+import {
+  DEFAULT_WEB_SHELL_MARKDOWN_CHART,
+  WebShellMarkdownChartProvider,
+  createWebShellMarkdownChartPre,
+} from './MarkdownChartRenderer';
 import styles from './Markdown.module.css';
 const SUPPORTED_LANGUAGES = new Set([
-    'javascript',
-    'typescript',
-    'python',
-    'rust',
-    'go',
-    'java',
-    'c',
-    'cpp',
-    'csharp',
-    'fsharp',
-    'ruby',
-    'php',
-    'swift',
-    'kotlin',
-    'scala',
-    // `shell` and `zsh` are intentionally absent: LANGUAGE_ALIASES maps them to
-    // `bash`, which resolveFenceLanguage applies before this membership check.
-    'bash',
-    'fish',
-    'powershell',
-    'sql',
-    'html',
-    'css',
-    'scss',
-    'json',
-    'yaml',
-    'toml',
-    'xml',
-    'markdown',
-    'dockerfile',
-    'graphql',
-    'lua',
-    'r',
-    'matlab',
-    'perl',
-    'haskell',
-    'elixir',
-    'erlang',
-    'clojure',
-    'dart',
-    'vue',
-    'svelte',
-    'astro',
-    'tsx',
-    'jsx',
-    'diff',
+  'javascript',
+  'typescript',
+  'python',
+  'rust',
+  'go',
+  'java',
+  'c',
+  'cpp',
+  'csharp',
+  'fsharp',
+  'ruby',
+  'php',
+  'swift',
+  'kotlin',
+  'scala',
+  // `shell` and `zsh` are intentionally absent: LANGUAGE_ALIASES maps them to
+  // `bash`, which resolveFenceLanguage applies before this membership check.
+  'bash',
+  'fish',
+  'powershell',
+  'sql',
+  'html',
+  'css',
+  'scss',
+  'json',
+  'yaml',
+  'toml',
+  'xml',
+  'markdown',
+  'dockerfile',
+  'graphql',
+  'lua',
+  'r',
+  'matlab',
+  'perl',
+  'haskell',
+  'elixir',
+  'erlang',
+  'clojure',
+  'dart',
+  'vue',
+  'svelte',
+  'astro',
+  'tsx',
+  'jsx',
+  'diff',
 ]);
 // Common fence aliases → Shiki's canonical language id. This keeps shorthand
 // tags like ```ts and punctuation tags like ```c++ highlighted under the
 // language ids Shiki actually supports.
 const LANGUAGE_ALIASES = {
-    'c++': 'cpp',
-    'c#': 'csharp',
-    'f#': 'fsharp',
-    ts: 'typescript',
-    js: 'javascript',
-    py: 'python',
-    rb: 'ruby',
-    rs: 'rust',
-    kt: 'kotlin',
-    cs: 'csharp',
-    sh: 'bash',
-    zsh: 'bash',
-    shell: 'bash',
-    yml: 'yaml',
-    md: 'markdown',
-    golang: 'go',
-    ps1: 'powershell',
-    docker: 'dockerfile',
+  'c++': 'cpp',
+  'c#': 'csharp',
+  'f#': 'fsharp',
+  ts: 'typescript',
+  js: 'javascript',
+  py: 'python',
+  rb: 'ruby',
+  rs: 'rust',
+  kt: 'kotlin',
+  cs: 'csharp',
+  sh: 'bash',
+  zsh: 'bash',
+  shell: 'bash',
+  yml: 'yaml',
+  md: 'markdown',
+  golang: 'go',
+  ps1: 'powershell',
+  docker: 'dockerfile',
 };
 export function resolveFenceLanguage(rawLang) {
-    const normalized = (rawLang || '').toLowerCase();
-    // `Object.hasOwn` guard: a bracket read like `LANGUAGE_ALIASES['__proto__']`
-    // would otherwise return an inherited prototype value (an object/function),
-    // violating the `lang: string` contract.
-    const lang = Object.hasOwn(LANGUAGE_ALIASES, normalized)
-        ? LANGUAGE_ALIASES[normalized]
-        : normalized;
-    const resolvedLang = SUPPORTED_LANGUAGES.has(lang) ? lang : 'text';
-    // Header label preserves the original case (` ```TypeScript ` shows
-    // "TypeScript", not "typescript"); alias resolution uses the lowercased form.
-    return { label: (rawLang || '').trim() || 'text', lang, resolvedLang };
+  const normalized = (rawLang || '').toLowerCase();
+  // `Object.hasOwn` guard: a bracket read like `LANGUAGE_ALIASES['__proto__']`
+  // would otherwise return an inherited prototype value (an object/function),
+  // violating the `lang: string` contract.
+  const lang = Object.hasOwn(LANGUAGE_ALIASES, normalized)
+    ? LANGUAGE_ALIASES[normalized]
+    : normalized;
+  const resolvedLang = SUPPORTED_LANGUAGES.has(lang) ? lang : 'text';
+  // Header label preserves the original case (` ```TypeScript ` shows
+  // "TypeScript", not "typescript"); alias resolution uses the lowercased form.
+  return { label: (rawLang || '').trim() || 'text', lang, resolvedLang };
 }
 const SAFE_HREF_SCHEMES = /^(https?:|mailto:)/i;
 const SAFE_IMAGE_DATA_URI = /^data:image\/(png|jpeg|gif|webp|bmp);base64,/i;
 export function isSafeHref(url) {
-    if (!url)
-        return false;
-    const trimmed = url.trim();
-    if (!trimmed)
-        return false;
-    if (trimmed.startsWith('#'))
-        return true;
-    if (trimmed.startsWith('/') && !trimmed.startsWith('//'))
-        return true;
-    return SAFE_HREF_SCHEMES.test(trimmed);
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('#')) return true;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  return SAFE_HREF_SCHEMES.test(trimmed);
 }
 export function isSafeImageSrc(url) {
-    if (!url)
-        return false;
-    const trimmed = url.trim();
-    if (!trimmed)
-        return false;
-    if (trimmed.startsWith('#'))
-        return true;
-    if (trimmed.startsWith('/') && !trimmed.startsWith('//'))
-        return true;
-    if (SAFE_IMAGE_DATA_URI.test(trimmed))
-        return true;
-    return SAFE_HREF_SCHEMES.test(trimmed);
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('#')) return true;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  if (SAFE_IMAGE_DATA_URI.test(trimmed)) return true;
+  return SAFE_HREF_SCHEMES.test(trimmed);
 }
 // Track last initialized theme to avoid redundant mermaid.initialize() calls.
 // mermaid.initialize() is idempotent but runs per-block; with N diagrams in a
@@ -132,216 +145,349 @@ export function isSafeImageSrc(url) {
 let lastMermaidTheme;
 let mermaidRenderId = 0;
 function MermaidBlock({ code }) {
-    const { t } = useI18n();
-    const appTheme = useTheme();
-    const [svg, setSvg] = useState(null);
-    const [error, setError] = useState(null);
-    const [viewMode, setViewMode] = useState('diagram');
-    const [copied, setCopied] = useState(false);
-    const [zoom, setZoom] = useState(1);
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
-    const [isDragging, setIsDragging] = useState(false);
-    const dragRef = useRef(null);
-    const mermaidTheme = appTheme === 'light' ? 'default' : 'dark';
-    const ZOOM_MIN = 0.5;
-    const ZOOM_MAX = 3;
-    const ZOOM_STEP = 0.25;
-    const handleZoomIn = () => {
-        setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100));
+  const { t } = useI18n();
+  const appTheme = useTheme();
+  const [svg, setSvg] = useState(null);
+  const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('diagram');
+  const [copied, setCopied] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef(null);
+  const mermaidTheme = appTheme === 'light' ? 'default' : 'dark';
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 3;
+  const ZOOM_STEP = 0.25;
+  const handleZoomIn = () => {
+    setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100));
+  };
+  const handleZoomOut = () => {
+    setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100));
+  };
+  const resetZoomAndPan = useCallback(() => {
+    dragRef.current = null;
+    setIsDragging(false);
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+  const handleMouseDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsDragging(true);
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: offset.x,
+        origY: offset.y,
+      };
+    },
+    [offset],
+  );
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMouseMove = (e) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.startX;
+      const dy = e.clientY - dragRef.current.startY;
+      // Clamp Y to prevent dragging into overflow-y: hidden clipped area.
+      // X is unclamped — overflow-x: auto provides native horizontal scroll.
+      const PAN_LIMIT = 1500;
+      setOffset({
+        x: dragRef.current.origX + dx,
+        y: Math.max(
+          -PAN_LIMIT,
+          Math.min(PAN_LIMIT, dragRef.current.origY + dy),
+        ),
+      });
     };
-    const handleZoomOut = () => {
-        setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100));
+    const onMouseUp = () => {
+      dragRef.current = null;
+      setIsDragging(false);
     };
-    const resetZoomAndPan = useCallback(() => {
-        dragRef.current = null;
-        setIsDragging(false);
-        setZoom(1);
-        setOffset({ x: 0, y: 0 });
-    }, []);
-    const handleMouseDown = useCallback((e) => {
-        e.preventDefault();
-        setIsDragging(true);
-        dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            origX: offset.x,
-            origY: offset.y,
-        };
-    }, [offset]);
-    useEffect(() => {
-        if (!isDragging)
-            return;
-        const onMouseMove = (e) => {
-            if (!dragRef.current)
-                return;
-            const dx = e.clientX - dragRef.current.startX;
-            const dy = e.clientY - dragRef.current.startY;
-            // Clamp Y to prevent dragging into overflow-y: hidden clipped area.
-            // X is unclamped — overflow-x: auto provides native horizontal scroll.
-            const PAN_LIMIT = 1500;
-            setOffset({
-                x: dragRef.current.origX + dx,
-                y: Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, dragRef.current.origY + dy)),
-            });
-        };
-        const onMouseUp = () => {
-            dragRef.current = null;
-            setIsDragging(false);
-        };
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
-        window.addEventListener('blur', onMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
-            window.removeEventListener('blur', onMouseUp);
-        };
-    }, [isDragging]);
-    useEffect(() => {
-        setZoom(1);
-        setOffset({ x: 0, y: 0 });
-    }, [code]);
-    useEffect(() => {
-        let cancelled = false;
-        setSvg(null);
-        setError(null);
-        const timer = setTimeout(() => {
-            import('mermaid').then(async (mod) => {
-                if (cancelled)
-                    return;
-                const mermaid = mod.default;
-                if (lastMermaidTheme !== mermaidTheme) {
-                    mermaid.initialize({
-                        startOnLoad: false,
-                        theme: mermaidTheme,
-                        securityLevel: 'strict',
-                        suppressErrorRendering: true,
-                        flowchart: {
-                            wrappingWidth: 300,
-                            useMaxWidth: false,
-                        },
-                    });
-                    lastMermaidTheme = mermaidTheme;
-                }
-                try {
-                    const id = `mermaid-${++mermaidRenderId}`;
-                    const { svg } = await mermaid.render(id, code.trim());
-                    // No additional sanitization needed: securityLevel:'strict' uses
-                    // DOMPurify internally to sanitize SVG output.
-                    if (!cancelled) {
-                        setSvg(svg);
-                    }
-                }
-                catch (error) {
-                    if (!cancelled) {
-                        setError(error instanceof Error ? error.message : 'Mermaid render failed');
-                    }
-                }
-            });
-        }, 150);
-        return () => {
-            cancelled = true;
-            clearTimeout(timer);
-        };
-    }, [code, mermaidTheme]);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(code).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }, () => { });
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('blur', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('blur', onMouseUp);
     };
-    if (error) {
-        return (_jsxs("div", { className: styles.codeBlock, children: [_jsx("div", { className: styles.codeBlockHeader, children: _jsx("span", { className: styles.codeBlockLang, children: t('mermaid.errorLabel') }) }), _jsx("pre", { className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`, children: _jsx("code", { children: code }) })] }));
-    }
-    return (_jsxs("div", { className: styles.codeBlock, children: [_jsxs("div", { className: styles.codeBlockHeader, children: [_jsx("span", { className: styles.codeBlockLang, children: t('mermaid.label') }), _jsxs("span", { className: styles.mermaidActions, children: [viewMode === 'diagram' && (_jsxs(_Fragment, { children: [_jsx("button", { className: styles.codeBlockCopy, onClick: handleZoomOut, title: t('mermaid.zoomOut'), disabled: zoom <= ZOOM_MIN, children: t('mermaid.zoomOut') }), _jsx("button", { className: styles.codeBlockCopy, onClick: resetZoomAndPan, title: t('mermaid.zoomReset'), disabled: zoom === 1 && offset.x === 0 && offset.y === 0, children: t('mermaid.zoomReset') }), _jsx("button", { className: styles.codeBlockCopy, onClick: handleZoomIn, title: t('mermaid.zoomIn'), disabled: zoom >= ZOOM_MAX, children: t('mermaid.zoomIn') })] })), _jsx("button", { className: styles.codeBlockCopy, onClick: () => setViewMode(viewMode === 'diagram' ? 'code' : 'diagram'), children: viewMode === 'diagram'
-                                    ? t('mermaid.viewCode')
-                                    : t('mermaid.viewDiagram') }), _jsx("button", { className: styles.codeBlockCopy, onClick: handleCopy, children: copied ? t('code.copied') : t('code.copy') })] })] }), viewMode === 'code' ? (_jsx("pre", { className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`, children: _jsx("code", { children: code }) })) : !svg ? (_jsx("div", { className: `${styles.mermaidBlock} ${styles.mermaidLoading} ${styles.mermaidInline}`, children: _jsx("span", { children: t('mermaid.rendering') }) })) : (_jsx("div", { className: `${styles.mermaidZoomWrapper} ${isDragging ? styles.mermaidDragging : ''}`, onMouseDown: handleMouseDown, onDoubleClick: resetZoomAndPan, children: _jsx("div", { className: `${styles.mermaidBlock} ${styles.mermaidInline}`, style: {
-                        transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                        transformOrigin: 'top center',
-                    }, dangerouslySetInnerHTML: { __html: svg } }) }))] }));
+  }, [isDragging]);
+  useEffect(() => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }, [code]);
+  useEffect(() => {
+    let cancelled = false;
+    setSvg(null);
+    setError(null);
+    const timer = setTimeout(() => {
+      import('mermaid').then(async (mod) => {
+        if (cancelled) return;
+        const mermaid = mod.default;
+        if (lastMermaidTheme !== mermaidTheme) {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: mermaidTheme,
+            securityLevel: 'strict',
+            suppressErrorRendering: true,
+            flowchart: {
+              wrappingWidth: 300,
+              useMaxWidth: false,
+            },
+          });
+          lastMermaidTheme = mermaidTheme;
+        }
+        try {
+          const id = `mermaid-${++mermaidRenderId}`;
+          const { svg } = await mermaid.render(id, code.trim());
+          // No additional sanitization needed: securityLevel:'strict' uses
+          // DOMPurify internally to sanitize SVG output.
+          if (!cancelled) {
+            setSvg(svg);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setError(
+              error instanceof Error ? error.message : 'Mermaid render failed',
+            );
+          }
+        }
+      });
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [code, mermaidTheme]);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => {},
+    );
+  };
+  if (error) {
+    return _jsxs('div', {
+      className: styles.codeBlock,
+      children: [
+        _jsx('div', {
+          className: styles.codeBlockHeader,
+          children: _jsx('span', {
+            className: styles.codeBlockLang,
+            children: t('mermaid.errorLabel'),
+          }),
+        }),
+        _jsx('pre', {
+          className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`,
+          children: _jsx('code', { children: code }),
+        }),
+      ],
+    });
+  }
+  return _jsxs('div', {
+    className: styles.codeBlock,
+    children: [
+      _jsxs('div', {
+        className: styles.codeBlockHeader,
+        children: [
+          _jsx('span', {
+            className: styles.codeBlockLang,
+            children: t('mermaid.label'),
+          }),
+          _jsxs('span', {
+            className: styles.mermaidActions,
+            children: [
+              viewMode === 'diagram' &&
+                _jsxs(_Fragment, {
+                  children: [
+                    _jsx('button', {
+                      className: styles.codeBlockCopy,
+                      onClick: handleZoomOut,
+                      title: t('mermaid.zoomOut'),
+                      disabled: zoom <= ZOOM_MIN,
+                      children: t('mermaid.zoomOut'),
+                    }),
+                    _jsx('button', {
+                      className: styles.codeBlockCopy,
+                      onClick: resetZoomAndPan,
+                      title: t('mermaid.zoomReset'),
+                      disabled: zoom === 1 && offset.x === 0 && offset.y === 0,
+                      children: t('mermaid.zoomReset'),
+                    }),
+                    _jsx('button', {
+                      className: styles.codeBlockCopy,
+                      onClick: handleZoomIn,
+                      title: t('mermaid.zoomIn'),
+                      disabled: zoom >= ZOOM_MAX,
+                      children: t('mermaid.zoomIn'),
+                    }),
+                  ],
+                }),
+              _jsx('button', {
+                className: styles.codeBlockCopy,
+                onClick: () =>
+                  setViewMode(viewMode === 'diagram' ? 'code' : 'diagram'),
+                children:
+                  viewMode === 'diagram'
+                    ? t('mermaid.viewCode')
+                    : t('mermaid.viewDiagram'),
+              }),
+              _jsx('button', {
+                className: styles.codeBlockCopy,
+                onClick: handleCopy,
+                children: copied ? t('code.copied') : t('code.copy'),
+              }),
+            ],
+          }),
+        ],
+      }),
+      viewMode === 'code'
+        ? _jsx('pre', {
+            className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`,
+            children: _jsx('code', { children: code }),
+          })
+        : !svg
+          ? _jsx('div', {
+              className: `${styles.mermaidBlock} ${styles.mermaidLoading} ${styles.mermaidInline}`,
+              children: _jsx('span', { children: t('mermaid.rendering') }),
+            })
+          : _jsx('div', {
+              className: `${styles.mermaidZoomWrapper} ${isDragging ? styles.mermaidDragging : ''}`,
+              onMouseDown: handleMouseDown,
+              onDoubleClick: resetZoomAndPan,
+              children: _jsx('div', {
+                className: `${styles.mermaidBlock} ${styles.mermaidInline}`,
+                style: {
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                  transformOrigin: 'top center',
+                },
+                dangerouslySetInnerHTML: { __html: svg },
+              }),
+            }),
+    ],
+  });
 }
-function CodeBlock({ className, children, isStreaming, }) {
-    const { t } = useI18n();
-    const appTheme = useTheme();
-    const [html, setHtml] = useState(null);
-    const [copied, setCopied] = useState(false);
-    const { label, lang, resolvedLang } = resolveFenceLanguage(extractRawFenceLanguage(className));
-    const code = String(children).replace(/\n$/, '');
-    const shikiTheme = appTheme === 'light' ? 'github-light-default' : 'github-dark-default';
-    useEffect(() => {
-        // Stream code as plain text. Highlighting a growing fence on every chunk
-        // repeatedly tokenizes its entire contents and can dominate rendering for
-        // long responses; the settled render below highlights the final text once.
-        if (isStreaming ||
-            lang === 'mermaid' ||
-            resolvedLang === 'text' ||
-            isTooLargeToHighlight(code)) {
-            setHtml(null);
-            return;
-        }
-        // Already-highlighted exact code/lang/theme (settled re-render, or a block
-        // that re-mounted): return it synchronously without needing the highlighter.
-        const cached = getCachedHtml(code, resolvedLang, shikiTheme);
-        if (cached !== null) {
-            setHtml(cached);
-            return;
-        }
-        const warmHtml = highlightToHtmlSync(code, resolvedLang, shikiTheme, true);
-        if (warmHtml !== null) {
-            setHtml(warmHtml);
-            return;
-        }
-        // Cold path: the grammar isn't loaded yet. Drop any HTML still held from a
-        // previous `code` (e.g. this reused CodeBlock instance just switched to a
-        // not-yet-loaded language on regeneration) so we render the current code as
-        // plain text — not the prior block's stale highlight — until the load
-        // resolves. Then re-check cancellation *before* the synchronous tokenization
-        // so a superseded settled block does not run codeToHtml.
-        setHtml(null);
-        let cancelled = false;
-        getCodeHighlighter(resolvedLang)
-            .then(() => {
-            if (cancelled)
-                return;
-            const cold = highlightToHtmlSync(code, resolvedLang, shikiTheme, true);
-            if (cold !== null)
-                setHtml(cold);
-        })
-            .catch((err) => {
-            if (cancelled)
-                return;
-            console.warn('[web-shell] highlight failed for lang=%s', resolvedLang, err);
-            setHtml(null);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [code, lang, resolvedLang, shikiTheme, isStreaming]);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(code).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }, () => { });
-    };
-    if (lang === 'mermaid' && !isStreaming) {
-        return _jsx(MermaidBlock, { code: code });
+function CodeBlock({ className, children, isStreaming }) {
+  const { t } = useI18n();
+  const appTheme = useTheme();
+  const [html, setHtml] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const { label, lang, resolvedLang } = resolveFenceLanguage(
+    extractRawFenceLanguage(className),
+  );
+  const code = String(children).replace(/\n$/, '');
+  const shikiTheme =
+    appTheme === 'light' ? 'github-light-default' : 'github-dark-default';
+  useEffect(() => {
+    // Stream code as plain text. Highlighting a growing fence on every chunk
+    // repeatedly tokenizes its entire contents and can dominate rendering for
+    // long responses; the settled render below highlights the final text once.
+    if (
+      isStreaming ||
+      lang === 'mermaid' ||
+      resolvedLang === 'text' ||
+      isTooLargeToHighlight(code)
+    ) {
+      setHtml(null);
+      return;
     }
-    return (_jsxs("div", { className: styles.codeBlock, children: [_jsxs("div", { className: styles.codeBlockHeader, children: [_jsx("span", { className: styles.codeBlockLang, children: label }), _jsx("button", { className: styles.codeBlockCopy, onClick: handleCopy, children: copied ? t('code.copied') : t('code.copy') })] }), !isStreaming && html !== null ? (_jsx("div", { className: styles.codeBlockContent, dangerouslySetInnerHTML: { __html: html } })) : (_jsx("pre", { className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`, children: _jsx("code", { children: code }) }))] }));
+    // Already-highlighted exact code/lang/theme (settled re-render, or a block
+    // that re-mounted): return it synchronously without needing the highlighter.
+    const cached = getCachedHtml(code, resolvedLang, shikiTheme);
+    if (cached !== null) {
+      setHtml(cached);
+      return;
+    }
+    const warmHtml = highlightToHtmlSync(code, resolvedLang, shikiTheme, true);
+    if (warmHtml !== null) {
+      setHtml(warmHtml);
+      return;
+    }
+    // Cold path: the grammar isn't loaded yet. Drop any HTML still held from a
+    // previous `code` (e.g. this reused CodeBlock instance just switched to a
+    // not-yet-loaded language on regeneration) so we render the current code as
+    // plain text — not the prior block's stale highlight — until the load
+    // resolves. Then re-check cancellation *before* the synchronous tokenization
+    // so a superseded settled block does not run codeToHtml.
+    setHtml(null);
+    let cancelled = false;
+    getCodeHighlighter(resolvedLang)
+      .then(() => {
+        if (cancelled) return;
+        const cold = highlightToHtmlSync(code, resolvedLang, shikiTheme, true);
+        if (cold !== null) setHtml(cold);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn(
+          '[web-shell] highlight failed for lang=%s',
+          resolvedLang,
+          err,
+        );
+        setHtml(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, lang, resolvedLang, shikiTheme, isStreaming]);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => {},
+    );
+  };
+  if (lang === 'mermaid' && !isStreaming) {
+    return _jsx(MermaidBlock, { code: code });
+  }
+  return _jsxs('div', {
+    className: styles.codeBlock,
+    children: [
+      _jsxs('div', {
+        className: styles.codeBlockHeader,
+        children: [
+          _jsx('span', { className: styles.codeBlockLang, children: label }),
+          _jsx('button', {
+            className: styles.codeBlockCopy,
+            onClick: handleCopy,
+            children: copied ? t('code.copied') : t('code.copy'),
+          }),
+        ],
+      }),
+      !isStreaming && html !== null
+        ? _jsx('div', {
+            className: styles.codeBlockContent,
+            dangerouslySetInnerHTML: { __html: html },
+          })
+        : _jsx('pre', {
+            className: `${styles.codeBlockContent} ${styles.codeBlockPlain}`,
+            children: _jsx('code', { children: code }),
+          }),
+    ],
+  });
 }
 function extractRawFenceLanguage(className) {
-    const token = className?.match(/(?:^|\s)language-([^\s]+)/)?.[1] ?? '';
-    const match = token.match(/^([\w+.#-]+)/);
-    if (!match)
-        return '';
-    const language = match[1] ?? '';
-    const nextChar = token[language.length];
-    return !nextChar || nextChar === '{' || nextChar === ':' ? language : '';
+  const token = className?.match(/(?:^|\s)language-([^\s]+)/)?.[1] ?? '';
+  const match = token.match(/^([\w+.#-]+)/);
+  if (!match) return '';
+  const language = match[1] ?? '';
+  const nextChar = token[language.length];
+  return !nextChar || nextChar === '{' || nextChar === ':' ? language : '';
 }
 function InlineCode({ children }) {
-    return _jsx("code", { className: styles.inlineCode, children: children });
+  return _jsx('code', { className: styles.inlineCode, children: children });
 }
 function PlainMarkdownTable({ children }) {
-    return (_jsx("div", { className: styles.tableWrapper, children: _jsx("table", { className: styles.table, children: children }) }));
+  return _jsx('div', {
+    className: styles.tableWrapper,
+    children: _jsx('table', { className: styles.table, children: children }),
+  });
 }
 // Carries the streaming flag to CodeBlock via context instead of a closure, so
 // the `code` renderer below can be a single stable reference. Toggling
@@ -352,66 +498,89 @@ const IsStreamingContext = createContext(false);
 const MarkdownSourceContext = createContext(undefined);
 const MarkdownDocumentContext = createContext(undefined);
 function isIncompleteTailFence(document, node, isStreaming) {
-    if (!isStreaming || document === undefined)
-        return false;
-    const start = node?.position?.start.offset;
-    const end = node?.position?.end.offset;
-    if (start === undefined || end === undefined)
-        return false;
-    return (!isMarkdownFenceClosed(document.slice(start, end)) &&
-        document.slice(end).trim().length === 0);
+  if (!isStreaming || document === undefined) return false;
+  const start = node?.position?.start.offset;
+  const end = node?.position?.end.offset;
+  if (start === undefined || end === undefined) return false;
+  return (
+    !isMarkdownFenceClosed(document.slice(start, end)) &&
+    document.slice(end).trim().length === 0
+  );
 }
-function MarkdownCode({ className, children, node, }) {
-    const isStreaming = useContext(IsStreamingContext);
-    const document = useContext(MarkdownDocumentContext);
-    const isBlock = className?.startsWith('language-') ||
-        (typeof children === 'string' && children.includes('\n'));
-    if (isBlock) {
-        return (_jsx(MarkdownFencedCode, { className: className, isStreaming: isStreaming, isIncomplete: isIncompleteTailFence(document, node, isStreaming), children: children }));
-    }
-    return _jsx(InlineCode, { children: children });
+function MarkdownCode({ className, children, node }) {
+  const isStreaming = useContext(IsStreamingContext);
+  const document = useContext(MarkdownDocumentContext);
+  const isBlock =
+    className?.startsWith('language-') ||
+    (typeof children === 'string' && children.includes('\n'));
+  if (isBlock) {
+    return _jsx(MarkdownFencedCode, {
+      className: className,
+      isStreaming: isStreaming,
+      isIncomplete: isIncompleteTailFence(document, node, isStreaming),
+      children: children,
+    });
+  }
+  return _jsx(InlineCode, { children: children });
 }
-function MarkdownFencedCode({ className, children, isStreaming, isIncomplete, }) {
-    const source = useContext(MarkdownSourceContext);
-    const appTheme = useTheme();
-    const { markdown } = useWebShellCustomization();
-    const rawCode = String(children);
-    const code = rawCode.replace(/\n$/, '');
-    const fallback = (_jsx(CodeBlock, { className: className, isStreaming: isStreaming, children: rawCode }));
-    const language = extractRawFenceLanguage(className);
-    const { resolvedLang: resolvedLanguage } = resolveFenceLanguage(language);
-    const canUseCustomRenderer = !!source && !!className && !!language;
-    if (canUseCustomRenderer) {
-        try {
-            const custom = markdown?.renderCodeBlock?.({
-                language,
-                resolvedLanguage,
-                className,
-                code,
-                isStreaming: !!isStreaming,
-                isIncomplete: !!isIncomplete,
-                source,
-                theme: appTheme,
-            });
-            if (custom != null && typeof custom !== 'boolean') {
-                return (_jsx(ErrorBoundary, { fallback: fallback, label: `custom code block component render (lang=${language})`, resetKeys: [
-                        language,
-                        source,
-                        appTheme,
-                        isStreaming ? 'streaming' : 'settled',
-                        isIncomplete ? 'incomplete' : 'complete',
-                        code,
-                    ], children: custom }));
-            }
-        }
-        catch (error) {
-            console.error('[web-shell] custom code block renderer call failed (lang=%s):', language, error);
-        }
+function MarkdownFencedCode({
+  className,
+  children,
+  isStreaming,
+  isIncomplete,
+}) {
+  const source = useContext(MarkdownSourceContext);
+  const appTheme = useTheme();
+  const { markdown } = useWebShellCustomization();
+  const rawCode = String(children);
+  const code = rawCode.replace(/\n$/, '');
+  const fallback = _jsx(CodeBlock, {
+    className: className,
+    isStreaming: isStreaming,
+    children: rawCode,
+  });
+  const language = extractRawFenceLanguage(className);
+  const { resolvedLang: resolvedLanguage } = resolveFenceLanguage(language);
+  const canUseCustomRenderer = !!source && !!className && !!language;
+  if (canUseCustomRenderer) {
+    try {
+      const custom = markdown?.renderCodeBlock?.({
+        language,
+        resolvedLanguage,
+        className,
+        code,
+        isStreaming: !!isStreaming,
+        isIncomplete: !!isIncomplete,
+        source,
+        theme: appTheme,
+      });
+      if (custom != null && typeof custom !== 'boolean') {
+        return _jsx(ErrorBoundary, {
+          fallback: fallback,
+          label: `custom code block component render (lang=${language})`,
+          resetKeys: [
+            language,
+            source,
+            appTheme,
+            isStreaming ? 'streaming' : 'settled',
+            isIncomplete ? 'incomplete' : 'complete',
+            code,
+          ],
+          children: custom,
+        });
+      }
+    } catch (error) {
+      console.error(
+        '[web-shell] custom code block renderer call failed (lang=%s):',
+        language,
+        error,
+      );
     }
-    return fallback;
+  }
+  return fallback;
 }
 function MarkdownPre({ children }) {
-    return _jsx(_Fragment, { children: children });
+  return _jsx(_Fragment, { children: children });
 }
 /** `qwen-session://<id>` links are intercepted and dispatched as a DOM event
  * (`qwen:open-session`) so the app shell can navigate to the session without
@@ -430,172 +599,249 @@ const QWEN_SESSION_SCHEME = /^qwen-session:\/\//i;
  * Every other href keeps the default sanitizer.
  */
 export function markdownUrlTransform(url) {
-    return QWEN_SESSION_SCHEME.test(url.trim()) ? url : defaultUrlTransform(url);
+  return QWEN_SESSION_SCHEME.test(url.trim()) ? url : defaultUrlTransform(url);
 }
-function MarkdownLink({ href, children, }) {
-    const renderMode = useTranscriptRenderMode();
-    if (href && QWEN_SESSION_SCHEME.test(href.trim())) {
-        if (renderMode === 'readonly') {
-            return _jsx("span", { className: styles.link, children: children });
-        }
-        const sessionId = href.trim().replace(QWEN_SESSION_SCHEME, '');
-        return (_jsx("a", { href: "#", role: "button", className: styles.link, onClick: (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('qwen:open-session', { detail: sessionId }));
-            }, children: children }));
+function MarkdownLink({ href, children }) {
+  const renderMode = useTranscriptRenderMode();
+  if (href && QWEN_SESSION_SCHEME.test(href.trim())) {
+    if (renderMode === 'readonly') {
+      return _jsx('span', { className: styles.link, children: children });
     }
-    const safeHref = isSafeHref(href) ? href : undefined;
-    return (_jsx("a", { href: safeHref, target: "_blank", rel: "noopener noreferrer", className: styles.link, children: children }));
+    const sessionId = href.trim().replace(QWEN_SESSION_SCHEME, '');
+    return _jsx('a', {
+      href: '#',
+      role: 'button',
+      className: styles.link,
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(
+          new CustomEvent('qwen:open-session', { detail: sessionId }),
+        );
+      },
+      children: children,
+    });
+  }
+  const safeHref = isSafeHref(href) ? href : undefined;
+  return _jsx('a', {
+    href: safeHref,
+    target: '_blank',
+    rel: 'noopener noreferrer',
+    className: styles.link,
+    children: children,
+  });
 }
 function MarkdownImage({ src, alt }) {
-    const safeSrc = isSafeImageSrc(src) ? src : undefined;
-    return _jsx("img", { src: safeSrc, alt: alt || '', className: styles.image });
+  const safeSrc = isSafeImageSrc(src) ? src : undefined;
+  return _jsx('img', { src: safeSrc, alt: alt || '', className: styles.image });
 }
 /**
  * Throttles a rapidly changing value (like a streaming string) to prevent
  * O(n²) re-parsing of the entire Markdown AST on every token.
  */
 function useThrottledValue(value, isStreaming, intervalMs = 80) {
-    const [throttled, setThrottled] = useState(value);
-    const throttledRef = useRef(throttled);
-    throttledRef.current = throttled;
-    const lastRunRef = useRef(0);
-    const timeoutRef = useRef(null);
-    const valueRef = useRef(value);
-    valueRef.current = value;
-    useEffect(() => {
-        if (!isStreaming) {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-            }
-            // Flush immediately when streaming stops
-            if (throttledRef.current !== value) {
-                setThrottled(value);
-            }
-            return;
-        }
-        const now = Date.now();
-        const elapsed = now - lastRunRef.current;
-        if (elapsed >= intervalMs) {
-            lastRunRef.current = now;
-            setThrottled(valueRef.current);
-        }
-        else if (!timeoutRef.current) {
-            timeoutRef.current = setTimeout(() => {
-                lastRunRef.current = Date.now();
-                timeoutRef.current = null;
-                setThrottled(valueRef.current);
-            }, intervalMs - elapsed);
-        }
-    }, [value, isStreaming, intervalMs]);
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-            }
-        };
-    }, []);
-    if (!isStreaming)
-        return value;
-    // Bypass throttle for non-monotonic changes
-    if (typeof value === 'string' &&
-        typeof throttled === 'string' &&
-        !value.startsWith(throttled)) {
-        return value;
+  const [throttled, setThrottled] = useState(value);
+  const throttledRef = useRef(throttled);
+  throttledRef.current = throttled;
+  const lastRunRef = useRef(0);
+  const timeoutRef = useRef(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  useEffect(() => {
+    if (!isStreaming) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      // Flush immediately when streaming stops
+      if (throttledRef.current !== value) {
+        setThrottled(value);
+      }
+      return;
     }
-    return throttled;
+    const now = Date.now();
+    const elapsed = now - lastRunRef.current;
+    if (elapsed >= intervalMs) {
+      lastRunRef.current = now;
+      setThrottled(valueRef.current);
+    } else if (!timeoutRef.current) {
+      timeoutRef.current = setTimeout(() => {
+        lastRunRef.current = Date.now();
+        timeoutRef.current = null;
+        setThrottled(valueRef.current);
+      }, intervalMs - elapsed);
+    }
+  }, [value, isStreaming, intervalMs]);
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
+  if (!isStreaming) return value;
+  // Bypass throttle for non-monotonic changes
+  if (
+    typeof value === 'string' &&
+    typeof throttled === 'string' &&
+    !value.startsWith(throttled)
+  ) {
+    return value;
+  }
+  return throttled;
 }
 // `code`/`pre`/`a`/`img` are stable references; only `table` is created per
 // call (it closes over tableMode/tableResetKey). Recreating the components
 // object for a table reset therefore never changes the `code` element type, so
 // code blocks are not remounted.
 function createComponents(tableMode = 'basic', tableResetKey = '') {
-    return {
-        code: MarkdownCode,
-        pre: MarkdownPre,
-        a: MarkdownLink,
-        img: MarkdownImage,
-        table({ children }) {
-            if (tableMode === 'advanced') {
-                const fallback = _jsx(PlainMarkdownTable, { children: children });
-                return (_jsx(ErrorBoundary, { fallback: fallback, label: "enhanced markdown table", resetKeys: [tableResetKey], children: _jsx(EnhancedMarkdownTable, { fallback: fallback, children: children }) }));
-            }
-            return _jsx(PlainMarkdownTable, { children: children });
-        },
-    };
+  return {
+    code: MarkdownCode,
+    pre: MarkdownPre,
+    a: MarkdownLink,
+    img: MarkdownImage,
+    table({ children }) {
+      if (tableMode === 'advanced') {
+        const fallback = _jsx(PlainMarkdownTable, { children: children });
+        return _jsx(ErrorBoundary, {
+          fallback: fallback,
+          label: 'enhanced markdown table',
+          resetKeys: [tableResetKey],
+          children: _jsx(EnhancedMarkdownTable, {
+            fallback: fallback,
+            children: children,
+          }),
+        });
+      }
+      return _jsx(PlainMarkdownTable, { children: children });
+    },
+  };
 }
 const COMPONENTS_DEFAULT = createComponents();
 /**
  * Isolated memoized renderer. This ensures react-markdown ONLY re-parses
  * when the throttled content or plugin references actually change.
  */
-const MemoizedMarkdownRenderer = memo(function MemoizedMarkdownRenderer({ content, components, remarkPlugins, rehypePlugins, urlTransform, }) {
-    return (_jsx(ReactMarkdown, { components: components, remarkPlugins: remarkPlugins, rehypePlugins: rehypePlugins, urlTransform: urlTransform, children: content }));
+const MemoizedMarkdownRenderer = memo(function MemoizedMarkdownRenderer({
+  content,
+  components,
+  remarkPlugins,
+  rehypePlugins,
+  urlTransform,
+}) {
+  return _jsx(ReactMarkdown, {
+    components: components,
+    remarkPlugins: remarkPlugins,
+    rehypePlugins: rehypePlugins,
+    urlTransform: urlTransform,
+    children: content,
+  });
 });
-export const Markdown = memo(function Markdown({ content, source, isStreaming, tableMode, }) {
-    const { markdown, markdownTableMode } = useWebShellCustomization();
-    const theme = useTheme();
-    const sourceMarkdown = source ? markdown : undefined;
-    const throttledContent = useThrottledValue(content ?? '', isStreaming);
-    const renderedContent = useMemo(() => throttledContent && source && sourceMarkdown?.transformMarkdown
+export const Markdown = memo(function Markdown({
+  content,
+  source,
+  isStreaming,
+  tableMode,
+}) {
+  const { markdown, markdownTableMode } = useWebShellCustomization();
+  const theme = useTheme();
+  const sourceMarkdown = source ? markdown : undefined;
+  const throttledContent = useThrottledValue(content ?? '', isStreaming);
+  const renderedContent = useMemo(
+    () =>
+      throttledContent && source && sourceMarkdown?.transformMarkdown
         ? sourceMarkdown.transformMarkdown(throttledContent, { source })
-        : throttledContent, [throttledContent, source, sourceMarkdown]);
-    const effectiveTableMode = isStreaming
-        ? 'basic'
-        : (tableMode ?? markdownTableMode ?? 'basic');
-    // Memoize components so references stay stable during throttle window
-    const components = useMemo(() => {
-        if (effectiveTableMode === 'advanced') {
-            return createComponents('advanced', renderedContent);
-        }
-        return COMPONENTS_DEFAULT;
-    }, [effectiveTableMode, renderedContent]);
-    const sourceComponents = sourceMarkdown?.components;
-    const renderedComponents = useMemo(() => {
-        if (!sourceComponents)
-            return components;
-        return {
-            ...components,
-            ...sourceComponents,
-            ...(effectiveTableMode === 'advanced' ? { table: components.table } : {}),
-        };
-    }, [components, effectiveTableMode, sourceComponents]);
-    const chart = source === 'assistant' && !sourceComponents?.code && !sourceComponents?.pre
-        ? (sourceMarkdown?.chart ??
-            (sourceMarkdown?.renderCodeBlock
-                ? undefined
-                : DEFAULT_WEB_SHELL_MARKDOWN_CHART))
-        : undefined;
-    const chartPre = useMemo(() => chart
+        : throttledContent,
+    [throttledContent, source, sourceMarkdown],
+  );
+  const effectiveTableMode = isStreaming
+    ? 'basic'
+    : (tableMode ?? markdownTableMode ?? 'basic');
+  // Memoize components so references stay stable during throttle window
+  const components = useMemo(() => {
+    if (effectiveTableMode === 'advanced') {
+      return createComponents('advanced', renderedContent);
+    }
+    return COMPONENTS_DEFAULT;
+  }, [effectiveTableMode, renderedContent]);
+  const sourceComponents = sourceMarkdown?.components;
+  const renderedComponents = useMemo(() => {
+    if (!sourceComponents) return components;
+    return {
+      ...components,
+      ...sourceComponents,
+      ...(effectiveTableMode === 'advanced' ? { table: components.table } : {}),
+    };
+  }, [components, effectiveTableMode, sourceComponents]);
+  const chart =
+    source === 'assistant' && !sourceComponents?.code && !sourceComponents?.pre
+      ? (sourceMarkdown?.chart ??
+        (sourceMarkdown?.renderCodeBlock
+          ? undefined
+          : DEFAULT_WEB_SHELL_MARKDOWN_CHART))
+      : undefined;
+  const chartPre = useMemo(
+    () =>
+      chart
         ? createWebShellMarkdownChartPre(chart.registry, {
             chartClassName: chart.chartClassName,
             chartStyle: { minHeight: 360, ...chart.chartStyle },
-        })
-        : undefined, [chart]);
-    const componentsWithCharts = useMemo(() => chartPre
+          })
+        : undefined,
+    [chart],
+  );
+  const componentsWithCharts = useMemo(
+    () =>
+      chartPre
         ? {
             ...renderedComponents,
             pre: chartPre,
-        }
-        : renderedComponents, [chartPre, renderedComponents]);
-    // Memoize plugins so their array references remain stable.
-    const remarkPlugins = useMemo(() => {
-        return sourceMarkdown?.remarkPlugins
-            ? [remarkGfm, remarkMath, ...sourceMarkdown.remarkPlugins]
-            : [remarkGfm, remarkMath];
-    }, [sourceMarkdown?.remarkPlugins]);
-    const rehypePlugins = useMemo(() => {
-        return sourceMarkdown?.rehypePlugins
-            ? [rehypeKatex, ...sourceMarkdown.rehypePlugins]
-            : [rehypeKatex];
-    }, [sourceMarkdown?.rehypePlugins]);
-    if (!content)
-        return null;
-    const renderedMarkdown = (_jsx(MemoizedMarkdownRenderer, { content: renderedContent, components: componentsWithCharts, remarkPlugins: remarkPlugins, rehypePlugins: rehypePlugins, urlTransform: markdownUrlTransform }));
-    const chartAwareMarkdown = chart ? (_jsx(WebShellMarkdownChartProvider, { customization: chart, source: renderedContent, streaming: !!isStreaming, theme: theme, children: renderedMarkdown })) : (renderedMarkdown);
-    return (_jsx("div", { className: source !== 'thinking' ? styles.content : undefined, "data-markdown-source": source, children: _jsx(IsStreamingContext.Provider, { value: !!isStreaming, children: _jsx(MarkdownSourceContext.Provider, { value: source, children: _jsx(MarkdownDocumentContext.Provider, { value: renderedContent, children: chartAwareMarkdown }) }) }) }));
+          }
+        : renderedComponents,
+    [chartPre, renderedComponents],
+  );
+  // Memoize plugins so their array references remain stable.
+  const remarkPlugins = useMemo(() => {
+    return sourceMarkdown?.remarkPlugins
+      ? [remarkGfm, remarkMath, ...sourceMarkdown.remarkPlugins]
+      : [remarkGfm, remarkMath];
+  }, [sourceMarkdown?.remarkPlugins]);
+  const rehypePlugins = useMemo(() => {
+    return sourceMarkdown?.rehypePlugins
+      ? [rehypeKatex, ...sourceMarkdown.rehypePlugins]
+      : [rehypeKatex];
+  }, [sourceMarkdown?.rehypePlugins]);
+  if (!content) return null;
+  const renderedMarkdown = _jsx(MemoizedMarkdownRenderer, {
+    content: renderedContent,
+    components: componentsWithCharts,
+    remarkPlugins: remarkPlugins,
+    rehypePlugins: rehypePlugins,
+    urlTransform: markdownUrlTransform,
+  });
+  const chartAwareMarkdown = chart
+    ? _jsx(WebShellMarkdownChartProvider, {
+        customization: chart,
+        source: renderedContent,
+        streaming: !!isStreaming,
+        theme: theme,
+        children: renderedMarkdown,
+      })
+    : renderedMarkdown;
+  return _jsx('div', {
+    className: source !== 'thinking' ? styles.content : undefined,
+    'data-markdown-source': source,
+    children: _jsx(IsStreamingContext.Provider, {
+      value: !!isStreaming,
+      children: _jsx(MarkdownSourceContext.Provider, {
+        value: source,
+        children: _jsx(MarkdownDocumentContext.Provider, {
+          value: renderedContent,
+          children: chartAwareMarkdown,
+        }),
+      }),
+    }),
+  });
 });
 //# sourceMappingURL=Markdown.js.map

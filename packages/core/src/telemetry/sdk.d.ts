@@ -6,7 +6,9 @@
 import type { Config } from '../config/config.js';
 import type { TelemetryRuntimeConfig } from './runtime-config.js';
 export declare function isTelemetrySdkInitialized(): boolean;
-export declare function initializeTelemetry(_config: Config | TelemetryRuntimeConfig): Promise<void>;
+export declare function initializeTelemetry(
+  _config: Config | TelemetryRuntimeConfig,
+): Promise<void>;
 /**
  * Refresh the session context with a new session ID.
  * Must be called whenever the session changes (e.g. /clear, /resume)

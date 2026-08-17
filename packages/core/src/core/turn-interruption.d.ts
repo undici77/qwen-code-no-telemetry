@@ -31,18 +31,21 @@ import type { Content, Part } from '@google/genai';
  * `none` here; recovering that case needs provider prefill support and is
  * tracked separately.
  */
-export type TurnInterruption = {
-    kind: 'none';
-} | {
-    kind: 'interrupted_prompt';
-    parts: Part[];
-} | {
-    kind: 'interrupted_turn';
-    danglingCalls: Array<{
+export type TurnInterruption =
+  | {
+      kind: 'none';
+    }
+  | {
+      kind: 'interrupted_prompt';
+      parts: Part[];
+    }
+  | {
+      kind: 'interrupted_turn';
+      danglingCalls: Array<{
         callId: string;
         name: string;
-    }>;
-};
+      }>;
+    };
 export declare const TURN_INTERRUPTION_HISTORY_TAIL_COUNT = 50;
 /**
  * Detect whether the last turn of `history` was left unfinished, and if so
@@ -55,7 +58,9 @@ export declare const TURN_INTERRUPTION_HISTORY_TAIL_COUNT = 50;
  * @param history - Chat history in Gemini `Content[]` form, oldest first.
  * @returns The interruption classification; see {@link TurnInterruption}.
  */
-export declare function detectTurnInterruption(history: Content[]): TurnInterruption;
+export declare function detectTurnInterruption(
+  history: Content[],
+): TurnInterruption;
 /**
  * Build the error `functionResponse` parts that close the dangling
  * `functionCall`s of an `interrupted_turn`. Shape matches the repair pass's
@@ -67,7 +72,10 @@ export declare function detectTurnInterruption(history: Content[]): TurnInterrup
  *   `ORPHAN_TOOL_USE_REPAIR_REASON` for consistency with the repair pass.
  * @returns One `functionResponse` part per dangling call, in input order.
  */
-export declare function buildSyntheticToolResponseParts(danglingCalls: Array<{
+export declare function buildSyntheticToolResponseParts(
+  danglingCalls: Array<{
     callId: string;
     name: string;
-}>, reason: string): Part[];
+  }>,
+  reason: string,
+): Part[];

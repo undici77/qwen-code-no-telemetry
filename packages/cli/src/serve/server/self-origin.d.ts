@@ -9,4 +9,7 @@ import type { Application } from 'express';
  * header on same-origin POST/fetch calls; the browser-origin wall would reject
  * them. Only loopback origins are matched.
  */
-export declare function installSelfOriginStripMiddleware(app: Application, getPort: () => number): void;
+export declare function installSelfOriginStripMiddleware(
+  app: Application,
+  getPort: () => number,
+): void;

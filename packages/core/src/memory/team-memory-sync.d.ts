@@ -4,10 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface TeamMemorySyncResult {
-    committed: boolean;
-    pulled: boolean;
-    pushed: boolean;
-    skippedReason?: 'not-a-git-repo' | 'no-upstream' | 'detached-head' | 'pull-failed' | 'push-failed' | 'local-ahead';
+  committed: boolean;
+  pulled: boolean;
+  pushed: boolean;
+  skippedReason?:
+    | 'not-a-git-repo'
+    | 'no-upstream'
+    | 'detached-head'
+    | 'pull-failed'
+    | 'push-failed'
+    | 'local-ahead';
 }
 /**
  * Sync the team memory directory with the repository's remote. Best-effort and
@@ -24,7 +30,9 @@ export interface TeamMemorySyncResult {
  * when supplied (cooperative per-user attribution on a shared daemon), otherwise
  * by the repo's configured git user.
  */
-export declare function syncTeamMemory(projectRoot: string, opts: {
+export declare function syncTeamMemory(
+  projectRoot: string,
+  opts: {
     message: string;
     /**
      * Cooperative per-user attribution (from the unauthenticated client
@@ -34,7 +42,8 @@ export declare function syncTeamMemory(projectRoot: string, opts: {
      * config already attributes correctly.
      */
     author?: {
-        name: string;
-        email?: string;
+      name: string;
+      email?: string;
     };
-}): Promise<TeamMemorySyncResult>;
+  },
+): Promise<TeamMemorySyncResult>;

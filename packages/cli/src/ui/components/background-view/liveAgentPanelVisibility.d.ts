@@ -3,11 +3,19 @@
  * Copyright 2026 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { AgentDialogEntry, DialogEntry } from '../../hooks/useBackgroundTaskView.js';
+import type {
+  AgentDialogEntry,
+  DialogEntry,
+} from '../../hooks/useBackgroundTaskView.js';
 export declare const TERMINAL_VISIBLE_MS = 8000;
 export declare const LIVE_AGENT_PANEL_MAX_ROWS = 12;
-export declare function getLiveAgentPanelVpMaxRows(terminalHeight: number): number;
-export declare function isLiveAgentPanelVisibleEntry(entry: DialogEntry, nowMs: number): entry is AgentDialogEntry;
+export declare function getLiveAgentPanelVpMaxRows(
+  terminalHeight: number,
+): number;
+export declare function isLiveAgentPanelVisibleEntry(
+  entry: DialogEntry,
+  nowMs: number,
+): entry is AgentDialogEntry;
 /**
  * A stable signature of everything that changes the LiveAgentPanel's
  * **height** (and therefore the controls footprint that AppContainer reserves
@@ -32,4 +40,7 @@ export declare function isLiveAgentPanelVisibleEntry(entry: DialogEntry, nowMs: 
  * too-large reservation over-clips the pending region, which is the safe
  * direction (no overflow).
  */
-export declare function getLiveAgentPanelLayoutKey(entries: readonly DialogEntry[], livePanelFocused: boolean): string;
+export declare function getLiveAgentPanelLayoutKey(
+  entries: readonly DialogEntry[],
+  livePanelFocused: boolean,
+): string;

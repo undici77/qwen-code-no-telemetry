@@ -8,8 +8,8 @@ import type { DiffStat } from './tools.js';
  * Local type definitions for diff package v7.x which doesn't export these types.
  */
 interface DiffPatchOptions {
-    context?: number;
-    ignoreWhitespace?: boolean;
+  context?: number;
+  ignoreWhitespace?: boolean;
 }
 export declare const DEFAULT_DIFF_OPTIONS: DiffPatchOptions;
 /**
@@ -24,6 +24,17 @@ export declare function hasHunks(patch: string): boolean;
  * hunks are found, so that whitespace-only edits (e.g. re-indentation) still
  * produce a visible diff instead of "No changes detected".
  */
-export declare function createPatchSmart(filename: string, oldStr: string, newStr: string, oldHeader?: string, newHeader?: string): string;
-export declare function getDiffStat(fileName: string, oldStr: string, aiStr: string, userStr: string): DiffStat;
+export declare function createPatchSmart(
+  filename: string,
+  oldStr: string,
+  newStr: string,
+  oldHeader?: string,
+  newHeader?: string,
+): string;
+export declare function getDiffStat(
+  fileName: string,
+  oldStr: string,
+  aiStr: string,
+  userStr: string,
+): DiffStat;
 export {};

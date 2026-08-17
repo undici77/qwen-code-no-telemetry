@@ -10,14 +10,14 @@
  */
 import { type DOMElement } from 'ink';
 export interface ElementMetrics {
-    /** Horizontal position (0-based column) within the live layout region. */
-    x: number;
-    /** Vertical position (0-based row) within the live layout region. */
-    y: number;
-    /** Element width in columns. */
-    width: number;
-    /** Element height in rows. */
-    height: number;
+  /** Horizontal position (0-based column) within the live layout region. */
+  x: number;
+  /** Vertical position (0-based row) within the live layout region. */
+  y: number;
+  /** Element width in columns. */
+  width: number;
+  /** Element height in rows. */
+  height: number;
 }
 /**
  * Measure the layout metrics of a `<Box>` element, including its position
@@ -31,7 +31,9 @@ export interface ElementMetrics {
  * Must be called from post-render code (useEffect, useLayoutEffect,
  * input handlers, timer callbacks) — returns zeroes during render.
  */
-export declare function measureElementPosition(node: DOMElement): ElementMetrics;
+export declare function measureElementPosition(
+  node: DOMElement,
+): ElementMetrics;
 /**
  * Height (in rows) of the Ink live frame — the computed height of the root of
  * the yoga tree that `node` belongs to.
@@ -56,4 +58,8 @@ export declare function measureFrameHeight(node: DOMElement): number;
  * TextInputMouseController, so the (previously off-by-one) correction can't
  * drift between the two. Must be called from post-render code.
  */
-export declare function layoutRowForEvent(node: DOMElement, terminalRow1Based: number, terminalHeight: number): number;
+export declare function layoutRowForEvent(
+  node: DOMElement,
+  terminalRow1Based: number,
+  terminalHeight: number,
+): number;

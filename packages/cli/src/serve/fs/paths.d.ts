@@ -3,8 +3,16 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { canonicalizeWorkspace, canonicalizeWorkspaces, MAX_WORKSPACE_PATH_LENGTH } from '@qwen-code/acp-bridge/workspacePaths';
-export { canonicalizeWorkspace, canonicalizeWorkspaces, MAX_WORKSPACE_PATH_LENGTH, };
+import {
+  canonicalizeWorkspace,
+  canonicalizeWorkspaces,
+  MAX_WORKSPACE_PATH_LENGTH,
+} from '@qwen-code/acp-bridge/workspacePaths';
+export {
+  canonicalizeWorkspace,
+  canonicalizeWorkspaces,
+  MAX_WORKSPACE_PATH_LENGTH,
+};
 /**
  * Branded absolute path that has passed the workspace boundary check.
  * The runtime value is just a string; the brand is a compile-time
@@ -13,7 +21,7 @@ export { canonicalizeWorkspace, canonicalizeWorkspaces, MAX_WORKSPACE_PATH_LENGT
  * to disk. Construct one only via `resolveWithinWorkspace`.
  */
 export type ResolvedPath = string & {
-    readonly __brand: 'ResolvedPath';
+  readonly __brand: 'ResolvedPath';
 };
 /**
  * Intent declared at boundary entry. Used by callers (and the upcoming
@@ -99,4 +107,8 @@ export declare function hasSuspiciousPathPattern(p: string): boolean;
  * The brand on the return type is the contract that PR 19/20 routes
  * may not construct one without going through this function.
  */
-export declare function resolveWithinWorkspace(input: string, boundWorkspaces: string | readonly string[], intent: Intent): Promise<ResolvedPath>;
+export declare function resolveWithinWorkspace(
+  input: string,
+  boundWorkspaces: string | readonly string[],
+  intent: Intent,
+): Promise<ResolvedPath>;

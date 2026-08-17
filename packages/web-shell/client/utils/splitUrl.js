@@ -26,26 +26,25 @@ export const MAX_SPLIT_PANES = 6;
  * path, so no single session competes with the split.
  */
 export function buildSplitUrl(sessionIds, currentHref, token) {
-    const url = new URL(currentHref);
-    url.pathname = buildSessionPathname(url.pathname, undefined);
-    url.searchParams.set(SPLIT_PARAM, sessionIds.join(','));
-    // The current tab already stripped the daemon token from its URL, so carry it
-    // into the new tab's fragment (never sent to the server / logs) — otherwise a
-    // token-auth (`serve --open`) deployment opens the split tab unauthenticated.
-    if (token) {
-        url.hash = new URLSearchParams({ token }).toString();
-    }
-    return url.toString();
+  const url = new URL(currentHref);
+  url.pathname = buildSessionPathname(url.pathname, undefined);
+  url.searchParams.set(SPLIT_PARAM, sessionIds.join(','));
+  // The current tab already stripped the daemon token from its URL, so carry it
+  // into the new tab's fragment (never sent to the server / logs) — otherwise a
+  // token-auth (`serve --open`) deployment opens the split tab unauthenticated.
+  if (token) {
+    url.hash = new URLSearchParams({ token }).toString();
+  }
+  return url.toString();
 }
 /** Read the session ids from a `?split=a,b,c` query string (empty when absent). */
 export function parseSplitSessionIds(search) {
-    const raw = new URLSearchParams(search).get(SPLIT_PARAM);
-    if (!raw)
-        return [];
-    return raw
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean);
+  const raw = new URLSearchParams(search).get(SPLIT_PARAM);
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 const SPLIT_STORAGE_KEY = 'qwen-webshell-split-sessions';
 /**
@@ -56,36 +55,36 @@ const SPLIT_STORAGE_KEY = 'qwen-webshell-split-sessions';
  * nothing. It still survives a refresh of the same tab — the case this fixes.
  */
 export function saveSplitSessions(sessions) {
-    const ids = Array.from(new Set(sessions.filter(Boolean))).slice(0, MAX_SPLIT_PANES);
-    try {
-        sessionStorage.setItem(SPLIT_STORAGE_KEY, JSON.stringify(ids));
-    }
-    catch {
-        // Private mode / quota / SSR — persistence is best-effort.
-    }
+  const ids = Array.from(new Set(sessions.filter(Boolean))).slice(
+    0,
+    MAX_SPLIT_PANES,
+  );
+  try {
+    sessionStorage.setItem(SPLIT_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // Private mode / quota / SSR — persistence is best-effort.
+  }
 }
 /** The persisted split session set, or `[]` when absent/unavailable/malformed. */
 export function loadSplitSessions() {
-    try {
-        const raw = sessionStorage.getItem(SPLIT_STORAGE_KEY);
-        if (!raw)
-            return [];
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed))
-            return [];
-        return Array.from(new Set(parsed.filter((id) => typeof id === 'string' && id.length > 0))).slice(0, MAX_SPLIT_PANES);
-    }
-    catch {
-        return [];
-    }
+  try {
+    const raw = sessionStorage.getItem(SPLIT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(
+      new Set(parsed.filter((id) => typeof id === 'string' && id.length > 0)),
+    ).slice(0, MAX_SPLIT_PANES);
+  } catch {
+    return [];
+  }
 }
 /** Forget the persisted split (e.g. when the user leaves the split view). */
 export function clearSplitSessions() {
-    try {
-        sessionStorage.removeItem(SPLIT_STORAGE_KEY);
-    }
-    catch {
-        // best-effort
-    }
+  try {
+    sessionStorage.removeItem(SPLIT_STORAGE_KEY);
+  } catch {
+    // best-effort
+  }
 }
 //# sourceMappingURL=splitUrl.js.map

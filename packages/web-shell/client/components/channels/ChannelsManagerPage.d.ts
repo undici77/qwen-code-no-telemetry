@@ -5,8 +5,11 @@
  */
 import { type Ref } from 'react';
 interface ChannelsManagerPageProps {
-    onClose: () => void;
-    initialFocusRef?: Ref<HTMLHeadingElement>;
+  onClose: () => void;
+  initialFocusRef?: Ref<HTMLHeadingElement>;
 }
-export declare function ChannelsManagerPage({ onClose, initialFocusRef, }: ChannelsManagerPageProps): import("react/jsx-runtime").JSX.Element;
+export declare function ChannelsManagerPage({
+  onClose,
+  initialFocusRef,
+}: ChannelsManagerPageProps): import('react/jsx-runtime').JSX.Element;
 export {};

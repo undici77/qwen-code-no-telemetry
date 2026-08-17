@@ -14,4 +14,6 @@
  * Returns a one-line user-facing warning for those cases, or null when team
  * memory will be shared normally. Call only when the tier is actually active.
  */
-export declare function getTeamMemoryShareabilityWarning(projectRoot: string): string | null;
+export declare function getTeamMemoryShareabilityWarning(
+  projectRoot: string,
+): string | null;

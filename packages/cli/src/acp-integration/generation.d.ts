@@ -12,23 +12,32 @@ import { type Config } from '@qwen-code/qwen-code-core';
 export declare const GENERATION_MAX_PROMPT_BYTES: number;
 export declare const GENERATION_TIMEOUT_MS = 60000;
 export interface GenerationStartedEvent {
-    type: 'started';
-    model: string;
-    modelSource: 'fast' | 'main';
+  type: 'started';
+  model: string;
+  modelSource: 'fast' | 'main';
 }
 export interface GenerationDeltaEvent {
-    type: 'delta';
-    seq: number;
-    text: string;
+  type: 'delta';
+  seq: number;
+  text: string;
 }
 export interface GenerationThinkingEvent {
-    type: 'thinking';
+  type: 'thinking';
 }
-export type GenerationEvent = GenerationStartedEvent | GenerationThinkingEvent | GenerationDeltaEvent;
+export type GenerationEvent =
+  | GenerationStartedEvent
+  | GenerationThinkingEvent
+  | GenerationDeltaEvent;
 export interface GenerationResult {
-    model: string;
-    modelSource: 'fast' | 'main';
-    inputTokens?: number;
-    outputTokens?: number;
+  model: string;
+  modelSource: 'fast' | 'main';
+  inputTokens?: number;
+  outputTokens?: number;
 }
-export declare function executeGeneration(config: Config, requestId: string, prompt: string, signal: AbortSignal, emit: (event: GenerationEvent) => Promise<void>): Promise<GenerationResult>;
+export declare function executeGeneration(
+  config: Config,
+  requestId: string,
+  prompt: string,
+  signal: AbortSignal,
+  emit: (event: GenerationEvent) => Promise<void>,
+): Promise<GenerationResult>;

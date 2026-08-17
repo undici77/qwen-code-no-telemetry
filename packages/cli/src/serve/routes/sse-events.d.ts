@@ -11,12 +11,15 @@ import type { WorkspaceRegistry } from '../workspace-registry.js';
 import { type VirtualSubagentSessions } from '../virtual-subagent-sessions.js';
 export declare function getActiveSseCount(): number;
 interface RegisterSseEventsRoutesDeps {
-    bridge: AcpSessionBridge;
-    workspaceRegistry: WorkspaceRegistry;
-    daemonLog?: DaemonLogger;
-    writerIdleTimeoutMs?: number;
-    sendBridgeError: SendBridgeError;
-    virtualSubagentSessions?: VirtualSubagentSessions;
+  bridge: AcpSessionBridge;
+  workspaceRegistry: WorkspaceRegistry;
+  daemonLog?: DaemonLogger;
+  writerIdleTimeoutMs?: number;
+  sendBridgeError: SendBridgeError;
+  virtualSubagentSessions?: VirtualSubagentSessions;
 }
-export declare function registerSseEventsRoutes(app: Application, deps: RegisterSseEventsRoutesDeps): void;
+export declare function registerSseEventsRoutes(
+  app: Application,
+  deps: RegisterSseEventsRoutesDeps,
+): void;
 export {};

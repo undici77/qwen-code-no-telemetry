@@ -326,7 +326,9 @@ export function writeLineSync(filePath: string, data: unknown): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.appendFileSync(filePath, Buffer.from(line, 'utf8'), { flush: true } as any);
+  fs.appendFileSync(filePath, Buffer.from(line, 'utf8'), {
+    flush: true,
+  } as any);
 }
 
 /**

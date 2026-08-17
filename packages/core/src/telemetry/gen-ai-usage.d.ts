@@ -5,8 +5,13 @@
  */
 import type { GenerateContentResponseUsageMetadata } from '@google/genai';
 export interface GenAiUsageProvenance {
-    cachedInputTokensReported?: boolean;
-    cacheCreationInputTokens?: number;
+  cachedInputTokensReported?: boolean;
+  cacheCreationInputTokens?: number;
 }
-export declare function setGenAiUsageProvenance(usage: GenerateContentResponseUsageMetadata, provenance: GenAiUsageProvenance): void;
-export declare function getGenAiUsageProvenance(usage: GenerateContentResponseUsageMetadata | undefined): GenAiUsageProvenance | undefined;
+export declare function setGenAiUsageProvenance(
+  usage: GenerateContentResponseUsageMetadata,
+  provenance: GenAiUsageProvenance,
+): void;
+export declare function getGenAiUsageProvenance(
+  usage: GenerateContentResponseUsageMetadata | undefined,
+): GenAiUsageProvenance | undefined;

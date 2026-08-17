@@ -37,7 +37,10 @@ export declare const CODE_FENCE_RE: RegExp;
  */
 export declare function splitMarkdownTableRow(row: string): string[];
 /** Estimated terminal rows a non-table line occupies once wrapped to `width`. */
-export declare function estimateWrappedRows(line: string, width: number): number;
+export declare function estimateWrappedRows(
+  line: string,
+  width: number,
+): number;
 /**
  * True when `lines[i]` starts a markdown table: a `| ... |` row immediately
  * followed by a separator row whose column count matches the header's. The
@@ -46,14 +49,14 @@ export declare function estimateWrappedRows(line: string, width: number): number
  */
 export declare function isTableStart(lines: string[], i: number): boolean;
 export interface PendingSliceResult {
-    /**
-     * Number of leading source lines whose combined RENDERED height fits within
-     * `budget`. May be 0 when even the first line/table alone overflows (the
-     * caller then renders nothing rather than an oversized row).
-     */
-    keptLines: number;
-    /** True when some trailing source lines were dropped to fit the budget. */
-    clipped: boolean;
+  /**
+   * Number of leading source lines whose combined RENDERED height fits within
+   * `budget`. May be 0 when even the first line/table alone overflows (the
+   * caller then renders nothing rather than an oversized row).
+   */
+  keptLines: number;
+  /** True when some trailing source lines were dropped to fit the budget. */
+  clipped: boolean;
 }
 /**
  * How many leading source lines of `allLines` fit within `budget` RENDERED
@@ -73,4 +76,9 @@ export interface PendingSliceResult {
  * The result is an upper bound on the true rendered height of the kept prefix,
  * so callers that slice to `keptLines` can never overflow the viewport.
  */
-export declare function fitPendingSlice(allLines: string[], contentWidth: number, budget: number, tableClampRows: number): PendingSliceResult;
+export declare function fitPendingSlice(
+  allLines: string[],
+  contentWidth: number,
+  budget: number,
+  tableClampRows: number,
+): PendingSliceResult;

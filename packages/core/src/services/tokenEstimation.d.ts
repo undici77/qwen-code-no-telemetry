@@ -3,7 +3,10 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { Content, GenerateContentResponseUsageMetadata } from '@google/genai';
+import type {
+  Content,
+  GenerateContentResponseUsageMetadata,
+} from '@google/genai';
 /**
  * Average characters-per-token for char-based token estimation. The inputs
  * are character counts from `estimateContentChars` (i.e. `string.length`),
@@ -26,7 +29,10 @@ export declare const CHARS_PER_TOKEN = 4;
  * lower bound (real tokenizers vary ±30%); using it to TRIGGER compaction
  * earlier is safe (false-positive), using it to SKIP compaction is not.
  */
-export declare function estimateContentTokens(contents: Content[], imageTokenEstimate?: number): number;
+export declare function estimateContentTokens(
+  contents: Content[],
+  imageTokenEstimate?: number,
+): number;
 /**
  * Compute an effective prompt-token count for the auto-compaction gate.
  *
@@ -55,5 +61,14 @@ export declare function estimateContentTokens(contents: Content[], imageTokenEst
  * new-content term, not the API-authoritative running total.
  */
 export declare const CONSERVATIVE_NEW_CONTENT_SAFETY_FACTOR = 1.5;
-export declare function estimatePromptTokens(history: Content[], userMessage: Content, lastPromptTokenCount: number, lastOutputTokenCount?: number, imageTokenEstimate?: number, conservative?: boolean): number;
-export declare function getUsageOutputTokenCountForPromptEstimate(usage: GenerateContentResponseUsageMetadata | undefined): number;
+export declare function estimatePromptTokens(
+  history: Content[],
+  userMessage: Content,
+  lastPromptTokenCount: number,
+  lastOutputTokenCount?: number,
+  imageTokenEstimate?: number,
+  conservative?: boolean,
+): number;
+export declare function getUsageOutputTokenCountForPromptEstimate(
+  usage: GenerateContentResponseUsageMetadata | undefined,
+): number;

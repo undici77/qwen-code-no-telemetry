@@ -15,7 +15,9 @@ import type { WorkspaceGenerationGuard } from '../workspace-registry.js';
  * real per-session emit, so legitimate production traffic never hits
  * the warning.
  */
-export declare function createDefaultFsAuditEmit(): (event: BridgeEvent) => void;
+export declare function createDefaultFsAuditEmit(): (
+  event: BridgeEvent,
+) => void;
 /**
  * Shared `WorkspaceFileSystemFactory` construction used by both
  * `runQwenServe` and `createServeApp`'s default bridge wiring.
@@ -28,12 +30,16 @@ export declare function createDefaultFsAuditEmit(): (event: BridgeEvent) => void
  *   - `createServeApp` defaults to `trusted: false` (test-safe)
  */
 export declare function resolveBridgeFsFactory(input: {
-    boundWorkspaces: readonly string[];
-    injected?: WorkspaceFileSystemFactory;
-    trusted: boolean;
-    emit?: (event: BridgeEvent) => void;
-    customIgnoreFiles?: string[];
-    pathLocks?: PathMutexRegistry;
-    generationGuard?: Pick<WorkspaceGenerationGuard, 'assertOpen'>;
+  boundWorkspaces: readonly string[];
+  injected?: WorkspaceFileSystemFactory;
+  trusted: boolean;
+  emit?: (event: BridgeEvent) => void;
+  customIgnoreFiles?: string[];
+  pathLocks?: PathMutexRegistry;
+  generationGuard?: Pick<WorkspaceGenerationGuard, 'assertOpen'>;
 }): WorkspaceFileSystemFactory;
-export declare function resolveBoundWorkspacesFromIdeEnv(primaryWorkspace: string, ideWorkspacePath?: string | undefined, includeWorkspace?: (workspace: string, index: number) => boolean): string[];
+export declare function resolveBoundWorkspacesFromIdeEnv(
+  primaryWorkspace: string,
+  ideWorkspacePath?: string | undefined,
+  includeWorkspace?: (workspace: string, index: number) => boolean,
+): string[];

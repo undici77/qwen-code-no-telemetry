@@ -7,7 +7,11 @@ import type { AnyDeclarativeTool, AnyToolInvocation } from '../index.js';
 import { ToolNames } from '../tools/tool-names.js';
 export type ToolName = (typeof ToolNames)[keyof typeof ToolNames];
 export declare const getAliasSetForTool: (toolName: string) => Set<string>;
-export declare function isToolEnabled(toolName: ToolName, coreTools?: string[], excludeTools?: string[]): boolean;
+export declare function isToolEnabled(
+  toolName: ToolName,
+  coreTools?: string[],
+  excludeTools?: string[],
+): boolean;
 /**
  * Checks if a tool invocation matches any of a list of patterns.
  *
@@ -20,4 +24,8 @@ export declare function isToolEnabled(toolName: ToolName, coreTools?: string[], 
  *     invocations where the arguments start with that prefix.
  * @returns True if the invocation matches any pattern, false otherwise.
  */
-export declare function doesToolInvocationMatch(toolOrToolName: AnyDeclarativeTool | string, invocation: AnyToolInvocation, patterns: string[]): boolean;
+export declare function doesToolInvocationMatch(
+  toolOrToolName: AnyDeclarativeTool | string,
+  invocation: AnyToolInvocation,
+  patterns: string[],
+): boolean;

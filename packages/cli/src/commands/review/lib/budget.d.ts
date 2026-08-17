@@ -5,93 +5,93 @@
  */
 /** The size inputs the budget is derived from. */
 export interface BudgetInput {
-    /**
-     * Diff lines in `source` files — the same number the topology gate turns on,
-     * and for the same reason: test and prose lines inflate a diff without adding
-     * anything for a reviewer to get wrong.
-     */
-    srcDiffLines: number;
-    /** Total diff lines, including tests, prose and generated files. */
-    diffLines: number;
+  /**
+   * Diff lines in `source` files — the same number the topology gate turns on,
+   * and for the same reason: test and prose lines inflate a diff without adding
+   * anything for a reviewer to get wrong.
+   */
+  srcDiffLines: number;
+  /** Total diff lines, including tests, prose and generated files. */
+  diffLines: number;
 }
 export interface ReviewBudget {
-    /**
-     * How many of the low tier's directed angles to walk (Step 3C, A–F).
-     *
-     * Always at least 3, because the three that are always worth walking are the
-     * ones defined by *how they walk* rather than by a topic — line-by-line,
-     * removed behaviour, and the language's own pitfalls — and each is answerable
-     * on a diff of any size. The rest earn their turn as there is more to see.
-     */
-    inlineAngles: number;
-    /**
-     * Does the low tier's gap sweep run?
-     *
-     * The sweep re-reads the diff as a fresh reviewer holding the deduplicated
-     * list, hunting only for what is not on it. On a diff small enough to hold
-     * entirely in view, a second reader of the same few hunks is the same reader:
-     * there is no "what did the first pass not get to" when the first pass got to
-     * all of it.
-     */
-    sweep: boolean;
-    /**
-     * The cap on Agent 8 diff-specialized finders (high effort only).
-     *
-     * Zero below the floor, and that is the substantive half of this field. A
-     * specialist is launched when "one domain dominates the diff", which is a
-     * judgement — and a judgement made about forty lines will find a dominant
-     * domain every time, because forty lines are usually all one thing. Dominance
-     * is only meaningful once there is enough code for a diff to have been about
-     * several things and not be.
-     */
-    specialistCap: number;
-    /**
-     * Findings per Step 4 verification agent — `ceil(N / verifyShard)` agents.
-     *
-     * Flat by design; it is here so the number has one home rather than being
-     * re-stated in the skill's prose and in whatever reads it. It is a property of
-     * how much a verifier can re-trace before its quality collapses on the tail of
-     * its list, which is a fact about the verifier and not about the diff.
-     */
-    verifyShard: number;
-    /**
-     * Soft tool-call ceiling baked into every finder/auditor brief — not the
-     * verifier, whose load `verifyShard` already governs, and not Build & Test,
-     * whose calls are deterministic commands.
-     *
-     * A fan-out wave's wall clock is its slowest agent, and the slowest agent
-     * is reliably a wanderer: two measured runs of the SAME 14-agent wave took
-     * 11.7 and 41 minutes, the difference being individual agents spending
-     * 40-100 model calls exploring the tree, while healthy agents on
-     * comparable diffs settle in the 25-45 range. The ceiling is SOFT: the
-     * brief tells the agent to stop exploring at the budget, write its
-     * findings from the evidence in hand, and disclose what it did not get to
-     * — a disclosed gap feeds the whiff and receipt machinery; an undisclosed
-     * crawl only feeds the wall clock.
-     */
-    agentToolBudget: number;
-    /**
-     * The reverse-audit loop's round cap: the full `MAX_REVERSE_AUDIT_ROUNDS`
-     * normally, or a reduced `HUGE_REVERSE_AUDIT_ROUNDS` for a diff large
-     * enough that the full loop cannot finish inside any budget.
-     *
-     * A reverse-audit round re-reads the whole diff against a growing
-     * findings list, so its cost scales with the diff — measured at ~90
-     * minutes a round on a 4,000-line PR, where the full five rounds alone
-     * (450 min) exceed the six-hour CI ceiling before the fan-out and tail
-     * are even counted. In a time-budgeted CI run the deadline gate already
-     * refuses a round that will not fit; this static cap is the belt it works
-     * under and the ONLY bound a local run (no deadline) has. Reduced to
-     * three, not two — not because two cannot converge (the all-dry
-     * rounds-1-and-2 shape reaches CONVERGED at the round-3 build under any
-     * cap of two or more, since the convergence check runs before the cap
-     * gate) but to buy hot chunks one extra audit round before the cap.
-     *
-     * The budget tunes how many rounds the loop runs, never whether it runs:
-     * the reverse audit is a dimension of the high-effort contract. The CLI
-     * only ever writes three or five here.
-     */
-    reverseAuditRounds: number;
+  /**
+   * How many of the low tier's directed angles to walk (Step 3C, A–F).
+   *
+   * Always at least 3, because the three that are always worth walking are the
+   * ones defined by *how they walk* rather than by a topic — line-by-line,
+   * removed behaviour, and the language's own pitfalls — and each is answerable
+   * on a diff of any size. The rest earn their turn as there is more to see.
+   */
+  inlineAngles: number;
+  /**
+   * Does the low tier's gap sweep run?
+   *
+   * The sweep re-reads the diff as a fresh reviewer holding the deduplicated
+   * list, hunting only for what is not on it. On a diff small enough to hold
+   * entirely in view, a second reader of the same few hunks is the same reader:
+   * there is no "what did the first pass not get to" when the first pass got to
+   * all of it.
+   */
+  sweep: boolean;
+  /**
+   * The cap on Agent 8 diff-specialized finders (high effort only).
+   *
+   * Zero below the floor, and that is the substantive half of this field. A
+   * specialist is launched when "one domain dominates the diff", which is a
+   * judgement — and a judgement made about forty lines will find a dominant
+   * domain every time, because forty lines are usually all one thing. Dominance
+   * is only meaningful once there is enough code for a diff to have been about
+   * several things and not be.
+   */
+  specialistCap: number;
+  /**
+   * Findings per Step 4 verification agent — `ceil(N / verifyShard)` agents.
+   *
+   * Flat by design; it is here so the number has one home rather than being
+   * re-stated in the skill's prose and in whatever reads it. It is a property of
+   * how much a verifier can re-trace before its quality collapses on the tail of
+   * its list, which is a fact about the verifier and not about the diff.
+   */
+  verifyShard: number;
+  /**
+   * Soft tool-call ceiling baked into every finder/auditor brief — not the
+   * verifier, whose load `verifyShard` already governs, and not Build & Test,
+   * whose calls are deterministic commands.
+   *
+   * A fan-out wave's wall clock is its slowest agent, and the slowest agent
+   * is reliably a wanderer: two measured runs of the SAME 14-agent wave took
+   * 11.7 and 41 minutes, the difference being individual agents spending
+   * 40-100 model calls exploring the tree, while healthy agents on
+   * comparable diffs settle in the 25-45 range. The ceiling is SOFT: the
+   * brief tells the agent to stop exploring at the budget, write its
+   * findings from the evidence in hand, and disclose what it did not get to
+   * — a disclosed gap feeds the whiff and receipt machinery; an undisclosed
+   * crawl only feeds the wall clock.
+   */
+  agentToolBudget: number;
+  /**
+   * The reverse-audit loop's round cap: the full `MAX_REVERSE_AUDIT_ROUNDS`
+   * normally, or a reduced `HUGE_REVERSE_AUDIT_ROUNDS` for a diff large
+   * enough that the full loop cannot finish inside any budget.
+   *
+   * A reverse-audit round re-reads the whole diff against a growing
+   * findings list, so its cost scales with the diff — measured at ~90
+   * minutes a round on a 4,000-line PR, where the full five rounds alone
+   * (450 min) exceed the six-hour CI ceiling before the fan-out and tail
+   * are even counted. In a time-budgeted CI run the deadline gate already
+   * refuses a round that will not fit; this static cap is the belt it works
+   * under and the ONLY bound a local run (no deadline) has. Reduced to
+   * three, not two — not because two cannot converge (the all-dry
+   * rounds-1-and-2 shape reaches CONVERGED at the round-3 build under any
+   * cap of two or more, since the convergence check runs before the cap
+   * gate) but to buy hot chunks one extra audit round before the cap.
+   *
+   * The budget tunes how many rounds the loop runs, never whether it runs:
+   * the reverse audit is a dimension of the high-effort contract. The CLI
+   * only ever writes three or five here.
+   */
+  reverseAuditRounds: number;
 }
 /**
  * The reverse-audit loop's full round cap (SKILL.md Step 5's "stop at the
@@ -178,7 +178,11 @@ export declare function reverseAuditRoundCap(budget: unknown): number;
  * low enough that a garbled plan cannot erase the ceiling.
  */
 export declare const MAX_TOTAL_TOOL_CALLS = 200;
-export declare function launchToolBudget(planBudget: number, territoryLines: number | null, mandatoryReads: number): number;
+export declare function launchToolBudget(
+  planBudget: number,
+  territoryLines: number | null,
+  mandatoryReads: number,
+): number;
 /**
  * The disclosure marker ANYWHERE in a line — for the one consumer that
  * cannot rely on the own-line format: a receipt clause with the disclosure

@@ -13,4 +13,8 @@
  * Returns an error message to block the write, or null to allow it. The cheap
  * path check runs first, so non-memory writes pay only a single path compare.
  */
-export declare function checkTeamMemorySecrets(filePath: string, content: string, projectRoot: string): string | null;
+export declare function checkTeamMemorySecrets(
+  filePath: string,
+  content: string,
+  projectRoot: string,
+): string | null;

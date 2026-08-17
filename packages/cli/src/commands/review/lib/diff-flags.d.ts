@@ -43,4 +43,4 @@ export declare const NULL_DEVICE: string;
  * file also pulls in `ab.ts` and `ac.ts`, and a leading `:` opens the magic
  * syntax outright. Every command that takes a user-supplied path pins this.
  */
-export declare const LITERAL_PATHSPECS = "--literal-pathspecs";
+export declare const LITERAL_PATHSPECS = '--literal-pathspecs';

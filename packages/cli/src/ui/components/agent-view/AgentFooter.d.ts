@@ -11,10 +11,10 @@
 import type React from 'react';
 import type { ApprovalMode } from '@qwen-code/qwen-code-core';
 interface AgentFooterProps {
-    approvalMode: ApprovalMode | undefined;
-    promptTokenCount: number;
-    contextWindowSize: number | undefined;
-    terminalWidth: number;
+  approvalMode: ApprovalMode | undefined;
+  promptTokenCount: number;
+  contextWindowSize: number | undefined;
+  terminalWidth: number;
 }
 export declare const AgentFooter: React.FC<AgentFooterProps>;
 export {};

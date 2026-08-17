@@ -24,18 +24,18 @@ import type { PermissionDecision } from '../permissions/types.js';
 import type { ToolCallConfirmationDetails } from '../tools/tools.js';
 export type PermissionFlowPermission = PermissionDecision;
 export interface PermissionFlowResult {
-    /** The tool's intrinsic L3 permission before PermissionManager rules. */
-    defaultPermission: PermissionFlowPermission;
-    /** The final permission after L3→L4 (allow | deny | ask | default) */
-    finalPermission: PermissionFlowPermission;
-    /** Whether PM forced 'ask' (hides "Always Allow" buttons) */
-    pmForcedAsk: boolean;
-    /** Deny message (only set when finalPermission === 'deny') */
-    denyMessage?: string;
-    /** Permission check context (needed for injectPermissionRulesIfMissing) */
-    pmCtx: ReturnType<typeof buildPermissionCheckContext>;
-    /** Whether automatic approval paths must be bypassed for this invocation. */
-    requiresUserInteraction: boolean;
+  /** The tool's intrinsic L3 permission before PermissionManager rules. */
+  defaultPermission: PermissionFlowPermission;
+  /** The final permission after L3→L4 (allow | deny | ask | default) */
+  finalPermission: PermissionFlowPermission;
+  /** Whether PM forced 'ask' (hides "Always Allow" buttons) */
+  pmForcedAsk: boolean;
+  /** Deny message (only set when finalPermission === 'deny') */
+  denyMessage?: string;
+  /** Permission check context (needed for injectPermissionRulesIfMissing) */
+  pmCtx: ReturnType<typeof buildPermissionCheckContext>;
+  /** Whether automatic approval paths must be bypassed for this invocation. */
+  requiresUserInteraction: boolean;
 }
 /**
  * Execute the L3→L4 permission flow.
@@ -50,7 +50,12 @@ export interface PermissionFlowResult {
  *   returns something other than the standard values (e.g. an edge case
  *   in the tool's getDefaultPermission implementation).
  */
-export declare function evaluatePermissionFlow(config: Config, invocation: AnyToolInvocation, toolName: string, toolParams: Record<string, unknown>): Promise<PermissionFlowResult>;
+export declare function evaluatePermissionFlow(
+  config: Config,
+  invocation: AnyToolInvocation,
+  toolName: string,
+  toolParams: Record<string, unknown>,
+): Promise<PermissionFlowResult>;
 /**
  * Check if the tool needs user confirmation based on the permission flow
  * result and the current ApprovalMode.
@@ -61,19 +66,36 @@ export declare function evaluatePermissionFlow(config: Config, invocation: AnyTo
  * Note: Plan mode and AUTO_EDIT mode are L5 overrides that need
  * confirmationDetails.type - callers must handle those separately.
  */
-export declare function needsConfirmation(finalPermission: PermissionFlowPermission, approvalMode: ApprovalMode, toolName: string, requiresUserInteraction?: boolean): boolean;
-export declare function getEffectivePermissionForConfirmation(finalPermission: PermissionFlowPermission, forceConfirmationForAllow: boolean): PermissionFlowPermission;
+export declare function needsConfirmation(
+  finalPermission: PermissionFlowPermission,
+  approvalMode: ApprovalMode,
+  toolName: string,
+  requiresUserInteraction?: boolean,
+): boolean;
+export declare function getEffectivePermissionForConfirmation(
+  finalPermission: PermissionFlowPermission,
+  forceConfirmationForAllow: boolean,
+): PermissionFlowPermission;
 /**
  * Check if plan mode blocks the tool execution.
  *
  * This must be called AFTER getting confirmationDetails because it needs
  * `confirmationDetails.type`.
  */
-export declare function isPlanModeBlocked(isPlanMode: boolean, isExitPlanModeTool: boolean, isAskUserQuestionTool: boolean, confirmationDetails?: ToolCallConfirmationDetails, isEnterPlanModeTool?: boolean): boolean;
+export declare function isPlanModeBlocked(
+  isPlanMode: boolean,
+  isExitPlanModeTool: boolean,
+  isAskUserQuestionTool: boolean,
+  confirmationDetails?: ToolCallConfirmationDetails,
+  isEnterPlanModeTool?: boolean,
+): boolean;
 /**
  * Check if AUTO_EDIT mode auto-approves the tool.
  *
  * This must be called AFTER getting confirmationDetails because it needs
  * `confirmationDetails.type`.
  */
-export declare function isAutoEditApproved(approvalMode: ApprovalMode, confirmationDetails?: ToolCallConfirmationDetails): boolean;
+export declare function isAutoEditApproved(
+  approvalMode: ApprovalMode,
+  confirmationDetails?: ToolCallConfirmationDetails,
+): boolean;

@@ -7,4 +7,8 @@
  * Format an epoch-seconds timestamp as a localized relative time
  * ("3 hours ago"). `now` is also epoch seconds.
  */
-export declare function timeAgo(timestamp: number, now: number, language: string): string;
+export declare function timeAgo(
+  timestamp: number,
+  now: number,
+  language: string,
+): string;

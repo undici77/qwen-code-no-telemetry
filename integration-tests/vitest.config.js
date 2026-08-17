@@ -10,35 +10,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const timeoutMinutes = Number(process.env['TB_TIMEOUT_MINUTES'] || '5');
 const testTimeoutMs = timeoutMinutes * 60 * 1000;
 export default defineConfig({
-    test: {
-        testTimeout: testTimeoutMs,
-        globalSetup: './globalSetup.ts',
-        reporters: ['default'],
-        include: ['**/*.test.ts'],
-        exclude: [
-            '**/terminal-bench/*.test.ts',
-            '**/hook-integration/**',
-            '**/qwen-daemon-loadtest*',
-            '**/qwen-daemon-first-output-benchmark*',
-            '**/node_modules/**',
-        ],
-        retry: 2,
-        fileParallelism: true,
-        pool: 'forks',
-        poolOptions: {
-            forks: {
-                minForks: 2,
-                maxForks: 4,
-            },
-        },
+  test: {
+    testTimeout: testTimeoutMs,
+    globalSetup: './globalSetup.ts',
+    reporters: ['default'],
+    include: ['**/*.test.ts'],
+    exclude: [
+      '**/terminal-bench/*.test.ts',
+      '**/hook-integration/**',
+      '**/qwen-daemon-loadtest*',
+      '**/qwen-daemon-first-output-benchmark*',
+      '**/node_modules/**',
+    ],
+    retry: 2,
+    fileParallelism: true,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        minForks: 2,
+        maxForks: 4,
+      },
     },
-    resolve: {
-        alias: {
-            // Use built SDK bundle for e2e tests
-            '@qwen-code/sdk/daemon/transports': resolve(__dirname, '../packages/sdk-typescript/dist/daemon/transports.js'),
-            '@qwen-code/sdk/daemon': resolve(__dirname, '../packages/sdk-typescript/dist/daemon/index.js'),
-            '@qwen-code/sdk': resolve(__dirname, '../packages/sdk-typescript/dist/index.mjs'),
-        },
+  },
+  resolve: {
+    alias: {
+      // Use built SDK bundle for e2e tests
+      '@qwen-code/sdk/daemon/transports': resolve(
+        __dirname,
+        '../packages/sdk-typescript/dist/daemon/transports.js',
+      ),
+      '@qwen-code/sdk/daemon': resolve(
+        __dirname,
+        '../packages/sdk-typescript/dist/daemon/index.js',
+      ),
+      '@qwen-code/sdk': resolve(
+        __dirname,
+        '../packages/sdk-typescript/dist/index.mjs',
+      ),
     },
+  },
 });
 //# sourceMappingURL=vitest.config.js.map

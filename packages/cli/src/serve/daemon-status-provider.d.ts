@@ -12,5 +12,5 @@ import { type DaemonStatusProvider } from '@qwen-code/acp-bridge';
  * fine).
  */
 export declare function createDaemonStatusProvider(options?: {
-    env?: Readonly<Record<string, string | undefined>>;
+  env?: Readonly<Record<string, string | undefined>>;
 }): DaemonStatusProvider;

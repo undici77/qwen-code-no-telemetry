@@ -5,121 +5,121 @@
  * with ACP taking precedence on duplicates.
  */
 export function getLocalCommands(t, options = {}) {
-    const commands = [
-        { name: 'help', description: t('local.help') },
-        {
-            name: 'theme',
-            description: t('local.theme'),
-            argumentHint: 'light|dark',
-            subcommands: ['light', 'dark'],
-        },
-        {
-            name: 'language',
-            description: t('local.language'),
-            argumentHint: 'ui [en|zh-CN]',
-            subcommands: ['ui'],
-        },
-        { name: 'plan', description: t('local.plan'), argumentHint: '<prompt>' },
-        {
-            name: 'btw',
-            description: t('local.btw'),
-            argumentHint: options.sideTaskAvailable
-                ? '[side] <your question>'
-                : '<your question>',
-        },
-        {
-            name: 'copy',
-            description: t('local.copy'),
-            argumentHint: '[code|<lang>|latex|inline-latex] [index]',
-        },
-        { name: 'delete', description: t('local.delete') },
-        { name: 'release', description: t('local.release') },
-        { name: 'auth', description: t('local.auth') },
-        {
-            name: 'approval-mode',
-            description: t('local.approvalMode'),
-            argumentHint: '<mode>',
-        },
-        {
-            name: 'model',
-            description: t('local.model'),
-            argumentHint: '[--fast|--voice|--vision] [<model>]',
-        },
-        {
-            name: 'mcp',
-            description: t('local.mcp'),
-            argumentHint: 'desc|nodesc|schema',
-        },
-        { name: 'skills', description: t('local.skills') },
-        { name: 'status', description: t('local.status') },
-        {
-            name: 'stats',
-            description: t('local.stats'),
-            argumentHint: '[model|tools]',
-            subcommands: ['model', 'tools'],
-        },
-        { name: 'tools', description: t('local.tools'), argumentHint: '[desc]' },
-        {
-            name: 'memory',
-            description: t('local.memory'),
-        },
-        {
-            name: 'context',
-            description: t('local.context'),
-            argumentHint: '[detail]',
-        },
-        {
-            name: 'agents',
-            description: t('local.agents'),
-            argumentHint: 'manage|create',
-        },
-        {
-            name: 'goal',
-            description: t('local.goal'),
-            argumentHint: '[<condition> | clear]',
-        },
-        { name: 'tasks', description: t('local.tasks') },
-        { name: 'recap', description: t('local.recap') },
-        { name: 'rewind', description: t('local.rewind') },
-        {
-            name: 'branch',
-            description: t('local.branch'),
-            argumentHint: '[<name>]',
-        },
-        { name: 'diff', description: t('local.diff') },
-        { name: 'log', description: t('local.log') },
-        { name: 'prs', description: t('local.prs') },
-        {
-            name: 'fork',
-            description: t('local.fork'),
-            argumentHint: '<directive>',
-        },
-        { name: 'clear', description: t('local.clear') },
-        { name: 'new', description: t('local.new') },
-        { name: 'reset', description: t('local.reset') },
-        {
-            name: 'rename',
-            description: t('local.rename'),
-            argumentHint: '[--auto] [<name>]',
-        },
-        {
-            name: 'resume',
-            description: t('local.resume'),
-            argumentHint: '<session-id>',
-        },
-        { name: 'settings', description: t('local.settings') },
-        { name: 'schedule', description: t('local.schedule') },
-        {
-            name: 'extensions',
-            description: t('local.extensions'),
-            argumentHint: 'manage|install <source>',
-            subcommands: ['manage', 'install'],
-        },
-    ];
-    return commands.map((command) => ({
-        ...command,
-        source: 'builtin-command',
-    }));
+  const commands = [
+    { name: 'help', description: t('local.help') },
+    {
+      name: 'theme',
+      description: t('local.theme'),
+      argumentHint: 'light|dark',
+      subcommands: ['light', 'dark'],
+    },
+    {
+      name: 'language',
+      description: t('local.language'),
+      argumentHint: 'ui [en|zh-CN]',
+      subcommands: ['ui'],
+    },
+    { name: 'plan', description: t('local.plan'), argumentHint: '<prompt>' },
+    {
+      name: 'btw',
+      description: t('local.btw'),
+      argumentHint: options.sideTaskAvailable
+        ? '[side] <your question>'
+        : '<your question>',
+    },
+    {
+      name: 'copy',
+      description: t('local.copy'),
+      argumentHint: '[code|<lang>|latex|inline-latex] [index]',
+    },
+    { name: 'delete', description: t('local.delete') },
+    { name: 'release', description: t('local.release') },
+    { name: 'auth', description: t('local.auth') },
+    {
+      name: 'approval-mode',
+      description: t('local.approvalMode'),
+      argumentHint: '<mode>',
+    },
+    {
+      name: 'model',
+      description: t('local.model'),
+      argumentHint: '[--fast|--voice|--vision] [<model>]',
+    },
+    {
+      name: 'mcp',
+      description: t('local.mcp'),
+      argumentHint: 'desc|nodesc|schema',
+    },
+    { name: 'skills', description: t('local.skills') },
+    { name: 'status', description: t('local.status') },
+    {
+      name: 'stats',
+      description: t('local.stats'),
+      argumentHint: '[model|tools]',
+      subcommands: ['model', 'tools'],
+    },
+    { name: 'tools', description: t('local.tools'), argumentHint: '[desc]' },
+    {
+      name: 'memory',
+      description: t('local.memory'),
+    },
+    {
+      name: 'context',
+      description: t('local.context'),
+      argumentHint: '[detail]',
+    },
+    {
+      name: 'agents',
+      description: t('local.agents'),
+      argumentHint: 'manage|create',
+    },
+    {
+      name: 'goal',
+      description: t('local.goal'),
+      argumentHint: '[<condition> | clear]',
+    },
+    { name: 'tasks', description: t('local.tasks') },
+    { name: 'recap', description: t('local.recap') },
+    { name: 'rewind', description: t('local.rewind') },
+    {
+      name: 'branch',
+      description: t('local.branch'),
+      argumentHint: '[<name>]',
+    },
+    { name: 'diff', description: t('local.diff') },
+    { name: 'log', description: t('local.log') },
+    { name: 'prs', description: t('local.prs') },
+    {
+      name: 'fork',
+      description: t('local.fork'),
+      argumentHint: '<directive>',
+    },
+    { name: 'clear', description: t('local.clear') },
+    { name: 'new', description: t('local.new') },
+    { name: 'reset', description: t('local.reset') },
+    {
+      name: 'rename',
+      description: t('local.rename'),
+      argumentHint: '[--auto] [<name>]',
+    },
+    {
+      name: 'resume',
+      description: t('local.resume'),
+      argumentHint: '<session-id>',
+    },
+    { name: 'settings', description: t('local.settings') },
+    { name: 'schedule', description: t('local.schedule') },
+    {
+      name: 'extensions',
+      description: t('local.extensions'),
+      argumentHint: 'manage|install <source>',
+      subcommands: ['manage', 'install'],
+    },
+  ];
+  return commands.map((command) => ({
+    ...command,
+    source: 'builtin-command',
+  }));
 }
 /**
  * Built-in commands the daemon advertises but that are NOT part of
@@ -134,26 +134,26 @@ export function getLocalCommands(t, options = {}) {
  * description.
  */
 const BUILTIN_COMMAND_DESCRIPTION_KEYS = {
-    bug: 'local.bug',
-    compress: 'local.compress',
-    'compress-fast': 'local.compressFast',
-    config: 'local.config',
-    diff: 'local.diff',
-    directory: 'local.directory',
-    docs: 'local.docs',
-    doctor: 'local.doctor',
-    dream: 'local.dream',
-    effort: 'local.effort',
-    export: 'local.export',
-    forget: 'local.forget',
-    hooks: 'local.hooks',
-    'import-config': 'local.importConfig',
-    init: 'local.init',
-    insight: 'local.insight',
-    lsp: 'local.lsp',
-    remember: 'local.remember',
-    summary: 'local.summary',
-    workflows: 'local.workflows',
+  bug: 'local.bug',
+  compress: 'local.compress',
+  'compress-fast': 'local.compressFast',
+  config: 'local.config',
+  diff: 'local.diff',
+  directory: 'local.directory',
+  docs: 'local.docs',
+  doctor: 'local.doctor',
+  dream: 'local.dream',
+  effort: 'local.effort',
+  export: 'local.export',
+  forget: 'local.forget',
+  hooks: 'local.hooks',
+  'import-config': 'local.importConfig',
+  init: 'local.init',
+  insight: 'local.insight',
+  lsp: 'local.lsp',
+  remember: 'local.remember',
+  summary: 'local.summary',
+  workflows: 'local.workflows',
 };
 /**
  * Skills whose author-written descriptions ship in English — the Qwen Code
@@ -166,43 +166,43 @@ const BUILTIN_COMMAND_DESCRIPTION_KEYS = {
  * own skills, newly added ones) fall back to their authored description.
  */
 const SKILL_DESCRIPTION_KEYS = {
-    // Bundled with Qwen Code (packages/core/src/skills/bundled).
-    batch: 'skilldesc.batch',
-    dataviz: 'skilldesc.dataviz',
-    'extension-creator': 'skilldesc.extensionCreator',
-    loop: 'skilldesc.loop',
-    'new-app': 'skilldesc.newApp',
-    'qc-helper': 'skilldesc.qcHelper',
-    review: 'skilldesc.review',
-    simplify: 'skilldesc.simplify',
-    stuck: 'skilldesc.stuck',
-    // This repo's project skills (.qwen/skills).
-    'agent-reproduce-align': 'skilldesc.agentReproduceAlign',
-    'agent-reproduce-feature': 'skilldesc.agentReproduceFeature',
-    autofix: 'skilldesc.autofix',
-    bugfix: 'skilldesc.bugfix',
-    codegraph: 'skilldesc.codegraph',
-    'create-issue': 'skilldesc.createIssue',
-    'desktop-pet': 'skilldesc.desktopPet',
-    'docs-audit-and-refresh': 'skilldesc.docsAuditAndRefresh',
-    'docs-update-from-diff': 'skilldesc.docsUpdateFromDiff',
-    'e2e-testing': 'skilldesc.e2eTesting',
-    'feat-dev': 'skilldesc.featDev',
-    'memory-leak-debug': 'skilldesc.memoryLeakDebug',
-    'openwork-desktop-sync': 'skilldesc.openworkDesktopSync',
-    'prepare-pr': 'skilldesc.preparePr',
-    'qwen-code-claw': 'skilldesc.qwenCodeClaw',
-    'structured-debugging': 'skilldesc.structuredDebugging',
-    'terminal-capture': 'skilldesc.terminalCapture',
-    'tmux-real-user-testing': 'skilldesc.tmuxRealUserTesting',
-    triage: 'skilldesc.triage',
+  // Bundled with Qwen Code (packages/core/src/skills/bundled).
+  batch: 'skilldesc.batch',
+  dataviz: 'skilldesc.dataviz',
+  'extension-creator': 'skilldesc.extensionCreator',
+  loop: 'skilldesc.loop',
+  'new-app': 'skilldesc.newApp',
+  'qc-helper': 'skilldesc.qcHelper',
+  review: 'skilldesc.review',
+  simplify: 'skilldesc.simplify',
+  stuck: 'skilldesc.stuck',
+  // This repo's project skills (.qwen/skills).
+  'agent-reproduce-align': 'skilldesc.agentReproduceAlign',
+  'agent-reproduce-feature': 'skilldesc.agentReproduceFeature',
+  autofix: 'skilldesc.autofix',
+  bugfix: 'skilldesc.bugfix',
+  codegraph: 'skilldesc.codegraph',
+  'create-issue': 'skilldesc.createIssue',
+  'desktop-pet': 'skilldesc.desktopPet',
+  'docs-audit-and-refresh': 'skilldesc.docsAuditAndRefresh',
+  'docs-update-from-diff': 'skilldesc.docsUpdateFromDiff',
+  'e2e-testing': 'skilldesc.e2eTesting',
+  'feat-dev': 'skilldesc.featDev',
+  'memory-leak-debug': 'skilldesc.memoryLeakDebug',
+  'openwork-desktop-sync': 'skilldesc.openworkDesktopSync',
+  'prepare-pr': 'skilldesc.preparePr',
+  'qwen-code-claw': 'skilldesc.qwenCodeClaw',
+  'structured-debugging': 'skilldesc.structuredDebugging',
+  'terminal-capture': 'skilldesc.terminalCapture',
+  'tmux-real-user-testing': 'skilldesc.tmuxRealUserTesting',
+  triage: 'skilldesc.triage',
 };
 /**
  * i18n key for a known skill's localized menu description, or undefined for a
  * skill we don't ship a translation for (leave its authored description).
  */
 export function skillDescriptionKey(name) {
-    return SKILL_DESCRIPTION_KEYS[name];
+  return SKILL_DESCRIPTION_KEYS[name];
 }
 /**
  * Re-localize built-in command descriptions by name so the slash menu matches
@@ -213,13 +213,11 @@ export function skillDescriptionKey(name) {
  * (Skills are localized separately in the skill-tagging step.)
  */
 export function localizeBuiltinDescriptions(commands, t) {
-    return commands.map((command) => {
-        const key = BUILTIN_COMMAND_DESCRIPTION_KEYS[command.name];
-        if (!key)
-            return command;
-        if (command.source && command.source !== 'builtin-command')
-            return command;
-        return { ...command, description: t(key) };
-    });
+  return commands.map((command) => {
+    const key = BUILTIN_COMMAND_DESCRIPTION_KEYS[command.name];
+    if (!key) return command;
+    if (command.source && command.source !== 'builtin-command') return command;
+    return { ...command, description: t(key) };
+  });
 }
 //# sourceMappingURL=localCommands.js.map

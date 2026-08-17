@@ -3,7 +3,14 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { AuthType, type ContentGeneratorConfig, type ContentGeneratorConfigSources, type ModelProvidersConfig, type ProviderModelConfig, type ProviderProtocolConfig } from '@qwen-code/qwen-code-core';
+import {
+  AuthType,
+  type ContentGeneratorConfig,
+  type ContentGeneratorConfigSources,
+  type ModelProvidersConfig,
+  type ProviderModelConfig,
+  type ProviderProtocolConfig,
+} from '@qwen-code/qwen-code-core';
 import type { Settings } from '../config/settings.js';
 /**
  * Collect every modelProviders entry whose provider id resolves (via
@@ -13,39 +20,45 @@ import type { Settings } from '../config/settings.js';
  * provider's models under their resolved protocol instead of only the protocol
  * key. For built-in-only configs this equals `modelProviders[protocol]`.
  */
-export declare function collectProviderModelsForProtocol(modelProviders: ModelProvidersConfig | undefined, providerProtocol: ProviderProtocolConfig | undefined, protocol: string): ProviderModelConfig[];
+export declare function collectProviderModelsForProtocol(
+  modelProviders: ModelProvidersConfig | undefined,
+  providerProtocol: ProviderProtocolConfig | undefined,
+  protocol: string,
+): ProviderModelConfig[];
 export interface CliGenerationConfigInputs {
-    argv: {
-        model?: string | undefined;
-        openaiApiKey?: string | undefined;
-        openaiBaseUrl?: string | undefined;
-        openaiLogging?: boolean | undefined;
-        openaiLoggingDir?: string | undefined;
-    };
-    settings: Settings;
-    selectedAuthType: AuthType | undefined;
-    /**
-     * Injectable env for testability. Defaults to process.env at callsites.
-     */
-    env?: Record<string, string | undefined>;
+  argv: {
+    model?: string | undefined;
+    openaiApiKey?: string | undefined;
+    openaiBaseUrl?: string | undefined;
+    openaiLogging?: boolean | undefined;
+    openaiLoggingDir?: string | undefined;
+  };
+  settings: Settings;
+  selectedAuthType: AuthType | undefined;
+  /**
+   * Injectable env for testability. Defaults to process.env at callsites.
+   */
+  env?: Record<string, string | undefined>;
 }
 export interface ResolvedCliGenerationConfig {
-    /** The resolved model id (may be empty string if not resolvable at CLI layer) */
-    model: string;
-    /** API key for OpenAI-compatible auth */
-    apiKey: string;
-    /** Base URL for OpenAI-compatible auth */
-    baseUrl: string;
-    /** The full generation config to pass to core Config */
-    generationConfig: Partial<ContentGeneratorConfig>;
-    /** Exact selected modelProviders baseUrl; null selects an implicit route. */
-    registryBaseUrl?: string | null;
-    /** Source attribution for each resolved field */
-    sources: ContentGeneratorConfigSources;
-    /** Warnings generated during resolution */
-    warnings: string[];
+  /** The resolved model id (may be empty string if not resolvable at CLI layer) */
+  model: string;
+  /** API key for OpenAI-compatible auth */
+  apiKey: string;
+  /** Base URL for OpenAI-compatible auth */
+  baseUrl: string;
+  /** The full generation config to pass to core Config */
+  generationConfig: Partial<ContentGeneratorConfig>;
+  /** Exact selected modelProviders baseUrl; null selects an implicit route. */
+  registryBaseUrl?: string | null;
+  /** Source attribution for each resolved field */
+  sources: ContentGeneratorConfigSources;
+  /** Warnings generated during resolution */
+  warnings: string[];
 }
-export declare function getAuthTypeFromEnv(env?: Record<string, string | undefined>): AuthType | undefined;
+export declare function getAuthTypeFromEnv(
+  env?: Record<string, string | undefined>,
+): AuthType | undefined;
 /**
  * Unified resolver for CLI generation config.
  *
@@ -63,4 +76,6 @@ export declare function getAuthTypeFromEnv(env?: Record<string, string | undefin
  * When model is resolved from an auth-specific env var, only that env var is
  * kept in the filtered env so core can access the provider metadata.
  */
-export declare function resolveCliGenerationConfig(inputs: CliGenerationConfigInputs): ResolvedCliGenerationConfig;
+export declare function resolveCliGenerationConfig(
+  inputs: CliGenerationConfigInputs,
+): ResolvedCliGenerationConfig;

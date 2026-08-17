@@ -7,16 +7,19 @@ import { type Config } from '@qwen-code/qwen-code-core';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import type { LoadedSettings } from '../../config/settings.js';
 export interface UseBranchCommandOptions {
-    config: Config | null;
-    settings: LoadedSettings;
-    historyManager: Pick<UseHistoryManagerReturn, 'clearItems' | 'loadHistory' | 'addItem'>;
-    startNewSession: (sessionId: string) => void;
-    clearPendingState?: () => void;
-    setSessionName?: (name: string | null) => void;
-    remount?: () => void;
+  config: Config | null;
+  settings: LoadedSettings;
+  historyManager: Pick<
+    UseHistoryManagerReturn,
+    'clearItems' | 'loadHistory' | 'addItem'
+  >;
+  startNewSession: (sessionId: string) => void;
+  clearPendingState?: () => void;
+  setSessionName?: (name: string | null) => void;
+  remount?: () => void;
 }
 export interface UseBranchCommandResult {
-    handleBranch: (name?: string) => Promise<void>;
+  handleBranch: (name?: string) => Promise<void>;
 }
 /**
  * Orchestrates `/branch`:
@@ -32,4 +35,6 @@ export interface UseBranchCommandResult {
  *
  * Mirrors claude-code/src/commands/branch/branch.ts.
  */
-export declare function useBranchCommand(options: UseBranchCommandOptions): UseBranchCommandResult;
+export declare function useBranchCommand(
+  options: UseBranchCommandOptions,
+): UseBranchCommandResult;

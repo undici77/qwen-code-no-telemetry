@@ -10,7 +10,7 @@ import type { CLIUserMessage } from './nonInteractive/types.js';
 import type { JsonOutputAdapterInterface } from './nonInteractive/io/BaseJsonOutputAdapter.js';
 import type { ControlService } from './nonInteractive/control/ControlService.js';
 export declare class TurnInterruptedError extends Error {
-    constructor();
+  constructor();
 }
 /**
  * Headless handling for fired loop sentinels. loop.md and autonomous sentinel
@@ -31,7 +31,10 @@ export declare class TurnInterruptedError extends Error {
  * lastFiredAt persist (otherwise the tick would be marked fired while the work
  * is skipped — silent loss). This guard's durable branch is kept defensive.
  */
-export declare function skipHeadlessLoopSentinel(scheduler: CronScheduler, job: CronJob): boolean;
+export declare function skipHeadlessLoopSentinel(
+  scheduler: CronScheduler,
+  job: CronJob,
+): boolean;
 /**
  * Provides optional overrides for `runNonInteractive` execution.
  *
@@ -41,33 +44,39 @@ export declare function skipHeadlessLoopSentinel(scheduler: CronScheduler, job: 
  * @param controlService - Optional control service for future permission handling.
  */
 export interface RunNonInteractiveOptions {
-    abortController?: AbortController;
-    adapter?: JsonOutputAdapterInterface;
-    userMessage?: CLIUserMessage;
-    controlService?: ControlService;
-    sendMessageType?: SendMessageType;
-    notificationDisplayText?: string;
-    captureMonitorNotifications?: boolean;
-    captureMonitorRegistrations?: boolean;
-    onResultEmitted?: () => void;
-    /**
-     * Emit a terminal result and return from this turn when its controller is
-     * aborted with {@link TurnInterruptedError}, instead of exiting the process.
-     * Reusable stream-json sessions use this so a protocol interrupt does not
-     * tear down the session; one-shot callers retain the process-level default.
-     */
-    recoverableCancellation?: boolean;
-    /**
-     * Continue the most recent unfinished turn from chat history instead of
-     * submitting `input` (which is ignored). No new user message enters the
-     * transcript: an orphaned trailing user entry is re-submitted with Retry
-     * semantics, and dangling tool calls are closed with synthesized error
-     * functionResponses sent as a ToolResult. When the last turn ended
-     * cleanly the run emits a no-op result and exits 0.
-     */
-    continueInterrupted?: boolean;
+  abortController?: AbortController;
+  adapter?: JsonOutputAdapterInterface;
+  userMessage?: CLIUserMessage;
+  controlService?: ControlService;
+  sendMessageType?: SendMessageType;
+  notificationDisplayText?: string;
+  captureMonitorNotifications?: boolean;
+  captureMonitorRegistrations?: boolean;
+  onResultEmitted?: () => void;
+  /**
+   * Emit a terminal result and return from this turn when its controller is
+   * aborted with {@link TurnInterruptedError}, instead of exiting the process.
+   * Reusable stream-json sessions use this so a protocol interrupt does not
+   * tear down the session; one-shot callers retain the process-level default.
+   */
+  recoverableCancellation?: boolean;
+  /**
+   * Continue the most recent unfinished turn from chat history instead of
+   * submitting `input` (which is ignored). No new user message enters the
+   * transcript: an orphaned trailing user entry is re-submitted with Retry
+   * semantics, and dangling tool calls are closed with synthesized error
+   * functionResponses sent as a ToolResult. When the last turn ended
+   * cleanly the run emits a no-op result and exits 0.
+   */
+  continueInterrupted?: boolean;
 }
 /**
  * Executes the non-interactive CLI flow for a single request.
  */
-export declare function runNonInteractive(config: Config, settings: LoadedSettings, input: string, prompt_id: string, options?: RunNonInteractiveOptions): Promise<number>;
+export declare function runNonInteractive(
+  config: Config,
+  settings: LoadedSettings,
+  input: string,
+  prompt_id: string,
+  options?: RunNonInteractiveOptions,
+): Promise<number>;

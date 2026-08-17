@@ -18,19 +18,19 @@ export declare function estimateTextTokens(text: string): number;
 /** Returns 20 units per token so streams can accumulate without float drift. */
 export declare function estimateTextTokenUnits(text: string): number;
 export declare class TextTokenizer {
-    /**
-     * Calculate tokens for text content
-     *
-     * @param text - The text to estimate tokens for
-     * @returns The estimated token count
-     */
-    calculateTokens(text: string): Promise<number>;
-    /**
-     * Calculate tokens for multiple text strings
-     *
-     * @param texts - Array of text strings to estimate tokens for
-     * @returns Array of token counts corresponding to each input text
-     */
-    calculateTokensBatch(texts: string[]): Promise<number[]>;
-    private calculateTokensSync;
+  /**
+   * Calculate tokens for text content
+   *
+   * @param text - The text to estimate tokens for
+   * @returns The estimated token count
+   */
+  calculateTokens(text: string): Promise<number>;
+  /**
+   * Calculate tokens for multiple text strings
+   *
+   * @param texts - Array of text strings to estimate tokens for
+   * @returns Array of token counts corresponding to each input text
+   */
+  calculateTokensBatch(texts: string[]): Promise<number[]>;
+  private calculateTokensSync;
 }

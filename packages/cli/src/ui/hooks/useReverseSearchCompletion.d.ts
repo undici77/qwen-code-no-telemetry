@@ -6,15 +6,19 @@
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Suggestion } from '../components/SuggestionsDisplay.js';
 export interface UseReverseSearchCompletionReturn {
-    suggestions: Suggestion[];
-    activeSuggestionIndex: number;
-    visibleStartIndex: number;
-    showSuggestions: boolean;
-    isLoadingSuggestions: boolean;
-    navigateUp: () => void;
-    navigateDown: () => void;
-    setActiveSuggestionIndex: React.Dispatch<React.SetStateAction<number>>;
-    handleAutocomplete: (i: number) => void;
-    resetCompletionState: () => void;
+  suggestions: Suggestion[];
+  activeSuggestionIndex: number;
+  visibleStartIndex: number;
+  showSuggestions: boolean;
+  isLoadingSuggestions: boolean;
+  navigateUp: () => void;
+  navigateDown: () => void;
+  setActiveSuggestionIndex: React.Dispatch<React.SetStateAction<number>>;
+  handleAutocomplete: (i: number) => void;
+  resetCompletionState: () => void;
 }
-export declare function useReverseSearchCompletion(buffer: TextBuffer, history: readonly string[], reverseSearchActive: boolean): UseReverseSearchCompletionReturn;
+export declare function useReverseSearchCompletion(
+  buffer: TextBuffer,
+  history: readonly string[],
+  reverseSearchActive: boolean,
+): UseReverseSearchCompletionReturn;

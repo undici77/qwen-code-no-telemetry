@@ -76,8 +76,8 @@ export declare const BINARY_PROBE_BYTES = 4096;
  * `Ignore` class's private state.
  */
 export interface IgnoreVerdict {
-    ignored: boolean;
-    category?: 'file' | 'directory';
+  ignored: boolean;
+  category?: 'file' | 'directory';
 }
 /**
  * Check whether `absolute` is matched by the workspace's ignore
@@ -99,7 +99,12 @@ export interface IgnoreVerdict {
  * with the trailing slash the underlying `ignore` library expects
  * for `foo/`-style entries.
  */
-export declare function shouldIgnore(absolute: ResolvedPath, boundWorkspace: string, ignore: Ignore, kind?: 'file' | 'directory'): IgnoreVerdict;
+export declare function shouldIgnore(
+  absolute: ResolvedPath,
+  boundWorkspace: string,
+  ignore: Ignore,
+  kind?: 'file' | 'directory',
+): IgnoreVerdict;
 /**
  * Apply the trust gate to an intent. Read-shaped intents (`read`,
  * `list`, `glob`, `stat`) always pass — remote clients debugging
@@ -117,13 +122,16 @@ export declare function shouldIgnore(absolute: ResolvedPath, boundWorkspace: str
  * here — the gate must explicitly classify every intent rather
  * than silently defaulting to "allowed".
  */
-export declare function assertTrustedForIntent(trusted: boolean, intent: Intent): void;
+export declare function assertTrustedForIntent(
+  trusted: boolean,
+  intent: Intent,
+): void;
 /** Outcome of a read-size enforcement check. */
 export interface ReadSizeOutcome {
-    /** Number of bytes the caller should read. */
-    bytesToRead: number;
-    /** True iff the file is larger than the cap and content was truncated. */
-    truncated: boolean;
+  /** Number of bytes the caller should read. */
+  bytesToRead: number;
+  /** True iff the file is larger than the cap and content was truncated. */
+  truncated: boolean;
 }
 /**
  * Decide how many bytes a `readText` call should return given the
@@ -139,13 +147,19 @@ export interface ReadSizeOutcome {
  * operators want to see a partial config file rather than an opaque
  * error when they explicitly opted in to a smaller window.
  */
-export declare function enforceReadSize(fileBytes: number, maxBytes?: number): ReadSizeOutcome;
+export declare function enforceReadSize(
+  fileBytes: number,
+  maxBytes?: number,
+): ReadSizeOutcome;
 /**
  * Throw `file_too_large` if `bytes` exceeds the write cap. Used by
  * `writeText` and `edit`, which (unlike text reads) cannot silently
  * truncate without corrupting the file.
  */
-export declare function enforceWriteSize(bytes: number, maxBytes?: number): void;
+export declare function enforceWriteSize(
+  bytes: number,
+  maxBytes?: number,
+): void;
 /**
  * Throw `file_too_large` when a strict full-byte-snapshot caller exceeds the
  * hard `MAX_READ_BYTES` cap. The production `readBytesWindow` path does not

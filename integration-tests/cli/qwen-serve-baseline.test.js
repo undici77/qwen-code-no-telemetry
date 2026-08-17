@@ -37,34 +37,62 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { EventBus } from '@qwen-code/acp-bridge/eventBus';
-import { spawnDaemon, startRssPolling, countDescendants, percentiles, writeWorkspaceSettings, approveWorkspaceMcpServers, gitHead, makeTempWorkspace, sleep, } from './_daemon-harness.js';
-import { resolveOutputDir, formatPercentiles, writeSnapshotArtifacts, collectPlatformInfo, } from './_daemon-perf-report.js';
+import {
+  spawnDaemon,
+  startRssPolling,
+  countDescendants,
+  percentiles,
+  writeWorkspaceSettings,
+  approveWorkspaceMcpServers,
+  gitHead,
+  makeTempWorkspace,
+  sleep,
+} from './_daemon-harness.js';
+import {
+  resolveOutputDir,
+  formatPercentiles,
+  writeSnapshotArtifacts,
+  collectPlatformInfo,
+} from './_daemon-perf-report.js';
 // Skip on Windows (helpers shell out to `ps` / `pgrep`) and under
 // Docker/Podman sandbox (the daemon subtree runs in a separate PID
 // namespace the host `pgrep` can't observe — matches the existing
 // `acp-integration.test.ts` / `cron-tools.test.ts` skip precedent).
-const SKIP = process.platform === 'win32' ||
-    Boolean(process.env['QWEN_SANDBOX'] &&
-        process.env['QWEN_SANDBOX'].toLowerCase() !== 'false');
+const SKIP =
+  process.platform === 'win32' ||
+  Boolean(
+    process.env['QWEN_SANDBOX'] &&
+      process.env['QWEN_SANDBOX'].toLowerCase() !== 'false',
+  );
 // Read iteration tunings from env (documented in #4175 PR 1 plan).
 const HEAVY = process.env['QWEN_BASELINE_HEAVY'] === '1';
-const PROMPT_ITERATIONS = Number(process.env['QWEN_BASELINE_PROMPT_ITERATIONS'] ?? (HEAVY ? 100 : 20));
-const RSS_SAMPLE_INTERVAL_MS = Number(process.env['QWEN_BASELINE_RSS_SAMPLE_INTERVAL_MS'] ?? 100);
-const RSS_SAMPLE_DURATION_MS = Number(process.env['QWEN_BASELINE_RSS_SAMPLE_DURATION_MS'] ??
-    (HEAVY ? 15_000 : 5_000));
+const PROMPT_ITERATIONS = Number(
+  process.env['QWEN_BASELINE_PROMPT_ITERATIONS'] ?? (HEAVY ? 100 : 20),
+);
+const RSS_SAMPLE_INTERVAL_MS = Number(
+  process.env['QWEN_BASELINE_RSS_SAMPLE_INTERVAL_MS'] ?? 100,
+);
+const RSS_SAMPLE_DURATION_MS = Number(
+  process.env['QWEN_BASELINE_RSS_SAMPLE_DURATION_MS'] ??
+    (HEAVY ? 15_000 : 5_000),
+);
 const PROMPT_LATENCY_CREDENTIAL_ENV_KEYS = [
-    'DASHSCOPE_API_KEY',
-    'OPENAI_API_KEY',
-    'ANTHROPIC_API_KEY',
-    'GEMINI_API_KEY',
-    'GOOGLE_API_KEY',
-    'QWEN_API_KEY',
+  'DASHSCOPE_API_KEY',
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GEMINI_API_KEY',
+  'GOOGLE_API_KEY',
+  'QWEN_API_KEY',
 ];
-const HAS_PROMPT_LATENCY_CREDENTIAL = process.env['QWEN_BASELINE_ENABLE_PROMPT_LATENCY'] === '1' ||
-    PROMPT_LATENCY_CREDENTIAL_ENV_KEYS.some((key) => Boolean(process.env[key])) ||
-    Object.entries(process.env).some(([key, value]) => key.startsWith('QWEN_CUSTOM_API_KEY_') && Boolean(value));
-const SKIP_PROMPT_LATENCY = process.env['QWEN_BASELINE_SKIP_PROMPT_LATENCY'] === '1' ||
-    !HAS_PROMPT_LATENCY_CREDENTIAL;
+const HAS_PROMPT_LATENCY_CREDENTIAL =
+  process.env['QWEN_BASELINE_ENABLE_PROMPT_LATENCY'] === '1' ||
+  PROMPT_LATENCY_CREDENTIAL_ENV_KEYS.some((key) => Boolean(process.env[key])) ||
+  Object.entries(process.env).some(
+    ([key, value]) => key.startsWith('QWEN_CUSTOM_API_KEY_') && Boolean(value),
+  );
+const SKIP_PROMPT_LATENCY =
+  process.env['QWEN_BASELINE_SKIP_PROMPT_LATENCY'] === '1' ||
+  !HAS_PROMPT_LATENCY_CREDENTIAL;
 const FIXTURES_DIR = path.resolve(__dirname, '../fixtures');
 const IDLE_MCP_PATH = path.join(FIXTURES_DIR, 'idle-mcp/server.mjs');
 const MCP_SERVERS_CONFIGURED = 2;
@@ -77,471 +105,513 @@ const OUTPUT_DIR = resolveOutputDir('baseline');
 // tightening them is a deliberate one-line PR after a regression is
 // observed. Numbers chosen per #4175 PR 1 plan.
 const THRESH = {
-    rss1SessionMaxMB: 500,
-    rss10SessionsMaxMB: 5_000,
-    promptP99MaxMs: 60_000,
-    attachLatencyMaxMs: 1_000,
-    // P1 baseline: pre-M2, MCP children grow ~linearly with session count.
-    // We assert "not worse than 2× linear" so a regression that doubles
-    // the per-session spawn count gets caught even before M2 lands.
-    mcpAmplificationFactor: 2,
+  rss1SessionMaxMB: 500,
+  rss10SessionsMaxMB: 5_000,
+  promptP99MaxMs: 60_000,
+  attachLatencyMaxMs: 1_000,
+  // P1 baseline: pre-M2, MCP children grow ~linearly with session count.
+  // We assert "not worse than 2× linear" so a regression that doubles
+  // the per-session spawn count gets caught even before M2 lands.
+  mcpAmplificationFactor: 2,
 };
 const snapshot = {
-    version: 1,
-    capturedAt: new Date().toISOString(),
-    gitCommit: gitHead(),
-    platform: collectPlatformInfo(),
-    notes: [
-        'Daemon defaults to sessionScope: "single", so N successive ' +
-            'createOrAttachSession calls against the same workspace return the ' +
-            'same sessionId. RSS scaling and MCP amplification metrics here ' +
-            'reflect "N attaches to one shared session", not "N distinct sessions".',
-        'After Wave 2 PR 5 (per-request sessionScope override) lands, this ' +
-            'harness will be updated to optionally pass sessionScope: "thread" ' +
-            'so the same metrics expose per-session cost and surface the P1 ' +
-            'MCP N×M amplification before M2 fixes it.',
-    ],
-    config: {
-        promptIterations: PROMPT_ITERATIONS,
-        rssSampleIntervalMs: RSS_SAMPLE_INTERVAL_MS,
-        rssSampleDurationMs: RSS_SAMPLE_DURATION_MS,
-        heavy: HEAVY,
-    },
+  version: 1,
+  capturedAt: new Date().toISOString(),
+  gitCommit: gitHead(),
+  platform: collectPlatformInfo(),
+  notes: [
+    'Daemon defaults to sessionScope: "single", so N successive ' +
+      'createOrAttachSession calls against the same workspace return the ' +
+      'same sessionId. RSS scaling and MCP amplification metrics here ' +
+      'reflect "N attaches to one shared session", not "N distinct sessions".',
+    'After Wave 2 PR 5 (per-request sessionScope override) lands, this ' +
+      'harness will be updated to optionally pass sessionScope: "thread" ' +
+      'so the same metrics expose per-session cost and surface the P1 ' +
+      'MCP N×M amplification before M2 fixes it.',
+  ],
+  config: {
+    promptIterations: PROMPT_ITERATIONS,
+    rssSampleIntervalMs: RSS_SAMPLE_INTERVAL_MS,
+    rssSampleDurationMs: RSS_SAMPLE_DURATION_MS,
+    heavy: HEAVY,
+  },
 };
 function isRecord(value) {
-    return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 function isAgentMessageChunkEvent(ev) {
-    if (ev.type !== 'session_update' || !isRecord(ev.data))
-        return false;
-    const update = ev.data['update'];
-    return isRecord(update) && update['sessionUpdate'] === 'agent_message_chunk';
+  if (ev.type !== 'session_update' || !isRecord(ev.data)) return false;
+  const update = ev.data['update'];
+  return isRecord(update) && update['sessionUpdate'] === 'agent_message_chunk';
 }
 function isAbortError(err) {
-    return err instanceof Error && err.name === 'AbortError';
+  return err instanceof Error && err.name === 'AbortError';
 }
 async function waitForMcpGrandchildren(daemonPid, minMcpGrandchildren) {
-    const deadline = Date.now() + MCP_DESCENDANT_WAIT_TIMEOUT_MS;
-    let last = countDescendants(daemonPid, {
-        mcpFilter: MCP_FIXTURE_PGREP_FILTER,
+  const deadline = Date.now() + MCP_DESCENDANT_WAIT_TIMEOUT_MS;
+  let last = countDescendants(daemonPid, {
+    mcpFilter: MCP_FIXTURE_PGREP_FILTER,
+  });
+  while (Date.now() < deadline) {
+    last = countDescendants(daemonPid, {
+      mcpFilter: MCP_FIXTURE_PGREP_FILTER,
     });
-    while (Date.now() < deadline) {
-        last = countDescendants(daemonPid, {
-            mcpFilter: MCP_FIXTURE_PGREP_FILTER,
-        });
-        if (last.acpChildren.length >= 1 &&
-            last.mcpGrandchildren.length >= minMcpGrandchildren) {
-            return last;
-        }
-        await sleep(MCP_DESCENDANT_POLL_MS);
+    if (
+      last.acpChildren.length >= 1 &&
+      last.mcpGrandchildren.length >= minMcpGrandchildren
+    ) {
+      return last;
     }
-    throw new Error(`Timed out waiting for ${minMcpGrandchildren} MCP grandchildren ` +
-        `under daemon ${daemonPid}; last acpChildren=` +
-        `[${last.acpChildren.join(', ')}], mcpGrandchildren=` +
-        `[${last.mcpGrandchildren.join(', ')}]`);
+    await sleep(MCP_DESCENDANT_POLL_MS);
+  }
+  throw new Error(
+    `Timed out waiting for ${minMcpGrandchildren} MCP grandchildren ` +
+      `under daemon ${daemonPid}; last acpChildren=` +
+      `[${last.acpChildren.join(', ')}], mcpGrandchildren=` +
+      `[${last.mcpGrandchildren.join(', ')}]`,
+  );
 }
 async function createNSessions(daemon, n) {
-    const ids = [];
-    for (let i = 0; i < n; i++) {
-        const sess = await daemon.client.createOrAttachSession({
-            workspaceCwd: daemon.workspaceCwd,
-        });
-        ids.push(sess.sessionId);
-    }
-    return ids;
+  const ids = [];
+  for (let i = 0; i < n; i++) {
+    const sess = await daemon.client.createOrAttachSession({
+      workspaceCwd: daemon.workspaceCwd,
+    });
+    ids.push(sess.sessionId);
+  }
+  return ids;
 }
 async function measureRssAtSessionCount(sessionCount) {
-    const ws = makeTempWorkspace(`rss-${sessionCount}`);
-    let daemon;
-    try {
-        daemon = await spawnDaemon({ workspaceCwd: ws });
-        await createNSessions(daemon, sessionCount);
-        const poller = startRssPolling(daemon.daemon.pid, RSS_SAMPLE_INTERVAL_MS);
-        await new Promise((r) => setTimeout(r, RSS_SAMPLE_DURATION_MS));
-        poller.stop();
-        if (poller.samples.length === 0) {
-            throw new Error(`RSS polling produced no usable samples for ${sessionCount} sessions`);
-        }
-        const sampleTotal = poller.samples.length + poller.droppedSamples;
-        if (sampleTotal > 0 &&
-            poller.droppedSamples / sampleTotal > RSS_DROPPED_SAMPLE_RATIO_MAX) {
-            throw new Error(`RSS polling dropped ${poller.droppedSamples}/${sampleTotal} ` +
-                `samples for ${sessionCount} sessions`);
-        }
-        const peakRssMB = poller.samples.reduce((max, s) => Math.max(max, s.rssMB), 0);
-        return {
-            peakRssMB,
-            sampleCount: poller.samples.length,
-            droppedSampleCount: poller.droppedSamples,
-        };
+  const ws = makeTempWorkspace(`rss-${sessionCount}`);
+  let daemon;
+  try {
+    daemon = await spawnDaemon({ workspaceCwd: ws });
+    await createNSessions(daemon, sessionCount);
+    const poller = startRssPolling(daemon.daemon.pid, RSS_SAMPLE_INTERVAL_MS);
+    await new Promise((r) => setTimeout(r, RSS_SAMPLE_DURATION_MS));
+    poller.stop();
+    if (poller.samples.length === 0) {
+      throw new Error(
+        `RSS polling produced no usable samples for ${sessionCount} sessions`,
+      );
     }
-    finally {
-        if (daemon)
-            await daemon.dispose();
-        fs.rmSync(ws, { recursive: true, force: true });
+    const sampleTotal = poller.samples.length + poller.droppedSamples;
+    if (
+      sampleTotal > 0 &&
+      poller.droppedSamples / sampleTotal > RSS_DROPPED_SAMPLE_RATIO_MAX
+    ) {
+      throw new Error(
+        `RSS polling dropped ${poller.droppedSamples}/${sampleTotal} ` +
+          `samples for ${sessionCount} sessions`,
+      );
     }
+    const peakRssMB = poller.samples.reduce(
+      (max, s) => Math.max(max, s.rssMB),
+      0,
+    );
+    return {
+      peakRssMB,
+      sampleCount: poller.samples.length,
+      droppedSampleCount: poller.droppedSamples,
+    };
+  } finally {
+    if (daemon) await daemon.dispose();
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
 }
-(SKIP ? describe.skip : describe)('daemon baseline harness (POSIX-only)', () => {
+(SKIP ? describe.skip : describe)(
+  'daemon baseline harness (POSIX-only)',
+  () => {
     describe('RSS scaling', () => {
-        it('captures peak RSS at 1 / 5 / 10 sessions', async () => {
-            const r1 = await measureRssAtSessionCount(1);
-            const r5 = await measureRssAtSessionCount(5);
-            const r10 = await measureRssAtSessionCount(10);
-            snapshot.rssScaling = {
-                session1MB: r1.peakRssMB,
-                session5MB: r5.peakRssMB,
-                session10MB: r10.peakRssMB,
-                sampleCount: r1.sampleCount + r5.sampleCount + r10.sampleCount,
-                droppedSampleCount: r1.droppedSampleCount +
-                    r5.droppedSampleCount +
-                    r10.droppedSampleCount,
-                growthPerSessionMB: Math.round(((r10.peakRssMB - r1.peakRssMB) / 9) * 10) / 10,
-            };
-            // Catastrophic upper bounds only.
-            expect(r1.peakRssMB).toBeLessThan(THRESH.rss1SessionMaxMB);
-            expect(r10.peakRssMB).toBeLessThan(THRESH.rss10SessionsMaxMB);
-        }, 
+      it(
+        'captures peak RSS at 1 / 5 / 10 sessions',
+        async () => {
+          const r1 = await measureRssAtSessionCount(1);
+          const r5 = await measureRssAtSessionCount(5);
+          const r10 = await measureRssAtSessionCount(10);
+          snapshot.rssScaling = {
+            session1MB: r1.peakRssMB,
+            session5MB: r5.peakRssMB,
+            session10MB: r10.peakRssMB,
+            sampleCount: r1.sampleCount + r5.sampleCount + r10.sampleCount,
+            droppedSampleCount:
+              r1.droppedSampleCount +
+              r5.droppedSampleCount +
+              r10.droppedSampleCount,
+            growthPerSessionMB:
+              Math.round(((r10.peakRssMB - r1.peakRssMB) / 9) * 10) / 10,
+          };
+          // Catastrophic upper bounds only.
+          expect(r1.peakRssMB).toBeLessThan(THRESH.rss1SessionMaxMB);
+          expect(r10.peakRssMB).toBeLessThan(THRESH.rss10SessionsMaxMB);
+        },
         // Each session-count needs daemon spawn + N session creates +
         // RSS_SAMPLE_DURATION_MS sampling + dispose. ~3 × 15s budget per
         // count in heavy mode → 90s base; pad for slow CI.
-        HEAVY ? 600_000 : 180_000);
+        HEAVY ? 600_000 : 180_000,
+      );
     });
     describe('attach latency', () => {
-        it('measures Nth same-workspace session attach time', async () => {
-            const ws = makeTempWorkspace('attach');
-            let daemon;
-            try {
-                daemon = await spawnDaemon({ workspaceCwd: ws });
-                // Create session 1 to warm the channel.
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const t2 = Date.now();
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const session2Ms = Date.now() - t2;
-                // Skip ahead to session 5 attach to capture a "later" sample.
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const t5 = Date.now();
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const session5Ms = Date.now() - t5;
-                snapshot.attachLatency = {
-                    session2Ms,
-                    session5Ms,
-                    thresholdMs: THRESH.attachLatencyMaxMs,
-                };
-                expect(session2Ms).toBeLessThan(THRESH.attachLatencyMaxMs);
-                expect(session5Ms).toBeLessThan(THRESH.attachLatencyMaxMs);
-            }
-            finally {
-                if (daemon)
-                    await daemon.dispose();
-                fs.rmSync(ws, { recursive: true, force: true });
-            }
-        }, 60_000);
+      it('measures Nth same-workspace session attach time', async () => {
+        const ws = makeTempWorkspace('attach');
+        let daemon;
+        try {
+          daemon = await spawnDaemon({ workspaceCwd: ws });
+          // Create session 1 to warm the channel.
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const t2 = Date.now();
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const session2Ms = Date.now() - t2;
+          // Skip ahead to session 5 attach to capture a "later" sample.
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const t5 = Date.now();
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const session5Ms = Date.now() - t5;
+          snapshot.attachLatency = {
+            session2Ms,
+            session5Ms,
+            thresholdMs: THRESH.attachLatencyMaxMs,
+          };
+          expect(session2Ms).toBeLessThan(THRESH.attachLatencyMaxMs);
+          expect(session5Ms).toBeLessThan(THRESH.attachLatencyMaxMs);
+        } finally {
+          if (daemon) await daemon.dispose();
+          fs.rmSync(ws, { recursive: true, force: true });
+        }
+      }, 60_000);
     });
     describe('MCP child amplification (P1 baseline)', () => {
-        it('counts MCP grandchildren as session count grows', async () => {
-            const ws = makeTempWorkspace('mcp');
-            let daemon;
-            try {
-                const mcpServers = {
-                    idle1: { command: 'node', args: [IDLE_MCP_PATH] },
-                    idle2: { command: 'node', args: [IDLE_MCP_PATH] },
-                };
-                writeWorkspaceSettings(ws, { mcpServers });
-                // Workspace-scoped servers are gated (#4615); pre-approve so the
-                // daemon's acp child connects them instead of skipping as pending.
-                const env = approveWorkspaceMcpServers(ws, mcpServers);
-                daemon = await spawnDaemon({ workspaceCwd: ws, env });
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const at1 = await waitForMcpGrandchildren(daemon.daemon.pid, MCP_SERVERS_CONFIGURED);
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const at3 = await waitForMcpGrandchildren(daemon.daemon.pid, MCP_SERVERS_CONFIGURED);
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                const at5 = await waitForMcpGrandchildren(daemon.daemon.pid, MCP_SERVERS_CONFIGURED);
-                const expectedMaxAt5 = MCP_SERVERS_CONFIGURED * 5 * THRESH.mcpAmplificationFactor;
-                const linear = at5.mcpGrandchildren.length >= MCP_SERVERS_CONFIGURED * 5 * 0.5; // ≥50% of linear → confirmed amplification
-                snapshot.mcpAmplification = {
-                    mcpServersConfigured: MCP_SERVERS_CONFIGURED,
-                    childrenAt1Session: at1.mcpGrandchildren.length,
-                    childrenAt3Sessions: at3.mcpGrandchildren.length,
-                    childrenAt5Sessions: at5.mcpGrandchildren.length,
-                    linearAmplification: linear,
-                };
-                // Sanity: at least 1 ACP child should exist throughout.
-                expect(at1.acpChildren.length).toBeGreaterThanOrEqual(1);
-                expect(at1.mcpGrandchildren.length).toBeGreaterThanOrEqual(MCP_SERVERS_CONFIGURED);
-                // Catastrophic bound: not worse than 2× linear.
-                expect(at5.mcpGrandchildren.length).toBeLessThanOrEqual(expectedMaxAt5);
-            }
-            finally {
-                if (daemon)
-                    await daemon.dispose();
-                fs.rmSync(ws, { recursive: true, force: true });
-            }
-        }, 120_000);
-        // PR 14b cross-check: validate the daemon's in-process MCP
-        // accounting on `GET /workspace/mcp` against external `pgrep -P`
-        // measurement.
-        //
-        // Architectural note (F2 workspace pool): the daemon hosts a
-        // workspace-shared MCP transport pool (`QwenAgent.mcpPool`).
-        // All sessions of a workspace share ONE transport per configured
-        // server, so pgrep observes exactly `MCP_SERVERS_CONFIGURED`
-        // grandchildren regardless of session count. (Pre-F2, bootstrap
-        // + per-session Configs each ran their own `McpClientManager`,
-        // and this test asserted the historical 2×N duplication.)
-        // Pool accounting surfaces per server cell as `entryCount` /
-        // `entrySummary`; the top-level `clientCount` field reflects the
-        // workspace budget controller's reserved count — 0 when budgets
-        // are off (this suite), NOT the live transport count.
-        //
-        // What this test validates:
-        // 1. pgrep observes exactly N grandchildren after a session is
-        //    created — encoded literally so a refactor that reintroduces
-        //    per-session MCP children fails this assertion and forces a
-        //    deliberate test update (same tripwire spirit as the pre-F2
-        //    2×N assertion this replaces).
-        // 2. Pool accounting is honest: per-server `entryCount` sums to
-        //    the observed pgrep count (no amplification slack at idle —
-        //    the fixtures are stdio-only).
-        // 3. `clientCount` NEVER exceeds the observed pgrep count —
-        //    the original "snapshot must never over-report" guard.
-        //
-        // Skip-gated like the parent describe (POSIX, non-sandbox).
-        it('pool accounting matches external pgrep observation', async () => {
-            const ws = makeTempWorkspace('mcp-counter');
-            let daemon;
-            try {
-                const mcpServers = {
-                    idle1: { command: 'node', args: [IDLE_MCP_PATH] },
-                    idle2: { command: 'node', args: [IDLE_MCP_PATH] },
-                };
-                writeWorkspaceSettings(ws, { mcpServers });
-                // Workspace-scoped servers are gated (#4615); pre-approve so the
-                // daemon's acp child connects them instead of skipping as pending.
-                const env = approveWorkspaceMcpServers(ws, mcpServers);
-                daemon = await spawnDaemon({ workspaceCwd: ws, env });
-                await daemon.client.createOrAttachSession({ workspaceCwd: ws });
-                // Wait until the OS sees the full pooled set
-                // (`MCP_SERVERS_CONFIGURED` grandchildren — see the
-                // architectural note above), then read the snapshot.
-                // pgrep first to lock the comparison floor; snapshot
-                // second so the daemon can't sneak in a new connect
-                // between the two reads.
-                const observed = await waitForMcpGrandchildren(daemon.daemon.pid, MCP_SERVERS_CONFIGURED);
-                const snapshot = await daemon.client.workspaceMcp();
-                // (1) One pooled transport per configured server — no
-                // per-session amplification. If this fails with MORE
-                // children, per-session MCP spawning has been reintroduced;
-                // update the architectural note above deliberately.
-                expect(observed.mcpGrandchildren.length).toBe(MCP_SERVERS_CONFIGURED);
-                // (2) Pool accounting is honest: entryCount sums to the
-                // observed process count. Structural narrowing: the daemon
-                // emits `entryCount` on pool-backed cells but the SDK's
-                // `DaemonWorkspaceMcpServerStatus` doesn't carry the F2
-                // pool fields yet.
-                const pooledEntries = snapshot.servers.reduce((sum, server) => sum + (server.entryCount ?? 0), 0);
-                expect(pooledEntries).toBe(observed.mcpGrandchildren.length);
-                // (3) Snapshot never over-reports OS reality.
-                expect(snapshot.clientCount).toBeLessThanOrEqual(observed.mcpGrandchildren.length);
-            }
-            finally {
-                if (daemon)
-                    await daemon.dispose();
-                fs.rmSync(ws, { recursive: true, force: true });
-            }
-        }, 120_000);
+      it('counts MCP grandchildren as session count grows', async () => {
+        const ws = makeTempWorkspace('mcp');
+        let daemon;
+        try {
+          const mcpServers = {
+            idle1: { command: 'node', args: [IDLE_MCP_PATH] },
+            idle2: { command: 'node', args: [IDLE_MCP_PATH] },
+          };
+          writeWorkspaceSettings(ws, { mcpServers });
+          // Workspace-scoped servers are gated (#4615); pre-approve so the
+          // daemon's acp child connects them instead of skipping as pending.
+          const env = approveWorkspaceMcpServers(ws, mcpServers);
+          daemon = await spawnDaemon({ workspaceCwd: ws, env });
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const at1 = await waitForMcpGrandchildren(
+            daemon.daemon.pid,
+            MCP_SERVERS_CONFIGURED,
+          );
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const at3 = await waitForMcpGrandchildren(
+            daemon.daemon.pid,
+            MCP_SERVERS_CONFIGURED,
+          );
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          const at5 = await waitForMcpGrandchildren(
+            daemon.daemon.pid,
+            MCP_SERVERS_CONFIGURED,
+          );
+          const expectedMaxAt5 =
+            MCP_SERVERS_CONFIGURED * 5 * THRESH.mcpAmplificationFactor;
+          const linear =
+            at5.mcpGrandchildren.length >= MCP_SERVERS_CONFIGURED * 5 * 0.5; // ≥50% of linear → confirmed amplification
+          snapshot.mcpAmplification = {
+            mcpServersConfigured: MCP_SERVERS_CONFIGURED,
+            childrenAt1Session: at1.mcpGrandchildren.length,
+            childrenAt3Sessions: at3.mcpGrandchildren.length,
+            childrenAt5Sessions: at5.mcpGrandchildren.length,
+            linearAmplification: linear,
+          };
+          // Sanity: at least 1 ACP child should exist throughout.
+          expect(at1.acpChildren.length).toBeGreaterThanOrEqual(1);
+          expect(at1.mcpGrandchildren.length).toBeGreaterThanOrEqual(
+            MCP_SERVERS_CONFIGURED,
+          );
+          // Catastrophic bound: not worse than 2× linear.
+          expect(at5.mcpGrandchildren.length).toBeLessThanOrEqual(
+            expectedMaxAt5,
+          );
+        } finally {
+          if (daemon) await daemon.dispose();
+          fs.rmSync(ws, { recursive: true, force: true });
+        }
+      }, 120_000);
+      // PR 14b cross-check: validate the daemon's in-process MCP
+      // accounting on `GET /workspace/mcp` against external `pgrep -P`
+      // measurement.
+      //
+      // Architectural note (F2 workspace pool): the daemon hosts a
+      // workspace-shared MCP transport pool (`QwenAgent.mcpPool`).
+      // All sessions of a workspace share ONE transport per configured
+      // server, so pgrep observes exactly `MCP_SERVERS_CONFIGURED`
+      // grandchildren regardless of session count. (Pre-F2, bootstrap
+      // + per-session Configs each ran their own `McpClientManager`,
+      // and this test asserted the historical 2×N duplication.)
+      // Pool accounting surfaces per server cell as `entryCount` /
+      // `entrySummary`; the top-level `clientCount` field reflects the
+      // workspace budget controller's reserved count — 0 when budgets
+      // are off (this suite), NOT the live transport count.
+      //
+      // What this test validates:
+      // 1. pgrep observes exactly N grandchildren after a session is
+      //    created — encoded literally so a refactor that reintroduces
+      //    per-session MCP children fails this assertion and forces a
+      //    deliberate test update (same tripwire spirit as the pre-F2
+      //    2×N assertion this replaces).
+      // 2. Pool accounting is honest: per-server `entryCount` sums to
+      //    the observed pgrep count (no amplification slack at idle —
+      //    the fixtures are stdio-only).
+      // 3. `clientCount` NEVER exceeds the observed pgrep count —
+      //    the original "snapshot must never over-report" guard.
+      //
+      // Skip-gated like the parent describe (POSIX, non-sandbox).
+      it('pool accounting matches external pgrep observation', async () => {
+        const ws = makeTempWorkspace('mcp-counter');
+        let daemon;
+        try {
+          const mcpServers = {
+            idle1: { command: 'node', args: [IDLE_MCP_PATH] },
+            idle2: { command: 'node', args: [IDLE_MCP_PATH] },
+          };
+          writeWorkspaceSettings(ws, { mcpServers });
+          // Workspace-scoped servers are gated (#4615); pre-approve so the
+          // daemon's acp child connects them instead of skipping as pending.
+          const env = approveWorkspaceMcpServers(ws, mcpServers);
+          daemon = await spawnDaemon({ workspaceCwd: ws, env });
+          await daemon.client.createOrAttachSession({ workspaceCwd: ws });
+          // Wait until the OS sees the full pooled set
+          // (`MCP_SERVERS_CONFIGURED` grandchildren — see the
+          // architectural note above), then read the snapshot.
+          // pgrep first to lock the comparison floor; snapshot
+          // second so the daemon can't sneak in a new connect
+          // between the two reads.
+          const observed = await waitForMcpGrandchildren(
+            daemon.daemon.pid,
+            MCP_SERVERS_CONFIGURED,
+          );
+          const snapshot = await daemon.client.workspaceMcp();
+          // (1) One pooled transport per configured server — no
+          // per-session amplification. If this fails with MORE
+          // children, per-session MCP spawning has been reintroduced;
+          // update the architectural note above deliberately.
+          expect(observed.mcpGrandchildren.length).toBe(MCP_SERVERS_CONFIGURED);
+          // (2) Pool accounting is honest: entryCount sums to the
+          // observed process count. Structural narrowing: the daemon
+          // emits `entryCount` on pool-backed cells but the SDK's
+          // `DaemonWorkspaceMcpServerStatus` doesn't carry the F2
+          // pool fields yet.
+          const pooledEntries = snapshot.servers.reduce(
+            (sum, server) => sum + (server.entryCount ?? 0),
+            0,
+          );
+          expect(pooledEntries).toBe(observed.mcpGrandchildren.length);
+          // (3) Snapshot never over-reports OS reality.
+          expect(snapshot.clientCount).toBeLessThanOrEqual(
+            observed.mcpGrandchildren.length,
+          );
+        } finally {
+          if (daemon) await daemon.dispose();
+          fs.rmSync(ws, { recursive: true, force: true });
+        }
+      }, 120_000);
     });
     describe('SSE backpressure (unit)', () => {
-        // Note: EventBus is the daemon's per-session fan-out primitive. It
-        // doesn't take a sessionId in publish/subscribe — the bus instance
-        // itself is per-session, owned upstream. We use it directly here for
-        // deterministic backpressure invariants without needing a live HTTP
-        // round-trip; pattern matches `packages/acp-bridge/src/eventBus.test.ts`.
-        it('overflow at maxQueued boundary fires client_evicted', async () => {
-            const bus = new EventBus();
-            const ac = new AbortController();
-            // Per-subscriber queue cap is set on subscribe(), not on bus
-            // construction (matches the existing eventBus.test.ts:103 pattern).
-            const iter = bus.subscribe({ maxQueued: 2, signal: ac.signal });
-            // Publish 3 events into a 2-deep queue:
-            //   - event 2 fills the queue to 100% (above the 75% warn threshold),
-            //     so the bus force-pushes a `slow_client_warning` synthetic frame.
-            //   - event 3 trips the eviction path → terminal `client_evicted` frame.
-            // Resulting order: tick(1), tick(2), slow_client_warning, client_evicted.
-            bus.publish({ type: 'tick', data: { i: 1 } });
-            bus.publish({ type: 'tick', data: { i: 2 } });
-            bus.publish({ type: 'tick', data: { i: 3 } });
-            const collected = [];
-            for await (const ev of iter) {
-                collected.push({ type: ev.type });
-            }
-            ac.abort();
-            expect(collected).toHaveLength(4);
-            expect(collected[2].type).toBe('slow_client_warning');
-            expect(collected[3].type).toBe('client_evicted');
-            snapshot.sseBackpressure = {
-                ringSize: 4_000,
-                maxQueuedDefault: 256,
-                evictionAtOverflow: true,
-                replayUpToRing: true,
-                heartbeatIntervalMs: 15_000,
-            };
-        });
-        it('replay across reconnect honors lastEventId up to ring size', async () => {
-            const bus = new EventBus();
-            // Publish 5 events.
-            for (let i = 1; i <= 5; i++) {
-                bus.publish({ type: 'tick', data: { i } });
-            }
-            // Subscribe with lastEventId=2 → should replay events 3..5.
-            const ac = new AbortController();
-            const iter = bus.subscribe({ lastEventId: 2, signal: ac.signal });
-            const replayed = [];
-            for await (const ev of iter) {
-                const data = ev.data;
-                replayed.push(data.i);
-                if (replayed.length >= 3)
-                    break;
-            }
-            ac.abort();
-            expect(replayed).toEqual([3, 4, 5]);
-        });
+      // Note: EventBus is the daemon's per-session fan-out primitive. It
+      // doesn't take a sessionId in publish/subscribe — the bus instance
+      // itself is per-session, owned upstream. We use it directly here for
+      // deterministic backpressure invariants without needing a live HTTP
+      // round-trip; pattern matches `packages/acp-bridge/src/eventBus.test.ts`.
+      it('overflow at maxQueued boundary fires client_evicted', async () => {
+        const bus = new EventBus();
+        const ac = new AbortController();
+        // Per-subscriber queue cap is set on subscribe(), not on bus
+        // construction (matches the existing eventBus.test.ts:103 pattern).
+        const iter = bus.subscribe({ maxQueued: 2, signal: ac.signal });
+        // Publish 3 events into a 2-deep queue:
+        //   - event 2 fills the queue to 100% (above the 75% warn threshold),
+        //     so the bus force-pushes a `slow_client_warning` synthetic frame.
+        //   - event 3 trips the eviction path → terminal `client_evicted` frame.
+        // Resulting order: tick(1), tick(2), slow_client_warning, client_evicted.
+        bus.publish({ type: 'tick', data: { i: 1 } });
+        bus.publish({ type: 'tick', data: { i: 2 } });
+        bus.publish({ type: 'tick', data: { i: 3 } });
+        const collected = [];
+        for await (const ev of iter) {
+          collected.push({ type: ev.type });
+        }
+        ac.abort();
+        expect(collected).toHaveLength(4);
+        expect(collected[2].type).toBe('slow_client_warning');
+        expect(collected[3].type).toBe('client_evicted');
+        snapshot.sseBackpressure = {
+          ringSize: 4_000,
+          maxQueuedDefault: 256,
+          evictionAtOverflow: true,
+          replayUpToRing: true,
+          heartbeatIntervalMs: 15_000,
+        };
+      });
+      it('replay across reconnect honors lastEventId up to ring size', async () => {
+        const bus = new EventBus();
+        // Publish 5 events.
+        for (let i = 1; i <= 5; i++) {
+          bus.publish({ type: 'tick', data: { i } });
+        }
+        // Subscribe with lastEventId=2 → should replay events 3..5.
+        const ac = new AbortController();
+        const iter = bus.subscribe({ lastEventId: 2, signal: ac.signal });
+        const replayed = [];
+        for await (const ev of iter) {
+          const data = ev.data;
+          replayed.push(data.i);
+          if (replayed.length >= 3) break;
+        }
+        ac.abort();
+        expect(replayed).toEqual([3, 4, 5]);
+      });
     });
     describe('prompt latency', () => {
-        it.skipIf(SKIP_PROMPT_LATENCY)(`p50 / p99 over ${PROMPT_ITERATIONS} prompts`, async () => {
-            const ws = makeTempWorkspace('prompt');
-            let daemon;
-            try {
-                daemon = await spawnDaemon({ workspaceCwd: ws });
-                const sess = await daemon.client.createOrAttachSession({
-                    workspaceCwd: ws,
-                });
-                const firstByteMs = [];
-                const totalMs = [];
-                for (let i = 0; i < PROMPT_ITERATIONS; i++) {
-                    const t0 = Date.now();
-                    // Subscribe to events for first-byte timing; promptly cancel
-                    // when we see the first model response chunk.
-                    const ac = new AbortController();
-                    const iter = daemon.client.subscribeEvents(sess.sessionId, {
-                        signal: ac.signal,
-                    });
-                    const firstByteP = (async () => {
-                        try {
-                            for await (const ev of iter) {
-                                if (isAgentMessageChunkEvent(ev)) {
-                                    return Date.now();
-                                }
-                            }
-                        }
-                        catch (err) {
-                            if (!isAbortError(err)) {
-                                throw err;
-                            }
-                        }
-                        return null;
-                    })();
-                    let promptError;
-                    let tEnd = Date.now();
-                    try {
-                        await daemon.client.prompt(sess.sessionId, {
-                            prompt: [
-                                { type: 'text', text: 'reply with the single word ok' },
-                            ],
-                        });
-                        tEnd = Date.now();
-                    }
-                    catch (err) {
-                        promptError = err;
-                        tEnd = Date.now();
-                    }
-                    finally {
-                        ac.abort();
-                    }
-                    const tFirstByte = await firstByteP;
-                    if (promptError)
-                        throw promptError;
-                    if (tFirstByte === null) {
-                        throw new Error('Prompt latency probe completed without an ' +
-                            'agent_message_chunk session_update event');
-                    }
-                    firstByteMs.push(tFirstByte - t0);
-                    totalMs.push(tEnd - t0);
-                }
-                snapshot.promptLatency = {
-                    iterations: PROMPT_ITERATIONS,
-                    firstByteMs: percentiles(firstByteMs),
-                    totalMs: percentiles(totalMs),
-                    skipped: false,
-                };
-                expect(snapshot.promptLatency.totalMs.p99).toBeLessThan(THRESH.promptP99MaxMs);
-            }
-            finally {
-                if (daemon)
-                    await daemon.dispose();
-                fs.rmSync(ws, { recursive: true, force: true });
-            }
-        }, HEAVY ? 30 * 60_000 : 10 * 60_000);
-        if (SKIP_PROMPT_LATENCY) {
-            it('prompt latency skipped (no model credential env)', () => {
-                snapshot.promptLatency = {
-                    iterations: 0,
-                    firstByteMs: null,
-                    totalMs: null,
-                    skipped: true,
-                    skipReason: 'No recognized model credential env var is set; prompt latency requires real model access. Set QWEN_BASELINE_ENABLE_PROMPT_LATENCY=1 to force-run with non-env auth.',
-                };
-                // Mark via a no-op assertion so the suite still appears in output.
-                expect(true).toBe(true);
+      it.skipIf(SKIP_PROMPT_LATENCY)(
+        `p50 / p99 over ${PROMPT_ITERATIONS} prompts`,
+        async () => {
+          const ws = makeTempWorkspace('prompt');
+          let daemon;
+          try {
+            daemon = await spawnDaemon({ workspaceCwd: ws });
+            const sess = await daemon.client.createOrAttachSession({
+              workspaceCwd: ws,
             });
-        }
+            const firstByteMs = [];
+            const totalMs = [];
+            for (let i = 0; i < PROMPT_ITERATIONS; i++) {
+              const t0 = Date.now();
+              // Subscribe to events for first-byte timing; promptly cancel
+              // when we see the first model response chunk.
+              const ac = new AbortController();
+              const iter = daemon.client.subscribeEvents(sess.sessionId, {
+                signal: ac.signal,
+              });
+              const firstByteP = (async () => {
+                try {
+                  for await (const ev of iter) {
+                    if (isAgentMessageChunkEvent(ev)) {
+                      return Date.now();
+                    }
+                  }
+                } catch (err) {
+                  if (!isAbortError(err)) {
+                    throw err;
+                  }
+                }
+                return null;
+              })();
+              let promptError;
+              let tEnd = Date.now();
+              try {
+                await daemon.client.prompt(sess.sessionId, {
+                  prompt: [
+                    { type: 'text', text: 'reply with the single word ok' },
+                  ],
+                });
+                tEnd = Date.now();
+              } catch (err) {
+                promptError = err;
+                tEnd = Date.now();
+              } finally {
+                ac.abort();
+              }
+              const tFirstByte = await firstByteP;
+              if (promptError) throw promptError;
+              if (tFirstByte === null) {
+                throw new Error(
+                  'Prompt latency probe completed without an ' +
+                    'agent_message_chunk session_update event',
+                );
+              }
+              firstByteMs.push(tFirstByte - t0);
+              totalMs.push(tEnd - t0);
+            }
+            snapshot.promptLatency = {
+              iterations: PROMPT_ITERATIONS,
+              firstByteMs: percentiles(firstByteMs),
+              totalMs: percentiles(totalMs),
+              skipped: false,
+            };
+            expect(snapshot.promptLatency.totalMs.p99).toBeLessThan(
+              THRESH.promptP99MaxMs,
+            );
+          } finally {
+            if (daemon) await daemon.dispose();
+            fs.rmSync(ws, { recursive: true, force: true });
+          }
+        },
+        HEAVY ? 30 * 60_000 : 10 * 60_000,
+      );
+      if (SKIP_PROMPT_LATENCY) {
+        it('prompt latency skipped (no model credential env)', () => {
+          snapshot.promptLatency = {
+            iterations: 0,
+            firstByteMs: null,
+            totalMs: null,
+            skipped: true,
+            skipReason:
+              'No recognized model credential env var is set; prompt latency requires real model access. Set QWEN_BASELINE_ENABLE_PROMPT_LATENCY=1 to force-run with non-env auth.',
+          };
+          // Mark via a no-op assertion so the suite still appears in output.
+          expect(true).toBe(true);
+        });
+      }
     });
     afterAll(() => {
-        if (SKIP)
-            return;
-        writeSnapshotArtifacts(OUTPUT_DIR, 'perf-baseline', snapshot, renderMarkdown(snapshot), 'baseline');
+      if (SKIP) return;
+      writeSnapshotArtifacts(
+        OUTPUT_DIR,
+        'perf-baseline',
+        snapshot,
+        renderMarkdown(snapshot),
+        'baseline',
+      );
     });
-});
+  },
+);
 function renderMarkdown(s) {
-    const fmt = formatPercentiles;
-    return [
-        `# qwen serve daemon — perf baseline`,
-        ``,
-        `Captured: ${s.capturedAt}`,
-        `Git: ${s.gitCommit ?? 'unknown'}`,
-        `Platform: ${s.platform.os}/${s.platform.arch} node=${s.platform.nodeVersion}`,
-        `Heavy mode: ${s.config.heavy}`,
-        ``,
-        `## RSS scaling`,
-        s.rssScaling
-            ? `- 1 session: ${s.rssScaling.session1MB} MB\n- 5 sessions: ${s.rssScaling.session5MB} MB\n- 10 sessions: ${s.rssScaling.session10MB} MB\n- RSS samples: ${s.rssScaling.sampleCount} (${s.rssScaling.droppedSampleCount} dropped)\n- growth/session: ${s.rssScaling.growthPerSessionMB} MB`
-            : 'not run',
-        ``,
-        `## Attach latency`,
-        s.attachLatency
-            ? `- session 2 attach: ${s.attachLatency.session2Ms} ms\n- session 5 attach: ${s.attachLatency.session5Ms} ms`
-            : 'not run',
-        ``,
-        `## MCP amplification (P1 baseline)`,
-        s.mcpAmplification
-            ? `- MCP servers configured: ${s.mcpAmplification.mcpServersConfigured}\n- children at 1 session: ${s.mcpAmplification.childrenAt1Session}\n- children at 3 sessions: ${s.mcpAmplification.childrenAt3Sessions}\n- children at 5 sessions: ${s.mcpAmplification.childrenAt5Sessions}\n- linear amplification observed: ${s.mcpAmplification.linearAmplification}`
-            : 'not run',
-        ``,
-        `## Prompt latency`,
-        s.promptLatency
-            ? s.promptLatency.skipped
-                ? `skipped (${s.promptLatency.skipReason})`
-                : `- iterations: ${s.promptLatency.iterations}\n- first-byte (ms): ${fmt(s.promptLatency.firstByteMs)}\n- total (ms): ${fmt(s.promptLatency.totalMs)}`
-            : 'not run',
-        ``,
-        `## SSE backpressure (unit-level invariants)`,
-        s.sseBackpressure
-            ? `- ring size: ${s.sseBackpressure.ringSize}\n- max queued (default): ${s.sseBackpressure.maxQueuedDefault}\n- eviction at overflow: ${s.sseBackpressure.evictionAtOverflow}\n- replay up to ring: ${s.sseBackpressure.replayUpToRing}\n- heartbeat interval (ms): ${s.sseBackpressure.heartbeatIntervalMs}`
-            : 'not run',
-        ``,
-    ].join('\n');
+  const fmt = formatPercentiles;
+  return [
+    `# qwen serve daemon — perf baseline`,
+    ``,
+    `Captured: ${s.capturedAt}`,
+    `Git: ${s.gitCommit ?? 'unknown'}`,
+    `Platform: ${s.platform.os}/${s.platform.arch} node=${s.platform.nodeVersion}`,
+    `Heavy mode: ${s.config.heavy}`,
+    ``,
+    `## RSS scaling`,
+    s.rssScaling
+      ? `- 1 session: ${s.rssScaling.session1MB} MB\n- 5 sessions: ${s.rssScaling.session5MB} MB\n- 10 sessions: ${s.rssScaling.session10MB} MB\n- RSS samples: ${s.rssScaling.sampleCount} (${s.rssScaling.droppedSampleCount} dropped)\n- growth/session: ${s.rssScaling.growthPerSessionMB} MB`
+      : 'not run',
+    ``,
+    `## Attach latency`,
+    s.attachLatency
+      ? `- session 2 attach: ${s.attachLatency.session2Ms} ms\n- session 5 attach: ${s.attachLatency.session5Ms} ms`
+      : 'not run',
+    ``,
+    `## MCP amplification (P1 baseline)`,
+    s.mcpAmplification
+      ? `- MCP servers configured: ${s.mcpAmplification.mcpServersConfigured}\n- children at 1 session: ${s.mcpAmplification.childrenAt1Session}\n- children at 3 sessions: ${s.mcpAmplification.childrenAt3Sessions}\n- children at 5 sessions: ${s.mcpAmplification.childrenAt5Sessions}\n- linear amplification observed: ${s.mcpAmplification.linearAmplification}`
+      : 'not run',
+    ``,
+    `## Prompt latency`,
+    s.promptLatency
+      ? s.promptLatency.skipped
+        ? `skipped (${s.promptLatency.skipReason})`
+        : `- iterations: ${s.promptLatency.iterations}\n- first-byte (ms): ${fmt(s.promptLatency.firstByteMs)}\n- total (ms): ${fmt(s.promptLatency.totalMs)}`
+      : 'not run',
+    ``,
+    `## SSE backpressure (unit-level invariants)`,
+    s.sseBackpressure
+      ? `- ring size: ${s.sseBackpressure.ringSize}\n- max queued (default): ${s.sseBackpressure.maxQueuedDefault}\n- eviction at overflow: ${s.sseBackpressure.evictionAtOverflow}\n- replay up to ring: ${s.sseBackpressure.replayUpToRing}\n- heartbeat interval (ms): ${s.sseBackpressure.heartbeatIntervalMs}`
+      : 'not run',
+    ``,
+  ].join('\n');
 }
 //# sourceMappingURL=qwen-serve-baseline.test.js.map

@@ -108,195 +108,258 @@ export { useDaemonFollowupSuggestion } from './daemon/index.js';
 /** Notifies when the daemon drains browser-queued messages into the running turn. */
 export { useDaemonMidTurnInjected } from './daemon/index.js';
 /** Notifies when the daemon's pending prompt queue changes (added/started/completed). */
-export { getPendingPromptVersion, getPendingPromptEvents, consumePendingPromptEvents, subscribePendingPromptEvents, subscribePendingPromptVersion, } from './daemon/index.js';
+export {
+  getPendingPromptVersion,
+  getPendingPromptEvents,
+  consumePendingPromptEvents,
+  subscribePendingPromptEvents,
+  subscribePendingPromptVersion,
+} from './daemon/index.js';
 /** Ordered list of approval modes for cycling: `['auto', 'suggest', 'ask']`. */
 export { DAEMON_APPROVAL_MODES } from './daemon/index.js';
 /** HTTP statuses that mean the requested daemon session no longer exists. */
 export { isMissingSessionHttpStatus } from './daemon/index.js';
 /** Canonical Agent (sub-agent) tool name + predicate for permission UIs. */
 export { AGENT_TOOL_NAME, isAgentTool } from './constants/toolNames.js';
-export type { 
-/** Full connection state: status, session id, models, context, capabilities. */
-DaemonConnectionState, 
-/** Connection lifecycle: `'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'`. */
-DaemonConnectionStatus, 
-/** Latest main-conversation token usage reported by the daemon. */
-DaemonTokenUsage, 
-/** Model descriptor: id, display label, context window size. */
-DaemonModelInfo, 
-/** Classified notice category for host-owned UI routing. */
-DaemonNoticeCategory, 
-/** Fine-grained operation associated with a session notice. */
-DaemonNoticeOperation, 
-/** Notice severity. */
-DaemonNoticeSeverity, 
-/** Slash-command descriptor with name, description, and argument hint. */
-DaemonCommandInfo, 
-/** All session-level actions: prompt, cancel, permission, model, session management. */
-DaemonSessionActions, 
-/** Internal session context value (store + connection + actions). */
-DaemonSessionContextValue, 
-/** Structured session notice emitted outside the transcript. */
-DaemonSessionNotice, 
-/** Props accepted by `<DaemonSessionProvider>`. */
-DaemonSessionProviderProps, DaemonTranscriptHistory, 
-/** Streaming lifecycle: `'idle' | 'waiting' | 'responding' | 'thinking'`. */
-DaemonStreamingState, 
-/** Prompt submission status: `'idle' | 'waiting' | 'streaming'`. */
-DaemonPromptStatus, DaemonReasoningControls, 
-/** Hook return value for daemon follow-up suggestions. */
-UseDaemonFollowupSuggestionReturn, 
-/** Image attachment (base64 data + MIME type) for prompt submission. */
-DaemonPromptImage, 
-/** Permission approval level: `'plan' | 'default' | 'auto-edit' | 'auto' | 'yolo'`. */
-DaemonApprovalMode, DaemonAuthProviderBaseUrlOption, DaemonAuthProviderCatalog, DaemonAuthProviderDescriptor, DaemonAuthProviderInstallRequest, DaemonAuthProviderInstallResult, DaemonAuthProviderModel, DaemonContextCategoryBreakdown, DaemonContextMemoryDetail, DaemonContextSkillDetail, DaemonContextToolDetail, DaemonSessionContextUsage, DaemonSessionContextUsageStatus, 
-/** Per-model API and token metrics within a stats response. */
-DaemonSessionStatsModelMetrics, 
-/** Structured session statistics from `GET /session/:id/stats`. */
-DaemonSessionStatsStatus, 
-/** Per-tool call count, success/fail, and duration within a stats response. */
-DaemonSessionStatsToolByName, 
-/** Options for pending prompt queue actions scoped to a session. */
-PendingPromptActionOptions, 
-/** Options for `sendPrompt()`: optimistic message, image attachments. */
-SendPromptOptions, 
-/** Options for non-blocking `submitPrompt()`. */
-SubmitPromptOptions, 
-/** Result of non-blocking `submitPrompt()`: the daemon-assigned promptId. */
-SubmitPromptResult, } from './daemon/index.js';
-export type { DaemonSessionOwnerGuard, DaemonSessionOwnerSnapshot, DaemonSessionTransition, } from './daemon/session/types.js';
-export type { 
-/** Single item in a todo list: id, content, status, priority. */
-DaemonTodoItem, 
-/** Complete todo list: title, items, associated tool call block. */
-DaemonTodoList, 
-/** Todo priority level: `'low' | 'medium' | 'high'`. */
-DaemonTodoPriority, 
-/** Todo item status: `'pending' | 'in_progress' | 'completed'`. */
-DaemonTodoStatus, } from './daemon/index.js';
-export type { 
-/** All workspace-level actions: MCP, tools, memory, agents, files, auth. */
-DaemonWorkspaceActions, DaemonChannelPairingActions, DaemonChannelsResource, 
-/** Internal workspace context value (client + actions + status + error). */
-DaemonWorkspaceContextValue, 
-/** Props accepted by `<DaemonWorkspaceProvider>`. */
-DaemonWorkspaceProviderProps, 
-/** Workspace connection lifecycle: `'idle' | 'connecting' | 'connected' | 'error'`. */
-DaemonWorkspaceStatus, 
-/** Options for resource hooks: `{ autoLoad?, enabled? }`. */
-DaemonResourceOptions, 
-/** Resource fetch result: `{ data, loading, error, reload() }`. */
-ResourceResult, 
-/** Resource state snapshot: `{ data, loading, error }`. */
-ResourceState, } from './daemon/index.js';
-export type { 
-/** Single entry in a directory listing: name, kind, ignored status. */
-DaemonDirectoryEntry, 
-/** Full directory listing: path, entries array, truncation flag. */
-DaemonDirectoryListing, 
-/** File metadata: path, type, size, modification time. */
-DaemonFileStat, 
-/** Options for glob queries: maxResults, includeIgnored, cwd. */
-DaemonGlobOptions, 
-/** Glob match result containing matched file paths. */
-DaemonGlobResult, 
-/** One session's active `/goal`, as listed workspace-wide by the daemon. */
-DaemonGoal, 
-/** The `GET /goals` payload: the goals plus a count of unreachable sessions. */
-DaemonGoalList, 
-/** A durable scheduled task (cron) as returned by the daemon. */
-DaemonScheduledTask, 
-/** One recorded fire in a scheduled task's run history. */
-DaemonScheduledTaskRun, 
-/** Request body for creating a scheduled task. */
-DaemonCreateScheduledTaskRequest, 
-/** Partial-update body for a scheduled task. */
-DaemonUpdateScheduledTaskRequest, 
-/** Memory file scope: `'workspace' | 'global'`. */
-DaemonContextFileScope, } from './daemon/index.js';
-export type { 
-/** Session list entry: id, title, timestamps, client count, active prompt flag. */
-DaemonSessionSummary, 
-/** Daemon status report envelope from `GET /daemon/status`. */
-DaemonStatusReport, 
-/** Status report detail level: `'summary' | 'full'`. */
-DaemonStatusReportDetail, 
-/** One triage finding in the daemon status rollup. */
-DaemonStatusReportIssue, 
-/** Overall daemon health rollup: `'ok' | 'warning' | 'error'`. */
-DaemonStatusReportLevel, 
-/** Per-section workspace diagnostics in a `detail=full` report. */
-DaemonStatusReportSection, 
-/** Per-session diagnostics row in a `detail=full` report. */
-DaemonStatusReportSession, 
-/** One time-bucketed sample in the Daemon Status metrics series (charts). */
-DaemonMetricsSeriesBucket, 
-/** Usage-dashboard summary window: `today` | `week` (7D) | `month` (30D). */
-DaemonUsageRange, 
-/** Aggregate token-usage dashboard payload (`GET /usage/dashboard`). */
-DaemonUsageDashboard, 
-/** Flattened summary totals in the usage dashboard. */
-DaemonUsageDashboardTotals, 
-/** One model's token share of the range. */
-DaemonUsageModelShare, 
-/** One skill's invocation count over the range. */
-DaemonUsageSkillCall, 
-/** One day's tokens + sessions for the daily charts. */
-DaemonUsageDailyPoint, 
-/** One heatmap cell: tokens (intensity) + cache-read rate. */
-DaemonUsageHeatmapDay, 
-/** Full agent detail including system prompt, tools, and run config. */
-DaemonWorkspaceAgentDetail, 
-/** Agent list entry: name, description, level, model, builtin flag. */
-DaemonWorkspaceAgentSummary, DaemonWorkspaceGenerationEvent, 
-/** MCP server status: name, transport, connection state, disabled reason. */
-DaemonWorkspaceMcpServerStatus, 
-/** Single MCP tool: name, description, JSON schema, validity. */
-DaemonWorkspaceMcpToolStatus, 
-/** All tools from a single MCP server. */
-DaemonWorkspaceMcpToolsStatus, 
-/** Single MCP resource: uri, name, title, mime type, size, description. */
-DaemonWorkspaceMcpResourceStatus, 
-/** All resources from a single MCP server. */
-DaemonWorkspaceMcpResourcesStatus, 
-/** Memory file entry: path, scope, byte size. */
-DaemonWorkspaceMemoryFile, 
-/** Skill status: name, description, level, model-invocable flag. */
-DaemonWorkspaceSkillStatus, 
-/** Registered tool: name, displayName, description, enabled flag. */
-DaemonWorkspaceToolStatus, 
-/** Individual setting descriptor returned by GET /workspace/settings. */
-DaemonSettingDescriptor, 
-/** Full settings response including schema, values, and warnings. */
-DaemonWorkspaceSettingsStatus, 
-/** Result of POST /workspace/settings. */
-DaemonSettingUpdateResult, 
-/** Configured model providers returned by GET /workspace/providers. */
-DaemonWorkspaceProvidersStatus, DaemonWorkspaceProviderStatus, DaemonWorkspaceProviderModel, DaemonChannelConfigFieldKind, DaemonChannelConfigFieldDescriptor, DaemonChannelConfigValueFieldDescriptor, DaemonChannelConfigPlainValueFieldDescriptor, DaemonChannelConfigEnumFieldDescriptor, DaemonChannelConfigNumberFieldDescriptor, DaemonChannelConfigObjectFieldDescriptor, DaemonChannelConfigNestedFieldDescriptor, DaemonChannelTypeDescriptor, DaemonChannelTypeCatalog, DaemonChannelRuntimeState, DaemonChannelSecretState, DaemonChannelInstanceSnapshot, DaemonChannelsSnapshot, DaemonChannelSecretUpdate, DaemonRevisionRequest, DaemonChannelUpsertRequest, DaemonChannelStartupRequest, DaemonChannelMutationResult, DaemonChannelPairingRequest, DaemonChannelPairingSubject, DaemonChannelPairingRequestsSnapshot, DaemonChannelPairingApprovalRequest, DaemonChannelPairingApprovalResult, DaemonChannelPairingApprovalsSnapshot, DaemonChannelPairingRevocationRequest, DaemonChannelPairingRevocationResult, 
-/** Request/result for DELETE /workspace/models. */
-DaemonModelDeleteRequest, DaemonModelDeleteResult, } from './daemon/index.js';
-export type { 
-/** Shell output block: stdout/stderr text stream. */
-DaemonShellTranscriptBlock, 
-/** Status/error/debug informational block. */
-DaemonStatusTranscriptBlock, 
-/** User, assistant, or thought text block (may be streaming). */
-DaemonTextTranscriptBlock, 
-/** Tool invocation block with preview, content, locations. */
-DaemonToolTranscriptBlock, 
-/** Discriminated union of all transcript block types. */
-DaemonTranscriptBlock, 
-/** Block kind tag: `'user' | 'assistant' | 'thought' | 'tool' | 'shell' | 'permission' | 'status' | 'error' | 'debug'`. */
-DaemonTranscriptBlockKind, 
-/** Interactive question block (ask_user_question tool preview). */
-DaemonTranscriptQuestion, 
-/** Single option within a transcript question. */
-DaemonTranscriptQuestionOption, 
-/** Configuration for the transcript reducer: maxBlocks, initial timestamp. */
-DaemonTranscriptReducerOptions, 
-/** Non-chat side state: current tool call, approval mode, progress, resync. */
-DaemonTranscriptSidechannelState, 
-/** Full transcript snapshot: blocks array, indexes, active IDs, sidechannel. */
-DaemonTranscriptState, 
-/** External store interface: getSnapshot, subscribe, dispatch, reset. */
-DaemonTranscriptStore, } from '@qwen-code/sdk/daemon';
+export type {
+  /** Full connection state: status, session id, models, context, capabilities. */
+  DaemonConnectionState,
+  /** Connection lifecycle: `'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'`. */
+  DaemonConnectionStatus,
+  /** Latest main-conversation token usage reported by the daemon. */
+  DaemonTokenUsage,
+  /** Model descriptor: id, display label, context window size. */
+  DaemonModelInfo,
+  /** Classified notice category for host-owned UI routing. */
+  DaemonNoticeCategory,
+  /** Fine-grained operation associated with a session notice. */
+  DaemonNoticeOperation,
+  /** Notice severity. */
+  DaemonNoticeSeverity,
+  /** Slash-command descriptor with name, description, and argument hint. */
+  DaemonCommandInfo,
+  /** All session-level actions: prompt, cancel, permission, model, session management. */
+  DaemonSessionActions,
+  /** Internal session context value (store + connection + actions). */
+  DaemonSessionContextValue,
+  /** Structured session notice emitted outside the transcript. */
+  DaemonSessionNotice,
+  /** Props accepted by `<DaemonSessionProvider>`. */
+  DaemonSessionProviderProps,
+  DaemonTranscriptHistory,
+  /** Streaming lifecycle: `'idle' | 'waiting' | 'responding' | 'thinking'`. */
+  DaemonStreamingState,
+  /** Prompt submission status: `'idle' | 'waiting' | 'streaming'`. */
+  DaemonPromptStatus,
+  DaemonReasoningControls,
+  /** Hook return value for daemon follow-up suggestions. */
+  UseDaemonFollowupSuggestionReturn,
+  /** Image attachment (base64 data + MIME type) for prompt submission. */
+  DaemonPromptImage,
+  /** Permission approval level: `'plan' | 'default' | 'auto-edit' | 'auto' | 'yolo'`. */
+  DaemonApprovalMode,
+  DaemonAuthProviderBaseUrlOption,
+  DaemonAuthProviderCatalog,
+  DaemonAuthProviderDescriptor,
+  DaemonAuthProviderInstallRequest,
+  DaemonAuthProviderInstallResult,
+  DaemonAuthProviderModel,
+  DaemonContextCategoryBreakdown,
+  DaemonContextMemoryDetail,
+  DaemonContextSkillDetail,
+  DaemonContextToolDetail,
+  DaemonSessionContextUsage,
+  DaemonSessionContextUsageStatus,
+  /** Per-model API and token metrics within a stats response. */
+  DaemonSessionStatsModelMetrics,
+  /** Structured session statistics from `GET /session/:id/stats`. */
+  DaemonSessionStatsStatus,
+  /** Per-tool call count, success/fail, and duration within a stats response. */
+  DaemonSessionStatsToolByName,
+  /** Options for pending prompt queue actions scoped to a session. */
+  PendingPromptActionOptions,
+  /** Options for `sendPrompt()`: optimistic message, image attachments. */
+  SendPromptOptions,
+  /** Options for non-blocking `submitPrompt()`. */
+  SubmitPromptOptions,
+  /** Result of non-blocking `submitPrompt()`: the daemon-assigned promptId. */
+  SubmitPromptResult,
+} from './daemon/index.js';
+export type {
+  DaemonSessionOwnerGuard,
+  DaemonSessionOwnerSnapshot,
+  DaemonSessionTransition,
+} from './daemon/session/types.js';
+export type {
+  /** Single item in a todo list: id, content, status, priority. */
+  DaemonTodoItem,
+  /** Complete todo list: title, items, associated tool call block. */
+  DaemonTodoList,
+  /** Todo priority level: `'low' | 'medium' | 'high'`. */
+  DaemonTodoPriority,
+  /** Todo item status: `'pending' | 'in_progress' | 'completed'`. */
+  DaemonTodoStatus,
+} from './daemon/index.js';
+export type {
+  /** All workspace-level actions: MCP, tools, memory, agents, files, auth. */
+  DaemonWorkspaceActions,
+  DaemonChannelPairingActions,
+  DaemonChannelsResource,
+  /** Internal workspace context value (client + actions + status + error). */
+  DaemonWorkspaceContextValue,
+  /** Props accepted by `<DaemonWorkspaceProvider>`. */
+  DaemonWorkspaceProviderProps,
+  /** Workspace connection lifecycle: `'idle' | 'connecting' | 'connected' | 'error'`. */
+  DaemonWorkspaceStatus,
+  /** Options for resource hooks: `{ autoLoad?, enabled? }`. */
+  DaemonResourceOptions,
+  /** Resource fetch result: `{ data, loading, error, reload() }`. */
+  ResourceResult,
+  /** Resource state snapshot: `{ data, loading, error }`. */
+  ResourceState,
+} from './daemon/index.js';
+export type {
+  /** Single entry in a directory listing: name, kind, ignored status. */
+  DaemonDirectoryEntry,
+  /** Full directory listing: path, entries array, truncation flag. */
+  DaemonDirectoryListing,
+  /** File metadata: path, type, size, modification time. */
+  DaemonFileStat,
+  /** Options for glob queries: maxResults, includeIgnored, cwd. */
+  DaemonGlobOptions,
+  /** Glob match result containing matched file paths. */
+  DaemonGlobResult,
+  /** One session's active `/goal`, as listed workspace-wide by the daemon. */
+  DaemonGoal,
+  /** The `GET /goals` payload: the goals plus a count of unreachable sessions. */
+  DaemonGoalList,
+  /** A durable scheduled task (cron) as returned by the daemon. */
+  DaemonScheduledTask,
+  /** One recorded fire in a scheduled task's run history. */
+  DaemonScheduledTaskRun,
+  /** Request body for creating a scheduled task. */
+  DaemonCreateScheduledTaskRequest,
+  /** Partial-update body for a scheduled task. */
+  DaemonUpdateScheduledTaskRequest,
+  /** Memory file scope: `'workspace' | 'global'`. */
+  DaemonContextFileScope,
+} from './daemon/index.js';
+export type {
+  /** Session list entry: id, title, timestamps, client count, active prompt flag. */
+  DaemonSessionSummary,
+  /** Daemon status report envelope from `GET /daemon/status`. */
+  DaemonStatusReport,
+  /** Status report detail level: `'summary' | 'full'`. */
+  DaemonStatusReportDetail,
+  /** One triage finding in the daemon status rollup. */
+  DaemonStatusReportIssue,
+  /** Overall daemon health rollup: `'ok' | 'warning' | 'error'`. */
+  DaemonStatusReportLevel,
+  /** Per-section workspace diagnostics in a `detail=full` report. */
+  DaemonStatusReportSection,
+  /** Per-session diagnostics row in a `detail=full` report. */
+  DaemonStatusReportSession,
+  /** One time-bucketed sample in the Daemon Status metrics series (charts). */
+  DaemonMetricsSeriesBucket,
+  /** Usage-dashboard summary window: `today` | `week` (7D) | `month` (30D). */
+  DaemonUsageRange,
+  /** Aggregate token-usage dashboard payload (`GET /usage/dashboard`). */
+  DaemonUsageDashboard,
+  /** Flattened summary totals in the usage dashboard. */
+  DaemonUsageDashboardTotals,
+  /** One model's token share of the range. */
+  DaemonUsageModelShare,
+  /** One skill's invocation count over the range. */
+  DaemonUsageSkillCall,
+  /** One day's tokens + sessions for the daily charts. */
+  DaemonUsageDailyPoint,
+  /** One heatmap cell: tokens (intensity) + cache-read rate. */
+  DaemonUsageHeatmapDay,
+  /** Full agent detail including system prompt, tools, and run config. */
+  DaemonWorkspaceAgentDetail,
+  /** Agent list entry: name, description, level, model, builtin flag. */
+  DaemonWorkspaceAgentSummary,
+  DaemonWorkspaceGenerationEvent,
+  /** MCP server status: name, transport, connection state, disabled reason. */
+  DaemonWorkspaceMcpServerStatus,
+  /** Single MCP tool: name, description, JSON schema, validity. */
+  DaemonWorkspaceMcpToolStatus,
+  /** All tools from a single MCP server. */
+  DaemonWorkspaceMcpToolsStatus,
+  /** Single MCP resource: uri, name, title, mime type, size, description. */
+  DaemonWorkspaceMcpResourceStatus,
+  /** All resources from a single MCP server. */
+  DaemonWorkspaceMcpResourcesStatus,
+  /** Memory file entry: path, scope, byte size. */
+  DaemonWorkspaceMemoryFile,
+  /** Skill status: name, description, level, model-invocable flag. */
+  DaemonWorkspaceSkillStatus,
+  /** Registered tool: name, displayName, description, enabled flag. */
+  DaemonWorkspaceToolStatus,
+  /** Individual setting descriptor returned by GET /workspace/settings. */
+  DaemonSettingDescriptor,
+  /** Full settings response including schema, values, and warnings. */
+  DaemonWorkspaceSettingsStatus,
+  /** Result of POST /workspace/settings. */
+  DaemonSettingUpdateResult,
+  /** Configured model providers returned by GET /workspace/providers. */
+  DaemonWorkspaceProvidersStatus,
+  DaemonWorkspaceProviderStatus,
+  DaemonWorkspaceProviderModel,
+  DaemonChannelConfigFieldKind,
+  DaemonChannelConfigFieldDescriptor,
+  DaemonChannelConfigValueFieldDescriptor,
+  DaemonChannelConfigPlainValueFieldDescriptor,
+  DaemonChannelConfigEnumFieldDescriptor,
+  DaemonChannelConfigNumberFieldDescriptor,
+  DaemonChannelConfigObjectFieldDescriptor,
+  DaemonChannelConfigNestedFieldDescriptor,
+  DaemonChannelTypeDescriptor,
+  DaemonChannelTypeCatalog,
+  DaemonChannelRuntimeState,
+  DaemonChannelSecretState,
+  DaemonChannelInstanceSnapshot,
+  DaemonChannelsSnapshot,
+  DaemonChannelSecretUpdate,
+  DaemonRevisionRequest,
+  DaemonChannelUpsertRequest,
+  DaemonChannelStartupRequest,
+  DaemonChannelMutationResult,
+  DaemonChannelPairingRequest,
+  DaemonChannelPairingSubject,
+  DaemonChannelPairingRequestsSnapshot,
+  DaemonChannelPairingApprovalRequest,
+  DaemonChannelPairingApprovalResult,
+  DaemonChannelPairingApprovalsSnapshot,
+  DaemonChannelPairingRevocationRequest,
+  DaemonChannelPairingRevocationResult,
+  /** Request/result for DELETE /workspace/models. */
+  DaemonModelDeleteRequest,
+  DaemonModelDeleteResult,
+} from './daemon/index.js';
+export type {
+  /** Shell output block: stdout/stderr text stream. */
+  DaemonShellTranscriptBlock,
+  /** Status/error/debug informational block. */
+  DaemonStatusTranscriptBlock,
+  /** User, assistant, or thought text block (may be streaming). */
+  DaemonTextTranscriptBlock,
+  /** Tool invocation block with preview, content, locations. */
+  DaemonToolTranscriptBlock,
+  /** Discriminated union of all transcript block types. */
+  DaemonTranscriptBlock,
+  /** Block kind tag: `'user' | 'assistant' | 'thought' | 'tool' | 'shell' | 'permission' | 'status' | 'error' | 'debug'`. */
+  DaemonTranscriptBlockKind,
+  /** Interactive question block (ask_user_question tool preview). */
+  DaemonTranscriptQuestion,
+  /** Single option within a transcript question. */
+  DaemonTranscriptQuestionOption,
+  /** Configuration for the transcript reducer: maxBlocks, initial timestamp. */
+  DaemonTranscriptReducerOptions,
+  /** Non-chat side state: current tool call, approval mode, progress, resync. */
+  DaemonTranscriptSidechannelState,
+  /** Full transcript snapshot: blocks array, indexes, active IDs, sidechannel. */
+  DaemonTranscriptState,
+  /** External store interface: getSnapshot, subscribe, dispatch, reset. */
+  DaemonTranscriptStore,
+} from '@qwen-code/sdk/daemon';

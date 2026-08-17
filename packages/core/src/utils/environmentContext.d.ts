@@ -5,10 +5,13 @@
  */
 import type { Content, Part } from '@google/genai';
 import type { Config } from '../config/config.js';
-import type { DeferredToolSummary, ToolRegistry } from '../tools/tool-registry.js';
+import type {
+  DeferredToolSummary,
+  ToolRegistry,
+} from '../tools/tool-registry.js';
 import { type AvailableSkillEntry } from '../tools/skill-utils.js';
-export declare const SYSTEM_REMINDER_OPEN = "<system-reminder>";
-export declare const SYSTEM_REMINDER_CLOSE = "</system-reminder>";
+export declare const SYSTEM_REMINDER_OPEN = '<system-reminder>';
+export declare const SYSTEM_REMINDER_CLOSE = '</system-reminder>';
 /**
  * Shared date formatter for system-prompt date injection.
  * Pinned to 'en-US' so both the startup context and per-turn
@@ -20,7 +23,9 @@ export declare function formatDateForContext(date?: Date): string;
  * @param {Config} config - The runtime configuration and services.
  * @returns {Promise<string>} A promise that resolves to the directory context string.
  */
-export declare function getDirectoryContextString(config: Config): Promise<string>;
+export declare function getDirectoryContextString(
+  config: Config,
+): Promise<string>;
 /**
  * Retrieves environment-related information to be included in the chat context.
  * This includes the current working directory, date, operating system, and folder structure.
@@ -28,13 +33,22 @@ export declare function getDirectoryContextString(config: Config): Promise<strin
  * @returns A promise that resolves to an array of `Part` objects containing environment information.
  */
 export declare function getEnvironmentContext(config: Config): Promise<Part[]>;
-export declare function buildDeferredToolsReminder(toolRegistry: ToolRegistry): string | null;
-export declare function buildAddedMcpToolsReminder(deferredTools: DeferredToolSummary[]): string | null;
-export declare function buildChangedMcpToolsReminder(addedTools: DeferredToolSummary[], removedToolNames: string[]): string | null;
-export declare function buildMcpServerInstructionsReminder(toolRegistry: ToolRegistry): string | null;
+export declare function buildDeferredToolsReminder(
+  toolRegistry: ToolRegistry,
+): string | null;
+export declare function buildAddedMcpToolsReminder(
+  deferredTools: DeferredToolSummary[],
+): string | null;
+export declare function buildChangedMcpToolsReminder(
+  addedTools: DeferredToolSummary[],
+  removedToolNames: string[],
+): string | null;
+export declare function buildMcpServerInstructionsReminder(
+  toolRegistry: ToolRegistry,
+): string | null;
 export interface AvailableSkillsReminderResult {
-    reminder: string;
-    renderedEntries: AvailableSkillEntry[];
+  reminder: string;
+  renderedEntries: AvailableSkillEntry[];
 }
 /**
  * Builds the session-start `<available_skills>` snapshot for the startup prelude
@@ -50,7 +64,9 @@ export interface AvailableSkillsReminderResult {
  * seed dedup state from exactly what the model saw. Returns null when there is
  * no SkillManager.
  */
-export declare function buildAvailableSkillsReminder(config: Config): Promise<AvailableSkillsReminderResult | null>;
+export declare function buildAvailableSkillsReminder(
+  config: Config,
+): Promise<AvailableSkillsReminderResult | null>;
 /**
  * Builds the per-turn "newly available skills/commands" delta reminder. Used by
  * the client to announce skills enabled mid-session (e.g. via /skills) and MCP
@@ -58,18 +74,30 @@ export declare function buildAvailableSkillsReminder(config: Config): Promise<Av
  * `<system-reminder>` only). The companion to `buildAddedMcpToolsReminder` for
  * skills. Returns null when there is nothing new to announce.
  */
-export declare function buildAddedSkillsReminder(entries: AvailableSkillEntry[]): string | null;
-export declare function buildChangedSkillsReminder(addedEntries: AvailableSkillEntry[], removedNames: string[]): string | null;
+export declare function buildAddedSkillsReminder(
+  entries: AvailableSkillEntry[],
+): string | null;
+export declare function buildChangedSkillsReminder(
+  addedEntries: AvailableSkillEntry[],
+  removedNames: string[],
+): string | null;
 export interface AgentAvailabilityEntry {
-    name: string;
-    description: string;
+  name: string;
+  description: string;
 }
-export declare function buildAddedAgentsReminder(agents: AgentAvailabilityEntry[]): string | null;
-export declare function buildChangedAgentsReminder(addedAgents: AgentAvailabilityEntry[], removedAgentNames: string[]): string | null;
-export declare function buildStartupContextReminder(config: Config): Promise<string>;
+export declare function buildAddedAgentsReminder(
+  agents: AgentAvailabilityEntry[],
+): string | null;
+export declare function buildChangedAgentsReminder(
+  addedAgents: AgentAvailabilityEntry[],
+  removedAgentNames: string[],
+): string | null;
+export declare function buildStartupContextReminder(
+  config: Config,
+): Promise<string>;
 export interface InitialChatHistoryOptions {
-    includeDeferredToolsReminder?: boolean;
-    includeAvailableSkillsReminder?: boolean;
+  includeDeferredToolsReminder?: boolean;
+  includeAvailableSkillsReminder?: boolean;
 }
 /**
  * Returns `[history, snapshotEntries]` — the startup prelude messages and the
@@ -77,7 +105,11 @@ export interface InitialChatHistoryOptions {
  * snapshot. Callers that need to seed dedup state (e.g. `startChat`) use
  * `snapshotEntries`; callers that don't care can destructure as `[history]`.
  */
-export declare function getInitialChatHistory(config: Config, extraHistory?: Content[], options?: InitialChatHistoryOptions): Promise<[Content[], AvailableSkillEntry[]]>;
+export declare function getInitialChatHistory(
+  config: Config,
+  extraHistory?: Content[],
+  options?: InitialChatHistoryOptions,
+): Promise<[Content[], AvailableSkillEntry[]]>;
 /**
  * Returns the number of initial API entries occupied by structural context
  * that should be skipped when counting real user turns:
@@ -92,9 +124,12 @@ export declare function getInitialChatHistory(config: Config, extraHistory?: Con
  *    `composePostCompactHistory`. These synthetic entries must not be
  *    counted as real user prompts for rewind indexing.
  */
-export declare function getStartupContextLength(history: Content[], options?: {
+export declare function getStartupContextLength(
+  history: Content[],
+  options?: {
     includeCompressed?: boolean;
-}): number;
+  },
+): number;
 /**
  * True when `content` is a *pure* system-reminder entry: it has parts and
  * EVERY part is a text part wrapped in `<system-reminder>…</system-reminder>`.

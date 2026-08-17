@@ -9,102 +9,120 @@
  * Tool call content types
  */
 export interface ToolCallContent {
-    type: 'content' | 'diff';
-    content?: {
-        type: string;
-        text?: string;
-        error?: unknown;
-        [key: string]: unknown;
-    };
-    path?: string;
-    oldText?: string | null;
-    newText?: string;
+  type: 'content' | 'diff';
+  content?: {
+    type: string;
+    text?: string;
+    error?: unknown;
+    [key: string]: unknown;
+  };
+  path?: string;
+  oldText?: string | null;
+  newText?: string;
 }
 /**
  * Tool call location type
  */
 export interface ToolCallLocation {
-    path: string;
-    line?: number | null;
+  path: string;
+  line?: number | null;
 }
 /**
  * Tool call status type
  */
-export type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
-export type AgentExecutionStatus = 'running' | 'completed' | 'failed' | 'cancelled';
-export type AgentToolCallStatus = 'executing' | 'awaiting_approval' | 'success' | 'failed';
+export type ToolCallStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+export type AgentExecutionStatus =
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+export type AgentToolCallStatus =
+  | 'executing'
+  | 'awaiting_approval'
+  | 'success'
+  | 'failed';
 export interface AgentExecutionSummary {
-    totalToolCalls: number;
-    totalTokens: number;
-    outputTokens?: number;
-    totalDurationMs: number;
-    successfulToolCalls?: number;
-    failedToolCalls?: number;
-    successRate?: number;
+  totalToolCalls: number;
+  totalTokens: number;
+  outputTokens?: number;
+  totalDurationMs: number;
+  successfulToolCalls?: number;
+  failedToolCalls?: number;
+  successRate?: number;
 }
 export interface AgentExecutionToolCall {
-    callId: string;
-    name: string;
-    status: AgentToolCallStatus;
-    error?: string;
-    description?: string;
+  callId: string;
+  name: string;
+  status: AgentToolCallStatus;
+  error?: string;
+  description?: string;
 }
 export interface AgentExecutionRawOutput {
-    type: 'task_execution';
-    subagentName: string;
-    subagentColor?: string;
-    taskDescription: string;
-    taskPrompt: string;
-    status: AgentExecutionStatus;
-    terminateReason?: string;
-    result?: string;
-    executionSummary?: AgentExecutionSummary;
-    toolCalls?: AgentExecutionToolCall[];
+  type: 'task_execution';
+  subagentName: string;
+  subagentColor?: string;
+  taskDescription: string;
+  taskPrompt: string;
+  status: AgentExecutionStatus;
+  terminateReason?: string;
+  result?: string;
+  executionSummary?: AgentExecutionSummary;
+  toolCalls?: AgentExecutionToolCall[];
 }
 /**
  * Base tool call data interface
  */
 export interface ToolCallData {
-    toolCallId: string;
-    kind: string;
-    title: string | object;
-    status: ToolCallStatus;
-    rawInput?: string | object;
-    rawOutput?: unknown;
-    content?: ToolCallContent[];
-    locations?: ToolCallLocation[];
-    timestamp?: number;
-    /**
-     * Optional markdown summary projection of the tool's preview (file
-     * diff, MCP invocation, tabular, etc.) — populated by
-     * `daemonTranscriptToUnifiedMessages` when
-     * `enrichToolDetailsWithPreview: true`. Renderers can show it
-     * alongside `rawOutput` (which is now preserved verbatim, addressing
-     * a code review).
-     */
-    previewMarkdown?: string;
+  toolCallId: string;
+  kind: string;
+  title: string | object;
+  status: ToolCallStatus;
+  rawInput?: string | object;
+  rawOutput?: unknown;
+  content?: ToolCallContent[];
+  locations?: ToolCallLocation[];
+  timestamp?: number;
+  /**
+   * Optional markdown summary projection of the tool's preview (file
+   * diff, MCP invocation, tabular, etc.) — populated by
+   * `daemonTranscriptToUnifiedMessages` when
+   * `enrichToolDetailsWithPreview: true`. Renderers can show it
+   * alongside `rawOutput` (which is now preserved verbatim, addressing
+   * a code review).
+   */
+  previewMarkdown?: string;
 }
 /**
  * Base props for all tool call components
  */
 export interface BaseToolCallProps {
-    toolCall: ToolCallData;
-    isFirst?: boolean;
-    isLast?: boolean;
+  toolCall: ToolCallData;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 /**
  * Grouped content structure for rendering
  */
 export interface GroupedContent {
-    textOutputs: string[];
-    errors: string[];
-    diffs: ToolCallContent[];
-    otherData: unknown[];
+  textOutputs: string[];
+  errors: string[];
+  diffs: ToolCallContent[];
+  otherData: unknown[];
 }
 /**
  * Container status type for styling
  */
-export type ContainerStatus = 'success' | 'error' | 'warning' | 'loading' | 'default';
+export type ContainerStatus =
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'loading'
+  | 'default';
 /**
  * Plan entry status type
  */
@@ -113,6 +131,6 @@ export type PlanEntryStatus = 'pending' | 'in_progress' | 'completed';
  * Plan entry interface for UpdatedPlanToolCall
  */
 export interface PlanEntry {
-    content: string;
-    status: PlanEntryStatus;
+  content: string;
+  status: PlanEntryStatus;
 }

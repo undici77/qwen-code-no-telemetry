@@ -10,22 +10,22 @@
 import { type MouseEvent, type MouseTracking } from '../utils/mouse.js';
 export type MouseHandler = (event: MouseEvent) => void;
 export interface MouseEventsOptions {
-    /** Subscribe + enable SGR mouse mode only while this is true. */
-    isActive: boolean;
-    /**
-     * Tracking level to request. `'button'` (?1002h) reports press/drag/release;
-     * `'any'` (?1003h) additionally reports bare motion, needed for hover. The
-     * effective terminal level is the highest any active subscriber requests.
-     */
-    tracking?: MouseTracking;
-    /**
-     * Opt out of the VP gate. By default mouse tracking is enabled only in VP
-     * mode (`ui.useTerminalBuffer`), so non-VP keeps native terminal scrollback.
-     * Set true for surfaces that own the wheel regardless — e.g. the VP viewport
-     * (ScrollableList) — where there is no main-screen native scrollback to
-     * protect.
-     */
-    bypassVpGate?: boolean;
+  /** Subscribe + enable SGR mouse mode only while this is true. */
+  isActive: boolean;
+  /**
+   * Tracking level to request. `'button'` (?1002h) reports press/drag/release;
+   * `'any'` (?1003h) additionally reports bare motion, needed for hover. The
+   * effective terminal level is the highest any active subscriber requests.
+   */
+  tracking?: MouseTracking;
+  /**
+   * Opt out of the VP gate. By default mouse tracking is enabled only in VP
+   * mode (`ui.useTerminalBuffer`), so non-VP keeps native terminal scrollback.
+   * Set true for surfaces that own the wheel regardless — e.g. the VP viewport
+   * (ScrollableList) — where there is no main-screen native scrollback to
+   * protect.
+   */
+  bypassVpGate?: boolean;
 }
 /**
  * Subscribes to SGR mouse events while `isActive` is true.
@@ -47,4 +47,7 @@ export interface MouseEventsOptions {
  *
  * The handler is stored in a ref so callers don't need to memoize it.
  */
-export declare function useMouseEvents(handler: MouseHandler, { isActive, tracking, bypassVpGate }: MouseEventsOptions): void;
+export declare function useMouseEvents(
+  handler: MouseHandler,
+  { isActive, tracking, bypassVpGate }: MouseEventsOptions,
+): void;

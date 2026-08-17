@@ -37,20 +37,20 @@ export declare const MAX_UNTRACKED_FILES = 500;
 export declare const MAX_UNTRACKED_TOTAL_BYTES = 10000000;
 /** An untracked file the capture did not review, and why. Never dropped mutely. */
 export interface SkippedFile {
-    path: string;
-    /** Size in bytes, or null when the file could not be stat-ed at all. */
-    bytes: number | null;
-    reason: string;
+  path: string;
+  /** Size in bytes, or null when the file could not be stat-ed at all. */
+  bytes: number | null;
+  reason: string;
 }
 export interface LocalDiffCapture {
-    /** The captured diff: tracked sections first, then untracked ones. */
-    diff: Buffer;
-    /** Untracked files whose full contents were added to the diff. */
-    untracked: string[];
-    /** Untracked files that were NOT reviewed. Report every one of them. */
-    skipped: SkippedFile[];
-    /** True when HEAD does not exist yet (a repo with no commits). */
-    unbornHead: boolean;
+  /** The captured diff: tracked sections first, then untracked ones. */
+  diff: Buffer;
+  /** Untracked files whose full contents were added to the diff. */
+  untracked: string[];
+  /** Untracked files that were NOT reviewed. Report every one of them. */
+  skipped: SkippedFile[];
+  /** True when HEAD does not exist yet (a repo with no commits). */
+  unbornHead: boolean;
 }
 /**
  * True when git rendered this file as a binary blob rather than as text.
@@ -66,6 +66,6 @@ export declare function isBinarySection(section: Buffer): boolean;
  * Nothing here writes to the index, the worktree, or any ref.
  */
 export declare function captureLocalDiff(opts: {
-    file?: string;
-    includeUntracked?: boolean;
+  file?: string;
+  includeUntracked?: boolean;
 }): LocalDiffCapture;

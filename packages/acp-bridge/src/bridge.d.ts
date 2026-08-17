@@ -16,7 +16,11 @@ import type { BridgeOptions } from './bridgeOptions.js';
  */
 export declare function extractErrorMessage(err: unknown): string;
 export declare function extractErrorCode(err: unknown): string | undefined;
-export declare function classifyTurnErrorKind(message: string): 'model_stream_interrupted' | undefined;
-export declare function createAcpSessionBridge(opts: BridgeOptions): AcpSessionBridge;
+export declare function classifyTurnErrorKind(
+  message: string,
+): 'model_stream_interrupted' | undefined;
+export declare function createAcpSessionBridge(
+  opts: BridgeOptions,
+): AcpSessionBridge;
 /** @deprecated Use `createAcpSessionBridge` instead. */
 export declare const createHttpAcpBridge: typeof createAcpSessionBridge;

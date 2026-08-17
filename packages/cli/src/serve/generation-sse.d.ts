@@ -5,5 +5,11 @@
  */
 import type { Response } from 'express';
 export declare const GENERATION_HEARTBEAT_MS = 15000;
-export declare function formatGenerationSse(event: string, data: Record<string, unknown>): string;
-export declare function writeGenerationSseChunk(res: Response, chunk: string): Promise<void>;
+export declare function formatGenerationSse(
+  event: string,
+  data: Record<string, unknown>,
+): string;
+export declare function writeGenerationSseChunk(
+  res: Response,
+  chunk: string,
+): Promise<void>;

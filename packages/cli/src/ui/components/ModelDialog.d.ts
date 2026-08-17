@@ -12,15 +12,24 @@ import type React from 'react';
  */
 export declare function encodeAuxModelSelector(selected: string): string;
 interface ModelDialogProps {
-    onClose: () => void;
-    isFastModelMode?: boolean;
-    isVoiceModelMode?: boolean;
-    isVisionModelMode?: boolean;
-    isCompactionModelMode?: boolean;
-    isImageModelMode?: boolean;
-    /** Override which settings scope to persist the selection to. */
-    persistScope?: 'workspace' | 'user';
-    availableTerminalHeight?: number;
+  onClose: () => void;
+  isFastModelMode?: boolean;
+  isVoiceModelMode?: boolean;
+  isVisionModelMode?: boolean;
+  isCompactionModelMode?: boolean;
+  isImageModelMode?: boolean;
+  /** Override which settings scope to persist the selection to. */
+  persistScope?: 'workspace' | 'user';
+  availableTerminalHeight?: number;
 }
-export declare function ModelDialog({ onClose, isFastModelMode, isVoiceModelMode, isVisionModelMode, isCompactionModelMode, isImageModelMode, persistScope, availableTerminalHeight, }: ModelDialogProps): React.JSX.Element;
+export declare function ModelDialog({
+  onClose,
+  isFastModelMode,
+  isVoiceModelMode,
+  isVisionModelMode,
+  isCompactionModelMode,
+  isImageModelMode,
+  persistScope,
+  availableTerminalHeight,
+}: ModelDialogProps): React.JSX.Element;
 export {};

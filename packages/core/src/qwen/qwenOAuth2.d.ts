@@ -25,15 +25,15 @@ export declare function generateCodeChallenge(codeVerifier: string): string;
  * @returns Object containing code_verifier and code_challenge
  */
 export declare function generatePKCEPair(): {
-    code_verifier: string;
-    code_challenge: string;
+  code_verifier: string;
+  code_challenge: string;
 };
 /**
  * Standard error response data
  */
 export interface ErrorData {
-    error: string;
-    error_description: string;
+  error: string;
+  error_description: string;
 }
 /**
  * Custom error class to indicate that credentials should be cleared
@@ -41,8 +41,8 @@ export interface ErrorData {
  * that the refresh token is expired or invalid
  */
 export declare class CredentialsClearRequiredError extends Error {
-    originalError?: unknown | undefined;
-    constructor(message: string, originalError?: unknown | undefined);
+  originalError?: unknown | undefined;
+  constructor(message: string, originalError?: unknown | undefined);
 }
 /**
  * Typed error thrown by `QwenOAuth2Client.pollDeviceToken` for upstream
@@ -62,35 +62,35 @@ export declare class CredentialsClearRequiredError extends Error {
  * on `instanceof QwenOAuthPollError` + read fields directly.
  */
 export declare class QwenOAuthPollError extends Error {
-    readonly status?: number;
-    readonly oauthError?: string;
-    readonly description?: string;
-    constructor(opts: {
-        oauthError?: string;
-        description?: string;
-        status?: number;
-    });
+  readonly status?: number;
+  readonly oauthError?: string;
+  readonly description?: string;
+  constructor(opts: {
+    oauthError?: string;
+    description?: string;
+    status?: number;
+  });
 }
 /**
  * Qwen OAuth2 credentials interface
  */
 export interface QwenCredentials {
-    access_token?: string;
-    refresh_token?: string;
-    id_token?: string;
-    expiry_date?: number;
-    token_type?: string;
-    resource_url?: string;
+  access_token?: string;
+  refresh_token?: string;
+  id_token?: string;
+  expiry_date?: number;
+  token_type?: string;
+  resource_url?: string;
 }
 /**
  * Device authorization success data
  */
 export interface DeviceAuthorizationData {
-    device_code: string;
-    user_code: string;
-    verification_uri: string;
-    verification_uri_complete: string;
-    expires_in: number;
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+  expires_in: number;
 }
 /**
  * Device authorization response interface
@@ -99,51 +99,65 @@ export type DeviceAuthorizationResponse = DeviceAuthorizationData | ErrorData;
 /**
  * Type guard to check if device authorization was successful
  */
-export declare function isDeviceAuthorizationSuccess(response: DeviceAuthorizationResponse): response is DeviceAuthorizationData;
+export declare function isDeviceAuthorizationSuccess(
+  response: DeviceAuthorizationResponse,
+): response is DeviceAuthorizationData;
 /**
  * Device token success data
  */
 export interface DeviceTokenData {
-    access_token: string | null;
-    refresh_token?: string | null;
-    token_type: string;
-    expires_in: number | null;
-    scope?: string | null;
-    endpoint?: string;
-    resource_url?: string;
+  access_token: string | null;
+  refresh_token?: string | null;
+  token_type: string;
+  expires_in: number | null;
+  scope?: string | null;
+  endpoint?: string;
+  resource_url?: string;
 }
 /**
  * Device token pending response
  */
 export interface DeviceTokenPendingData {
-    status: 'pending';
-    slowDown?: boolean;
+  status: 'pending';
+  slowDown?: boolean;
 }
 /**
  * Device token response interface
  */
-export type DeviceTokenResponse = DeviceTokenData | DeviceTokenPendingData | ErrorData;
+export type DeviceTokenResponse =
+  | DeviceTokenData
+  | DeviceTokenPendingData
+  | ErrorData;
 /**
  * Type guard to check if device token response was successful
  */
-export declare function isDeviceTokenSuccess(response: DeviceTokenResponse): response is DeviceTokenData;
+export declare function isDeviceTokenSuccess(
+  response: DeviceTokenResponse,
+): response is DeviceTokenData;
 /**
  * Type guard to check if device token response is pending
  */
-export declare function isDeviceTokenPending(response: DeviceTokenResponse): response is DeviceTokenPendingData;
+export declare function isDeviceTokenPending(
+  response: DeviceTokenResponse,
+): response is DeviceTokenPendingData;
 /**
  * Type guard to check if response is an error
  */
-export declare function isErrorResponse(response: DeviceAuthorizationResponse | DeviceTokenResponse | TokenRefreshResponse): response is ErrorData;
+export declare function isErrorResponse(
+  response:
+    | DeviceAuthorizationResponse
+    | DeviceTokenResponse
+    | TokenRefreshResponse,
+): response is ErrorData;
 /**
  * Token refresh success data
  */
 export interface TokenRefreshData {
-    access_token: string;
-    token_type: string;
-    expires_in: number;
-    refresh_token?: string;
-    resource_url?: string;
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string;
+  resource_url?: string;
 }
 /**
  * Token refresh response interface
@@ -153,75 +167,92 @@ export type TokenRefreshResponse = TokenRefreshData | ErrorData;
  * Qwen OAuth2 client interface
  */
 export interface IQwenOAuth2Client {
-    setCredentials(credentials: QwenCredentials): void;
-    getCredentials(): QwenCredentials;
-    getAccessToken(): Promise<{
-        token?: string;
-    }>;
-    requestDeviceAuthorization(options: {
-        scope: string;
-        code_challenge: string;
-        code_challenge_method: string;
-    }, fetchOpts?: {
-        signal?: AbortSignal;
-    }): Promise<DeviceAuthorizationResponse>;
-    pollDeviceToken(options: {
-        device_code: string;
-        code_verifier: string;
-    }, fetchOpts?: {
-        signal?: AbortSignal;
-    }): Promise<DeviceTokenResponse>;
-    refreshAccessToken(): Promise<TokenRefreshResponse>;
+  setCredentials(credentials: QwenCredentials): void;
+  getCredentials(): QwenCredentials;
+  getAccessToken(): Promise<{
+    token?: string;
+  }>;
+  requestDeviceAuthorization(
+    options: {
+      scope: string;
+      code_challenge: string;
+      code_challenge_method: string;
+    },
+    fetchOpts?: {
+      signal?: AbortSignal;
+    },
+  ): Promise<DeviceAuthorizationResponse>;
+  pollDeviceToken(
+    options: {
+      device_code: string;
+      code_verifier: string;
+    },
+    fetchOpts?: {
+      signal?: AbortSignal;
+    },
+  ): Promise<DeviceTokenResponse>;
+  refreshAccessToken(): Promise<TokenRefreshResponse>;
 }
 /**
  * Qwen OAuth2 client implementation
  */
 export declare class QwenOAuth2Client implements IQwenOAuth2Client {
-    private credentials;
-    private sharedManager;
-    constructor();
-    setCredentials(credentials: QwenCredentials): void;
-    getCredentials(): QwenCredentials;
-    getAccessToken(): Promise<{
-        token?: string;
-    }>;
-    requestDeviceAuthorization(options: {
-        scope: string;
-        code_challenge: string;
-        code_challenge_method: string;
-    }, fetchOpts?: {
-        signal?: AbortSignal;
-    }): Promise<DeviceAuthorizationResponse>;
-    pollDeviceToken(options: {
-        device_code: string;
-        code_verifier: string;
-    }, fetchOpts?: {
-        signal?: AbortSignal;
-    }): Promise<DeviceTokenResponse>;
-    refreshAccessToken(): Promise<TokenRefreshResponse>;
+  private credentials;
+  private sharedManager;
+  constructor();
+  setCredentials(credentials: QwenCredentials): void;
+  getCredentials(): QwenCredentials;
+  getAccessToken(): Promise<{
+    token?: string;
+  }>;
+  requestDeviceAuthorization(
+    options: {
+      scope: string;
+      code_challenge: string;
+      code_challenge_method: string;
+    },
+    fetchOpts?: {
+      signal?: AbortSignal;
+    },
+  ): Promise<DeviceAuthorizationResponse>;
+  pollDeviceToken(
+    options: {
+      device_code: string;
+      code_verifier: string;
+    },
+    fetchOpts?: {
+      signal?: AbortSignal;
+    },
+  ): Promise<DeviceTokenResponse>;
+  refreshAccessToken(): Promise<TokenRefreshResponse>;
 }
 export declare enum QwenOAuth2Event {
-    AuthUri = "auth-uri",
-    AuthProgress = "auth-progress",
-    AuthCancel = "auth-cancel"
+  AuthUri = 'auth-uri',
+  AuthProgress = 'auth-progress',
+  AuthCancel = 'auth-cancel',
 }
 /**
  * Authentication result types to distinguish different failure reasons
  */
-export type AuthResult = {
-    success: true;
-} | {
-    success: false;
-    reason: 'timeout' | 'cancelled' | 'error' | 'rate_limit';
-    message?: string;
-};
+export type AuthResult =
+  | {
+      success: true;
+    }
+  | {
+      success: false;
+      reason: 'timeout' | 'cancelled' | 'error' | 'rate_limit';
+      message?: string;
+    };
 /**
  * Global event emitter instance for QwenOAuth2 authentication events
  */
 export declare const qwenOAuth2Events: EventEmitter<[never]>;
-export declare function getQwenOAuthClient(config: Config, options?: {
+export declare function getQwenOAuthClient(
+  config: Config,
+  options?: {
     requireCachedCredentials?: boolean;
-}): Promise<QwenOAuth2Client>;
+  },
+): Promise<QwenOAuth2Client>;
 /**
  * Displays the OAuth device authorization URL to the user.
  *
@@ -235,11 +266,17 @@ export declare function getQwenOAuthClient(config: Config, options?: {
  * standard Unix convention of user-facing messages to stderr. `out` is
  * injectable for testing.
  */
-export declare function showFallbackMessage(verificationUriComplete: string, out?: NodeJS.WriteStream): void;
+export declare function showFallbackMessage(
+  verificationUriComplete: string,
+  out?: NodeJS.WriteStream,
+): void;
 export declare const QWEN_CREDENTIAL_FILE_MODE = 384;
-export declare function cacheQwenCredentials(credentials: QwenCredentials, opts?: {
+export declare function cacheQwenCredentials(
+  credentials: QwenCredentials,
+  opts?: {
     signal?: AbortSignal;
-}): Promise<void>;
+  },
+): Promise<void>;
 /**
  * Clear cached Qwen credentials from disk
  * This is useful when credentials have expired or need to be reset

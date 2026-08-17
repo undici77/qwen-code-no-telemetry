@@ -9,10 +9,10 @@ import type { ToolCallUpdate } from '../../types/chatTypes.js';
  * Manages tool call states and updates
  */
 export declare const useToolCalls: () => {
-    toolCalls: Map<string, ToolCallData>;
-    inProgressToolCalls: ToolCallData[];
-    completedToolCalls: ToolCallData[];
-    handleToolCallUpdate: (update: ToolCallUpdate) => void;
-    clearToolCalls: () => void;
-    rewindToolCallsToTimestamp: (cutoffTimestamp: number) => void;
+  toolCalls: Map<string, ToolCallData>;
+  inProgressToolCalls: ToolCallData[];
+  completedToolCalls: ToolCallData[];
+  handleToolCallUpdate: (update: ToolCallUpdate) => void;
+  clearToolCalls: () => void;
+  rewindToolCallsToTimestamp: (cutoffTimestamp: number) => void;
 };

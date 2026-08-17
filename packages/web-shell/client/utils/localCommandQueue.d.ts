@@ -22,8 +22,8 @@ import type { PromptImage } from '../adapters/promptTypes';
  * immediately.
  */
 export interface LocalEchoSink {
-    /** Append the command as a local user message (renders inline immediately). */
-    append: (text: string) => void;
+  /** Append the command as a local user message (renders inline immediately). */
+  append: (text: string) => void;
 }
 /**
  * Append a local command's echo, or suppress it if a turn is streaming.
@@ -33,7 +33,12 @@ export interface LocalEchoSink {
  *   should proceed. Read-only display commands are the deliberate exception:
  *   they ignore the signal and run mid-turn anyway (see the module docstring).
  */
-export declare function appendOrDeferLocalUserMessage(isStreaming: boolean, text: string, _images: PromptImage[] | undefined, sink: LocalEchoSink): boolean;
+export declare function appendOrDeferLocalUserMessage(
+  isStreaming: boolean,
+  text: string,
+  _images: PromptImage[] | undefined,
+  sink: LocalEchoSink,
+): boolean;
 /**
  * Whether a queued prompt is a slash (`/…`) or shell (`!…`) command rather than
  * model-facing prose.

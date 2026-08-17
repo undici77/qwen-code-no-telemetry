@@ -6,4 +6,9 @@ export { MiniMaxOpenAICompatibleProvider } from './minimax.js';
 export { MistralOpenAICompatibleProvider } from './mistral.js';
 export { MiMoOpenAICompatibleProvider } from './mimo.js';
 export { DefaultOpenAICompatibleProvider } from './default.js';
-export type { OpenAICompatibleProvider, DashScopeRequestMetadata, ChatCompletionContentPartTextWithCache, ChatCompletionContentPartWithCache, } from './types.js';
+export type {
+  OpenAICompatibleProvider,
+  DashScopeRequestMetadata,
+  ChatCompletionContentPartTextWithCache,
+  ChatCompletionContentPartWithCache,
+} from './types.js';

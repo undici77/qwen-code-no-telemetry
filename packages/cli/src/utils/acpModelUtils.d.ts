@@ -3,22 +3,36 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-import { AuthType, type AvailableModel, type Config } from '@qwen-code/qwen-code-core';
-export declare const ACP_ROUTE_ID_PREFIX = "qwen-route:v1:";
+import {
+  AuthType,
+  type AvailableModel,
+  type Config,
+} from '@qwen-code/qwen-code-core';
+export declare const ACP_ROUTE_ID_PREFIX = 'qwen-route:v1:';
 interface AcpModelOption {
-    model: AvailableModel;
-    modelId: string;
-    effectiveModelId: string;
+  model: AvailableModel;
+  modelId: string;
+  effectiveModelId: string;
 }
-export declare function buildAcpModelOptions(models: readonly AvailableModel[]): AcpModelOption[];
-export declare function resolveAcpModelOption(input: string, models: readonly AvailableModel[]): {
-    modelId: string;
-    authType: AuthType;
-    baseUrl?: string;
-    registryBaseUrl?: string | null;
-    isRuntime: boolean;
+export declare function buildAcpModelOptions(
+  models: readonly AvailableModel[],
+): AcpModelOption[];
+export declare function resolveAcpModelOption(
+  input: string,
+  models: readonly AvailableModel[],
+): {
+  modelId: string;
+  authType: AuthType;
+  baseUrl?: string;
+  registryBaseUrl?: string | null;
+  isRuntime: boolean;
 } | null;
-export declare function getCurrentAcpModelId(options: readonly AcpModelOption[], modelId: string, authType?: AuthType, registryBaseUrl?: string | null): string;
+export declare function getCurrentAcpModelId(
+  options: readonly AcpModelOption[],
+  modelId: string,
+  authType?: AuthType,
+  registryBaseUrl?: string | null,
+): string;
 export declare function sanitizeProviderBaseUrl(baseUrl: string): string;
 /**
  * Extracts the base model id from an ACP model id string.
@@ -40,8 +54,8 @@ export declare function parseAcpBaseModelId(value: string): string;
  * otherwise returns the trimmed input as `modelId` only.
  */
 export declare function parseAcpModelOption(input: string): {
-    modelId: string;
-    authType?: AuthType;
+  modelId: string;
+  authType?: AuthType;
 };
 /**
  * Whether a bare `modelId` resolves to the SAME provider identity as the active
@@ -56,5 +70,8 @@ export declare function parseAcpModelOption(input: string): {
  * produces the override instead of the validated `/model` command. `modelId` is
  * the bare id without any `(authType)` suffix.
  */
-export declare function isInlineModelOverrideAllowed(config: Config, modelId: string): boolean;
+export declare function isInlineModelOverrideAllowed(
+  config: Config,
+  modelId: string,
+): boolean;
 export {};

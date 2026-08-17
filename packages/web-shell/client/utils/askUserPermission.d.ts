@@ -10,4 +10,6 @@ import type { PermissionRequest } from '../adapters/types';
  * rather than a normal tool-call approval. Shared by the single-session App and
  * the split-view ChatPane so the two never drift.
  */
-export declare function isAskUserPermission(request: PermissionRequest | null): boolean;
+export declare function isAskUserPermission(
+  request: PermissionRequest | null,
+): boolean;

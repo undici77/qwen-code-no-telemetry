@@ -12,7 +12,8 @@ export declare const MAX_SESSION_BYTES: number;
  * path — e.g. MCP `truncateTextParts` — or by a prior pass) is not truncated
  * again, which would nest headers and spill a duplicate file.
  */
-export declare const TOOL_OUTPUT_TRUNCATED_PREFIX = "Tool output was too large and has been truncated";
+export declare const TOOL_OUTPUT_TRUNCATED_PREFIX =
+  'Tool output was too large and has been truncated';
 /**
  * Tolerance factor applied by the scheduler's combined (second) pass:
  * metadata appended after truncation is only re-bounded above 2x the
@@ -38,9 +39,17 @@ export declare const TRUNCATION_FALLBACK_ENVELOPE_SLACK = 500;
  * Otherwise, saves full content to a file and returns a truncated version
  * with head/tail lines and a pointer to the saved file.
  */
-export declare function truncateAndSaveToFile(content: string, fileName: string, projectTempDir: string, threshold: number, truncateLines: number, keep?: 'head' | 'tail' | 'both', previewChars?: number): Promise<{
-    content: string;
-    outputFile?: string;
+export declare function truncateAndSaveToFile(
+  content: string,
+  fileName: string,
+  projectTempDir: string,
+  threshold: number,
+  truncateLines: number,
+  keep?: 'head' | 'tail' | 'both',
+  previewChars?: number,
+): Promise<{
+  content: string;
+  outputFile?: string;
 }>;
 /**
  * High-level truncation helper that reads thresholds from Config,
@@ -51,14 +60,20 @@ export declare function truncateAndSaveToFile(content: string, fileName: string,
  * Callers no longer need to duplicate config extraction, file naming,
  * or telemetry logging.
  */
-export declare function truncateToolOutput(config: Config, toolName: string, content: string, limits?: {
+export declare function truncateToolOutput(
+  config: Config,
+  toolName: string,
+  content: string,
+  limits?: {
     threshold?: number;
     lines?: number;
     keep?: 'head' | 'tail' | 'both';
     previewChars?: number;
-}, promptId?: string): Promise<{
-    content: string;
-    outputFile?: string;
+  },
+  promptId?: string,
+): Promise<{
+  content: string;
+  outputFile?: string;
 }>;
 /**
  * Unified truncation entry for the tool scheduler. Handles both string and
@@ -69,19 +84,32 @@ export declare function truncateToolOutput(config: Config, toolName: string, con
  *   - empty output is replaced with a no-output marker;
  *   - already-truncated content passes through unchanged (idempotent).
  */
-export declare function truncateLlmContent(config: Config, toolName: string, content: PartListUnion, limits?: {
+export declare function truncateLlmContent(
+  config: Config,
+  toolName: string,
+  content: PartListUnion,
+  limits?: {
     threshold?: number;
     lines?: number;
     keep?: 'head' | 'tail' | 'both';
-}, promptId?: string): Promise<{
-    content: PartListUnion;
-    outputFile?: string;
+  },
+  promptId?: string,
+): Promise<{
+  content: PartListUnion;
+  outputFile?: string;
 }>;
 export declare function isAlreadyTruncated(content: string): boolean;
 export interface PersistResult {
-    content: string;
-    outputFile?: string;
-    bytesWritten: number;
+  content: string;
+  outputFile?: string;
+  bytesWritten: number;
 }
-export declare function normalizeToolResultCallId(callId: string): string | undefined;
-export declare function persistAndTruncateToolResult(callId: string, toolName: string, content: string, config: Config): Promise<PersistResult>;
+export declare function normalizeToolResultCallId(
+  callId: string,
+): string | undefined;
+export declare function persistAndTruncateToolResult(
+  callId: string,
+  toolName: string,
+  content: string,
+  config: Config,
+): Promise<PersistResult>;

@@ -195,18 +195,18 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   // the same Y, leaving only every Nth line visible (#6809). flexShrink={0}
   // keeps rows full-height and sequential under a clamped ancestor.
   const visibleLines = visibleStyledText.map((line, index) => (
-      <Box key={index} flexShrink={0}>
-        {line.length > 0 ? (
-          line.map((segment, segIndex) => (
-            <Text key={segIndex} {...segment.props}>
-              {segment.text}
-            </Text>
-          ))
-        ) : (
-          <Text key={0}> </Text>
-        )}
-      </Box>
-    ));
+    <Box key={index} flexShrink={0}>
+      {line.length > 0 ? (
+        line.map((segment, segIndex) => (
+          <Text key={segIndex} {...segment.props}>
+            {segment.text}
+          </Text>
+        ))
+      ) : (
+        <Text key={0}> </Text>
+      )}
+    </Box>
+  ));
 
   return (
     <Box flexDirection="column" width={maxWidth} flexShrink={0}>

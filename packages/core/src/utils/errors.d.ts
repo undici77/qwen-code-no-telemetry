@@ -3,7 +3,9 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-export declare function isNodeError(error: unknown): error is NodeJS.ErrnoException;
+export declare function isNodeError(
+  error: unknown,
+): error is NodeJS.ErrnoException;
 /**
  * Check if the error is an abort error (user cancellation). Handles
  * DOMException-style AbortError, Node.js abort errors, and the provider SDKs'
@@ -42,26 +44,26 @@ export declare function getErrorStatus(error: unknown): number | undefined;
  */
 export declare function getErrorType(error: unknown): string;
 export declare class FatalError extends Error {
-    readonly exitCode: number;
-    constructor(message: string, exitCode: number);
+  readonly exitCode: number;
+  constructor(message: string, exitCode: number);
 }
 export declare class FatalAuthenticationError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalInputError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalSandboxError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalConfigError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalTurnLimitedError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalToolExecutionError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 /**
  * Raised when a headless / unattended run exceeds a configured budget
@@ -71,15 +73,12 @@ export declare class FatalToolExecutionError extends FatalError {
  * QwenLM/qwen-code#4103.
  */
 export declare class FatalBudgetExceededError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
 export declare class FatalCancellationError extends FatalError {
-    constructor(message: string);
+  constructor(message: string);
 }
-export declare class ForbiddenError extends Error {
-}
-export declare class UnauthorizedError extends Error {
-}
-export declare class BadRequestError extends Error {
-}
+export declare class ForbiddenError extends Error {}
+export declare class UnauthorizedError extends Error {}
+export declare class BadRequestError extends Error {}
 export declare function toFriendlyError(error: unknown): unknown;

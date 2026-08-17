@@ -9,6 +9,6 @@
  * cannot drift between the config and what actually renders.
  */
 export declare const VISUAL_VIEWPORT: {
-    readonly width: 1280;
-    readonly height: 800;
+  readonly width: 1280;
+  readonly height: 800;
 };

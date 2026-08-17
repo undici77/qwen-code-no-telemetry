@@ -43,7 +43,10 @@ export declare const SYMBOL_KIND_LABELS: Record<number, string>;
  * Diagnostic severity labels for converting numeric LSP DiagnosticSeverity to readable strings.
  * Based on the LSP specification.
  */
-export declare const DIAGNOSTIC_SEVERITY_LABELS: Record<number, LspDiagnosticSeverity>;
+export declare const DIAGNOSTIC_SEVERITY_LABELS: Record<
+  number,
+  LspDiagnosticSeverity
+>;
 /**
  * Code action kind labels from LSP specification.
  */

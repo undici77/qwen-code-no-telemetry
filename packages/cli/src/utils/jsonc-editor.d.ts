@@ -21,7 +21,25 @@
  * @returns true if the file was successfully written, false if the write
  * was refused (e.g. the result would not be valid JSON or file not parseable).
  */
-export declare function updateSettingsFilePreservingFormat(filePath: string, updates: Record<string, unknown>, sync?: boolean, replacePath?: readonly string[]): boolean;
-export declare function parseJsoncObject(content: string): Record<string, unknown>;
-export declare function updateJsoncContent(content: string, updates: Record<string, unknown>, sync?: boolean, replacePath?: readonly string[]): string;
-export declare function applyUpdates(current: Record<string, unknown>, updates: Record<string, unknown>, sync?: boolean, replacePath?: readonly string[], currentPath?: readonly string[]): Record<string, unknown>;
+export declare function updateSettingsFilePreservingFormat(
+  filePath: string,
+  updates: Record<string, unknown>,
+  sync?: boolean,
+  replacePath?: readonly string[],
+): boolean;
+export declare function parseJsoncObject(
+  content: string,
+): Record<string, unknown>;
+export declare function updateJsoncContent(
+  content: string,
+  updates: Record<string, unknown>,
+  sync?: boolean,
+  replacePath?: readonly string[],
+): string;
+export declare function applyUpdates(
+  current: Record<string, unknown>,
+  updates: Record<string, unknown>,
+  sync?: boolean,
+  replacePath?: readonly string[],
+  currentPath?: readonly string[],
+): Record<string, unknown>;

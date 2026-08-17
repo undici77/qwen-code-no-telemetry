@@ -9,10 +9,12 @@
  * Web Shell can't import the CLI's voice modules.
  */
 export function isVoiceModelId(id) {
-    const s = id.toLowerCase();
-    return (/^qwen3-asr-flash-realtime(?:-|$)/.test(s) ||
-        /^qwen3-asr-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(s) ||
-        /^(fun-asr|paraformer).*realtime(?:-|$)/.test(s));
+  const s = id.toLowerCase();
+  return (
+    /^qwen3-asr-flash-realtime(?:-|$)/.test(s) ||
+    /^qwen3-asr-flash(?:-\d{4}-\d{2}-\d{2})?$/.test(s) ||
+    /^(fun-asr|paraformer).*realtime(?:-|$)/.test(s)
+  );
 }
 /**
  * Extract selectable voice models from a `/workspace/providers` status. Voice
@@ -20,27 +22,27 @@ export function isVoiceModelId(id) {
  * picker sources them from the providers surface instead.
  */
 export function extractVoiceModels(status) {
-    const seen = new Set();
-    const out = [];
-    for (const provider of status?.providers ?? []) {
-        for (const model of provider.models ?? []) {
-            const id = model.baseModelId;
-            if (!id || model.isRuntime || !isVoiceModelId(id) || seen.has(id)) {
-                continue;
-            }
-            seen.add(id);
-            out.push({
-                id,
-                ...(model.name ? { label: model.name } : {}),
-                ...(provider.authType ? { authType: provider.authType } : {}),
-                ...(model.baseUrl ? { baseUrl: model.baseUrl } : {}),
-                ...(typeof model.contextLimit === 'number'
-                    ? { contextWindow: model.contextLimit }
-                    : {}),
-                modalities: { audio: true },
-            });
-        }
+  const seen = new Set();
+  const out = [];
+  for (const provider of status?.providers ?? []) {
+    for (const model of provider.models ?? []) {
+      const id = model.baseModelId;
+      if (!id || model.isRuntime || !isVoiceModelId(id) || seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      out.push({
+        id,
+        ...(model.name ? { label: model.name } : {}),
+        ...(provider.authType ? { authType: provider.authType } : {}),
+        ...(model.baseUrl ? { baseUrl: model.baseUrl } : {}),
+        ...(typeof model.contextLimit === 'number'
+          ? { contextWindow: model.contextLimit }
+          : {}),
+        modalities: { audio: true },
+      });
     }
-    return out;
+  }
+  return out;
 }
 //# sourceMappingURL=voiceModels.js.map

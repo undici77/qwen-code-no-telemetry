@@ -64,16 +64,20 @@ export declare function applyReadHeaders(res: Response): void;
  * the route's own try-catch should already have wrapped expected
  * boundary errors via `wrapAsFsError`.
  */
-export declare function sendFsError(res: Response, err: unknown, route: string): void;
+export declare function sendFsError(
+  res: Response,
+  err: unknown,
+  route: string,
+): void;
 interface RegisterDeps {
-    /**
-     * Pulls the daemon-stamped client identity off the request. Re-used
-     * from `serve/server.ts` so the X-Qwen-Client-Id validation lives
-     * in one place; PR 19 routes thread the trusted id into the audit
-     * context. Returning `null` means the helper already sent a 400
-     * — the route must short-circuit.
-     */
-    parseClientId: (req: Request, res: Response) => string | undefined | null;
+  /**
+   * Pulls the daemon-stamped client identity off the request. Re-used
+   * from `serve/server.ts` so the X-Qwen-Client-Id validation lives
+   * in one place; PR 19 routes thread the trusted id into the audit
+   * context. Returning `null` means the helper already sent a 400
+   * — the route must short-circuit.
+   */
+  parseClientId: (req: Request, res: Response) => string | undefined | null;
 }
 /**
  * Compute the workspace-relative form of a `ResolvedPath` for the
@@ -86,9 +90,18 @@ interface RegisterDeps {
  * Windows yields backslashes, which would otherwise leak into
  * `/file`, `/stat`, `/list`, and `/glob` response paths.
  */
-export declare function workspaceRelative(req: Request, resolved: string): string;
-export declare function registerWorkspaceFileReadRoutes(app: Application, deps: RegisterDeps): void;
-export declare function registerWorkspaceQualifiedFileReadRoutes(app: Application, deps: RegisterDeps & {
+export declare function workspaceRelative(
+  req: Request,
+  resolved: string,
+): string;
+export declare function registerWorkspaceFileReadRoutes(
+  app: Application,
+  deps: RegisterDeps,
+): void;
+export declare function registerWorkspaceQualifiedFileReadRoutes(
+  app: Application,
+  deps: RegisterDeps & {
     workspaceRegistry: WorkspaceRegistry;
-}): void;
+  },
+): void;
 export {};

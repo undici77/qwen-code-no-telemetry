@@ -33,11 +33,11 @@ import { describe, expect, it } from 'vitest';
 import { APPROVAL_MODES } from '@qwen-code/qwen-code-core';
 import { DAEMON_APPROVAL_MODES } from '../../src/index.js';
 describe('approval-mode SDK ↔ core drift detection', () => {
-    it('DAEMON_APPROVAL_MODES (SDK) mirrors core APPROVAL_MODES exactly', () => {
-        // Order matters — diagnostic UIs that render modes in registration
-        // order stay stable across SDK / daemon versions only when the two
-        // tuples are sequence-equal, not just set-equal.
-        expect([...DAEMON_APPROVAL_MODES]).toEqual([...APPROVAL_MODES]);
-    });
+  it('DAEMON_APPROVAL_MODES (SDK) mirrors core APPROVAL_MODES exactly', () => {
+    // Order matters — diagnostic UIs that render modes in registration
+    // order stay stable across SDK / daemon versions only when the two
+    // tuples are sequence-equal, not just set-equal.
+    expect([...DAEMON_APPROVAL_MODES]).toEqual([...APPROVAL_MODES]);
+  });
 });
 //# sourceMappingURL=approval-mode-drift.test.js.map

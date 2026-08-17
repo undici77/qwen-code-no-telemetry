@@ -7,15 +7,15 @@ import { type MutableRefObject } from 'react';
 import { type DOMElement } from 'ink';
 import { type ClickableBufferState } from '../../utils/input-mouse.js';
 export interface TextInputMouseControllerProps {
-    /** The lines container node (the text area, positioned after the prefix). */
-    linesRef: MutableRefObject<DOMElement | null>;
-    /** Buffer visual state plus the cursor mover. */
-    buffer: ClickableBufferState & {
-        visualScrollRow: number;
-        moveToOffset: (offset: number) => void;
-    };
-    /** Number of visual lines currently rendered (linesToRender.length). */
-    visibleLineCount: number;
+  /** The lines container node (the text area, positioned after the prefix). */
+  linesRef: MutableRefObject<DOMElement | null>;
+  /** Buffer visual state plus the cursor mover. */
+  buffer: ClickableBufferState & {
+    visualScrollRow: number;
+    moveToOffset: (offset: number) => void;
+  };
+  /** Number of visual lines currently rendered (linesToRender.length). */
+  visibleLineCount: number;
 }
 /**
  * Headless mouse layer for the prompt input: a left-click positions the text
@@ -31,4 +31,8 @@ export interface TextInputMouseControllerProps {
  * other mouse layers this assumes alternate-screen coordinates; the owning
  * component only mounts it in that mode.
  */
-export declare function TextInputMouseController({ linesRef, buffer, visibleLineCount, }: TextInputMouseControllerProps): null;
+export declare function TextInputMouseController({
+  linesRef,
+  buffer,
+  visibleLineCount,
+}: TextInputMouseControllerProps): null;

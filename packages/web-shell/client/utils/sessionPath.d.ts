@@ -9,7 +9,10 @@
  * `/app` instead of being reset to `/session/<id>`). With no session id,
  * returns the base path (or `/` at the root).
  */
-export declare function buildSessionPathname(currentPathname: string, sessionId: string | undefined): string;
+export declare function buildSessionPathname(
+  currentPathname: string,
+  sessionId: string | undefined,
+): string;
 /**
  * Extract the session id from a standalone pathname. Anchored to the last
  * `/session/<id>` segment so it agrees with `buildSessionPathname`'s greedy

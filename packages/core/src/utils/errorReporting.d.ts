@@ -5,7 +5,7 @@
  */
 import type { Content } from '@google/genai';
 interface ReportErrorOptions {
-    contextAlreadySummarized?: boolean;
+  contextAlreadySummarized?: boolean;
 }
 /**
  * Generates an error report and writes it to the debug log.
@@ -14,5 +14,11 @@ interface ReportErrorOptions {
  * @param context The relevant context (e.g., chat history, request contents).
  * @param type A string to identify the type of error (e.g., 'startChat', 'generateJson-api').
  */
-export declare function reportError(error: Error | unknown, baseMessage: string, context?: Content[] | Record<string, unknown> | unknown[], type?: string, options?: ReportErrorOptions): Promise<void>;
+export declare function reportError(
+  error: Error | unknown,
+  baseMessage: string,
+  context?: Content[] | Record<string, unknown> | unknown[],
+  type?: string,
+  options?: ReportErrorOptions,
+): Promise<void>;
 export {};

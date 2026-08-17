@@ -23,9 +23,16 @@ export declare function initParser(): Promise<void>;
  * Parse a shell command string into a tree-sitter Tree.
  * Initialises the parser lazily if needed.
  */
-export declare function parseShellCommand(command: string): Promise<Parser.Tree>;
-export declare function classifyShellCommandSafety(command: string): Promise<ShellCommandSafety>;
-export declare function classifyShellCommandSafetyInDirectory(command: string, cwd: string): Promise<ShellCommandSafety>;
+export declare function parseShellCommand(
+  command: string,
+): Promise<Parser.Tree>;
+export declare function classifyShellCommandSafety(
+  command: string,
+): Promise<ShellCommandSafety>;
+export declare function classifyShellCommandSafetyInDirectory(
+  command: string,
+  cwd: string,
+): Promise<ShellCommandSafety>;
 /**
  * AST-based check whether a shell command is read-only.
  *
@@ -39,8 +46,13 @@ export declare function classifyShellCommandSafetyInDirectory(command: string, c
  * @param command - The shell command string to evaluate.
  * @returns `true` if the command only performs read-only operations.
  */
-export declare function isShellCommandReadOnlyAST(command: string): Promise<boolean>;
-export declare function isShellCommandReadOnlyASTInDirectory(command: string, cwd: string): Promise<boolean>;
+export declare function isShellCommandReadOnlyAST(
+  command: string,
+): Promise<boolean>;
+export declare function isShellCommandReadOnlyASTInDirectory(
+  command: string,
+  cwd: string,
+): Promise<boolean>;
 /**
  * Extract minimum-scope wildcard permission rules from a shell command.
  *

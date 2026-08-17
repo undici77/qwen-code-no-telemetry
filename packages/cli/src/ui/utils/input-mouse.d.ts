@@ -11,15 +11,15 @@
  */
 /** The slice of TextBuffer state this helper reads. */
 export interface ClickableBufferState {
-    /** All visual (wrapped) lines for the current text + width. */
-    allVisualLines: string[];
-    /**
-     * For each visual line, `[logicalLineIndex, startColInLogicalLine]` in code
-     * points — where that visual line begins within its logical line.
-     */
-    visualToLogicalMap: Array<[number, number]>;
-    /** Logical lines (newline-split). */
-    lines: string[];
+  /** All visual (wrapped) lines for the current text + width. */
+  allVisualLines: string[];
+  /**
+   * For each visual line, `[logicalLineIndex, startColInLogicalLine]` in code
+   * points — where that visual line begins within its logical line.
+   */
+  visualToLogicalMap: Array<[number, number]>;
+  /** Logical lines (newline-split). */
+  lines: string[];
 }
 /**
  * Convert a click at `absoluteVisualRow` (index into allVisualLines) and
@@ -31,4 +31,8 @@ export interface ClickableBufferState {
  * map correctly, landing the cursor on the character boundary the click falls
  * within. The resulting column is clamped to the logical line length.
  */
-export declare function visualClickToOffset(buffer: ClickableBufferState, absoluteVisualRow: number, clickVisualCol: number): number | null;
+export declare function visualClickToOffset(
+  buffer: ClickableBufferState,
+  absoluteVisualRow: number,
+  clickVisualCol: number,
+): number | null;

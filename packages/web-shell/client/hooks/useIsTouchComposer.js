@@ -26,23 +26,25 @@ export const TOUCH_COMPOSER_QUERY = '(hover: none) and (pointer: coarse)';
  * cannot hover.
  */
 export function isCoarsePointerDevice() {
-    if (typeof window === 'undefined' ||
-        typeof window.matchMedia !== 'function') {
-        return false;
-    }
-    return window.matchMedia(TOUCH_COMPOSER_QUERY).matches;
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
+    return false;
+  }
+  return window.matchMedia(TOUCH_COMPOSER_QUERY).matches;
 }
 function resolveTouchComposer() {
-    if (typeof window !== 'undefined') {
-        // Escape hatch for debugging and rollback: ?composer=textarea forces the
-        // mobile backend, ?composer=codemirror forces the desktop editor.
-        const override = new URLSearchParams(window.location.search).get('composer');
-        if (override === 'textarea')
-            return true;
-        if (override === 'codemirror')
-            return false;
-    }
-    return isCoarsePointerDevice();
+  if (typeof window !== 'undefined') {
+    // Escape hatch for debugging and rollback: ?composer=textarea forces the
+    // mobile backend, ?composer=codemirror forces the desktop editor.
+    const override = new URLSearchParams(window.location.search).get(
+      'composer',
+    );
+    if (override === 'textarea') return true;
+    if (override === 'codemirror') return false;
+  }
+  return isCoarsePointerDevice();
 }
 /**
  * Decides once, at mount, whether the composer should use the plain
@@ -53,7 +55,7 @@ function resolveTouchComposer() {
  * (SSR / the jsdom test default).
  */
 export function useIsTouchComposer() {
-    const [isTouch] = useState(resolveTouchComposer);
-    return isTouch;
+  const [isTouch] = useState(resolveTouchComposer);
+  return isTouch;
 }
 //# sourceMappingURL=useIsTouchComposer.js.map

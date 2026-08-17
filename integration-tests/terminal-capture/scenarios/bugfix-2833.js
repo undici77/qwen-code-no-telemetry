@@ -4,23 +4,23 @@
  * to capture the full evolution of the debugging process.
  */
 export default {
-    name: 'streaming-bugfix-2833',
-    spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
-    // Generate an animated GIF. This is a scenario-level switch (see
-    // ScenarioConfig); it used to sit inside `streaming` below, where the runner
-    // never read it.
-    gif: true,
-    flow: [
-        {
-            type: '/qc:bugfix https://github.com/QwenLM/qwen-code/issues/2833',
-            // Bugfix workflow is long-running (20+ minutes), capture throughout
-            streaming: {
-                delayMs: 10000, // Wait 10s for initial prompt processing
-                intervalMs: 30000, // Capture every 30 seconds
-                count: 50, // Up to 25 minutes of capture (50 * 30s)
-            },
-        },
-    ],
+  name: 'streaming-bugfix-2833',
+  spawn: ['node', 'dist/cli.js', '--yolo'],
+  terminal: { title: 'qwen-code', cwd: '../../..' },
+  // Generate an animated GIF. This is a scenario-level switch (see
+  // ScenarioConfig); it used to sit inside `streaming` below, where the runner
+  // never read it.
+  gif: true,
+  flow: [
+    {
+      type: '/qc:bugfix https://github.com/QwenLM/qwen-code/issues/2833',
+      // Bugfix workflow is long-running (20+ minutes), capture throughout
+      streaming: {
+        delayMs: 10000, // Wait 10s for initial prompt processing
+        intervalMs: 30000, // Capture every 30 seconds
+        count: 50, // Up to 25 minutes of capture (50 * 30s)
+      },
+    },
+  ],
 };
 //# sourceMappingURL=bugfix-2833.js.map

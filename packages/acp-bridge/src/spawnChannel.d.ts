@@ -4,14 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { ChannelFactory } from './channel.js';
-import { type NdJsonStreamHooks, type NdJsonStreamLimits } from './ndJsonStream.js';
+import {
+  type NdJsonStreamHooks,
+  type NdJsonStreamLimits,
+} from './ndJsonStream.js';
 import { ProcessRegistry } from './process-registry.js';
 import type { ChildHeapPolicy } from './child-heap-policy.js';
 export declare const DAEMON_ACP_NDJSON_LIMITS: Readonly<NdJsonStreamLimits>;
 export declare function getAcpMemoryArgs(): string[];
 export interface StderrForwarderOptions {
-    prefix: string;
-    onDiagnosticLine?: (line: string, level?: 'info' | 'warn' | 'error') => void;
+  prefix: string;
+  onDiagnosticLine?: (line: string, level?: 'info' | 'warn' | 'error') => void;
 }
 /**
  * Creates a stateful forwarder that buffers incoming chunks, splits on
@@ -24,27 +27,27 @@ export interface StderrForwarderOptions {
  * behavior as before the extraction.
  */
 export declare function createStderrForwarder(opts: StderrForwarderOptions): {
-    onData: (chunk: string) => void;
-    onEnd: () => void;
+  onData: (chunk: string) => void;
+  onEnd: () => void;
 };
 export interface SpawnChannelFactoryOptions {
-    onDiagnosticLine?: (line: string, level?: 'info' | 'warn' | 'error') => void;
-    extraArgs?: string[];
-    pipeHooks?: NdJsonStreamHooks;
-    pipeLimits?: NdJsonStreamLimits;
-    sourceEnv?: Readonly<NodeJS.ProcessEnv>;
-    processRegistry?: ProcessRegistry;
-    /**
-     * Daemon child-heap policy. Only meaningful together with a **shared**
-     * `processRegistry`: the factory otherwise builds its own, every spawn sees
-     * a concurrent count of 1, and each child is handed the whole pool — the
-     * current overcommit, now with a policy object attesting to it. All three
-     * daemon factories pass the same registry.
-     *
-     * Omitted by every single-child caller (interactive CLI, IDE companion,
-     * direct-embed), which keeps the host-derived ceiling.
-     */
-    childHeapPolicy?: ChildHeapPolicy;
+  onDiagnosticLine?: (line: string, level?: 'info' | 'warn' | 'error') => void;
+  extraArgs?: string[];
+  pipeHooks?: NdJsonStreamHooks;
+  pipeLimits?: NdJsonStreamLimits;
+  sourceEnv?: Readonly<NodeJS.ProcessEnv>;
+  processRegistry?: ProcessRegistry;
+  /**
+   * Daemon child-heap policy. Only meaningful together with a **shared**
+   * `processRegistry`: the factory otherwise builds its own, every spawn sees
+   * a concurrent count of 1, and each child is handed the whole pool — the
+   * current overcommit, now with a policy object attesting to it. All three
+   * daemon factories pass the same registry.
+   *
+   * Omitted by every single-child caller (interactive CLI, IDE companion,
+   * direct-embed), which keeps the host-derived ceiling.
+   */
+  childHeapPolicy?: ChildHeapPolicy;
 }
 /**
  * Creates a `ChannelFactory` that spawns `qwen --acp` child processes.
@@ -55,7 +58,9 @@ export interface SpawnChannelFactoryOptions {
  * `defaultSpawnChannelFactory` below is `createSpawnChannelFactory()` —
  * no options, same behavior as before this refactor.
  */
-export declare function createSpawnChannelFactory(options?: SpawnChannelFactoryOptions): ChannelFactory;
+export declare function createSpawnChannelFactory(
+  options?: SpawnChannelFactoryOptions,
+): ChannelFactory;
 /**
  * Default channel factory: spawn the current Node executable running this
  * CLI's entry script in `--acp` mode. `process.argv[1]` resolves to the qwen
@@ -101,4 +106,8 @@ export declare const defaultSpawnChannelFactory: ChannelFactory;
  * "scrub" comment block's structure 1:1; behavior is byte-identical to
  * the pre-extraction inline implementation.
  */
-export declare function scrubChildEnv(source: NodeJS.ProcessEnv, scrubbed: ReadonlySet<string>, overrides?: Readonly<Record<string, string | undefined>>): NodeJS.ProcessEnv;
+export declare function scrubChildEnv(
+  source: NodeJS.ProcessEnv,
+  scrubbed: ReadonlySet<string>,
+  overrides?: Readonly<Record<string, string | undefined>>,
+): NodeJS.ProcessEnv;

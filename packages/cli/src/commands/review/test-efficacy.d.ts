@@ -30,7 +30,14 @@ export type ProbeVerdict = 'gated' | 'inert' | 'inconclusive';
  * Anything downstream that explains an `inconclusive` has to pick between
  * these, and the prose `detail` is written for a human, not for that decision.
  */
-export type ProbeReason = 'control-failed' | 'not-run' | 'runner-died' | 'no-output' | 'not-in-results' | 'no-tests' | 'all-skipped';
+export type ProbeReason =
+  | 'control-failed'
+  | 'not-run'
+  | 'runner-died'
+  | 'no-output'
+  | 'not-in-results'
+  | 'no-tests'
+  | 'all-skipped';
 /**
  * A union, not an optional field: every `inconclusive` MUST say which way, and
  * the compiler is what enforces it. Left optional, a branch that forgot to tag
@@ -39,16 +46,18 @@ export type ProbeReason = 'control-failed' | 'not-run' | 'runner-died' | 'no-out
  * kind silently degraded. The one part of this file that has to be right is the
  * part a runtime fallback was quietly covering for.
  */
-export type ProbeResult = {
-    file: string;
-    verdict: 'gated' | 'inert';
-    detail: string;
-} | {
-    file: string;
-    verdict: 'inconclusive';
-    detail: string;
-    reason: ProbeReason;
-};
+export type ProbeResult =
+  | {
+      file: string;
+      verdict: 'gated' | 'inert';
+      detail: string;
+    }
+  | {
+      file: string;
+      verdict: 'inconclusive';
+      detail: string;
+      reason: ProbeReason;
+    };
 /**
  * `Omit` applied across each arm instead of to the union as a whole. A plain
  * `Omit`/`Pick` collapses `ProbeResult` into one object type and makes `reason`
@@ -57,21 +66,23 @@ export type ProbeResult = {
  * what `inert` means. Distributing keeps the discrimination, so the helper
  * cannot read `reason` without first narrowing on `verdict`.
  */
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
 /** What the two explanation helpers read: `ProbeResult` without its prose. */
 export type ProbeOutcome = DistributiveOmit<ProbeResult, 'detail'>;
 export interface FileEntry {
-    path: string;
-    kind: string;
+  path: string;
+  kind: string;
 }
 export { isWorkspaceMember };
 export interface EfficacyPlan {
-    /** Test files the diff adds or changes that the test command never collects. */
-    unreachable: string[];
-    /** Test files worth probing — they are reachable, so they can be run. */
-    probes: string[];
-    /** Production files to revert to base for the probe. */
-    revert: string[];
+  /** Test files the diff adds or changes that the test command never collects. */
+  unreachable: string[];
+  /** Test files worth probing — they are reachable, so they can be run. */
+  probes: string[];
+  /** Production files to revert to base for the probe. */
+  revert: string[];
 }
 /**
  * Split the diff into what to report and what to run.
@@ -79,7 +90,10 @@ export interface EfficacyPlan {
  * A diff with no source changes has nothing to gate, so it gets no probe: a
  * test-only PR (a new test for old code) must not be told its tests are inert.
  */
-export declare function planTestEfficacy(files: FileEntry[], workspaceGlobs: string[]): EfficacyPlan;
+export declare function planTestEfficacy(
+  files: FileEntry[],
+  workspaceGlobs: string[],
+): EfficacyPlan;
 export type MutantVerdict = 'killed' | 'survived' | 'inconclusive';
 /**
  * A candidate the probe will run. The two shapes are a union so an operator
@@ -90,17 +104,17 @@ export type MutantVerdict = 'killed' | 'survived' | 'inconclusive';
  */
 export type MutantCandidate = DeletionMutant | ReplacementMutant;
 export interface ReplacementMutant extends MutantBase {
-    operator: 'coalesce' | 'guard-true' | 'term-drop';
-    /** The full replacement LINE (untrimmed). Required by construction. */
-    mutated: string;
+  operator: 'coalesce' | 'guard-true' | 'term-drop';
+  /** The full replacement LINE (untrimmed). Required by construction. */
+  mutated: string;
 }
 /** What both mutant shapes carry. */
 export interface MutantBase {
-    file: string;
-    /** 1-based line number in the post-change file. */
-    line: number;
-    /** The statement's text, trimmed — quoted back verbatim in the report. */
-    statement: string;
+  file: string;
+  /** 1-based line number in the post-change file. */
+  line: number;
+  /** The statement's text, trimmed — quoted back verbatim in the report. */
+  statement: string;
 }
 /**
  * The legacy shape: the line is DELETED. `operator` is absent (or `'delete'`)
@@ -108,13 +122,13 @@ export interface MutantBase {
  * enforced by the type rather than by a convention.
  */
 export interface DeletionMutant extends MutantBase {
-    operator?: 'delete';
-    mutated?: undefined;
+  operator?: 'delete';
+  mutated?: undefined;
 }
 /** An intersection, not `extends`: the candidate is a union now. */
 export type MutantResult = MutantCandidate & {
-    verdict: MutantVerdict;
-    detail: string;
+  verdict: MutantVerdict;
+  detail: string;
 };
 /**
  * At most this many deletion mutants per run. Every mutant is a full vitest run
@@ -124,19 +138,19 @@ export type MutantResult = MutantCandidate & {
 export declare const MAX_MUTANTS = 8;
 export type HunkVerdict = MutantVerdict;
 export interface HunkCandidate {
-    file: string;
-    /** 0-based index of this hunk within the file's diff against base. */
-    index: number;
-    /** The `@@ … @@` line, quoted back in the report. */
-    header: string;
-    /** New-side first line the hunk occupies — where the finding points. */
-    startLine: number;
-    /** A complete patch: the file header plus this ONE hunk. */
-    patch: string;
+  file: string;
+  /** 0-based index of this hunk within the file's diff against base. */
+  index: number;
+  /** The `@@ … @@` line, quoted back in the report. */
+  header: string;
+  /** New-side first line the hunk occupies — where the finding points. */
+  startLine: number;
+  /** A complete patch: the file header plus this ONE hunk. */
+  patch: string;
 }
 export interface HunkResult extends Omit<HunkCandidate, 'patch'> {
-    verdict: HunkVerdict;
-    detail: string;
+  verdict: HunkVerdict;
+  detail: string;
 }
 /**
  * At most this many per-hunk probes per run.
@@ -154,15 +168,15 @@ export declare const MAX_HUNK_PROBES = 6;
  */
 export declare const REPLACEMENT_SUB_CAP = 3;
 export interface MutantSourceFile {
-    file: string;
-    /** Post-change content at the PR head — what the probe tree checks out. */
-    content: string;
-    /** 1-based new-side line numbers the diff ADDED in this file. */
-    addedLines: number[];
-    /** The diff also adds/changes this file's collocated test. Preference only:
-     *  under the cap these candidates go first — a mutant is most informative
-     *  exactly where the PR claims its new tests cover the new code. */
-    hasNewTests: boolean;
+  file: string;
+  /** Post-change content at the PR head — what the probe tree checks out. */
+  content: string;
+  /** 1-based new-side line numbers the diff ADDED in this file. */
+  addedLines: number[];
+  /** The diff also adds/changes this file's collocated test. Preference only:
+   *  under the cap these candidates go first — a mutant is most informative
+   *  exactly where the PR claims its new tests cover the new code. */
+  hasNewTests: boolean;
 }
 /**
  * Deterministic mutant selection: among the diff's added lines, the complete
@@ -198,26 +212,37 @@ export interface MutantSourceFile {
  * guard-true, most-specific first): two mutants of the same line would run the
  * suite twice to say nearly the same thing.
  */
-export declare function replacementMutantsOf(raw: string, codeLine: string): {
-    operator: 'coalesce' | 'guard-true' | 'term-drop';
-    mutated: string;
+export declare function replacementMutantsOf(
+  raw: string,
+  codeLine: string,
+): {
+  operator: 'coalesce' | 'guard-true' | 'term-drop';
+  mutated: string;
 } | null;
-export declare function selectMutants(files: MutantSourceFile[], cap?: number): {
-    selected: MutantCandidate[];
-    skippedForCap: number;
-    derailed: string[];
+export declare function selectMutants(
+  files: MutantSourceFile[],
+  cap?: number,
+): {
+  selected: MutantCandidate[];
+  skippedForCap: number;
+  derailed: string[];
 };
 /**
  * The new-side line numbers a `--unified=0` diff ADDED, per post-change path.
  * Zero context is what the caller asks git for, but context lines are counted
  * anyway so a diff captured with the default `-U3` still numbers correctly.
  */
-export declare function parseAddedLines(diffText: string): Map<string, number[]>;
+export declare function parseAddedLines(
+  diffText: string,
+): Map<string, number[]>;
 /**
  * The probe file that is the collocated test of `file` (the repo convention
  * `file.test.ts` / `file.spec.ts` beside it), if one is in `testPaths`.
  */
-export declare function collocatedProbe(file: string, testPaths: readonly string[]): string | undefined;
+export declare function collocatedProbe(
+  file: string,
+  testPaths: readonly string[],
+): string | undefined;
 /**
  * Should this candidate be held `inconclusive` because the test collocated with
  * the file it touches was not green in the unmutated baseline — and if so, with
@@ -230,7 +255,13 @@ export declare function collocatedProbe(file: string, testPaths: readonly string
  * explanation was then corrected in one place and hand-copied to the other.
  * A rule stated twice is a rule that will be true in one place.
  */
-export declare function heldForRedCollocatedTest(kind: 'mutant' | 'hunk', file: string, probes: readonly string[], greenProbes: readonly string[], baselinePerFile: readonly ProbeOutcome[]): string | undefined;
+export declare function heldForRedCollocatedTest(
+  kind: 'mutant' | 'hunk',
+  file: string,
+  probes: readonly string[],
+  greenProbes: readonly string[],
+  baselinePerFile: readonly ProbeOutcome[],
+): string | undefined;
 /**
  * Did this spawn result start a suite and lose it, or never start one?
  *
@@ -247,16 +278,18 @@ export declare function heldForRedCollocatedTest(kind: 'mutant' | 'hunk', file: 
  * be started ran nothing. That is the distinction a reader acts on.
  */
 export declare function runnerFailureReason(r: {
-    error?: (Error & {
+  error?:
+    | (Error & {
         code?: string;
-    }) | undefined;
-    signal?: NodeJS.Signals | null;
+      })
+    | undefined;
+  signal?: NodeJS.Signals | null;
 }): ProbeReason;
 /** A probe run that threw, carrying WHY rather than leaving it to be parsed
  *  back out of the message. */
 export declare class ProbeRunFailure extends Error {
-    readonly reason: ProbeReason;
-    constructor(message: string, reason: ProbeReason);
+  readonly reason: ProbeReason;
+  constructor(message: string, reason: ProbeReason);
 }
 /**
  * The whole sentence a mutant or hunk is held `inconclusive` with when its own
@@ -276,13 +309,20 @@ export declare class ProbeRunFailure extends Error {
  * supports. It cannot arise in this pipeline — `classifyProbeRun` maps over
  * exactly the probe list `own` is drawn from — so it is a default, not a case.
  */
-export declare function collocatedNotGreenDetail(kind: 'mutant' | 'hunk', probe: string, baselinePerFile: readonly ProbeOutcome[]): string;
+export declare function collocatedNotGreenDetail(
+  kind: 'mutant' | 'hunk',
+  probe: string,
+  baselinePerFile: readonly ProbeOutcome[],
+): string;
 /**
  * Does the diff add or change a test collocated with this production file?
  * The repo convention is `file.test.ts` beside `file.ts`. Used only to ORDER
  * candidates under the cap, so a miss costs priority, not selection.
  */
-export declare function hasCollocatedNewTest(file: string, testPaths: string[]): boolean;
+export declare function hasCollocatedNewTest(
+  file: string,
+  testPaths: string[],
+): boolean;
 /**
  * Rule on one mutant from the per-file revert-probe verdicts of its run.
  *
@@ -294,15 +334,20 @@ export declare function hasCollocatedNewTest(file: string, testPaths: string[]):
  * `inconclusive` — the same never-read-an-error-as-a-verdict asymmetry the
  * revert probe holds.
  */
-export declare function classifyMutantRun(perFile: Array<{
+export declare function classifyMutantRun(
+  perFile: Array<{
     verdict: ProbeVerdict;
-}>): MutantVerdict;
+  }>,
+): MutantVerdict;
 /**
  * Can the remaining budget fit one more mutant? The revert probe's slot is
  * reserved by the deadline passed to {@link runProbeSuite}, so this guard
  * only prices the mutant's own suite run.
  */
-export declare function fitsAnotherMutantRun(remainingMs: number, estimatedRunMs: number): boolean;
+export declare function fitsAnotherMutantRun(
+  remainingMs: number,
+  estimatedRunMs: number,
+): boolean;
 /**
  * Rule on the revert probe, **per test file**.
  *
@@ -329,7 +374,12 @@ export declare function fitsAnotherMutantRun(remainingMs: number, estimatedRunMs
  *   review that mistakes "it errored" for "it caught the bug" is back where it
  *   started.
  */
-export declare function classifyProbeRun(exitCode: number, stdout: string, probes: string[], stderr?: string): ProbeResult[];
+export declare function classifyProbeRun(
+  exitCode: number,
+  stdout: string,
+  probes: string[],
+  stderr?: string,
+): ProbeResult[];
 /**
  * Resolve the vitest CLI entry the probe runs with.
  *
@@ -343,7 +393,10 @@ export declare function classifyProbeRun(exitCode: number, stdout: string, probe
  * same up-tree walk Node uses for the probe's own imports, so it also survives
  * non-hoisted layouts.
  */
-export declare function findVitestBin(worktree: string, resolveModule?: (specifier: string) => string): string;
+export declare function findVitestBin(
+  worktree: string,
+  resolveModule?: (specifier: string) => string,
+): string;
 /**
  * Remove `join(worktree, relPath)` without following a PR-controlled symlink.
  *
@@ -372,10 +425,17 @@ export declare function safeRmWithin(worktree: string, relPath: string): void;
  * "could not remove <path>" tells them nothing. Prefer the exception (`rmSync`
  * hit EPERM/EBUSY); fall back to what git said when it refused to unregister.
  */
-export declare function probeCleanupFailureDetail(probeTree: string, removeError: unknown, sweepStderr: string): string;
-export declare function exposeDependencies(probeTree: string, dependencyRoot: string): {
-    linked: number;
-    failed: number;
+export declare function probeCleanupFailureDetail(
+  probeTree: string,
+  removeError: unknown,
+  sweepStderr: string,
+): string;
+export declare function exposeDependencies(
+  probeTree: string,
+  dependencyRoot: string,
+): {
+  linked: number;
+  failed: number;
 };
 /**
  * Delete one statement in the probe tree, run the affected tests, put the file
@@ -413,9 +473,9 @@ export declare function exposeDependencies(probeTree: string, dependencyRoot: st
  * would reverse-apply the rename and leave both paths present.
  */
 export declare function splitDiffIntoHunks(diffText: string): Array<{
-    header: string;
-    patch: string;
-    startLine: number;
+  header: string;
+  patch: string;
+  startLine: number;
 }>;
 /**
  * The hunks worth probing, in the order they should be spent.
@@ -434,14 +494,17 @@ export declare function splitDiffIntoHunks(diffText: string): Array<{
  * capped `survived: 0` that read as "every change is covered" is the same false
  * assurance the mutant cap already guards against.
  */
-export declare function selectHunkProbes(files: Array<{
+export declare function selectHunkProbes(
+  files: Array<{
     file: string;
     diff: string;
     hasNewTests: boolean;
     mutantLines: number[];
-}>, cap?: number): {
-    selected: HunkCandidate[];
-    skippedForCap: number;
+  }>,
+  cap?: number,
+): {
+  selected: HunkCandidate[];
+  skippedForCap: number;
 };
 /**
  * Neutralise ONE hunk in the probe tree, run the affected tests, restore.
@@ -459,7 +522,13 @@ export declare function selectHunkProbes(files: Array<{
  * it as "a test caught it" is exactly the false assurance this command exists
  * to remove.
  */
-export declare function runOneHunkProbe(probeTree: string, hunk: HunkCandidate, probes: string[], deadlineAt?: number, now?: () => number): HunkResult;
+export declare function runOneHunkProbe(
+  probeTree: string,
+  hunk: HunkCandidate,
+  probes: string[],
+  deadlineAt?: number,
+  now?: () => number,
+): HunkResult;
 /**
  * The positive control: append one always-failing test to a GREEN probe file,
  * run that file, restore. Red = the harness demonstrably executes assertions
@@ -481,6 +550,18 @@ export declare function runOneHunkProbe(probeTree: string, hunk: HunkCandidate, 
  * that runs one file and skips another. Named because a `true` here is read as
  * covering the whole run.
  */
-export declare function runControlMutant(probeTree: string, probeFile: string, deadlineAt?: number, now?: () => number): boolean | null;
-export declare function runOneMutant(probeTree: string, mutant: MutantCandidate, probes: string[], deadlineAt?: number, now?: () => number, dependencyRoot?: string): MutantResult;
+export declare function runControlMutant(
+  probeTree: string,
+  probeFile: string,
+  deadlineAt?: number,
+  now?: () => number,
+): boolean | null;
+export declare function runOneMutant(
+  probeTree: string,
+  mutant: MutantCandidate,
+  probes: string[],
+  deadlineAt?: number,
+  now?: () => number,
+  dependencyRoot?: string,
+): MutantResult;
 export declare const testEfficacyCommand: CommandModule;

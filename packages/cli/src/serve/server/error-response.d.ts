@@ -6,15 +6,24 @@
 import type { Response } from 'express';
 import type { DaemonLogger } from '../daemon-logger.js';
 export type BridgeErrorContext = {
-    route?: string;
-    sessionId?: string;
-    [key: string]: string | number | boolean | undefined;
+  route?: string;
+  sessionId?: string;
+  [key: string]: string | number | boolean | undefined;
 };
-export type SendBridgeError = (res: Response, err: unknown, ctx?: BridgeErrorContext) => void;
-export declare function sendPermissionVoteError(res: Response, err: unknown, ctx: {
+export type SendBridgeError = (
+  res: Response,
+  err: unknown,
+  ctx?: BridgeErrorContext,
+) => void;
+export declare function sendPermissionVoteError(
+  res: Response,
+  err: unknown,
+  ctx: {
     route: string;
     sessionId?: string;
-}, daemonLog?: DaemonLogger): void;
+  },
+  daemonLog?: DaemonLogger,
+): void;
 /**
  * Map a thrown bridge error to an HTTP response.
  *
@@ -26,7 +35,12 @@ export declare function sendPermissionVoteError(res: Response, err: unknown, ctx
  * /session/:id/prompt', sessionId })`. Optional so test/dev call
  * sites that don't care about the log can omit it.
  */
-export declare function sendBridgeError(res: Response, err: unknown, ctx?: BridgeErrorContext, daemonLog?: DaemonLogger): void;
+export declare function sendBridgeError(
+  res: Response,
+  err: unknown,
+  ctx?: BridgeErrorContext,
+  daemonLog?: DaemonLogger,
+): void;
 /**
  * Coerce an arbitrary thrown value to a useful string. Plain `String(err)`
  * yields `[object Object]` for JSON-RPC-shaped errors (`{code, message,

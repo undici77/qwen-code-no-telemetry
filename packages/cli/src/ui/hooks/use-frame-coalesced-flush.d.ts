@@ -19,7 +19,10 @@ export declare const SCROLL_FRAME_MS = 16;
  * The timer is real (not gated on NODE_ENV), so tests exercise the same path
  * production does; they just need to advance ~`frameMs` before asserting.
  */
-export declare function useFrameCoalescedFlush(flush: () => void, frameMs?: number): {
-    schedule: () => void;
-    cancel: () => void;
+export declare function useFrameCoalescedFlush(
+  flush: () => void,
+  frameMs?: number,
+): {
+  schedule: () => void;
+  cancel: () => void;
 };

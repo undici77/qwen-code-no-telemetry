@@ -5,7 +5,7 @@
  */
 import type React from 'react';
 interface SkillStatsDisplayProps {
-    width?: number;
+  width?: number;
 }
 export declare const SkillStatsDisplay: React.FC<SkillStatsDisplayProps>;
 export {};

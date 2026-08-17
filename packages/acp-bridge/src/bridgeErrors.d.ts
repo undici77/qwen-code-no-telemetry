@@ -3,7 +3,7 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-export declare const NOT_CURRENTLY_GENERATING_CANCEL_MESSAGE: "Not currently generating";
+export declare const NOT_CURRENTLY_GENERATING_CANCEL_MESSAGE: 'Not currently generating';
 /**
  * ACP idle-cancel compatibility contract.
  *
@@ -15,28 +15,34 @@ export declare const NOT_CURRENTLY_GENERATING_CANCEL_MESSAGE: "Not currently gen
  * but keep this matcher narrow so unrelated cancel failures still
  * propagate to callers.
  */
-export declare function isNotCurrentlyGeneratingCancelError(err: unknown): boolean;
+export declare function isNotCurrentlyGeneratingCancelError(
+  err: unknown,
+): boolean;
 export declare class SessionNotFoundError extends Error {
-    readonly sessionId: string;
-    readonly code: 'session_not_found' | 'session_closing';
-    constructor(sessionId: string, extra?: string, code?: 'session_not_found' | 'session_closing');
+  readonly sessionId: string;
+  readonly code: 'session_not_found' | 'session_closing';
+  constructor(
+    sessionId: string,
+    extra?: string,
+    code?: 'session_not_found' | 'session_closing',
+  );
 }
 export declare class SessionArchivedError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string);
+  readonly sessionId: string;
+  constructor(sessionId: string);
 }
 export declare class SessionNotArchivedError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string);
+  readonly sessionId: string;
+  constructor(sessionId: string);
 }
 export declare class SessionConflictError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string);
+  readonly sessionId: string;
+  constructor(sessionId: string);
 }
 export declare class SessionArchivingError extends Error {
-    readonly sessionId: string;
-    readonly lockKind: 'exclusive' | 'shared';
-    constructor(sessionId: string, lockKind?: 'exclusive' | 'shared');
+  readonly sessionId: string;
+  readonly lockKind: 'exclusive' | 'shared';
+  constructor(sessionId: string, lockKind?: 'exclusive' | 'shared');
 }
 /**
  * Why a restore of this id is fenced.
@@ -47,7 +53,9 @@ export declare class SessionArchivingError extends Error {
  * its cleanup) has not settled yet — retrying at the ordinary cadence just
  * re-hits the fence, so clients must back off much further.
  */
-export type RestoreInProgressReason = 'restore_in_progress' | 'awaiting_abandoned_cleanup';
+export type RestoreInProgressReason =
+  | 'restore_in_progress'
+  | 'awaiting_abandoned_cleanup';
 /** Fallback retry hint, in seconds, for an ordinary in-flight restore. */
 export declare const RESTORE_IN_PROGRESS_RETRY_AFTER_SECONDS = 5;
 /**
@@ -57,15 +65,20 @@ export declare const RESTORE_IN_PROGRESS_RETRY_AFTER_SECONDS = 5;
  */
 export type RestoreBlockedAction = 'load' | 'resume' | 'spawn';
 export declare class RestoreInProgressError extends Error {
-    readonly sessionId: string;
-    readonly activeAction: RestoreBlockedAction;
-    readonly requestedAction: RestoreBlockedAction;
-    readonly reason: RestoreInProgressReason;
-    readonly retryAfterSeconds: number;
-    constructor(sessionId: string, activeAction: RestoreBlockedAction, requestedAction: RestoreBlockedAction, opts?: {
-        reason?: RestoreInProgressReason;
-        retryAfterSeconds?: number;
-    });
+  readonly sessionId: string;
+  readonly activeAction: RestoreBlockedAction;
+  readonly requestedAction: RestoreBlockedAction;
+  readonly reason: RestoreInProgressReason;
+  readonly retryAfterSeconds: number;
+  constructor(
+    sessionId: string,
+    activeAction: RestoreBlockedAction,
+    requestedAction: RestoreBlockedAction,
+    opts?: {
+      reason?: RestoreInProgressReason;
+      retryAfterSeconds?: number;
+    },
+  );
 }
 /**
  * Thrown by `spawnOrAttach` when `req.sessionScope` is set to a value
@@ -79,8 +92,8 @@ export declare class RestoreInProgressError extends Error {
  * text-matching the message.
  */
 export declare class InvalidSessionScopeError extends Error {
-    readonly sessionScope: unknown;
-    constructor(sessionScope: unknown);
+  readonly sessionScope: unknown;
+  constructor(sessionScope: unknown);
 }
 /**
  * Thrown by `spawnOrAttach` when a fresh-spawn would push `sessionCount`
@@ -90,13 +103,13 @@ export declare class InvalidSessionScopeError extends Error {
  * routes can branch without text-matching.
  */
 export declare class SessionLimitExceededError extends Error {
-    readonly limit: number;
-    constructor(limit: number);
+  readonly limit: number;
+  constructor(limit: number);
 }
 export declare class TotalSessionLimitExceededError extends Error {
-    readonly limit: number;
-    readonly scope: "total";
-    constructor(limit: number);
+  readonly limit: number;
+  readonly scope: 'total';
+  constructor(limit: number);
 }
 /**
  * Thrown by `sendPrompt` when a session already has too many accepted
@@ -106,10 +119,10 @@ export declare class TotalSessionLimitExceededError extends Error {
  * `DaemonPendingPromptLimitError`.
  */
 export declare class PromptQueueFullError extends Error {
-    readonly limit: number;
-    readonly pendingCount: number;
-    readonly sessionId: string;
-    constructor(limit: number, pendingCount: number, sessionId: string);
+  readonly limit: number;
+  readonly pendingCount: number;
+  readonly sessionId: string;
+  constructor(limit: number, pendingCount: number, sessionId: string);
 }
 /**
  * Rejected by `sendPrompt` when an accepted prompt exceeds its wallclock
@@ -119,8 +132,8 @@ export declare class PromptQueueFullError extends Error {
  * Exported so tests and routes can match on the class identity.
  */
 export declare class PromptDeadlineExceededError extends Error {
-    readonly deadlineMs: number;
-    constructor(deadlineMs: number);
+  readonly deadlineMs: number;
+  constructor(deadlineMs: number);
 }
 /**
  * Thrown by `spawnOrAttach` when the requested `workspaceCwd` doesn't
@@ -133,9 +146,9 @@ export declare class PromptDeadlineExceededError extends Error {
  * register the requested workspace, or route to the correct runtime.
  */
 export declare class WorkspaceMismatchError extends Error {
-    readonly bound: string;
-    readonly requested: string;
-    constructor(bound: string, requested: string);
+  readonly bound: string;
+  readonly requested: string;
+  constructor(bound: string, requested: string);
 }
 /**
  * Thrown when an HTTP caller echoes a client id that this daemon did not
@@ -144,16 +157,16 @@ export declare class WorkspaceMismatchError extends Error {
  * originator metadata stays daemon-stamped rather than caller-asserted.
  */
 export declare class InvalidClientIdError extends Error {
-    readonly sessionId: string;
-    readonly clientId: string;
-    constructor(sessionId: string, clientId: string);
+  readonly sessionId: string;
+  readonly clientId: string;
+  constructor(sessionId: string, clientId: string);
 }
 /**
  * Thrown when a direct daemon shell command is attempted without the operator
  * explicitly enabling the high-risk session shell surface.
  */
 export declare class SessionShellDisabledError extends Error {
-    constructor();
+  constructor();
 }
 /**
  * Thrown when a direct daemon shell command has no client id bound to the
@@ -161,7 +174,7 @@ export declare class SessionShellDisabledError extends Error {
  * this error means the caller has not proven ownership of the session.
  */
 export declare class SessionShellClientRequiredError extends Error {
-    constructor();
+  constructor();
 }
 /**
  * Thrown by `bridge.respondToPermission` when the voter's
@@ -170,13 +183,13 @@ export declare class SessionShellClientRequiredError extends Error {
  * 404 unknown-requestId).
  */
 export declare class InvalidPermissionOptionError extends Error {
-    readonly requestId: string;
-    readonly optionId: string;
-    constructor(requestId: string, optionId: string);
+  readonly requestId: string;
+  readonly optionId: string;
+  constructor(requestId: string, optionId: string);
 }
 export declare class InvalidSessionMetadataError extends Error {
-    readonly field: string;
-    constructor(field: string, reason: string);
+  readonly field: string;
+  constructor(field: string, reason: string);
 }
 /**
  * Typed error for unimplemented permission policies. Thrown by `MultiClientPermissionMediator.vote` when the
@@ -197,8 +210,8 @@ export declare class InvalidSessionMetadataError extends Error {
  * upgrade".
  */
 export declare class PermissionPolicyNotImplementedError extends Error {
-    readonly policy: string;
-    constructor(policy: string);
+  readonly policy: string;
+  constructor(policy: string);
 }
 /**
  * Collision defense. Thrown by `MultiClientPermissionMediator.request`
@@ -214,9 +227,9 @@ export declare class PermissionPolicyNotImplementedError extends Error {
  * between agent and daemon, not a client mistake.
  */
 export declare class CancelSentinelCollisionError extends Error {
-    readonly requestId: string;
-    readonly sentinel: string;
-    constructor(requestId: string, sentinel: string);
+  readonly requestId: string;
+  readonly sentinel: string;
+  constructor(requestId: string, sentinel: string);
 }
 /**
  * Permission forbidden error. Thrown by `bridge.respondToSessionPermission` /
@@ -232,10 +245,14 @@ export declare class CancelSentinelCollisionError extends Error {
  * approve" vs "this daemon only accepts loopback approvals").
  */
 export declare class PermissionForbiddenError extends Error {
-    readonly requestId: string;
-    readonly sessionId: string;
-    readonly reason: 'designated_mismatch' | 'remote_not_allowed';
-    constructor(requestId: string, sessionId: string, reason: 'designated_mismatch' | 'remote_not_allowed');
+  readonly requestId: string;
+  readonly sessionId: string;
+  readonly reason: 'designated_mismatch' | 'remote_not_allowed';
+  constructor(
+    requestId: string,
+    sessionId: string,
+    reason: 'designated_mismatch' | 'remote_not_allowed',
+  );
 }
 /**
  * Workspace init conflict. Thrown by `initWorkspace` when the target file
@@ -246,9 +263,9 @@ export declare class PermissionForbiddenError extends Error {
  * without re-stat'ing the workspace.
  */
 export declare class WorkspaceInitConflictError extends Error {
-    readonly path: string;
-    readonly existingSize: number;
-    constructor(path: string, existingSize: number);
+  readonly path: string;
+  readonly existingSize: number;
+  constructor(path: string, existingSize: number);
 }
 /**
  * Path escape guard. Thrown by `initWorkspace` when
@@ -260,9 +277,9 @@ export declare class WorkspaceInitConflictError extends Error {
  * fields let clients display a precise diagnostic.
  */
 export declare class WorkspaceInitPathEscapeError extends Error {
-    readonly filename: string;
-    readonly boundWorkspace: string;
-    constructor(filename: string, boundWorkspace: string);
+  readonly filename: string;
+  readonly boundWorkspace: string;
+  constructor(filename: string, boundWorkspace: string);
 }
 /**
  * Path escape guard. Thrown by `initWorkspace` when
@@ -274,9 +291,9 @@ export declare class WorkspaceInitPathEscapeError extends Error {
  * symlink scenarios for diagnostics.
  */
 export declare class WorkspaceInitSymlinkError extends Error {
-    readonly target: string;
-    readonly kind: 'target' | 'parent';
-    constructor(target: string, kind: 'target' | 'parent', detail: string);
+  readonly target: string;
+  readonly kind: 'target' | 'parent';
+  constructor(target: string, kind: 'target' | 'parent', detail: string);
 }
 /**
  * Race condition guard. Thrown by
@@ -296,9 +313,9 @@ export declare class WorkspaceInitSymlinkError extends Error {
  * the route layer still recognizes both.
  */
 export declare class WorkspaceInitRaceError extends Error {
-    readonly target: string;
-    readonly kind: 'eexist' | 'enoent';
-    constructor(target: string, kind: 'eexist' | 'enoent', detail: string);
+  readonly target: string;
+  readonly kind: 'eexist' | 'enoent';
+  constructor(target: string, kind: 'eexist' | 'enoent', detail: string);
 }
 /**
  * MCP server not found. Thrown by `restartMcpServer` when the
@@ -308,8 +325,8 @@ export declare class WorkspaceInitRaceError extends Error {
  * name doesn't look like an internal daemon failure.
  */
 export declare class McpServerNotFoundError extends Error {
-    readonly serverName: string;
-    constructor(serverName: string);
+  readonly serverName: string;
+  constructor(serverName: string);
 }
 /**
  * MCP restart failure. Thrown by `restartMcpServer` when
@@ -321,18 +338,18 @@ export declare class McpServerNotFoundError extends Error {
  * 'protocol_error'` by the route.
  */
 export declare class McpServerRestartFailedError extends Error {
-    readonly serverName: string;
-    readonly mcpStatus: string;
-    constructor(serverName: string, mcpStatus: string);
+  readonly serverName: string;
+  readonly mcpStatus: string;
+  constructor(serverName: string, mcpStatus: string);
 }
 export declare class SessionBusyError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string, message?: string);
+  readonly sessionId: string;
+  constructor(sessionId: string, message?: string);
 }
 export declare class WorkspaceDrainingError extends Error {
-    readonly code = "workspace_draining";
-    readonly workspaceCwd: string;
-    constructor(workspaceCwd: string);
+  readonly code = 'workspace_draining';
+  readonly workspaceCwd: string;
+  constructor(workspaceCwd: string);
 }
 /**
  * Why a channel is closed to new session work. `restore_cleanup_failed`: the
@@ -342,27 +359,32 @@ export declare class WorkspaceDrainingError extends Error {
  * nor account for. Both keep existing sessions usable and clear once the
  * channel drains and is recycled.
  */
-export type BridgeChannelUnavailableReason = 'restore_cleanup_failed' | 'restore_settlement_overdue';
+export type BridgeChannelUnavailableReason =
+  | 'restore_cleanup_failed'
+  | 'restore_settlement_overdue';
 export declare class BridgeChannelQuarantinedError extends Error {
-    readonly reason: BridgeChannelUnavailableReason;
-    /**
-     * How long the caller should wait before retrying fresh session work. This
-     * state persists until the workspace channel drains, which is at least a
-     * restore budget away — the ordinary 5-second cadence would poll identical
-     * 503s, and a fresh id never reaches the 409 that carries the real hint.
-     */
-    readonly retryAfterSeconds: number;
-    constructor(reason?: BridgeChannelUnavailableReason, retryAfterSeconds?: number);
+  readonly reason: BridgeChannelUnavailableReason;
+  /**
+   * How long the caller should wait before retrying fresh session work. This
+   * state persists until the workspace channel drains, which is at least a
+   * restore budget away — the ordinary 5-second cadence would poll identical
+   * 503s, and a fresh id never reaches the 409 that carries the real hint.
+   */
+  readonly retryAfterSeconds: number;
+  constructor(
+    reason?: BridgeChannelUnavailableReason,
+    retryAfterSeconds?: number,
+  );
 }
 export declare class InvalidRewindTargetError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string, message?: string);
+  readonly sessionId: string;
+  constructor(sessionId: string, message?: string);
 }
 export declare class BranchWhilePromptActiveError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string);
+  readonly sessionId: string;
+  constructor(sessionId: string);
 }
 export declare class CdWhilePromptActiveError extends Error {
-    readonly sessionId: string;
-    constructor(sessionId: string);
+  readonly sessionId: string;
+  constructor(sessionId: string);
 }

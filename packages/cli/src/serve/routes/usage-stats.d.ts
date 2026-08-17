@@ -25,9 +25,12 @@
 import type { Application } from 'express';
 import { type UsageSummaryRecord } from '@qwen-code/qwen-code-core';
 export interface RegisterUsageStatsRoutesDeps {
-    /** Injectable for tests; defaults to core's disk-backed history loader. */
-    loadHistory?: () => Promise<UsageSummaryRecord[]>;
-    /** Coalescing/refresh window for the cached history. Defaults to 60s. */
-    cacheTtlMs?: number;
+  /** Injectable for tests; defaults to core's disk-backed history loader. */
+  loadHistory?: () => Promise<UsageSummaryRecord[]>;
+  /** Coalescing/refresh window for the cached history. Defaults to 60s. */
+  cacheTtlMs?: number;
 }
-export declare function registerUsageStatsRoutes(app: Application, deps?: RegisterUsageStatsRoutesDeps): void;
+export declare function registerUsageStatsRoutes(
+  app: Application,
+  deps?: RegisterUsageStatsRoutesDeps,
+): void;

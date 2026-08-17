@@ -16,48 +16,48 @@
 import type { CdpOutboundFrame } from './cdp-reverse-link.js';
 /** An active extension bridge: a sink for outbound `cdp_*` frames + its inbound router. */
 export interface CdpBridgeEndpoint {
-    /** Stable id of the owning `/acp` connection (for logging / dedupe). */
-    connectionId: string;
-    /** Push one outbound `cdp_*` frame down the extension `/acp` socket. */
-    send(frame: CdpOutboundFrame): void;
-    /**
-     * Route one inbound frame from the extension to whatever reverse link is
-     * currently bound. Returns true if consumed. Set by the `/cdp` endpoint when
-     * a puppeteer client binds; reset to a no-op when it disconnects.
-     */
-    routeInbound(frame: Record<string, unknown>): boolean;
-    /**
-     * True while a `/cdp` puppeteer client is bound to this bridge. Set by the
-     * `/cdp` glue on bind, cleared on its disconnect. Lets the glue reject a
-     * second concurrent `/cdp` client instead of silently clobbering the first.
-     */
-    cdpBound?: boolean;
-    /**
-     * Set by the `/cdp` glue when a puppeteer client binds: invoked once the
-     * extension `/acp` connection drops so the bound puppeteer socket can fail
-     * fast instead of hanging until the ~170s CDP command timeout.
-     */
-    onExtensionGone?: () => void;
+  /** Stable id of the owning `/acp` connection (for logging / dedupe). */
+  connectionId: string;
+  /** Push one outbound `cdp_*` frame down the extension `/acp` socket. */
+  send(frame: CdpOutboundFrame): void;
+  /**
+   * Route one inbound frame from the extension to whatever reverse link is
+   * currently bound. Returns true if consumed. Set by the `/cdp` endpoint when
+   * a puppeteer client binds; reset to a no-op when it disconnects.
+   */
+  routeInbound(frame: Record<string, unknown>): boolean;
+  /**
+   * True while a `/cdp` puppeteer client is bound to this bridge. Set by the
+   * `/cdp` glue on bind, cleared on its disconnect. Lets the glue reject a
+   * second concurrent `/cdp` client instead of silently clobbering the first.
+   */
+  cdpBound?: boolean;
+  /**
+   * Set by the `/cdp` glue when a puppeteer client binds: invoked once the
+   * extension `/acp` connection drops so the bound puppeteer socket can fail
+   * fast instead of hanging until the ~170s CDP command timeout.
+   */
+  onExtensionGone?: () => void;
 }
 /**
  * Holds the active extension CDP bridge for one daemon process. Inert until an
  * extension `/acp` connection registers and a `/cdp` client binds.
  */
 export declare class CdpTunnelRegistry {
-    private active;
-    /**
-     * Register (or replace) the active extension bridge. Returns an unregister
-     * callback the `/acp` WS layer calls on socket close. Last-writer-wins: a new
-     * extension connection supersedes the previous bridge.
-     */
-    register(endpoint: CdpBridgeEndpoint): () => void;
-    /** The active extension bridge, if any. */
-    getActive(): CdpBridgeEndpoint | undefined;
-    /** Whether an extension bridge is currently registered. */
-    hasActive(): boolean;
-    /**
-     * Route an inbound `cdp_*` frame (from the extension `/acp` socket) to the
-     * active bridge's bound reverse link. Returns true if consumed.
-     */
-    routeInbound(frame: Record<string, unknown>): boolean;
+  private active;
+  /**
+   * Register (or replace) the active extension bridge. Returns an unregister
+   * callback the `/acp` WS layer calls on socket close. Last-writer-wins: a new
+   * extension connection supersedes the previous bridge.
+   */
+  register(endpoint: CdpBridgeEndpoint): () => void;
+  /** The active extension bridge, if any. */
+  getActive(): CdpBridgeEndpoint | undefined;
+  /** Whether an extension bridge is currently registered. */
+  hasActive(): boolean;
+  /**
+   * Route an inbound `cdp_*` frame (from the extension `/acp` socket) to the
+   * active bridge's bound reverse link. Returns true if consumed.
+   */
+  routeInbound(frame: Record<string, unknown>): boolean;
 }

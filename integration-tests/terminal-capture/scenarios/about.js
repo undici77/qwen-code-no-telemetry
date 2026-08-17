@@ -1,7 +1,7 @@
 export default {
-    name: '/about command',
-    spawn: ['node', 'dist/cli.js', '--yolo'],
-    terminal: { title: 'qwen-code', cwd: '../../..' },
-    flow: [{ type: 'hi' }, { type: '/about' }],
+  name: '/about command',
+  spawn: ['node', 'dist/cli.js', '--yolo'],
+  terminal: { title: 'qwen-code', cwd: '../../..' },
+  flow: [{ type: 'hi' }, { type: '/about' }],
 };
 //# sourceMappingURL=about.js.map

@@ -7,33 +7,33 @@ import type { CommandModule } from 'yargs';
 /** Which `env:`/`defaults:` level a resolved value came from. */
 export type EnvScope = 'workflow' | 'job' | 'step';
 export interface ExtractedStep {
-    workflow: string;
-    job: string;
-    /** The step's `name:` (or `id:`), plus its index within the job. */
-    step: string;
-    index: number;
-    shell: string;
-    workingDirectory?: string;
-    /**
-     * The EFFECTIVE `env:` the runner would hand the step — workflow, job and
-     * step levels merged, nearest wins — values verbatim (they may hold
-     * `${{ … }}`). Step-level only would be a lie: a step whose behaviour turns
-     * on a job-level `NODE_ENV` is exactly the by-hand transcription error this
-     * command exists to remove.
-     */
-    env: Record<string, string>;
-    /** Which level each effective `env:` key came from. */
-    envSources: Record<string, EnvScope>;
-    /**
-     * Every distinct `${{ … }}` expression in anything this command carries —
-     * the script, the effective env, the working directory, the shell template.
-     * The stub list, and the caller reads it as complete.
-     */
-    expressions: string[];
-    /** Top-level commands the script invokes — a starting point for stubbing. */
-    invokes: string[];
-    /** Where the executable was written. */
-    scriptPath: string;
+  workflow: string;
+  job: string;
+  /** The step's `name:` (or `id:`), plus its index within the job. */
+  step: string;
+  index: number;
+  shell: string;
+  workingDirectory?: string;
+  /**
+   * The EFFECTIVE `env:` the runner would hand the step — workflow, job and
+   * step levels merged, nearest wins — values verbatim (they may hold
+   * `${{ … }}`). Step-level only would be a lie: a step whose behaviour turns
+   * on a job-level `NODE_ENV` is exactly the by-hand transcription error this
+   * command exists to remove.
+   */
+  env: Record<string, string>;
+  /** Which level each effective `env:` key came from. */
+  envSources: Record<string, EnvScope>;
+  /**
+   * Every distinct `${{ … }}` expression in anything this command carries —
+   * the script, the effective env, the working directory, the shell template.
+   * The stub list, and the caller reads it as complete.
+   */
+  expressions: string[];
+  /** Top-level commands the script invokes — a starting point for stubbing. */
+  invokes: string[];
+  /** Where the executable was written. */
+  scriptPath: string;
 }
 /**
  * Every distinct `${{ … }}` site, in order of first appearance. Scans forward
@@ -53,12 +53,15 @@ export declare function invokedCommandsOf(script: string): string[];
  * the `set -e` this header emits, the extracted step then dies in its own
  * preamble, before its `run:` body ever runs.
  */
-export declare function commentLines(firstPrefix: string, text: string): string[];
+export declare function commentLines(
+  firstPrefix: string,
+  text: string,
+): string[];
 export interface ExtractStepArgs {
-    workflow: string;
-    job: string;
-    step: string;
-    out: string;
+  workflow: string;
+  job: string;
+  step: string;
+  out: string;
 }
 export declare function runExtractStep(args: ExtractStepArgs): ExtractedStep;
 export declare const extractStepCommand: CommandModule;

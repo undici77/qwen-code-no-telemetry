@@ -4,14 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Config } from '../config/config.js';
-import type { GoalCheckpointVerificationResult, GoalCheckpointVerifier } from './goal-checkpoint.js';
+import type {
+  GoalCheckpointVerificationResult,
+  GoalCheckpointVerifier,
+} from './goal-checkpoint.js';
 export interface CreateGoalCheckpointVerifierOptions {
-    timeoutMs?: number;
+  timeoutMs?: number;
 }
 export declare class GoalCheckpointVerifierInputTooLargeError extends Error {
-    readonly byteLength: number;
-    constructor(byteLength: number);
+  readonly byteLength: number;
+  constructor(byteLength: number);
 }
-export declare function parseGoalCheckpointVerifierText(text: string): GoalCheckpointVerificationResult;
-export declare function validateGoalCheckpointVerifierText(text: string): string | null;
-export declare function createGoalCheckpointVerifier(config: Config, options?: CreateGoalCheckpointVerifierOptions): GoalCheckpointVerifier;
+export declare function parseGoalCheckpointVerifierText(
+  text: string,
+): GoalCheckpointVerificationResult;
+export declare function validateGoalCheckpointVerifierText(
+  text: string,
+): string | null;
+export declare function createGoalCheckpointVerifier(
+  config: Config,
+  options?: CreateGoalCheckpointVerifierOptions,
+): GoalCheckpointVerifier;

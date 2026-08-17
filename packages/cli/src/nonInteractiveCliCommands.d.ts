@@ -4,8 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { PartListUnion } from '@google/genai';
-import { type Config, type GoalStateCause, type GoalStateResponse } from '@qwen-code/qwen-code-core';
-import { type GoalCommandOperation, type SlashCommand, type ExecutionMode } from './ui/commands/types.js';
+import {
+  type Config,
+  type GoalStateCause,
+  type GoalStateResponse,
+} from '@qwen-code/qwen-code-core';
+import {
+  type GoalCommandOperation,
+  type SlashCommand,
+  type ExecutionMode,
+} from './ui/commands/types.js';
 import type { HistoryItemWithoutId } from './ui/types.js';
 import type { LoadedSettings } from './config/settings.js';
 /**
@@ -19,36 +27,46 @@ import type { LoadedSettings } from './config/settings.js';
  * - 'unsupported': Command cannot be executed in this mode
  * - 'no_command': No command was found or executed
  */
-export type NonInteractiveSlashCommandResult = {
-    type: 'submit_prompt';
-    content: PartListUnion;
-    outputHistoryItems?: HistoryItemWithoutId[];
-    /** Per-turn model id (e.g. inline `/model <id> <prompt>`); no session change. */
-    modelOverride?: string;
-    refreshContextFilesOnWrite?: boolean;
-} | {
-    type: 'message';
-    messageType: 'info' | 'warning' | 'error';
-    content: string;
-    outputHistoryItems?: HistoryItemWithoutId[];
-} | {
-    type: 'stream_messages';
-    messages: AsyncGenerator<{
-        messageType: 'info' | 'warning' | 'error';
-        content: string;
-    }, void, unknown>;
-} | {
-    type: 'goal_control';
-    operation: GoalCommandOperation;
-    response: GoalStateResponse;
-    cause?: GoalStateCause;
-} | {
-    type: 'unsupported';
-    reason: string;
-    originalType: string;
-} | {
-    type: 'no_command';
-};
+export type NonInteractiveSlashCommandResult =
+  | {
+      type: 'submit_prompt';
+      content: PartListUnion;
+      outputHistoryItems?: HistoryItemWithoutId[];
+      /** Per-turn model id (e.g. inline `/model <id> <prompt>`); no session change. */
+      modelOverride?: string;
+      refreshContextFilesOnWrite?: boolean;
+    }
+  | {
+      type: 'message';
+      messageType: 'info' | 'warning' | 'error';
+      content: string;
+      outputHistoryItems?: HistoryItemWithoutId[];
+    }
+  | {
+      type: 'stream_messages';
+      messages: AsyncGenerator<
+        {
+          messageType: 'info' | 'warning' | 'error';
+          content: string;
+        },
+        void,
+        unknown
+      >;
+    }
+  | {
+      type: 'goal_control';
+      operation: GoalCommandOperation;
+      response: GoalStateResponse;
+      cause?: GoalStateCause;
+    }
+  | {
+      type: 'unsupported';
+      reason: string;
+      originalType: string;
+    }
+  | {
+      type: 'no_command';
+    };
 /**
  * Processes a slash command in a non-interactive environment.
  *
@@ -66,10 +84,16 @@ export type NonInteractiveSlashCommandResult = {
  * it to re-attach.
  */
 export interface NonInteractiveSlashCommandSessionHooks {
-    /** @see CommandContext['session']['startNewSession'] */
-    startNewSession?: (sessionId: string) => void;
+  /** @see CommandContext['session']['startNewSession'] */
+  startNewSession?: (sessionId: string) => void;
 }
-export declare const handleSlashCommand: (rawQuery: string, abortController: AbortController, config: Config, settings: LoadedSettings, sessionHooks?: NonInteractiveSlashCommandSessionHooks) => Promise<NonInteractiveSlashCommandResult>;
+export declare const handleSlashCommand: (
+  rawQuery: string,
+  abortController: AbortController,
+  config: Config,
+  settings: LoadedSettings,
+  sessionHooks?: NonInteractiveSlashCommandSessionHooks,
+) => Promise<NonInteractiveSlashCommandResult>;
 /**
  * Retrieves all available slash commands for the given execution mode.
  *
@@ -78,4 +102,9 @@ export declare const handleSlashCommand: (rawQuery: string, abortController: Abo
  * @param mode The execution mode to filter commands for. Defaults to 'acp'.
  * @returns A Promise that resolves to an array of SlashCommand objects
  */
-export declare const getAvailableCommands: (config: Config, abortSignal: AbortSignal, mode?: ExecutionMode, settings?: LoadedSettings) => Promise<SlashCommand[]>;
+export declare const getAvailableCommands: (
+  config: Config,
+  abortSignal: AbortSignal,
+  mode?: ExecutionMode,
+  settings?: LoadedSettings,
+) => Promise<SlashCommand[]>;

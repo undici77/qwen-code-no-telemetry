@@ -56,9 +56,19 @@ export declare function isMetadataAddress(address: string): boolean;
  * addresses in blocked ranges. Used as a custom lookup to validate the
  * resolved IP before connecting.
  */
-export declare function ssrfGuardedLookup(hostname: string, options: {
+export declare function ssrfGuardedLookup(
+  hostname: string,
+  options: {
     all?: boolean;
-}, callback: (err: Error | null, address: string | Array<{
-    address: string;
-    family: number;
-}>, family?: number) => void): void;
+  },
+  callback: (
+    err: Error | null,
+    address:
+      | string
+      | Array<{
+          address: string;
+          family: number;
+        }>,
+    family?: number,
+  ) => void,
+): void;

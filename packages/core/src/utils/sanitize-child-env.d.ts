@@ -31,4 +31,6 @@ export declare const INTERNAL_SECRET_ENV_VARS: readonly string[];
  *
  * @param env The source environment (defaults to `process.env`).
  */
-export declare function sanitizeChildEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+export declare function sanitizeChildEnv(
+  env?: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv;

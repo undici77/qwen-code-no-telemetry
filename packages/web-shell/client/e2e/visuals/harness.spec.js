@@ -10,8 +10,10 @@ import { freezeLoopingAnimations } from './harness';
 // `captureScreenshot`, so pin its contract explicitly here: an infinite
 // animation must be paused and rewound to time 0, while a finite one must be
 // left alone for Playwright's own `animations: 'disabled'` to settle.
-test('freezeLoopingAnimations pins infinite animations to frame 0 and leaves finite ones', async ({ page, }) => {
-    await page.setContent(`
+test('freezeLoopingAnimations pins infinite animations to frame 0 and leaves finite ones', async ({
+  page,
+}) => {
+  await page.setContent(`
     <style>
       @keyframes spin { to { transform: rotate(360deg); } }
       #loop { width: 10px; height: 10px; animation: spin 800ms linear infinite; }
@@ -20,30 +22,30 @@ test('freezeLoopingAnimations pins infinite animations to frame 0 and leaves fin
     <div id="loop"></div>
     <div id="once"></div>
   `);
-    // Advance both animations past frame 0 first, so a freeze that did nothing
-    // would leave a non-zero currentTime and fail the assertion below.
-    await page.waitForTimeout(100);
-    await freezeLoopingAnimations(page);
-    const state = await page.evaluate(
+  // Advance both animations past frame 0 first, so a freeze that did nothing
+  // would leave a non-zero currentTime and fail the assertion below.
+  await page.waitForTimeout(100);
+  await freezeLoopingAnimations(page);
+  const state = await page.evaluate(
     /* global document */
     () => {
-        const animOf = (id) => {
-            const el = document.getElementById(id);
-            if (!el)
-                throw new Error(`element #${id} not found`);
-            return el.getAnimations()[0];
-        };
-        const loop = animOf('loop');
-        return {
-            loopPlayState: loop.playState,
-            loopCurrentTime: Number(loop.currentTime),
-            oncePlayState: animOf('once').playState,
-        };
-    });
-    // The infinite loop is paused at its first frame…
-    expect(state.loopPlayState).toBe('paused');
-    expect(state.loopCurrentTime).toBe(0);
-    // …while the finite animation is untouched, still running toward completion.
-    expect(state.oncePlayState).toBe('running');
+      const animOf = (id) => {
+        const el = document.getElementById(id);
+        if (!el) throw new Error(`element #${id} not found`);
+        return el.getAnimations()[0];
+      };
+      const loop = animOf('loop');
+      return {
+        loopPlayState: loop.playState,
+        loopCurrentTime: Number(loop.currentTime),
+        oncePlayState: animOf('once').playState,
+      };
+    },
+  );
+  // The infinite loop is paused at its first frame…
+  expect(state.loopPlayState).toBe('paused');
+  expect(state.loopCurrentTime).toBe(0);
+  // …while the finite animation is untouched, still running toward completion.
+  expect(state.oncePlayState).toBe('running');
 });
 //# sourceMappingURL=harness.spec.js.map

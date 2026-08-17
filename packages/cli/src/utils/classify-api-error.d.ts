@@ -5,6 +5,6 @@
  */
 import type { StopFailureErrorType } from '@qwen-code/qwen-code-core';
 export declare function classifyApiError(error: {
-    message: string;
-    status?: number;
+  message: string;
+  status?: number;
 }): StopFailureErrorType;

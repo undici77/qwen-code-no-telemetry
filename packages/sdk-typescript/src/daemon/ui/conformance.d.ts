@@ -49,23 +49,23 @@
  */
 import type { DaemonUiEvent } from './types.js';
 export interface DaemonUiAdapterUnderTest {
-    /**
-     * Reduce a sequence of normalized UI events into adapter-specific state.
-     * The state shape is opaque to the framework — only `renderToText` is
-     * inspected.
-     */
-    reduce(events: readonly DaemonUiEvent[]): unknown;
-    /**
-     * Project the reduced state to a single plain-text string for semantic
-     * comparison. **Implementation choices**:
-     *
-     * - Strip ANSI / HTML / markdown delimiters so assertions are
-     *   format-agnostic
-     * - Concatenate blocks with reasonable separators (e.g., `\n\n`)
-     * - Include tool titles, status, permission outcomes, error text
-     * - Skip debug / status blocks if your renderer hides them
-     */
-    renderToText(state: unknown): string;
+  /**
+   * Reduce a sequence of normalized UI events into adapter-specific state.
+   * The state shape is opaque to the framework — only `renderToText` is
+   * inspected.
+   */
+  reduce(events: readonly DaemonUiEvent[]): unknown;
+  /**
+   * Project the reduced state to a single plain-text string for semantic
+   * comparison. **Implementation choices**:
+   *
+   * - Strip ANSI / HTML / markdown delimiters so assertions are
+   *   format-agnostic
+   * - Concatenate blocks with reasonable separators (e.g., `\n\n`)
+   * - Include tool titles, status, permission outcomes, error text
+   * - Skip debug / status blocks if your renderer hides them
+   */
+  renderToText(state: unknown): string;
 }
 /**
  * One fixture: a recorded sequence of daemon envelopes paired with the
@@ -73,69 +73,72 @@ export interface DaemonUiAdapterUnderTest {
  * content it MUST NOT surface, for forward-compat guard fixtures).
  */
 export interface DaemonUiConformanceFixture {
-    /** Human-readable name for test output. */
-    name: string;
-    /**
-     * One-line description — what scenario the fixture exercises.
-     */
-    description: string;
-    /**
-     * Raw daemon envelopes. These get fed through `normalizeDaemonEvent` to
-     * produce the `DaemonUiEvent[]` passed to the adapter's `reduce`.
-     */
-    envelopes: ReadonlyArray<{
-        id?: number;
-        v: 1;
-        type: string;
-        data: unknown;
-        originatorClientId?: string;
-        _meta?: Record<string, unknown>;
-    }>;
-    /**
-     * Substrings the rendered output MUST contain. Each is asserted
-     * independently; partial matches are OK. Use these for content-level
-     * assertions ("transcript shows 'hello world'", "tool block shows
-     * 'completed'").
-     */
-    expectedContains: readonly string[];
-    /**
-     * Substrings the rendered output MUST NOT contain. Use for guard
-     * fixtures: "secret token must not leak", "raw event data must not
-     * be dumped on malformed payload".
-     */
-    expectedAbsent?: readonly string[];
-    /**
-     * Optional normalization options forwarded to `normalizeDaemonEvent`.
-     */
-    normalizeOptions?: {
-        clientId?: string;
-        suppressOwnUserEcho?: boolean;
-        includeRawEvent?: boolean;
-    };
+  /** Human-readable name for test output. */
+  name: string;
+  /**
+   * One-line description — what scenario the fixture exercises.
+   */
+  description: string;
+  /**
+   * Raw daemon envelopes. These get fed through `normalizeDaemonEvent` to
+   * produce the `DaemonUiEvent[]` passed to the adapter's `reduce`.
+   */
+  envelopes: ReadonlyArray<{
+    id?: number;
+    v: 1;
+    type: string;
+    data: unknown;
+    originatorClientId?: string;
+    _meta?: Record<string, unknown>;
+  }>;
+  /**
+   * Substrings the rendered output MUST contain. Each is asserted
+   * independently; partial matches are OK. Use these for content-level
+   * assertions ("transcript shows 'hello world'", "tool block shows
+   * 'completed'").
+   */
+  expectedContains: readonly string[];
+  /**
+   * Substrings the rendered output MUST NOT contain. Use for guard
+   * fixtures: "secret token must not leak", "raw event data must not
+   * be dumped on malformed payload".
+   */
+  expectedAbsent?: readonly string[];
+  /**
+   * Optional normalization options forwarded to `normalizeDaemonEvent`.
+   */
+  normalizeOptions?: {
+    clientId?: string;
+    suppressOwnUserEcho?: boolean;
+    includeRawEvent?: boolean;
+  };
 }
 export interface ConformanceFailure {
-    fixture: string;
-    missingPhrases: readonly string[];
-    leakedPhrases: readonly string[];
-    /** Truncated rendered output for diagnosis. */
-    renderedExcerpt: string;
+  fixture: string;
+  missingPhrases: readonly string[];
+  leakedPhrases: readonly string[];
+  /** Truncated rendered output for diagnosis. */
+  renderedExcerpt: string;
 }
 export interface ConformanceSuiteResult {
-    passed: number;
-    failed: ConformanceFailure[];
-    total: number;
+  passed: number;
+  failed: ConformanceFailure[];
+  total: number;
 }
 export interface RunConformanceOptions {
-    /** Specific fixtures to run; omitted = all. */
-    only?: readonly string[];
-    /** Skip these fixture names. */
-    skip?: readonly string[];
+  /** Specific fixtures to run; omitted = all. */
+  only?: readonly string[];
+  /** Skip these fixture names. */
+  skip?: readonly string[];
 }
 /**
  * Run the built-in fixture corpus against an adapter and return per-fixture
  * pass/fail. **Does not throw** — caller asserts on `result.failed`.
  */
-export declare function runAdapterConformanceSuite(adapter: DaemonUiAdapterUnderTest, opts?: RunConformanceOptions): ConformanceSuiteResult;
+export declare function runAdapterConformanceSuite(
+  adapter: DaemonUiAdapterUnderTest,
+  opts?: RunConformanceOptions,
+): ConformanceSuiteResult;
 /**
  * Built-in conformance fixtures. Adapter authors run these against their
  * `reduce` + `renderToText` to catch projection drift before it reaches

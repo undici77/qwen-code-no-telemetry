@@ -23,9 +23,11 @@ console.log();
 console.log(`Send a test message:`);
 console.log(`  curl -sX POST http://localhost:${server.httpPort}/message \\`);
 console.log(`    -H 'Content-Type: application/json' \\`);
-console.log(`    -d '{"senderId":"user1","senderName":"Tester","text":"Hello"}'`);
+console.log(
+  `    -d '{"senderId":"user1","senderName":"Tester","text":"Hello"}'`,
+);
 process.on('SIGINT', async () => {
-    await server.close();
-    process.exit(0);
+  await server.close();
+  process.exit(0);
 });
 //# sourceMappingURL=start-server.js.map

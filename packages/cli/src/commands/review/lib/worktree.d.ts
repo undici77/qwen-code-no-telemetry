@@ -37,4 +37,8 @@ export declare function discardWorktree(cwd: string, tree: string): SweepResult;
  * in a real-git test (the one lever, making `.git/worktrees` unwritable, is
  * bypassed by root and behaves differently under CI's unprivileged user).
  */
-export declare function worktreeCreateFailureDetail(label: string, err: unknown, sweepStderr: string): string;
+export declare function worktreeCreateFailureDetail(
+  label: string,
+  err: unknown,
+  sweepStderr: string,
+): string;

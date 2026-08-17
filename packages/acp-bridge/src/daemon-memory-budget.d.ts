@@ -24,43 +24,43 @@ export type AvailableMemorySource = 'constrained' | 'host';
  * own.
  */
 export interface DaemonMemoryBudget {
-    /** What was asked for — the flag value, or half of host memory. */
-    readonly configuredBudgetMb: number;
-    /**
-     * What the daemon can actually work with: `configured` capped at resolved
-     * host/cgroup memory. These differ when an operator passes a budget larger
-     * than the machine, and reporting only the configured figure would make
-     * every ratio derived from it meaningless.
-     */
-    readonly effectiveBudgetMb: number;
-    readonly budgetSource: MemoryBudgetSource;
-    /**
-     * Memory the daemon may actually use: the cgroup limit when one applies,
-     * otherwise host total. Named for what it is rather than for the host,
-     * because under a cgroup the two differ and the cgroup figure is the one
-     * every ratio must divide by.
-     */
-    readonly availableMemoryMb: number;
-    readonly availableMemorySource: AvailableMemorySource;
-    readonly rootReserveMb: number;
-    /** `effectiveBudgetMb` minus the root reserve. */
-    readonly childPoolMb: number;
-    /**
-     * A conservative model of the ceiling an ACP child receives today, with no
-     * budget involved: `min(50% of available memory, 16 GB)`. Re-derived rather
-     * than read from the spawn path, so it can sit below the figure a child
-     * actually receives; the divergences are documented on `legacyChildCeilingMb`.
-     * Reported so the gap between current behavior and any future policy is
-     * visible before that policy exists.
-     */
-    readonly legacyChildCeilingMb: number;
-    /**
-     * True when the machine is too small to run the daemon within the documented
-     * minimum budget. An observation, not a refusal — and deliberately not a
-     * reason to clamp the budget upward, which would report a denominator the
-     * host cannot back.
-     */
-    readonly insufficientMemory: boolean;
+  /** What was asked for — the flag value, or half of host memory. */
+  readonly configuredBudgetMb: number;
+  /**
+   * What the daemon can actually work with: `configured` capped at resolved
+   * host/cgroup memory. These differ when an operator passes a budget larger
+   * than the machine, and reporting only the configured figure would make
+   * every ratio derived from it meaningless.
+   */
+  readonly effectiveBudgetMb: number;
+  readonly budgetSource: MemoryBudgetSource;
+  /**
+   * Memory the daemon may actually use: the cgroup limit when one applies,
+   * otherwise host total. Named for what it is rather than for the host,
+   * because under a cgroup the two differ and the cgroup figure is the one
+   * every ratio must divide by.
+   */
+  readonly availableMemoryMb: number;
+  readonly availableMemorySource: AvailableMemorySource;
+  readonly rootReserveMb: number;
+  /** `effectiveBudgetMb` minus the root reserve. */
+  readonly childPoolMb: number;
+  /**
+   * A conservative model of the ceiling an ACP child receives today, with no
+   * budget involved: `min(50% of available memory, 16 GB)`. Re-derived rather
+   * than read from the spawn path, so it can sit below the figure a child
+   * actually receives; the divergences are documented on `legacyChildCeilingMb`.
+   * Reported so the gap between current behavior and any future policy is
+   * visible before that policy exists.
+   */
+  readonly legacyChildCeilingMb: number;
+  /**
+   * True when the machine is too small to run the daemon within the documented
+   * minimum budget. An observation, not a refusal — and deliberately not a
+   * reason to clamp the budget upward, which would report a denominator the
+   * host cannot back.
+   */
+  readonly insufficientMemory: boolean;
 }
 /**
  * Memory available to the daemon process tree, in MB.
@@ -74,8 +74,8 @@ export interface DaemonMemoryBudget {
  * daemon never constructs, so consolidating onto it is left as follow-up.
  */
 export declare function detectAvailableMemoryMb(): {
-    memoryMb: number;
-    source: AvailableMemorySource;
+  memoryMb: number;
+  source: AvailableMemorySource;
 };
 /**
  * Approximately the ceiling `getAcpMemoryArgs()` applies today with no budget:
@@ -96,7 +96,9 @@ export declare function detectAvailableMemoryMb(): {
  * Aligning them belongs with the change that actually applies a ceiling; doing
  * it here would mean adopting the sentinel bug to match.
  */
-export declare function legacyChildCeilingMb(availableMemoryMb?: number): number;
+export declare function legacyChildCeilingMb(
+  availableMemoryMb?: number,
+): number;
 /**
  * Validates an operator-supplied budget. Range only — relating it to host
  * memory is `resolveDaemonMemoryBudget`'s job, because that is a capping
@@ -116,14 +118,18 @@ export declare function memoryBudgetRangeError(): string;
  * spawn time keyed on concurrently live children; this figure exists to size
  * that work, not to substitute for it.
  */
-export declare function recommendedChildShareMb(budget: DaemonMemoryBudget, 
-/** Must be at least 1. With no children there is no per-child share to model. */
-children: number): number;
+export declare function recommendedChildShareMb(
+  budget: DaemonMemoryBudget,
+  /** Must be at least 1. With no children there is no per-child share to model. */
+  children: number,
+): number;
 export declare function resolveDaemonMemoryBudget(input?: {
-    budgetMb?: number;
-    /** Test seam: bypasses detection so the arithmetic is pure. */
-    availableMemoryMb?: number;
-    /** Paired with availableMemoryMb; defaults to 'host'. */
-    availableMemorySource?: AvailableMemorySource;
+  budgetMb?: number;
+  /** Test seam: bypasses detection so the arithmetic is pure. */
+  availableMemoryMb?: number;
+  /** Paired with availableMemoryMb; defaults to 'host'. */
+  availableMemorySource?: AvailableMemorySource;
 }): DaemonMemoryBudget;
-export declare function formatMemoryBudgetStderr(budget: DaemonMemoryBudget): string;
+export declare function formatMemoryBudgetStderr(
+  budget: DaemonMemoryBudget,
+): string;

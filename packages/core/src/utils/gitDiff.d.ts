@@ -12,36 +12,36 @@ export type GitDiffHunk = Hunk;
  * viewer can label the diff as incomplete instead of silently under-reporting.
  */
 export interface GitDiffFileHunks {
-    hunks: Hunk[];
-    truncated: boolean;
+  hunks: Hunk[];
+  truncated: boolean;
 }
 export interface GitDiffStats {
-    filesCount: number;
-    linesAdded: number;
-    linesRemoved: number;
+  filesCount: number;
+  linesAdded: number;
+  linesRemoved: number;
 }
 export interface PerFileStats {
-    added: number;
-    removed: number;
-    isBinary: boolean;
-    isUntracked?: boolean;
-    /** `true` when the file is removed in the worktree relative to HEAD.
-     *  Mutually exclusive with `isUntracked`. Detected via
-     *  `git diff HEAD --name-status -z` (status letter `D`); a row like
-     *  `0\t10\tfoo.ts` from numstat alone is not enough to distinguish
-     *  "deleted" from "heavy edit that drops 10 lines". */
-    isDeleted?: boolean;
-    /** Only meaningful for untracked files: `true` when the file exceeded the
-     *  line-counting read cap and `added` is therefore a lower bound. */
-    truncated?: boolean;
-    /** For a rename detected by `git diff --numstat -z`, the pre-rename path.
-     *  The map key (and wire `path`) is the current post-rename path so the
-     *  single-file endpoint can address it; this carries the old path for display. */
-    oldPath?: string;
+  added: number;
+  removed: number;
+  isBinary: boolean;
+  isUntracked?: boolean;
+  /** `true` when the file is removed in the worktree relative to HEAD.
+   *  Mutually exclusive with `isUntracked`. Detected via
+   *  `git diff HEAD --name-status -z` (status letter `D`); a row like
+   *  `0\t10\tfoo.ts` from numstat alone is not enough to distinguish
+   *  "deleted" from "heavy edit that drops 10 lines". */
+  isDeleted?: boolean;
+  /** Only meaningful for untracked files: `true` when the file exceeded the
+   *  line-counting read cap and `added` is therefore a lower bound. */
+  truncated?: boolean;
+  /** For a rename detected by `git diff --numstat -z`, the pre-rename path.
+   *  The map key (and wire `path`) is the current post-rename path so the
+   *  single-file endpoint can address it; this carries the old path for display. */
+  oldPath?: string;
 }
 export interface GitDiffResult {
-    stats: GitDiffStats;
-    perFileStats: Map<string, PerFileStats>;
+  stats: GitDiffStats;
+  perFileStats: Map<string, PerFileStats>;
 }
 /** Maximum files retained in per-file results. Matches issue #2997 "50 files" cap. */
 export declare const MAX_FILES = 50;
@@ -61,7 +61,9 @@ export declare const MAX_FILES_FOR_DETAILS = 500;
  * revert) — those states carry incoming changes that weren't intentionally
  * made by the user.
  */
-export declare function fetchGitDiff(cwd: string): Promise<GitDiffResult | null>;
+export declare function fetchGitDiff(
+  cwd: string,
+): Promise<GitDiffResult | null>;
 /**
  * Fetch structured hunks for the current working tree vs HEAD. Separate
  * from `fetchGitDiff` so callers that only need stats do not pay the full
@@ -74,7 +76,9 @@ export declare function fetchGitDiff(cwd: string): Promise<GitDiffResult | null>
  * parser would let us terminate `git` early at `MAX_FILES`; that's a
  * reasonable follow-up but out of scope for this utility's first cut.
  */
-export declare function fetchGitDiffHunks(cwd: string): Promise<Map<string, Hunk[]>>;
+export declare function fetchGitDiffHunks(
+  cwd: string,
+): Promise<Map<string, Hunk[]>>;
 /**
  * Fetch structured hunks for a single file (working tree vs HEAD). Cheaper than
  * `fetchGitDiffHunks`, which diffs the whole tree — this is for on-demand
@@ -95,7 +99,11 @@ export declare function fetchGitDiffHunks(cwd: string): Promise<Map<string, Hunk
  * outside the repo, binary or unreadable untracked files, and tracked files
  * with no changes.
  */
-export declare function fetchGitDiffHunksForFile(cwd: string, filePath: string, oldPath?: string): Promise<GitDiffFileHunks | null>;
+export declare function fetchGitDiffHunksForFile(
+  cwd: string,
+  filePath: string,
+  oldPath?: string,
+): Promise<GitDiffFileHunks | null>;
 export declare function parseGitNumstat(stdout: string): GitDiffResult;
 /**
  * Parse unified diff output into per-file hunks.
@@ -108,7 +116,10 @@ export declare function parseGitNumstat(stdout: string): GitDiffResult;
  *   cap is recorded there so callers can surface the truncation instead of
  *   presenting a silently incomplete diff.
  */
-export declare function parseGitDiff(stdout: string, truncatedPaths?: Set<string>): Map<string, Hunk[]>;
+export declare function parseGitDiff(
+  stdout: string,
+  truncatedPaths?: Set<string>,
+): Map<string, Hunk[]>;
 /**
  * Decode a path field from a `diff --git` header — handles both unquoted
  * (`b/foo.txt`) and C-style quoted (`"b/tab\there.txt"`) forms.
@@ -153,7 +164,12 @@ export declare function parseDeletedFromNameStatus(stdout: string): Set<string>;
  */
 export declare function resolveGitDir(cwd: string): Promise<string | null>;
 /** An in-progress git operation that the status indicator should surface. */
-export type GitOperation = 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bisect';
+export type GitOperation =
+  | 'merge'
+  | 'rebase'
+  | 'cherry-pick'
+  | 'revert'
+  | 'bisect';
 /**
  * Working-tree summary for the status line / Web Shell git chip: branch,
  * detached-HEAD flag, upstream ahead/behind, staged / unstaged / untracked /
@@ -170,36 +186,38 @@ export type GitOperation = 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bise
  * Returns `null` only when not inside a git repo or when git itself fails.
  */
 export interface GitWorkingTreeStatus {
-    /** Branch name, or `null` when detached / unborn / unreadable. */
-    branch: string | null;
-    /** `true` for a detached HEAD (branch holds no name). */
-    detached: boolean;
-    /** `true` when the branch tracks an upstream. */
-    hasUpstream: boolean;
-    /** Commits ahead of upstream (0 without an upstream). */
-    ahead: number;
-    /** Commits behind upstream (0 without an upstream). */
-    behind: number;
-    /** Files with a staged change (porcelain X column). */
-    staged: number;
-    /** Files with an unstaged change (porcelain Y column). */
-    unstaged: number;
-    /** Untracked files (`??`). */
-    untracked: number;
-    /** Unmerged (conflicted) entries. */
-    conflicted: number;
-    /** Stash entries (lines in `logs/refs/stash`). */
-    stashCount: number;
-    /** In-progress operation, if any. */
-    operation?: GitOperation;
+  /** Branch name, or `null` when detached / unborn / unreadable. */
+  branch: string | null;
+  /** `true` for a detached HEAD (branch holds no name). */
+  detached: boolean;
+  /** `true` when the branch tracks an upstream. */
+  hasUpstream: boolean;
+  /** Commits ahead of upstream (0 without an upstream). */
+  ahead: number;
+  /** Commits behind upstream (0 without an upstream). */
+  behind: number;
+  /** Files with a staged change (porcelain X column). */
+  staged: number;
+  /** Files with an unstaged change (porcelain Y column). */
+  unstaged: number;
+  /** Untracked files (`??`). */
+  untracked: number;
+  /** Unmerged (conflicted) entries. */
+  conflicted: number;
+  /** Stash entries (lines in `logs/refs/stash`). */
+  stashCount: number;
+  /** In-progress operation, if any. */
+  operation?: GitOperation;
 }
-export declare function getGitWorkingTreeStatus(cwd: string): Promise<GitWorkingTreeStatus | null>;
+export declare function getGitWorkingTreeStatus(
+  cwd: string,
+): Promise<GitWorkingTreeStatus | null>;
 interface StatusBranchLine {
-    branch: string | null;
-    detached: boolean;
-    hasUpstream: boolean;
-    ahead: number;
-    behind: number;
+  branch: string | null;
+  detached: boolean;
+  hasUpstream: boolean;
+  ahead: number;
+  behind: number;
 }
 /**
  * Parse the `## ...` header from `git status --branch`. Forms handled:
@@ -209,10 +227,10 @@ interface StatusBranchLine {
  */
 export declare function parseStatusBranchLine(line: string): StatusBranchLine;
 interface StatusCounts {
-    staged: number;
-    unstaged: number;
-    untracked: number;
-    conflicted: number;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  conflicted: number;
 }
 /**
  * Count staged / unstaged / untracked / conflicted entries from `git status
@@ -226,43 +244,43 @@ export declare const MAX_LOG_LIMIT = 200;
 /** Default page size for `fetchGitLog`. */
 export declare const DEFAULT_LOG_LIMIT = 50;
 export interface GitLogEntry {
-    sha: string;
-    shortSha: string;
-    authorName: string;
-    authorEmail: string;
-    /** Unix timestamp in seconds. */
-    authorDate: number;
-    subject: string;
-    /** `%D` output, e.g. `"HEAD -> main, origin/main, v1.2.0"`. */
-    refs: string;
-    /** Parent SHAs (length > 1 ⇒ merge commit). */
-    parents: string[];
+  sha: string;
+  shortSha: string;
+  authorName: string;
+  authorEmail: string;
+  /** Unix timestamp in seconds. */
+  authorDate: number;
+  subject: string;
+  /** `%D` output, e.g. `"HEAD -> main, origin/main, v1.2.0"`. */
+  refs: string;
+  /** Parent SHAs (length > 1 ⇒ merge commit). */
+  parents: string[];
 }
 export interface GitLogResult {
-    entries: GitLogEntry[];
-    hasMore: boolean;
+  entries: GitLogEntry[];
+  hasMore: boolean;
 }
 export interface GitCommitFileStat {
-    path: string;
-    added: number;
-    removed: number;
-    isBinary: boolean;
+  path: string;
+  added: number;
+  removed: number;
+  isBinary: boolean;
 }
 export interface GitCommitDetail {
-    sha: string;
-    shortSha: string;
-    authorName: string;
-    authorEmail: string;
-    authorDate: number;
-    subject: string;
-    body: string;
-    refs: string;
-    parents: string[];
-    files: GitCommitFileStat[];
-    filesCount: number;
-    linesAdded: number;
-    linesRemoved: number;
-    hiddenCount: number;
+  sha: string;
+  shortSha: string;
+  authorName: string;
+  authorEmail: string;
+  authorDate: number;
+  subject: string;
+  body: string;
+  refs: string;
+  parents: string[];
+  files: GitCommitFileStat[];
+  filesCount: number;
+  linesAdded: number;
+  linesRemoved: number;
+  hiddenCount: number;
 }
 /**
  * Fetch a page of commit log entries (newest first).
@@ -270,11 +288,14 @@ export interface GitCommitDetail {
  * Returns `null` when not inside a git repo or when git fails. An empty
  * repo (no commits) returns `{ entries: [], hasMore: false }`.
  */
-export declare function fetchGitLog(cwd: string, options?: {
+export declare function fetchGitLog(
+  cwd: string,
+  options?: {
     limit?: number;
     skip?: number;
     range?: string;
-}): Promise<GitLogResult | null>;
+  },
+): Promise<GitLogResult | null>;
 /**
  * Fetch full detail for a single commit: metadata (including body) plus
  * per-file numstat.
@@ -282,5 +303,8 @@ export declare function fetchGitLog(cwd: string, options?: {
  * Returns `null` when not inside a git repo, the sha is invalid / not found,
  * or git fails.
  */
-export declare function fetchGitCommitDetail(cwd: string, sha: string): Promise<GitCommitDetail | null>;
+export declare function fetchGitCommitDetail(
+  cwd: string,
+  sha: string,
+): Promise<GitCommitDetail | null>;
 export {};

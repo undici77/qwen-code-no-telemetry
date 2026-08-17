@@ -16,53 +16,53 @@ import type { AnsiOutput } from '../../utils/terminalSerializer.js';
  * messages directly from AgentInteractive).
  */
 export declare class InProcessBackend implements Backend {
-    readonly type: "in-process";
-    private readonly runtimeContext;
-    private readonly agents;
-    private readonly agentContentGenerators;
-    private readonly agentRegistries;
-    private readonly agentApprovalCleanups;
-    private readonly agentOrder;
-    private activeAgentId;
-    private exitCallback;
-    private autoApprovalOverrideCount;
-    /** Whether cleanup() has been called */
-    private cleanedUp;
-    constructor(runtimeContext: Config);
-    init(): Promise<void>;
-    spawnAgent(config: AgentSpawnConfig): Promise<void>;
-    stopAgent(agentId: string): void;
-    stopAll(): void;
-    cleanup(): Promise<void>;
-    setOnAgentExit(callback: AgentExitCallback): void;
-    waitForAll(timeoutMs?: number): Promise<boolean>;
-    switchTo(agentId: string): void;
-    switchToNext(): void;
-    switchToPrevious(): void;
-    getActiveAgentId(): string | null;
-    getActiveSnapshot(): AnsiOutput | null;
-    getAgentSnapshot(_agentId: string, _scrollOffset?: number): AnsiOutput | null;
-    getAgentScrollbackLength(_agentId: string): number;
-    forwardInput(data: string): boolean;
-    writeToAgent(agentId: string, data: string): boolean;
-    resizeAll(_cols: number, _rows: number): void;
-    getAttachHint(): string | null;
-    /**
-     * Get an AgentInteractive instance by agent ID.
-     * Used by ArenaManager for direct event subscription.
-     */
-    getAgent(agentId: string): AgentInteractive | undefined;
-    /**
-     * Get the ContentGenerator this agent can use for summary generation.
-     * If auth overrides created an isolated generator, this returns that
-     * generator. If no override was requested, this returns the inherited
-     * generator the agent already runs with. If override creation failed, this is
-     * undefined so callers can avoid sending agent data through a fallback
-     * provider.
-     */
-    getAgentContentGenerator(agentId: string): ContentGenerator | undefined;
-    private navigate;
-    private releaseAgentResources;
-    private acquireAutoApprovalOverride;
-    private releaseAutoApprovalOverride;
+  readonly type: 'in-process';
+  private readonly runtimeContext;
+  private readonly agents;
+  private readonly agentContentGenerators;
+  private readonly agentRegistries;
+  private readonly agentApprovalCleanups;
+  private readonly agentOrder;
+  private activeAgentId;
+  private exitCallback;
+  private autoApprovalOverrideCount;
+  /** Whether cleanup() has been called */
+  private cleanedUp;
+  constructor(runtimeContext: Config);
+  init(): Promise<void>;
+  spawnAgent(config: AgentSpawnConfig): Promise<void>;
+  stopAgent(agentId: string): void;
+  stopAll(): void;
+  cleanup(): Promise<void>;
+  setOnAgentExit(callback: AgentExitCallback): void;
+  waitForAll(timeoutMs?: number): Promise<boolean>;
+  switchTo(agentId: string): void;
+  switchToNext(): void;
+  switchToPrevious(): void;
+  getActiveAgentId(): string | null;
+  getActiveSnapshot(): AnsiOutput | null;
+  getAgentSnapshot(_agentId: string, _scrollOffset?: number): AnsiOutput | null;
+  getAgentScrollbackLength(_agentId: string): number;
+  forwardInput(data: string): boolean;
+  writeToAgent(agentId: string, data: string): boolean;
+  resizeAll(_cols: number, _rows: number): void;
+  getAttachHint(): string | null;
+  /**
+   * Get an AgentInteractive instance by agent ID.
+   * Used by ArenaManager for direct event subscription.
+   */
+  getAgent(agentId: string): AgentInteractive | undefined;
+  /**
+   * Get the ContentGenerator this agent can use for summary generation.
+   * If auth overrides created an isolated generator, this returns that
+   * generator. If no override was requested, this returns the inherited
+   * generator the agent already runs with. If override creation failed, this is
+   * undefined so callers can avoid sending agent data through a fallback
+   * provider.
+   */
+  getAgentContentGenerator(agentId: string): ContentGenerator | undefined;
+  private navigate;
+  private releaseAgentResources;
+  private acquireAutoApprovalOverride;
+  private releaseAutoApprovalOverride;
 }

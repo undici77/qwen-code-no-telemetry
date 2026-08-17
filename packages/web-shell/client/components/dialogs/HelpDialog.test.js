@@ -1,4 +1,4 @@
-import { jsx as _jsx } from "react/jsx-runtime";
+import { jsx as _jsx } from 'react/jsx-runtime';
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -7,24 +7,28 @@ import { I18nProvider } from '../../i18n';
 import { HelpDialog } from './HelpDialog';
 const containers = [];
 afterEach(() => {
-    for (const container of containers.splice(0))
-        container.remove();
+  for (const container of containers.splice(0)) container.remove();
 });
 describe('HelpDialog shortcuts', () => {
-    it.each([
-        ['en', 'Toggle compact mode'],
-        ['zh-CN', '切换紧凑模式'],
-    ])('documents Ctrl+O in %s', (language, description) => {
-        const container = document.createElement('div');
-        containers.push(container);
-        document.body.appendChild(container);
-        const root = createRoot(container);
-        act(() => {
-            root.render(_jsx(I18nProvider, { language: language, children: _jsx(HelpDialog, { commands: [] }) }));
-        });
-        expect(container.textContent).toContain('Ctrl+O');
-        expect(container.textContent).toContain(description);
-        act(() => root.unmount());
+  it.each([
+    ['en', 'Toggle compact mode'],
+    ['zh-CN', '切换紧凑模式'],
+  ])('documents Ctrl+O in %s', (language, description) => {
+    const container = document.createElement('div');
+    containers.push(container);
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        _jsx(I18nProvider, {
+          language: language,
+          children: _jsx(HelpDialog, { commands: [] }),
+        }),
+      );
     });
+    expect(container.textContent).toContain('Ctrl+O');
+    expect(container.textContent).toContain(description);
+    act(() => root.unmount());
+  });
 });
 //# sourceMappingURL=HelpDialog.test.js.map

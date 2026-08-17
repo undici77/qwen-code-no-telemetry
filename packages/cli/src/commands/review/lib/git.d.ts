@@ -26,18 +26,18 @@ export declare function gitOpt(...args: string[]): string | null;
 export declare function refExists(ref: string): boolean;
 /** What `releaseWorktree` found at the path, and what it managed to do about it. */
 export interface WorktreeRelease {
-    /** Something was at the path when we started. */
-    existed: boolean;
-    /** The path is free now — a `git worktree add` over it will succeed. */
-    freed: boolean;
-    /**
-     * Why the path is not free, set only when `existed && !freed`. A boolean
-     * cannot say both "there is still something there" and "here is why", and a
-     * caller that has to hand the problem to a human needs the second half:
-     * without it, cleanup either lies ("Removed …") or goes silent, and both were
-     * shipped and caught in review.
-     */
-    reason?: string;
+  /** Something was at the path when we started. */
+  existed: boolean;
+  /** The path is free now — a `git worktree add` over it will succeed. */
+  freed: boolean;
+  /**
+   * Why the path is not free, set only when `existed && !freed`. A boolean
+   * cannot say both "there is still something there" and "here is why", and a
+   * caller that has to hand the problem to a human needs the second half:
+   * without it, cleanup either lies ("Removed …") or goes silent, and both were
+   * shipped and caught in review.
+   */
+  reason?: string;
 }
 /**
  * Rule on a release attempt: what was there, what is there now, what went wrong.
@@ -54,7 +54,11 @@ export interface WorktreeRelease {
  * a human "this is still on disk" is useless without "and here is why", so when
  * there is no exception to quote it names the situation instead.
  */
-export declare function worktreeReleaseResult(existed: boolean, stillThere: boolean, removeError?: unknown): WorktreeRelease;
+export declare function worktreeReleaseResult(
+  existed: boolean,
+  stillThere: boolean,
+  removeError?: unknown,
+): WorktreeRelease;
 /**
  * Free a review worktree's path **and** its branch.
  *

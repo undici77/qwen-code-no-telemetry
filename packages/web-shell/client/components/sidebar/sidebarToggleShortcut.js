@@ -10,10 +10,8 @@
  * Cmd+Ctrl combined presses are rejected as ambiguous.
  */
 export function isSidebarToggleShortcut(event) {
-    if (event.key !== 'b' && event.key !== 'B')
-        return false;
-    if (event.altKey || event.shiftKey)
-        return false;
-    return event.metaKey !== event.ctrlKey;
+  if (event.key !== 'b' && event.key !== 'B') return false;
+  if (event.altKey || event.shiftKey) return false;
+  return event.metaKey !== event.ctrlKey;
 }
 //# sourceMappingURL=sidebarToggleShortcut.js.map

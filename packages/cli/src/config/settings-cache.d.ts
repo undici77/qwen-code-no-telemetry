@@ -9,5 +9,7 @@ import type { LoadedSettings } from './settings.js';
  * its default options. Callers needing `LoadSettingsOptions` must keep using
  * `loadSettings()` directly.
  */
-export declare function loadSettingsCached(workspaceDir: string): LoadedSettings;
+export declare function loadSettingsCached(
+  workspaceDir: string,
+): LoadedSettings;
 export declare function clearSettingsCacheForTesting(): void;

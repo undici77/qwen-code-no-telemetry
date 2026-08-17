@@ -5,4 +5,6 @@
  */
 import type { ChatRecord } from '@qwen-code/qwen-code-core';
 export declare function getToolResultCallId(record: ChatRecord): string;
-export declare function getExplicitToolResultCallId(record: ChatRecord): string | undefined;
+export declare function getExplicitToolResultCallId(
+  record: ChatRecord,
+): string | undefined;

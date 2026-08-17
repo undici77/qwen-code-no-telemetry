@@ -38,15 +38,23 @@ export declare function autoTitleDisabledByEnv(): boolean;
  * - `aborted`: AbortSignal fired (user pressed Ctrl-C / new session / switch).
  * - `model_error`: the LLM call threw — rate limit, auth, network, etc.
  */
-export type SessionTitleFailureReason = 'no_fast_model' | 'no_client' | 'empty_history' | 'empty_result' | 'aborted' | 'model_error';
-export type SessionTitleOutcome = {
-    ok: true;
-    title: string;
-    modelUsed: string;
-} | {
-    ok: false;
-    reason: SessionTitleFailureReason;
-};
+export type SessionTitleFailureReason =
+  | 'no_fast_model'
+  | 'no_client'
+  | 'empty_history'
+  | 'empty_result'
+  | 'aborted'
+  | 'model_error';
+export type SessionTitleOutcome =
+  | {
+      ok: true;
+      title: string;
+      modelUsed: string;
+    }
+  | {
+      ok: false;
+      reason: SessionTitleFailureReason;
+    };
 /**
  * Generate a short (3-7 word, sentence-case) title for the current session
  * using the configured fast model. Best-effort — never throws.
@@ -55,7 +63,11 @@ export type SessionTitleOutcome = {
  * generically (`if (!outcome.ok) return null`) or map failure reasons to
  * actionable messages (as `/rename --auto` does).
  */
-export declare function tryGenerateSessionTitle(config: Config, abortSignal: AbortSignal, userDisplayTexts?: ReadonlyArray<string | undefined>): Promise<SessionTitleOutcome>;
+export declare function tryGenerateSessionTitle(
+  config: Config,
+  abortSignal: AbortSignal,
+  userDisplayTexts?: ReadonlyArray<string | undefined>,
+): Promise<SessionTitleOutcome>;
 /**
  * Normalize a raw title string coming back from the schema-enforced JSON
  * call. The schema guarantees a string, but models routinely ignore the

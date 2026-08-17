@@ -9,13 +9,13 @@
  */
 export declare const MAX_TEXT_CURSOR_CHARS = 1024;
 export interface TextCursorState {
-    /** Byte offset the next page starts at. */
-    off: number;
-    /** File size when the cursor was minted, for shrink detection. */
-    size: number;
-    /** Device and inode as decimal strings — `Stats` fields may be `bigint`. */
-    dev: string;
-    ino: string;
+  /** Byte offset the next page starts at. */
+  off: number;
+  /** File size when the cursor was minted, for shrink detection. */
+  size: number;
+  /** Device and inode as decimal strings — `Stats` fields may be `bigint`. */
+  dev: string;
+  ino: string;
 }
 export declare function encodeTextCursor(state: TextCursorState): string;
 /**
@@ -38,8 +38,12 @@ export declare function decodeTextCursor(cursor: string): TextCursorState;
  * cannot close that gap because both those cases and a valid append advance
  * it; hashing the prefix would make every page O(n), defeating the cursor.
  */
-export declare function assertCursorMatchesFile(cursor: TextCursorState, stats: {
+export declare function assertCursorMatchesFile(
+  cursor: TextCursorState,
+  stats: {
     dev: number | bigint;
     ino: number | bigint;
     size: number;
-}, path: string): void;
+  },
+  path: string,
+): void;

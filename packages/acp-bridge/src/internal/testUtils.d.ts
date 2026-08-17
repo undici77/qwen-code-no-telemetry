@@ -4,7 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { AgentSideConnection } from '@agentclientprotocol/sdk';
-import type { Agent, AuthenticateRequest, AuthenticateResponse, CancelNotification, InitializeRequest, InitializeResponse, LoadSessionRequest, LoadSessionResponse, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse, ResumeSessionRequest, ResumeSessionResponse, SetSessionConfigOptionRequest, SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse } from '@agentclientprotocol/sdk';
+import type {
+  Agent,
+  AuthenticateRequest,
+  AuthenticateResponse,
+  CancelNotification,
+  InitializeRequest,
+  InitializeResponse,
+  LoadSessionRequest,
+  LoadSessionResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  PromptRequest,
+  PromptResponse,
+  ResumeSessionRequest,
+  ResumeSessionResponse,
+  SetSessionConfigOptionRequest,
+  SetSessionConfigOptionResponse,
+  SetSessionModeRequest,
+  SetSessionModeResponse,
+} from '@agentclientprotocol/sdk';
 import type { BridgeOptions } from '../bridgeOptions.js';
 import { type AcpSessionBridge } from '../bridgeTypes.js';
 import type { AcpChannel } from '../channel.js';
@@ -25,78 +44,106 @@ export declare const SESS_A: string;
  * wires `createDaemonStatusProvider()` for the 4 daemon-host
  * integration tests.
  */
-export declare function makeBridge(opts?: Partial<BridgeOptions>): AcpSessionBridge;
+export declare function makeBridge(
+  opts?: Partial<BridgeOptions>,
+): AcpSessionBridge;
 export interface FakeAgentOpts {
-    /** What the fake agent returns from `newSession`. */
-    sessionIdPrefix?: string;
-    /** Inject a per-call delay before responding to `initialize`. */
-    initializeDelayMs?: number;
-    /** Force `initialize` to throw. */
-    initializeThrows?: Error;
-    initializeImpl?: (p: InitializeRequest, self: FakeAgent) => Promise<InitializeResponse> | InitializeResponse;
-    /**
-     * Custom prompt handler. Default returns `end_turn` synchronously. Useful
-     * for test cases that want to observe prompt ordering.
-     */
-    promptImpl?: (p: PromptRequest, self: FakeAgent) => Promise<PromptResponse> | PromptResponse;
-    cancelImpl?: (p: CancelNotification, self: FakeAgent) => Promise<void> | void;
-    /** Make the fake expose only standard ACP cancellation. */
-    promptCancelExtension?: boolean;
-    /**
-     * Custom `newSession` handler. Default returns a synthesized id (see
-     * `newSession` below). Used by tests that need to exercise the
-     * doSpawn newSession-failure path (e.g. throwing to cover the
-     * `isDying`-mark-then-kill cleanup).
-     */
-    newSessionImpl?: (p: NewSessionRequest, self: FakeAgent) => Promise<NewSessionResponse> | NewSessionResponse;
-    loadSessionImpl?: (p: LoadSessionRequest, self: FakeAgent) => Promise<LoadSessionResponse> | LoadSessionResponse;
-    resumeSessionImpl?: (p: ResumeSessionRequest, self: FakeAgent) => Promise<ResumeSessionResponse> | ResumeSessionResponse;
-    extMethodImpl?: (method: string, params: Record<string, unknown>, self: FakeAgent) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  /** What the fake agent returns from `newSession`. */
+  sessionIdPrefix?: string;
+  /** Inject a per-call delay before responding to `initialize`. */
+  initializeDelayMs?: number;
+  /** Force `initialize` to throw. */
+  initializeThrows?: Error;
+  initializeImpl?: (
+    p: InitializeRequest,
+    self: FakeAgent,
+  ) => Promise<InitializeResponse> | InitializeResponse;
+  /**
+   * Custom prompt handler. Default returns `end_turn` synchronously. Useful
+   * for test cases that want to observe prompt ordering.
+   */
+  promptImpl?: (
+    p: PromptRequest,
+    self: FakeAgent,
+  ) => Promise<PromptResponse> | PromptResponse;
+  cancelImpl?: (p: CancelNotification, self: FakeAgent) => Promise<void> | void;
+  /** Make the fake expose only standard ACP cancellation. */
+  promptCancelExtension?: boolean;
+  /**
+   * Custom `newSession` handler. Default returns a synthesized id (see
+   * `newSession` below). Used by tests that need to exercise the
+   * doSpawn newSession-failure path (e.g. throwing to cover the
+   * `isDying`-mark-then-kill cleanup).
+   */
+  newSessionImpl?: (
+    p: NewSessionRequest,
+    self: FakeAgent,
+  ) => Promise<NewSessionResponse> | NewSessionResponse;
+  loadSessionImpl?: (
+    p: LoadSessionRequest,
+    self: FakeAgent,
+  ) => Promise<LoadSessionResponse> | LoadSessionResponse;
+  resumeSessionImpl?: (
+    p: ResumeSessionRequest,
+    self: FakeAgent,
+  ) => Promise<ResumeSessionResponse> | ResumeSessionResponse;
+  extMethodImpl?: (
+    method: string,
+    params: Record<string, unknown>,
+    self: FakeAgent,
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
 }
 export declare class FakeAgent implements Agent {
-    private readonly opts;
-    initializeCalls: InitializeRequest[];
-    newSessionCalls: NewSessionRequest[];
-    loadSessionCalls: LoadSessionRequest[];
-    resumeSessionCalls: ResumeSessionRequest[];
-    promptCalls: PromptRequest[];
-    cancelCalls: CancelNotification[];
-    extMethodCalls: Array<{
-        method: string;
-        params: Record<string, unknown>;
-    }>;
-    constructor(opts?: FakeAgentOpts);
-    initialize(p: InitializeRequest): Promise<InitializeResponse>;
-    newSession(p: NewSessionRequest): Promise<NewSessionResponse>;
-    loadSession(p: LoadSessionRequest): Promise<LoadSessionResponse>;
-    unstable_resumeSession(p: ResumeSessionRequest): Promise<ResumeSessionResponse>;
-    authenticate(_p: AuthenticateRequest): Promise<AuthenticateResponse>;
-    prompt(p: PromptRequest): Promise<PromptResponse>;
-    cancel(p: CancelNotification): Promise<void>;
-    setSessionMode(_p: SetSessionModeRequest): Promise<SetSessionModeResponse>;
-    setSessionConfigOption(_p: SetSessionConfigOptionRequest): Promise<SetSessionConfigOptionResponse>;
-    extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+  private readonly opts;
+  initializeCalls: InitializeRequest[];
+  newSessionCalls: NewSessionRequest[];
+  loadSessionCalls: LoadSessionRequest[];
+  resumeSessionCalls: ResumeSessionRequest[];
+  promptCalls: PromptRequest[];
+  cancelCalls: CancelNotification[];
+  extMethodCalls: Array<{
+    method: string;
+    params: Record<string, unknown>;
+  }>;
+  constructor(opts?: FakeAgentOpts);
+  initialize(p: InitializeRequest): Promise<InitializeResponse>;
+  newSession(p: NewSessionRequest): Promise<NewSessionResponse>;
+  loadSession(p: LoadSessionRequest): Promise<LoadSessionResponse>;
+  unstable_resumeSession(
+    p: ResumeSessionRequest,
+  ): Promise<ResumeSessionResponse>;
+  authenticate(_p: AuthenticateRequest): Promise<AuthenticateResponse>;
+  prompt(p: PromptRequest): Promise<PromptResponse>;
+  cancel(p: CancelNotification): Promise<void>;
+  setSessionMode(_p: SetSessionModeRequest): Promise<SetSessionModeResponse>;
+  setSessionConfigOption(
+    _p: SetSessionConfigOptionRequest,
+  ): Promise<SetSessionConfigOptionResponse>;
+  extMethod(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
 }
 export interface ChannelHandle {
-    channel: AcpChannel;
-    agent: FakeAgent;
-    /**
-     * The agent-side ACP connection. Test seam for driving the client-bound calls
-     * a real `qwen --acp` child makes — e.g. the mid-turn drain
-     * `agentConnection.extMethod('craft/drainMidTurnQueue', { sessionId })`,
-     * answered by the bridge's `BridgeClient.extMethod`.
-     */
-    agentConnection: AgentSideConnection;
-    killed: boolean;
-    /**
-     * Resolve `channel.exited` without going through `kill()`. Optionally
-     * supply exit info so the bridge's `session_died` event carries the
-     * same `exitCode` / `signalCode` it would in a real crash (BX9_P).
-     */
-    crash: (info?: {
-        exitCode: number | null;
-        signalCode: NodeJS.Signals | null;
-    }) => void;
+  channel: AcpChannel;
+  agent: FakeAgent;
+  /**
+   * The agent-side ACP connection. Test seam for driving the client-bound calls
+   * a real `qwen --acp` child makes — e.g. the mid-turn drain
+   * `agentConnection.extMethod('craft/drainMidTurnQueue', { sessionId })`,
+   * answered by the bridge's `BridgeClient.extMethod`.
+   */
+  agentConnection: AgentSideConnection;
+  killed: boolean;
+  /**
+   * Resolve `channel.exited` without going through `kill()`. Optionally
+   * supply exit info so the bridge's `session_died` event carries the
+   * same `exitCode` / `signalCode` it would in a real crash (BX9_P).
+   */
+  crash: (info?: {
+    exitCode: number | null;
+    signalCode: NodeJS.Signals | null;
+  }) => void;
 }
 /**
  * Create a paired in-memory NDJSON channel: bridge sees `clientChannel`,

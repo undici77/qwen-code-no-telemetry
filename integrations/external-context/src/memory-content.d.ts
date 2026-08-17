@@ -5,4 +5,6 @@
  */
 export declare const MAX_MEMORY_CONTENT_CHARACTERS = 4000;
 export declare function isValidMemoryContent(value: string): boolean;
-export declare function renderMemoryContentForConfirmation(value: string): string;
+export declare function renderMemoryContentForConfirmation(
+  value: string,
+): string;

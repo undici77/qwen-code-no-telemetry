@@ -6,12 +6,17 @@
  *   should proceed. Read-only display commands are the deliberate exception:
  *   they ignore the signal and run mid-turn anyway (see the module docstring).
  */
-export function appendOrDeferLocalUserMessage(isStreaming, text, _images, sink) {
-    if (isStreaming) {
-        return true;
-    }
-    sink.append(text);
-    return false;
+export function appendOrDeferLocalUserMessage(
+  isStreaming,
+  text,
+  _images,
+  sink,
+) {
+  if (isStreaming) {
+    return true;
+  }
+  sink.append(text);
+  return false;
 }
 /**
  * Whether a queued prompt is a slash (`/…`) or shell (`!…`) command rather than
@@ -24,7 +29,7 @@ export function appendOrDeferLocalUserMessage(isStreaming, text, _images, sink) 
  * still exist from daemon/custom command paths or from older sessions.
  */
 export function isCommandPrompt(text) {
-    const trimmed = text.trimStart();
-    return trimmed.startsWith('/') || trimmed.startsWith('!');
+  const trimmed = text.trimStart();
+  return trimmed.startsWith('/') || trimmed.startsWith('!');
 }
 //# sourceMappingURL=localCommandQueue.js.map

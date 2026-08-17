@@ -6,9 +6,10 @@
 import type { Application, RequestHandler } from 'express';
 import { type LiveSetupController } from '../live/live-setup-controller.js';
 export interface RegisterLiveSetupRoutesDeps {
-    controller: LiveSetupController;
-    mutate: (options?: {
-        strict?: boolean;
-    }) => RequestHandler;
+  controller: LiveSetupController;
+  mutate: (options?: { strict?: boolean }) => RequestHandler;
 }
-export declare function registerLiveSetupRoutes(app: Application, deps: RegisterLiveSetupRoutesDeps): void;
+export declare function registerLiveSetupRoutes(
+  app: Application,
+  deps: RegisterLiveSetupRoutesDeps,
+): void;

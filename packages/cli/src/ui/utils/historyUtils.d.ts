@@ -19,7 +19,9 @@ import type { HistoryItem, HistoryItemWithoutId } from '../types.js';
  * compile-time error when a new history item type is added without
  * being explicitly classified, so auto-restore can't silently break.
  */
-export declare function isSyntheticHistoryItem(item: HistoryItem | HistoryItemWithoutId): boolean;
+export declare function isSyntheticHistoryItem(
+  item: HistoryItem | HistoryItemWithoutId,
+): boolean;
 /**
  * Returns true when every item AFTER `fromIndex` is non-meaningful
  * (synthetic). An empty trailing slice also returns true.
@@ -29,11 +31,18 @@ export declare function isSyntheticHistoryItem(item: HistoryItem | HistoryItemWi
  * rewound and the prompt text restored to the input box — same UX as
  * claude-code (REPL.tsx auto-restore branch).
  */
-export declare function itemsAfterAreOnlySynthetic(history: readonly HistoryItem[], fromIndex: number): boolean;
+export declare function itemsAfterAreOnlySynthetic(
+  history: readonly HistoryItem[],
+  fromIndex: number,
+): boolean;
 /** Index of the last `user` (real prompt) item, or -1. */
-export declare function findLastUserItemIndex(history: readonly HistoryItem[]): number;
+export declare function findLastUserItemIndex(
+  history: readonly HistoryItem[],
+): number;
 /** Texts of real (non-steer) user prompts in `history`, oldest-first. */
-export declare function realUserPromptTexts(history: readonly HistoryItem[]): string[];
+export declare function realUserPromptTexts(
+  history: readonly HistoryItem[],
+): string[];
 /**
  * Map every thought item to the id of its group's `gemini_thought` head.
  *
@@ -43,4 +52,6 @@ export declare function realUserPromptTexts(history: readonly HistoryItem[]): st
  * whole group as a unit (see the per-thought inline expansion in
  * HistoryItemDisplay).
  */
-export declare function buildThoughtHeadIdMap(items: readonly HistoryItem[]): Map<HistoryItem, number>;
+export declare function buildThoughtHeadIdMap(
+  items: readonly HistoryItem[],
+): Map<HistoryItem, number>;

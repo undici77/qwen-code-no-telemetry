@@ -9,19 +9,28 @@
  * last-fired timestamp into a localized label. Kept free of React and of the
  * SDK task type so they can be unit-tested in isolation.
  */
-export type Frequency = 'daily' | 'weekdays' | 'weekly' | 'hourly' | 'minutes' | 'custom';
+export type Frequency =
+  | 'daily'
+  | 'weekdays'
+  | 'weekly'
+  | 'hourly'
+  | 'minutes'
+  | 'custom';
 export interface BuilderState {
-    frequency: Frequency;
-    time: string;
-    weekday: number;
-    minuteInterval: number;
-    customCron: string;
+  frequency: Frequency;
+  time: string;
+  weekday: number;
+  minuteInterval: number;
+  customCron: string;
 }
 /** Minimal `t()` shape — a key plus optional interpolation vars. */
-export type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
+export type TranslateFn = (
+  key: string,
+  vars?: Record<string, string | number>,
+) => string;
 export declare function parseHhmm(time: string): {
-    hh: number;
-    mm: number;
+  hh: number;
+  mm: number;
 } | null;
 /** Build a 5-field cron from the builder inputs. Returns null when the inputs
  * for the chosen frequency are invalid (the caller surfaces a form error). */
@@ -51,12 +60,18 @@ export declare function parseCronToBuilder(cron: string): BuilderState;
  * most-significant units, dropping a zero secondary (`"3h"` not `"3h 0m"`), so
  * the pill stays short. Unit words come from `t` (`scheduledTasks.dur.*`).
  */
-export declare function formatCountdown(msRemaining: number, t: TranslateFn): string;
+export declare function formatCountdown(
+  msRemaining: number,
+  t: TranslateFn,
+): string;
 /** "Last run: …" label, or "never run" for a task that has not genuinely
  * fired. A fresh task is stamped with `lastFiredAt = floor(createdAt)` so the
  * scheduler can't fire it during its creation minute — that stamp is NOT a
  * real run, so anything at or before the creation minute reads as "never". */
-export declare function describeLastRun(task: {
+export declare function describeLastRun(
+  task: {
     createdAt: number;
     lastFiredAt: number | null;
-}, t: TranslateFn): string;
+  },
+  t: TranslateFn,
+): string;

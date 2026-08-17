@@ -9,22 +9,20 @@ import { join } from 'node:path';
 import { getGlobalQwenDir } from '@qwen-code/channel-base';
 /** Build the credential file path for a given safe channel name. */
 export function getCredsFilePath(safeName) {
-    return join(getGlobalQwenDir(), 'channels', `${safeName}-credentials.json`);
+  return join(getGlobalQwenDir(), 'channels', `${safeName}-credentials.json`);
 }
 /** Try to load persisted credentials. Returns null if file missing or corrupt. */
 export function loadCredentials(credsFile) {
-    if (!existsSync(credsFile))
-        return null;
-    try {
-        const saved = JSON.parse(readFileSync(credsFile, 'utf-8'));
-        if (saved.appId && saved.appSecret) {
-            return { appId: saved.appId, appSecret: saved.appSecret };
-        }
-        return null;
+  if (!existsSync(credsFile)) return null;
+  try {
+    const saved = JSON.parse(readFileSync(credsFile, 'utf-8'));
+    if (saved.appId && saved.appSecret) {
+      return { appId: saved.appId, appSecret: saved.appSecret };
     }
-    catch {
-        return null;
-    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 /**
  * Persist credentials to disk.
@@ -37,10 +35,10 @@ export function loadCredentials(credsFile) {
  * would close the window but adds complexity for no practical gain.
  */
 export function saveCredentials(credsFile, appId, appSecret) {
-    const dir = join(getGlobalQwenDir(), 'channels');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(credsFile, JSON.stringify({ appId, appSecret }), {
-        mode: 0o600,
-    });
+  const dir = join(getGlobalQwenDir(), 'channels');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(credsFile, JSON.stringify({ appId, appSecret }), {
+    mode: 0o600,
+  });
 }
 //# sourceMappingURL=accounts.js.map

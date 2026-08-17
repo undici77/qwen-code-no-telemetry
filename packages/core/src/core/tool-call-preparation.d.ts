@@ -5,8 +5,13 @@
  */
 import type { GenerateContentResponse } from '@google/genai';
 export interface ToolCallPreparation {
-    callId: string;
-    toolName: string;
+  callId: string;
+  toolName: string;
 }
-export declare function setToolCallPreparations(response: GenerateContentResponse, preparations: readonly ToolCallPreparation[]): void;
-export declare function getToolCallPreparations(response: GenerateContentResponse): readonly ToolCallPreparation[];
+export declare function setToolCallPreparations(
+  response: GenerateContentResponse,
+  preparations: readonly ToolCallPreparation[],
+): void;
+export declare function getToolCallPreparations(
+  response: GenerateContentResponse,
+): readonly ToolCallPreparation[];

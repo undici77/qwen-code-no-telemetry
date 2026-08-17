@@ -23,27 +23,36 @@ import type { ToolInvocation, ToolResult } from './tools.js';
 import { BaseDeclarativeTool } from './tools.js';
 import type { Config } from '../config/config.js';
 export interface CreateSubSessionParams {
-    prompt: string;
-    completion?: 'sent' | 'first-turn';
-    model?: string;
-    name?: string;
+  prompt: string;
+  completion?: 'sent' | 'first-turn';
+  model?: string;
+  name?: string;
 }
 /** Ceiling on the delegated prompt. Mirrors the scheduled-task REST route's
  * `MAX_PROMPT_LENGTH`: both hand a model-authored prompt to a fresh session, so
  * they cap it the same way. Rejected here (a clear tool error the model can act
  * on) as well as at the bridge boundary, which cannot trust this side. */
 export declare const MAX_SUB_SESSION_PROMPT_CHARS = 100000;
-export declare class CreateSubSessionTool extends BaseDeclarativeTool<CreateSubSessionParams, ToolResult> {
-    private config;
-    static readonly Name: "create_sub_session";
-    constructor(config: Config);
-    protected createInvocation(params: CreateSubSessionParams): ToolInvocation<CreateSubSessionParams, ToolResult>;
-    protected validateToolParamValues(params: CreateSubSessionParams): string | null;
-    /**
-     * Surface the delegated prompt + mode to the AUTO classifier. The sub-session
-     * executes this prompt with tool access, so it must face the same scrutiny as
-     * a direct command — without this the classifier sees `create_sub_session({})`
-     * and is blind to what the sub-session will be asked to do.
-     */
-    toAutoClassifierInput(params: CreateSubSessionParams): Record<string, unknown>;
+export declare class CreateSubSessionTool extends BaseDeclarativeTool<
+  CreateSubSessionParams,
+  ToolResult
+> {
+  private config;
+  static readonly Name: 'create_sub_session';
+  constructor(config: Config);
+  protected createInvocation(
+    params: CreateSubSessionParams,
+  ): ToolInvocation<CreateSubSessionParams, ToolResult>;
+  protected validateToolParamValues(
+    params: CreateSubSessionParams,
+  ): string | null;
+  /**
+   * Surface the delegated prompt + mode to the AUTO classifier. The sub-session
+   * executes this prompt with tool access, so it must face the same scrutiny as
+   * a direct command — without this the classifier sees `create_sub_session({})`
+   * and is blind to what the sub-session will be asked to do.
+   */
+  toAutoClassifierInput(
+    params: CreateSubSessionParams,
+  ): Record<string, unknown>;
 }

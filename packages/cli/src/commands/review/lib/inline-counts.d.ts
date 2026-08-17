@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 /** The severity prefixes the skill mandates on every posted inline comment. */
-export declare const CRITICAL_PREFIX = "**[Critical]**";
-export declare const SUGGESTION_PREFIX = "**[Suggestion]**";
+export declare const CRITICAL_PREFIX = '**[Critical]**';
+export declare const SUGGESTION_PREFIX = '**[Suggestion]**';
 /** A drafted inline comment, as far as counting needs it. */
 export interface DraftedComment {
-    body?: unknown;
+  body?: unknown;
 }
 /**
  * Which severity marker a drafted comment opens with — or null for neither.
@@ -18,11 +18,15 @@ export interface DraftedComment {
  * bug-class this file's header describes; every caller classifies through
  * here so the two can never disagree about what "marked" means.
  */
-export declare function severityOf(c: DraftedComment): 'critical' | 'suggestion' | null;
+export declare function severityOf(
+  c: DraftedComment,
+): 'critical' | 'suggestion' | null;
 /** How many drafted comments open with each severity marker. */
-export declare function countInlineFindings(comments: readonly DraftedComment[]): {
-    criticalsInline: number;
-    suggestionsInline: number;
+export declare function countInlineFindings(
+  comments: readonly DraftedComment[],
+): {
+  criticalsInline: number;
+  suggestionsInline: number;
 };
 /**
  * The indices of drafted comments that open with NEITHER severity marker.
@@ -35,4 +39,6 @@ export declare function countInlineFindings(comments: readonly DraftedComment[])
  * a marker lost in that churn would otherwise reach the one boundary that
  * actually posts, and weigh zero there.
  */
-export declare function unmarkedComments(comments: readonly DraftedComment[]): number[];
+export declare function unmarkedComments(
+  comments: readonly DraftedComment[],
+): number[];

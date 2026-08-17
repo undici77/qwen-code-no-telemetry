@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface SecretMatch {
-    /** Rule ID that matched (e.g. "github-pat") */
-    ruleId: string;
-    /** Human-readable label derived from the rule ID */
-    label: string;
+  /** Rule ID that matched (e.g. "github-pat") */
+  ruleId: string;
+  /** Human-readable label derived from the rule ID */
+  label: string;
 }
 /**
  * Scan content for credential patterns. Returns one match per rule that fired

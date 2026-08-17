@@ -12,14 +12,16 @@ import type { Part, PartListUnion } from '@google/genai';
  * the file-level signal for edit protection (analogous to `source: auto-skill`
  * for auto-generated skills).
  */
-export declare const LEARNED_SKILL_DIR_PREFIX: "learned-skill-";
+export declare const LEARNED_SKILL_DIR_PREFIX: 'learned-skill-';
 export interface LearnVideoInput {
-    source: string;
-    focus?: string;
-    mimeType: string;
-    kind: 'local' | 'remote' | 'youtube';
+  source: string;
+  focus?: string;
+  mimeType: string;
+  kind: 'local' | 'remote' | 'youtube';
 }
-export declare function parseLearnVideoInput(rawInput: string): LearnVideoInput | null;
+export declare function parseLearnVideoInput(
+  rawInput: string,
+): LearnVideoInput | null;
 /**
  * Build a prompt that instructs the main model to create a skill from the
  * given knowledge source. Used by the `/learn` slash command via
@@ -27,5 +29,12 @@ export declare function parseLearnVideoInput(rawInput: string): LearnVideoInput 
  *
  * Enumerates existing skill directories so the model avoids name collisions.
  */
-export declare function buildLearnSkillPrompt(rawInput: string, projectRoot: string): Promise<string>;
-export declare function buildLearnVideoSkillRequest(video: LearnVideoInput, projectRoot: string, localVideoPart?: Part): Promise<PartListUnion>;
+export declare function buildLearnSkillPrompt(
+  rawInput: string,
+  projectRoot: string,
+): Promise<string>;
+export declare function buildLearnVideoSkillRequest(
+  video: LearnVideoInput,
+  projectRoot: string,
+  localVideoPart?: Part,
+): Promise<PartListUnion>;

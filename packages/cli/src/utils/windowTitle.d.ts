@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { StreamingState } from '../ui/types.js';
-export declare const DEFAULT_WINDOW_TITLE = "qwen";
+export declare const DEFAULT_WINDOW_TITLE = 'qwen';
 /** Strip control characters and BiDi/line-separator controls. */
 export declare function sanitizeWindowTitle(title: string): string;
 /**
@@ -32,7 +32,10 @@ export declare function computeWindowTitle(folderName?: string): string;
  * titles. Outside multiplexers, both OSC 0 (icon name + window title)
  * and OSC 2 are written for full terminal integration.
  */
-export declare function writeTerminalTitle(write: (value: string) => void, title: string): void;
+export declare function writeTerminalTitle(
+  write: (value: string) => void,
+  title: string,
+): void;
 /**
  * Formats the terminal window title based on session name and fallback, with
  * an optional leading status symbol (mirroring Claude Code's tab status
@@ -48,10 +51,16 @@ export declare function writeTerminalTitle(write: (value: string) => void, title
  *   with the title. Callers derive it from the streaming state.
  * @returns The formatted title string with control characters removed.
  */
-export declare function formatSessionWindowTitle(sessionName: string | null, folderName?: string, statusPrefix?: string): string;
+export declare function formatSessionWindowTitle(
+  sessionName: string | null,
+  folderName?: string,
+  statusPrefix?: string,
+): string;
 /**
  * Returns the leading status symbol for the window/tab title based on the
  * streaming state, mirroring Claude Code's tab status icons (◐ working,
  * ✳︎ awaiting confirmation). Idle gets no prefix.
  */
-export declare function titleStatusPrefix(streamingState: StreamingState): string;
+export declare function titleStatusPrefix(
+  streamingState: StreamingState,
+): string;

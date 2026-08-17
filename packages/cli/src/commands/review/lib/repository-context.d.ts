@@ -21,36 +21,36 @@ export declare const MAX_NOTE_LENGTH = 512;
  */
 export declare const MAX_IDENTITY_BYTES: number;
 export interface RepositoryContext {
-    version: typeof REPOSITORY_CONTEXT_VERSION;
-    provider: string;
-    label: string;
-    domains: string[];
-    relatedPaths: string[];
-    recommendedTests: string[];
-    requiredConfigurations: string[];
-    requiredAgents: RepositoryContextRoleId[];
-    unverifiedDimensions: string[];
-    verificationNotes: string[];
+  version: typeof REPOSITORY_CONTEXT_VERSION;
+  provider: string;
+  label: string;
+  domains: string[];
+  relatedPaths: string[];
+  recommendedTests: string[];
+  requiredConfigurations: string[];
+  requiredAgents: RepositoryContextRoleId[];
+  unverifiedDimensions: string[];
+  verificationNotes: string[];
 }
 export interface RepositoryContextPlan {
-    repositoryContext?: unknown;
+  repositoryContext?: unknown;
 }
 export interface RepositoryContextProviderInput {
-    worktree: string;
-    changedPaths: string[];
-    /**
-     * Read an identity file the provider keys on. The content is identical in
-     * every mode — CRLF normalised to LF, surrounding whitespace trimmed — so a
-     * provider that exact-compares a marker file gets the same value in a pull
-     * request review (read from the trusted merge base) and a local one (read
-     * from the worktree). `null` means the file is absent; a read failure
-     * THROWS, fail-closed, so a broken read cannot pose as "not this
-     * repository".
-     */
-    readIdentityFile(relativePath: string): string | null;
+  worktree: string;
+  changedPaths: string[];
+  /**
+   * Read an identity file the provider keys on. The content is identical in
+   * every mode — CRLF normalised to LF, surrounding whitespace trimmed — so a
+   * provider that exact-compares a marker file gets the same value in a pull
+   * request review (read from the trusted merge base) and a local one (read
+   * from the worktree). `null` means the file is absent; a read failure
+   * THROWS, fail-closed, so a broken read cannot pose as "not this
+   * repository".
+   */
+  readIdentityFile(relativePath: string): string | null;
 }
 export interface RepositoryContextProvider {
-    provide(input: RepositoryContextProviderInput): RepositoryContext | null;
+  provide(input: RepositoryContextProviderInput): RepositoryContext | null;
 }
 export declare function isControlFree(value: string): boolean;
 export declare function compareText(left: string, right: string): number;
@@ -61,9 +61,25 @@ export declare function isSafeRepositoryRelativePath(path: string): boolean;
  * manifest's own wording for manifest parsing), so one validator serves both
  * without their bounds drifting apart.
  */
-export declare function validateBoundedString(value: unknown, field: string, maxLength: number, prefix: string, pattern?: RegExp): asserts value is string;
+export declare function validateBoundedString(
+  value: unknown,
+  field: string,
+  maxLength: number,
+  prefix: string,
+  pattern?: RegExp,
+): asserts value is string;
 /** Item-shape half of {@link validateBoundedString}; ordering is the caller's. */
-export declare function validateBoundedStringArray(value: unknown, field: string, maxLength: number, prefix: string, pattern?: RegExp): asserts value is string[];
+export declare function validateBoundedStringArray(
+  value: unknown,
+  field: string,
+  maxLength: number,
+  prefix: string,
+  pattern?: RegExp,
+): asserts value is string[];
 /** Validate repository context before any downstream consumer trusts it. */
-export declare function validateRepositoryContext(value: unknown): RepositoryContext;
-export declare function repositoryContextOf(plan: RepositoryContextPlan): RepositoryContext | null;
+export declare function validateRepositoryContext(
+  value: unknown,
+): RepositoryContext;
+export declare function repositoryContextOf(
+  plan: RepositoryContextPlan,
+): RepositoryContext | null;

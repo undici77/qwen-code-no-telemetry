@@ -6,13 +6,16 @@
 import type { DaemonTranscriptBlock } from '@qwen-code/sdk/daemon';
 import type { DaemonMessage } from './messageTypes.js';
 interface TranscriptMessageLabels {
-    promptCancelled?: string;
-    branchSuccess?: (name: string) => string;
-    midTurnInserted?: (message: string) => string;
-    modelStreamInterrupted?: string;
+  promptCancelled?: string;
+  branchSuccess?: (name: string) => string;
+  midTurnInserted?: (message: string) => string;
+  modelStreamInterrupted?: string;
 }
 interface TranscriptMessageOptions {
-    labels?: TranscriptMessageLabels;
+  labels?: TranscriptMessageLabels;
 }
-export declare function transcriptBlocksToDaemonMessages(blocks: readonly DaemonTranscriptBlock[], options?: TranscriptMessageOptions): DaemonMessage[];
+export declare function transcriptBlocksToDaemonMessages(
+  blocks: readonly DaemonTranscriptBlock[],
+  options?: TranscriptMessageOptions,
+): DaemonMessage[];
 export {};

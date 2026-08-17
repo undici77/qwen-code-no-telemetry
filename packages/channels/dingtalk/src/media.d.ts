@@ -6,8 +6,8 @@
  * 2. GET the downloadUrl → arraybuffer
  */
 export interface MediaFile {
-    buffer: Buffer;
-    mimeType: string;
+  buffer: Buffer;
+  mimeType: string;
 }
 /**
  * Download a media file from DingTalk using a downloadCode.
@@ -17,4 +17,8 @@ export interface MediaFile {
  * @param accessToken - A valid DingTalk access token
  * @returns MediaFile with buffer and mimeType, or null on failure
  */
-export declare function downloadMedia(downloadCode: string, robotCode: string, accessToken: string): Promise<MediaFile | null>;
+export declare function downloadMedia(
+  downloadCode: string,
+  robotCode: string,
+  accessToken: string,
+): Promise<MediaFile | null>;

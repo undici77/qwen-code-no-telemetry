@@ -11,139 +11,147 @@
 import { mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { isSDKAssistantMessage, isSDKSystemMessage, isSDKResultMessage, } from '@qwen-code/sdk';
+import {
+  isSDKAssistantMessage,
+  isSDKSystemMessage,
+  isSDKResultMessage,
+} from '@qwen-code/sdk';
 /**
  * Helper class for SDK E2E tests
  * Provides isolated test environments for each test case
  */
 export class SDKTestHelper {
-    testDir = null;
-    testName;
-    baseDir;
-    constructor() {
-        this.baseDir = process.env['E2E_TEST_FILE_DIR'];
-        if (!this.baseDir) {
-            throw new Error('E2E_TEST_FILE_DIR environment variable not set');
-        }
+  testDir = null;
+  testName;
+  baseDir;
+  constructor() {
+    this.baseDir = process.env['E2E_TEST_FILE_DIR'];
+    if (!this.baseDir) {
+      throw new Error('E2E_TEST_FILE_DIR environment variable not set');
     }
-    /**
-     * Setup an isolated test directory for a specific test
-     */
-    async setup(testName, options = {}) {
-        this.testName = testName;
-        const sanitizedName = this.sanitizeTestName(testName);
-        this.testDir = join(this.baseDir, sanitizedName);
-        // Suites call setup() from beforeEach with a fixed name, so every case in a
-        // file lands in this same directory — and cleanup() below keeps it whenever
-        // KEEP_OUTPUT is set, which CI always sets. Without this reset one case's
-        // files stay visible to the next: a `.env` written by an earlier case made a
-        // later write fail the prior-read check instead of the permission check it
-        // was asserting, so the suite passed locally and failed only in CI.
+  }
+  /**
+   * Setup an isolated test directory for a specific test
+   */
+  async setup(testName, options = {}) {
+    this.testName = testName;
+    const sanitizedName = this.sanitizeTestName(testName);
+    this.testDir = join(this.baseDir, sanitizedName);
+    // Suites call setup() from beforeEach with a fixed name, so every case in a
+    // file lands in this same directory — and cleanup() below keeps it whenever
+    // KEEP_OUTPUT is set, which CI always sets. Without this reset one case's
+    // files stay visible to the next: a `.env` written by an earlier case made a
+    // later write fail the prior-read check instead of the permission check it
+    // was asserting, so the suite passed locally and failed only in CI.
+    await rm(this.testDir, { recursive: true, force: true });
+    await mkdir(this.testDir, { recursive: true });
+    // Optionally create .qwen/settings.json for CLI configuration
+    if (options.createQwenConfig !== false) {
+      const qwenDir = join(this.testDir, '.qwen');
+      await mkdir(qwenDir, { recursive: true });
+      const optionsSettings = options.settings ?? {};
+      const generalSettings =
+        typeof optionsSettings['general'] === 'object' &&
+        optionsSettings['general'] !== null
+          ? optionsSettings['general']
+          : {};
+      const settings = {
+        ...optionsSettings,
+        telemetry: {
+          enabled: false, // SDK tests don't need telemetry
+        },
+        general: {
+          ...generalSettings,
+          // Default to disabling chat recording unless explicitly enabled
+          ...(options.chatRecording !== true ? { chatRecording: false } : {}),
+        },
+      };
+      await writeFile(
+        join(qwenDir, 'settings.json'),
+        JSON.stringify(settings, null, 2),
+        'utf-8',
+      );
+    }
+    return this.testDir;
+  }
+  /**
+   * Create a file in the test directory
+   */
+  async createFile(fileName, content) {
+    if (!this.testDir) {
+      throw new Error('Test directory not initialized. Call setup() first.');
+    }
+    const filePath = join(this.testDir, fileName);
+    // Ensure parent directories exist before writing the file
+    const parentDir = dirname(filePath);
+    await mkdir(parentDir, { recursive: true });
+    await writeFile(filePath, content, 'utf-8');
+    return filePath;
+  }
+  /**
+   * Read a file from the test directory
+   */
+  async readFile(fileName) {
+    if (!this.testDir) {
+      throw new Error('Test directory not initialized. Call setup() first.');
+    }
+    const filePath = join(this.testDir, fileName);
+    return await readFile(filePath, 'utf-8');
+  }
+  /**
+   * Create a subdirectory in the test directory
+   */
+  async mkdir(dirName) {
+    if (!this.testDir) {
+      throw new Error('Test directory not initialized. Call setup() first.');
+    }
+    const dirPath = join(this.testDir, dirName);
+    await mkdir(dirPath, { recursive: true });
+    return dirPath;
+  }
+  /**
+   * Check if a file exists in the test directory
+   */
+  fileExists(fileName) {
+    if (!this.testDir) {
+      throw new Error('Test directory not initialized. Call setup() first.');
+    }
+    const filePath = join(this.testDir, fileName);
+    return existsSync(filePath);
+  }
+  /**
+   * Get the full path to a file in the test directory
+   */
+  getPath(fileName) {
+    if (!this.testDir) {
+      throw new Error('Test directory not initialized. Call setup() first.');
+    }
+    return join(this.testDir, fileName);
+  }
+  /**
+   * Cleanup test directory
+   */
+  async cleanup() {
+    if (this.testDir && process.env['KEEP_OUTPUT'] !== 'true') {
+      try {
         await rm(this.testDir, { recursive: true, force: true });
-        await mkdir(this.testDir, { recursive: true });
-        // Optionally create .qwen/settings.json for CLI configuration
-        if (options.createQwenConfig !== false) {
-            const qwenDir = join(this.testDir, '.qwen');
-            await mkdir(qwenDir, { recursive: true });
-            const optionsSettings = options.settings ?? {};
-            const generalSettings = typeof optionsSettings['general'] === 'object' &&
-                optionsSettings['general'] !== null
-                ? optionsSettings['general']
-                : {};
-            const settings = {
-                ...optionsSettings,
-                telemetry: {
-                    enabled: false, // SDK tests don't need telemetry
-                },
-                general: {
-                    ...generalSettings,
-                    // Default to disabling chat recording unless explicitly enabled
-                    ...(options.chatRecording !== true ? { chatRecording: false } : {}),
-                },
-            };
-            await writeFile(join(qwenDir, 'settings.json'), JSON.stringify(settings, null, 2), 'utf-8');
+      } catch (error) {
+        if (process.env['VERBOSE'] === 'true') {
+          console.warn('Cleanup warning:', error.message);
         }
-        return this.testDir;
+      }
     }
-    /**
-     * Create a file in the test directory
-     */
-    async createFile(fileName, content) {
-        if (!this.testDir) {
-            throw new Error('Test directory not initialized. Call setup() first.');
-        }
-        const filePath = join(this.testDir, fileName);
-        // Ensure parent directories exist before writing the file
-        const parentDir = dirname(filePath);
-        await mkdir(parentDir, { recursive: true });
-        await writeFile(filePath, content, 'utf-8');
-        return filePath;
-    }
-    /**
-     * Read a file from the test directory
-     */
-    async readFile(fileName) {
-        if (!this.testDir) {
-            throw new Error('Test directory not initialized. Call setup() first.');
-        }
-        const filePath = join(this.testDir, fileName);
-        return await readFile(filePath, 'utf-8');
-    }
-    /**
-     * Create a subdirectory in the test directory
-     */
-    async mkdir(dirName) {
-        if (!this.testDir) {
-            throw new Error('Test directory not initialized. Call setup() first.');
-        }
-        const dirPath = join(this.testDir, dirName);
-        await mkdir(dirPath, { recursive: true });
-        return dirPath;
-    }
-    /**
-     * Check if a file exists in the test directory
-     */
-    fileExists(fileName) {
-        if (!this.testDir) {
-            throw new Error('Test directory not initialized. Call setup() first.');
-        }
-        const filePath = join(this.testDir, fileName);
-        return existsSync(filePath);
-    }
-    /**
-     * Get the full path to a file in the test directory
-     */
-    getPath(fileName) {
-        if (!this.testDir) {
-            throw new Error('Test directory not initialized. Call setup() first.');
-        }
-        return join(this.testDir, fileName);
-    }
-    /**
-     * Cleanup test directory
-     */
-    async cleanup() {
-        if (this.testDir && process.env['KEEP_OUTPUT'] !== 'true') {
-            try {
-                await rm(this.testDir, { recursive: true, force: true });
-            }
-            catch (error) {
-                if (process.env['VERBOSE'] === 'true') {
-                    console.warn('Cleanup warning:', error.message);
-                }
-            }
-        }
-    }
-    /**
-     * Sanitize test name to create valid directory name
-     */
-    sanitizeTestName(name) {
-        return name
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-')
-            .substring(0, 100); // Limit length
-    }
+  }
+  /**
+   * Sanitize test name to create valid directory name
+   */
+  sanitizeTestName(name) {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .substring(0, 100); // Limit length
+  }
 }
 /**
  * Built-in MCP server template: Math server with add and multiply tools
@@ -328,27 +336,32 @@ rpc.send({
  * @param customScript - Custom MCP server script (if type is not 'math')
  * @returns Object with scriptPath and config
  */
-export async function createMCPServer(helper, type = 'math', serverName = 'test-math-server', customScript) {
-    if (!helper.testDir) {
-        throw new Error('Test directory not initialized. Call setup() first.');
-    }
-    const script = type === 'math' ? MCP_MATH_SERVER_SCRIPT : customScript;
-    if (!script) {
-        throw new Error('Custom script required when type is "custom"');
-    }
-    const scriptPath = join(helper.testDir, `${serverName}.cjs`);
-    await writeFile(scriptPath, script, 'utf-8');
-    // Make script executable on Unix-like systems
-    if (process.platform !== 'win32') {
-        await chmod(scriptPath, 0o755);
-    }
-    return {
-        scriptPath,
-        config: {
-            command: 'node',
-            args: [scriptPath],
-        },
-    };
+export async function createMCPServer(
+  helper,
+  type = 'math',
+  serverName = 'test-math-server',
+  customScript,
+) {
+  if (!helper.testDir) {
+    throw new Error('Test directory not initialized. Call setup() first.');
+  }
+  const script = type === 'math' ? MCP_MATH_SERVER_SCRIPT : customScript;
+  if (!script) {
+    throw new Error('Custom script required when type is "custom"');
+  }
+  const scriptPath = join(helper.testDir, `${serverName}.cjs`);
+  await writeFile(scriptPath, script, 'utf-8');
+  // Make script executable on Unix-like systems
+  if (process.platform !== 'win32') {
+    await chmod(scriptPath, 0o755);
+  }
+  return {
+    scriptPath,
+    config: {
+      command: 'node',
+      args: [scriptPath],
+    },
+  };
 }
 // ============================================================================
 // Message & Content Utilities
@@ -357,263 +370,262 @@ export async function createMCPServer(helper, type = 'math', serverName = 'test-
  * Extract text from ContentBlock array
  */
 export function extractText(content) {
-    return content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text)
-        .join('');
+  return content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('');
 }
 /**
  * Collect messages by type
  */
 export function collectMessagesByType(messages, predicate) {
-    return messages.filter(predicate);
+  return messages.filter(predicate);
 }
 /**
  * Find tool use blocks in a message
  */
 export function findToolUseBlocks(message, toolName) {
-    const toolUseBlocks = message.message.content.filter((block) => block.type === 'tool_use');
-    if (toolName) {
-        return toolUseBlocks.filter((block) => block.name === toolName);
-    }
-    return toolUseBlocks;
+  const toolUseBlocks = message.message.content.filter(
+    (block) => block.type === 'tool_use',
+  );
+  if (toolName) {
+    return toolUseBlocks.filter((block) => block.name === toolName);
+  }
+  return toolUseBlocks;
 }
 /**
  * Extract all assistant text from messages
  */
 export function getAssistantText(messages) {
-    return messages
-        .filter(isSDKAssistantMessage)
-        .map((msg) => extractText(msg.message.content))
-        .join('');
+  return messages
+    .filter(isSDKAssistantMessage)
+    .map((msg) => extractText(msg.message.content))
+    .join('');
 }
 /**
  * Find system message with optional subtype filter
  */
 export function findSystemMessage(messages, subtype) {
-    const systemMessages = messages.filter(isSDKSystemMessage);
-    if (subtype) {
-        return systemMessages.find((msg) => msg.subtype === subtype) || null;
-    }
-    return systemMessages[0] || null;
+  const systemMessages = messages.filter(isSDKSystemMessage);
+  if (subtype) {
+    return systemMessages.find((msg) => msg.subtype === subtype) || null;
+  }
+  return systemMessages[0] || null;
 }
 /**
  * Find all tool calls in messages
  */
 export function findToolCalls(messages, toolName) {
-    const results = [];
-    for (const message of messages) {
-        if (isSDKAssistantMessage(message)) {
-            const toolUseBlocks = findToolUseBlocks(message, toolName);
-            for (const toolUse of toolUseBlocks) {
-                results.push({ message, toolUse });
-            }
-        }
+  const results = [];
+  for (const message of messages) {
+    if (isSDKAssistantMessage(message)) {
+      const toolUseBlocks = findToolUseBlocks(message, toolName);
+      for (const toolUse of toolUseBlocks) {
+        results.push({ message, toolUse });
+      }
     }
-    return results;
+  }
+  return results;
 }
 /**
  * Find tool result for a specific tool use ID
  */
 export function findToolResult(messages, toolUseId) {
-    for (const message of messages) {
-        if (message.type === 'user' && 'message' in message) {
-            const userMsg = message;
-            const content = userMsg.message.content;
-            if (Array.isArray(content)) {
-                for (const block of content) {
-                    if (block.type === 'tool_result' &&
-                        block.tool_use_id === toolUseId) {
-                        const resultBlock = block;
-                        let resultContent = '';
-                        if (typeof resultBlock.content === 'string') {
-                            resultContent = resultBlock.content;
-                        }
-                        else if (Array.isArray(resultBlock.content)) {
-                            resultContent = resultBlock.content
-                                .filter((b) => b.type === 'text')
-                                .map((b) => b.text)
-                                .join('');
-                        }
-                        return {
-                            content: resultContent,
-                            isError: resultBlock.is_error ?? false,
-                        };
-                    }
-                }
+  for (const message of messages) {
+    if (message.type === 'user' && 'message' in message) {
+      const userMsg = message;
+      const content = userMsg.message.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'tool_result' && block.tool_use_id === toolUseId) {
+            const resultBlock = block;
+            let resultContent = '';
+            if (typeof resultBlock.content === 'string') {
+              resultContent = resultBlock.content;
+            } else if (Array.isArray(resultBlock.content)) {
+              resultContent = resultBlock.content
+                .filter((b) => b.type === 'text')
+                .map((b) => b.text)
+                .join('');
             }
+            return {
+              content: resultContent,
+              isError: resultBlock.is_error ?? false,
+            };
+          }
         }
+      }
     }
-    return null;
+  }
+  return null;
 }
 /**
  * Find all tool results for a specific tool name
  */
 export function findToolResults(messages, toolName) {
-    const results = [];
-    // First find all tool calls for this tool
-    const toolCalls = findToolCalls(messages, toolName);
-    // Then find the result for each tool call
-    for (const { toolUse } of toolCalls) {
-        const result = findToolResult(messages, toolUse.id);
-        if (result) {
-            results.push({
-                toolUseId: toolUse.id,
-                content: result.content,
-                isError: result.isError,
-            });
-        }
+  const results = [];
+  // First find all tool calls for this tool
+  const toolCalls = findToolCalls(messages, toolName);
+  // Then find the result for each tool call
+  for (const { toolUse } of toolCalls) {
+    const result = findToolResult(messages, toolUse.id);
+    if (result) {
+      results.push({
+        toolUseId: toolUse.id,
+        content: result.content,
+        isError: result.isError,
+      });
     }
-    return results;
+  }
+  return results;
 }
 /**
  * Find all tool result blocks from messages (without requiring tool name)
  */
 export function findAllToolResultBlocks(messages) {
-    const results = [];
-    for (const message of messages) {
-        if (message.type === 'user' && 'message' in message) {
-            const userMsg = message;
-            const content = userMsg.message.content;
-            if (Array.isArray(content)) {
-                for (const block of content) {
-                    if (block.type === 'tool_result' && 'tool_use_id' in block) {
-                        const resultBlock = block;
-                        let resultContent = '';
-                        if (typeof resultBlock.content === 'string') {
-                            resultContent = resultBlock.content;
-                        }
-                        else if (Array.isArray(resultBlock.content)) {
-                            resultContent = resultBlock.content
-                                .filter((b) => b.type === 'text')
-                                .map((b) => b.text)
-                                .join('');
-                        }
-                        results.push({
-                            toolUseId: resultBlock.tool_use_id,
-                            content: resultContent,
-                            isError: resultBlock.is_error ?? false,
-                        });
-                    }
-                }
+  const results = [];
+  for (const message of messages) {
+    if (message.type === 'user' && 'message' in message) {
+      const userMsg = message;
+      const content = userMsg.message.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === 'tool_result' && 'tool_use_id' in block) {
+            const resultBlock = block;
+            let resultContent = '';
+            if (typeof resultBlock.content === 'string') {
+              resultContent = resultBlock.content;
+            } else if (Array.isArray(resultBlock.content)) {
+              resultContent = resultBlock.content
+                .filter((b) => b.type === 'text')
+                .map((b) => b.text)
+                .join('');
             }
+            results.push({
+              toolUseId: resultBlock.tool_use_id,
+              content: resultContent,
+              isError: resultBlock.is_error ?? false,
+            });
+          }
         }
+      }
     }
-    return results;
+  }
+  return results;
 }
 /**
  * Check if any tool results exist in messages
  */
 export function hasAnyToolResults(messages) {
-    return findAllToolResultBlocks(messages).length > 0;
+  return findAllToolResultBlocks(messages).length > 0;
 }
 /**
  * Check if any successful (non-error) tool results exist
  */
 export function hasSuccessfulToolResults(messages) {
-    return findAllToolResultBlocks(messages).some((r) => !r.isError);
+  return findAllToolResultBlocks(messages).some((r) => !r.isError);
 }
 /**
  * Check if any error tool results exist
  */
 export function hasErrorToolResults(messages) {
-    return findAllToolResultBlocks(messages).some((r) => r.isError);
+  return findAllToolResultBlocks(messages).some((r) => r.isError);
 }
 // ============================================================================
 // Streaming Input Utilities
 // ============================================================================
 export function createResultWaiter(expectedResults) {
-    const resolvers = [];
-    const promises = Array.from({ length: expectedResults }, () => {
-        return new Promise((resolve) => {
-            resolvers.push(resolve);
-        });
+  const resolvers = [];
+  const promises = Array.from({ length: expectedResults }, () => {
+    return new Promise((resolve) => {
+      resolvers.push(resolve);
     });
-    let resolvedCount = 0;
-    return {
-        waitForResult: (index) => promises[index],
-        notifyResult: () => {
-            if (resolvedCount < resolvers.length) {
-                resolvers[resolvedCount]?.();
-                resolvedCount += 1;
-            }
-        },
-    };
+  });
+  let resolvedCount = 0;
+  return {
+    waitForResult: (index) => promises[index],
+    notifyResult: () => {
+      if (resolvedCount < resolvers.length) {
+        resolvers[resolvedCount]?.();
+        resolvedCount += 1;
+      }
+    },
+  };
 }
 /**
  * Create a simple streaming input from an array of message contents
  */
 export async function* createStreamingInput(messageContents, sessionId) {
-    const sid = sessionId || crypto.randomUUID();
-    for (const content of messageContents) {
-        yield {
-            type: 'user',
-            session_id: sid,
-            message: {
-                role: 'user',
-                content: content,
-            },
-            parent_tool_use_id: null,
-        };
-        // Small delay between messages
-        await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+  const sid = sessionId || crypto.randomUUID();
+  for (const content of messageContents) {
+    yield {
+      type: 'user',
+      session_id: sid,
+      message: {
+        role: 'user',
+        content: content,
+      },
+      parent_tool_use_id: null,
+    };
+    // Small delay between messages
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 /**
  * Create a controlled streaming input with pause/resume capability
  */
 export function createControlledStreamingInput(messageContents, sessionId) {
-    const sid = sessionId || crypto.randomUUID();
-    const resumeResolvers = [];
-    const resumePromises = [];
-    // Create a resume promise for each message after the first
-    for (let i = 1; i < messageContents.length; i++) {
-        const promise = new Promise((resolve) => {
-            resumeResolvers.push(resolve);
-        });
-        resumePromises.push(promise);
-    }
-    const generator = (async function* () {
-        // Yield first message immediately
-        yield {
-            type: 'user',
-            session_id: sid,
-            message: {
-                role: 'user',
-                content: messageContents[0],
-            },
-            parent_tool_use_id: null,
-        };
-        // For subsequent messages, wait for resume
-        for (let i = 1; i < messageContents.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            await resumePromises[i - 1];
-            await new Promise((resolve) => setTimeout(resolve, 200));
-            yield {
-                type: 'user',
-                session_id: sid,
-                message: {
-                    role: 'user',
-                    content: messageContents[i],
-                },
-                parent_tool_use_id: null,
-            };
-        }
-    })();
-    let currentResumeIndex = 0;
-    return {
-        generator,
-        resume: () => {
-            if (currentResumeIndex < resumeResolvers.length) {
-                resumeResolvers[currentResumeIndex]();
-                currentResumeIndex++;
-            }
-        },
-        resumeAll: () => {
-            resumeResolvers.forEach((resolve) => resolve());
-            currentResumeIndex = resumeResolvers.length;
-        },
+  const sid = sessionId || crypto.randomUUID();
+  const resumeResolvers = [];
+  const resumePromises = [];
+  // Create a resume promise for each message after the first
+  for (let i = 1; i < messageContents.length; i++) {
+    const promise = new Promise((resolve) => {
+      resumeResolvers.push(resolve);
+    });
+    resumePromises.push(promise);
+  }
+  const generator = (async function* () {
+    // Yield first message immediately
+    yield {
+      type: 'user',
+      session_id: sid,
+      message: {
+        role: 'user',
+        content: messageContents[0],
+      },
+      parent_tool_use_id: null,
     };
+    // For subsequent messages, wait for resume
+    for (let i = 1; i < messageContents.length; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await resumePromises[i - 1];
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      yield {
+        type: 'user',
+        session_id: sid,
+        message: {
+          role: 'user',
+          content: messageContents[i],
+        },
+        parent_tool_use_id: null,
+      };
+    }
+  })();
+  let currentResumeIndex = 0;
+  return {
+    generator,
+    resume: () => {
+      if (currentResumeIndex < resumeResolvers.length) {
+        resumeResolvers[currentResumeIndex]();
+        currentResumeIndex++;
+      }
+    },
+    resumeAll: () => {
+      resumeResolvers.forEach((resolve) => resolve());
+      currentResumeIndex = resumeResolvers.length;
+    },
+  };
 }
 // ============================================================================
 // Assertion Utilities
@@ -622,53 +634,67 @@ export function createControlledStreamingInput(messageContents, sessionId) {
  * Assert that messages follow expected type sequence
  */
 export function assertMessageSequence(messages, expectedTypes) {
-    const actualTypes = messages.map((msg) => msg.type);
-    if (actualTypes.length < expectedTypes.length) {
-        throw new Error(`Expected at least ${expectedTypes.length} messages, got ${actualTypes.length}`);
+  const actualTypes = messages.map((msg) => msg.type);
+  if (actualTypes.length < expectedTypes.length) {
+    throw new Error(
+      `Expected at least ${expectedTypes.length} messages, got ${actualTypes.length}`,
+    );
+  }
+  for (let i = 0; i < expectedTypes.length; i++) {
+    if (actualTypes[i] !== expectedTypes[i]) {
+      throw new Error(
+        `Expected message ${i} to be type '${expectedTypes[i]}', got '${actualTypes[i]}'`,
+      );
     }
-    for (let i = 0; i < expectedTypes.length; i++) {
-        if (actualTypes[i] !== expectedTypes[i]) {
-            throw new Error(`Expected message ${i} to be type '${expectedTypes[i]}', got '${actualTypes[i]}'`);
-        }
-    }
+  }
 }
 /**
  * Assert that a specific tool was called
  */
 export function assertToolCalled(messages, toolName) {
-    const toolCalls = findToolCalls(messages, toolName);
-    if (toolCalls.length === 0) {
-        const allToolCalls = findToolCalls(messages);
-        const allToolNames = allToolCalls.map((tc) => tc.toolUse.name);
-        throw new Error(`Expected tool '${toolName}' to be called. Found tools: ${allToolNames.length > 0 ? allToolNames.join(', ') : 'none'}`);
-    }
+  const toolCalls = findToolCalls(messages, toolName);
+  if (toolCalls.length === 0) {
+    const allToolCalls = findToolCalls(messages);
+    const allToolNames = allToolCalls.map((tc) => tc.toolUse.name);
+    throw new Error(
+      `Expected tool '${toolName}' to be called. Found tools: ${allToolNames.length > 0 ? allToolNames.join(', ') : 'none'}`,
+    );
+  }
 }
 /**
  * Assert that the conversation completed successfully
  */
 export function assertSuccessfulCompletion(messages) {
-    const lastMessage = messages[messages.length - 1];
-    if (!isSDKResultMessage(lastMessage)) {
-        throw new Error(`Expected last message to be a result message, got '${lastMessage.type}'`);
-    }
-    if (lastMessage.subtype !== 'success') {
-        throw new Error(`Expected successful completion, got result subtype '${lastMessage.subtype}'`);
-    }
+  const lastMessage = messages[messages.length - 1];
+  if (!isSDKResultMessage(lastMessage)) {
+    throw new Error(
+      `Expected last message to be a result message, got '${lastMessage.type}'`,
+    );
+  }
+  if (lastMessage.subtype !== 'success') {
+    throw new Error(
+      `Expected successful completion, got result subtype '${lastMessage.subtype}'`,
+    );
+  }
 }
 /**
  * Wait for a condition to be true with timeout
  */
 export async function waitFor(predicate, options = {}) {
-    const { timeout = 5000, interval = 100, errorMessage = 'Condition not met within timeout', } = options;
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeout) {
-        const result = await predicate();
-        if (result) {
-            return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, interval));
+  const {
+    timeout = 5000,
+    interval = 100,
+    errorMessage = 'Condition not met within timeout',
+  } = options;
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    const result = await predicate();
+    if (result) {
+      return;
     }
-    throw new Error(errorMessage);
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  throw new Error(errorMessage);
 }
 // ============================================================================
 // Debug and Validation Utilities
@@ -677,74 +703,96 @@ export async function waitFor(predicate, options = {}) {
  * Validate model output and warn about unexpected content
  * Inspired by integration-tests test-helper
  */
-export function validateModelOutput(result, expectedContent = null, testName = '') {
-    // First, check if there's any output at all
-    if (!result || result.trim().length === 0) {
-        throw new Error('Expected model to return some output');
-    }
-    // If expectedContent is provided, check for it and warn if missing
-    if (expectedContent) {
-        const contents = Array.isArray(expectedContent)
-            ? expectedContent
-            : [expectedContent];
-        const missingContent = contents.filter((content) => {
-            if (typeof content === 'string') {
-                return !result.toLowerCase().includes(content.toLowerCase());
-            }
-            else if (content instanceof RegExp) {
-                return !content.test(result);
-            }
-            return false;
-        });
-        if (missingContent.length > 0) {
-            console.warn(`Warning: Model did not include expected content in response: ${missingContent.join(', ')}.`, 'This is not ideal but not a test failure.');
-            console.warn('The tool was called successfully, which is the main requirement.');
-            return false;
-        }
-        else if (process.env['VERBOSE'] === 'true') {
-            console.log(`${testName}: Model output validated successfully.`);
-        }
-        return true;
+export function validateModelOutput(
+  result,
+  expectedContent = null,
+  testName = '',
+) {
+  // First, check if there's any output at all
+  if (!result || result.trim().length === 0) {
+    throw new Error('Expected model to return some output');
+  }
+  // If expectedContent is provided, check for it and warn if missing
+  if (expectedContent) {
+    const contents = Array.isArray(expectedContent)
+      ? expectedContent
+      : [expectedContent];
+    const missingContent = contents.filter((content) => {
+      if (typeof content === 'string') {
+        return !result.toLowerCase().includes(content.toLowerCase());
+      } else if (content instanceof RegExp) {
+        return !content.test(result);
+      }
+      return false;
+    });
+    if (missingContent.length > 0) {
+      console.warn(
+        `Warning: Model did not include expected content in response: ${missingContent.join(', ')}.`,
+        'This is not ideal but not a test failure.',
+      );
+      console.warn(
+        'The tool was called successfully, which is the main requirement.',
+      );
+      return false;
+    } else if (process.env['VERBOSE'] === 'true') {
+      console.log(`${testName}: Model output validated successfully.`);
     }
     return true;
+  }
+  return true;
 }
 /**
  * Print debug information when tests fail
  */
 export function printDebugInfo(messages, context = {}) {
-    console.error('Test failed - Debug info:');
-    console.error('Message count:', messages.length);
-    // Print message types
-    const messageTypes = messages.map((m) => m.type);
-    console.error('Message types:', messageTypes.join(', '));
-    // Print assistant text
-    const assistantText = getAssistantText(messages);
-    console.error('Assistant text (first 500 chars):', assistantText.substring(0, 500));
-    if (assistantText.length > 500) {
-        console.error('Assistant text (last 500 chars):', assistantText.substring(assistantText.length - 500));
-    }
-    // Print tool calls
-    const toolCalls = findToolCalls(messages);
-    console.error('Tool calls found:', toolCalls.map((tc) => tc.toolUse.name));
-    // Print any additional context provided
-    Object.entries(context).forEach(([key, value]) => {
-        console.error(`${key}:`, value);
-    });
+  console.error('Test failed - Debug info:');
+  console.error('Message count:', messages.length);
+  // Print message types
+  const messageTypes = messages.map((m) => m.type);
+  console.error('Message types:', messageTypes.join(', '));
+  // Print assistant text
+  const assistantText = getAssistantText(messages);
+  console.error(
+    'Assistant text (first 500 chars):',
+    assistantText.substring(0, 500),
+  );
+  if (assistantText.length > 500) {
+    console.error(
+      'Assistant text (last 500 chars):',
+      assistantText.substring(assistantText.length - 500),
+    );
+  }
+  // Print tool calls
+  const toolCalls = findToolCalls(messages);
+  console.error(
+    'Tool calls found:',
+    toolCalls.map((tc) => tc.toolUse.name),
+  );
+  // Print any additional context provided
+  Object.entries(context).forEach(([key, value]) => {
+    console.error(`${key}:`, value);
+  });
 }
 /**
  * Create detailed error message for tool call expectations
  */
-export function createToolCallErrorMessage(expectedTools, foundTools, messages) {
-    const expectedStr = Array.isArray(expectedTools)
-        ? expectedTools.join(' or ')
-        : expectedTools;
-    const assistantText = getAssistantText(messages);
-    const preview = assistantText
-        ? assistantText.substring(0, 200) + '...'
-        : 'no output';
-    return (`Expected to find ${expectedStr} tool call(s). ` +
-        `Found: ${foundTools.length > 0 ? foundTools.join(', ') : 'none'}. ` +
-        `Output preview: ${preview}`);
+export function createToolCallErrorMessage(
+  expectedTools,
+  foundTools,
+  messages,
+) {
+  const expectedStr = Array.isArray(expectedTools)
+    ? expectedTools.join(' or ')
+    : expectedTools;
+  const assistantText = getAssistantText(messages);
+  const preview = assistantText
+    ? assistantText.substring(0, 200) + '...'
+    : 'no output';
+  return (
+    `Expected to find ${expectedStr} tool call(s). ` +
+    `Found: ${foundTools.length > 0 ? foundTools.join(', ') : 'none'}. ` +
+    `Output preview: ${preview}`
+  );
 }
 // ============================================================================
 // Shared Test Options Helper
@@ -753,13 +801,13 @@ export function createToolCallErrorMessage(expectedTools, foundTools, messages) 
  * Create shared test options with CLI path
  */
 export function createSharedTestOptions(overrides = {}) {
-    const TEST_CLI_PATH = process.env['TEST_CLI_PATH'];
-    if (!TEST_CLI_PATH) {
-        throw new Error('TEST_CLI_PATH environment variable not set');
-    }
-    return {
-        pathToQwenExecutable: TEST_CLI_PATH,
-        ...overrides,
-    };
+  const TEST_CLI_PATH = process.env['TEST_CLI_PATH'];
+  if (!TEST_CLI_PATH) {
+    throw new Error('TEST_CLI_PATH environment variable not set');
+  }
+  return {
+    pathToQwenExecutable: TEST_CLI_PATH,
+    ...overrides,
+  };
 }
 //# sourceMappingURL=test-helper.js.map

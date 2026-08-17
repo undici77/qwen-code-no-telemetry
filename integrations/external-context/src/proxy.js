@@ -6,13 +6,14 @@
 import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 import { ConfigurationError } from './config.js';
 export function installEnvironmentProxy() {
-    try {
-        const dispatcher = new EnvHttpProxyAgent();
-        setGlobalDispatcher(dispatcher);
-        return dispatcher;
-    }
-    catch {
-        throw new ConfigurationError('Proxy environment configuration is invalid. Check HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.');
-    }
+  try {
+    const dispatcher = new EnvHttpProxyAgent();
+    setGlobalDispatcher(dispatcher);
+    return dispatcher;
+  } catch {
+    throw new ConfigurationError(
+      'Proxy environment configuration is invalid. Check HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.',
+    );
+  }
 }
 //# sourceMappingURL=proxy.js.map

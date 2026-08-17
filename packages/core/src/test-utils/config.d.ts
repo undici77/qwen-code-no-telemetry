@@ -14,4 +14,6 @@ export declare const DEFAULT_CONFIG_PARAMETERS: ConfigParameters;
  * {@link DEFAULT_CONFIG_PARAMETERS}, optionally, fields can be specified to
  * override those defaults.
  */
-export declare function makeFakeConfig(config?: Partial<ConfigParameters>): Config;
+export declare function makeFakeConfig(
+  config?: Partial<ConfigParameters>,
+): Config;

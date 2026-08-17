@@ -12,33 +12,33 @@
  * `<chatsDir>/<sessionId>.worktree.json`.
  */
 export interface WorktreeSession {
-    slug: string;
-    worktreePath: string;
-    worktreeBranch: string;
-    /**
-     * The repo top-level (output of `GitWorktreeService.getRepoTopLevel()`)
-     * captured when the worktree was created — NOT the user's launch cwd.
-     *
-     * Named `originalCwd` for on-disk back-compat with sidecars written
-     * by earlier Phase C builds; semantically this is the value to pass
-     * back to `new GitWorktreeService(...)` for any subsequent cleanup
-     * (e.g. `handleWorktreeExit`'s remove path), because the worktree
-     * always lives under `<repoTopLevel>/.qwen/worktrees/`. When the
-     * CLI is launched from a monorepo subdirectory, `process.cwd()` and
-     * `getRepoTopLevel()` differ — this field stores the latter.
-     *
-     * Consumers expecting `process.cwd()` semantics should NOT use this
-     * field; capture cwd separately at the time of need.
-     */
-    originalCwd: string;
-    originalBranch: string;
-    /**
-     * HEAD commit SHA captured at the moment the worktree was created.
-     * Used by `WorktreeExitDialog` to count new commits inside the worktree.
-     * Empty string when capture failed (rev-parse error) — consumers must
-     * treat empty as "unknown" and skip the commit-count display.
-     */
-    originalHeadCommit: string;
+  slug: string;
+  worktreePath: string;
+  worktreeBranch: string;
+  /**
+   * The repo top-level (output of `GitWorktreeService.getRepoTopLevel()`)
+   * captured when the worktree was created — NOT the user's launch cwd.
+   *
+   * Named `originalCwd` for on-disk back-compat with sidecars written
+   * by earlier Phase C builds; semantically this is the value to pass
+   * back to `new GitWorktreeService(...)` for any subsequent cleanup
+   * (e.g. `handleWorktreeExit`'s remove path), because the worktree
+   * always lives under `<repoTopLevel>/.qwen/worktrees/`. When the
+   * CLI is launched from a monorepo subdirectory, `process.cwd()` and
+   * `getRepoTopLevel()` differ — this field stores the latter.
+   *
+   * Consumers expecting `process.cwd()` semantics should NOT use this
+   * field; capture cwd separately at the time of need.
+   */
+  originalCwd: string;
+  originalBranch: string;
+  /**
+   * HEAD commit SHA captured at the moment the worktree was created.
+   * Used by `WorktreeExitDialog` to count new commits inside the worktree.
+   * Empty string when capture failed (rev-parse error) — consumers must
+   * treat empty as "unknown" and skip the commit-count display.
+   */
+  originalHeadCommit: string;
 }
 /**
  * Read the sidecar. Returns null when:
@@ -55,27 +55,36 @@ export interface WorktreeSession {
  * caller can log them; benign ENOENT / parse failures are silenced into
  * a null return.
  */
-export declare function readWorktreeSession(filePath: string, options?: {
+export declare function readWorktreeSession(
+  filePath: string,
+  options?: {
     signal?: AbortSignal;
-}): Promise<WorktreeSession | null>;
+  },
+): Promise<WorktreeSession | null>;
 /** Writes the worktree session sidecar via `atomicWriteJSON`. */
-export declare function writeWorktreeSession(filePath: string, session: WorktreeSession): Promise<void>;
+export declare function writeWorktreeSession(
+  filePath: string,
+  session: WorktreeSession,
+): Promise<void>;
 export declare function clearWorktreeSession(filePath: string): Promise<void>;
-export declare function isSessionRuntimeActive(sessionId: string, projectRoots: string | readonly string[]): Promise<boolean>;
+export declare function isSessionRuntimeActive(
+  sessionId: string,
+  projectRoots: string | readonly string[],
+): Promise<boolean>;
 export interface WorktreeRestoreResult {
-    /**
-     * When non-null, the worktree directory is still alive — callers should
-     * surface this one-line context message so the model continues using
-     * the worktree path for file operations after a `--resume`.
-     *
-     * Each entry point chooses its own injection mechanism:
-     * - TUI: `historyManager.addItem({ type: INFO, text })`
-     * - Headless: prepend as a `<system-reminder>` block to the user prompt
-     * - ACP: emit as a `system` message and prepend to the next prompt
-     */
-    contextMessage: string | null;
-    /** Active worktree session, or null when no sidecar / sidecar was stale. */
-    session: WorktreeSession | null;
+  /**
+   * When non-null, the worktree directory is still alive — callers should
+   * surface this one-line context message so the model continues using
+   * the worktree path for file operations after a `--resume`.
+   *
+   * Each entry point chooses its own injection mechanism:
+   * - TUI: `historyManager.addItem({ type: INFO, text })`
+   * - Headless: prepend as a `<system-reminder>` block to the user prompt
+   * - ACP: emit as a `system` message and prepend to the next prompt
+   */
+  contextMessage: string | null;
+  /** Active worktree session, or null when no sidecar / sidecar was stale. */
+  session: WorktreeSession | null;
 }
 /**
  * Reads the WorktreeSession sidecar for the current session, validates
@@ -98,4 +107,7 @@ export interface WorktreeRestoreResult {
  * `onWarn` callback but never thrown — worktree restore is best-effort,
  * the session itself must still load.
  */
-export declare function restoreWorktreeContext(sidecarPath: string, onWarn?: (error: unknown) => void): Promise<WorktreeRestoreResult>;
+export declare function restoreWorktreeContext(
+  sidecarPath: string,
+  onWarn?: (error: unknown) => void,
+): Promise<WorktreeRestoreResult>;

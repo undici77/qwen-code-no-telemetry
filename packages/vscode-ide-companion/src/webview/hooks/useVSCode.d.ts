@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export interface VSCodeAPI {
-    postMessage: (message: unknown) => void;
-    getState: () => unknown;
-    setState: (state: unknown) => void;
+  postMessage: (message: unknown) => void;
+  getState: () => unknown;
+  setState: (state: unknown) => void;
 }
 export declare function initializeWebviewLogger(): void;
 /**

@@ -13,14 +13,14 @@ export type SystemPromptInteractionMode = 'interactive' | 'headless' | 'acp';
  * Config class.
  */
 export declare function resolveInteractionMode(config: {
-    getExperimentalZedIntegration(): boolean;
-    getInputFormat?(): string;
-    isInteractive(): boolean;
+  getExperimentalZedIntegration(): boolean;
+  getInputFormat?(): string;
+  isInteractive(): boolean;
 }): SystemPromptInteractionMode;
 export declare function resolvePathFromEnv(envVar?: string): {
-    isSwitch: boolean;
-    value: string | null;
-    isDisabled: boolean;
+  isSwitch: boolean;
+  value: string | null;
+  isDisabled: boolean;
 };
 /**
  * Processes a custom system instruction by appending user memory if available.
@@ -36,7 +36,11 @@ export declare function resolvePathFromEnv(envVar?: string): {
  *   @deprecated Prefer the `appendPrompt` slot of `assembleSystemPrompt`.
  * @returns Processed custom system instruction with user memory and extra append instructions applied
  */
-export declare function getCustomSystemPrompt(customInstruction: GenerateContentConfig['systemInstruction'], userMemory?: string, appendInstruction?: string): string;
+export declare function getCustomSystemPrompt(
+  customInstruction: GenerateContentConfig['systemInstruction'],
+  userMemory?: string,
+  appendInstruction?: string,
+): string;
 /**
  * Builds the stable base system prompt (identity, mandates, tool guidance).
  *
@@ -50,7 +54,12 @@ export declare function getCustomSystemPrompt(customInstruction: GenerateContent
  *   @deprecated Prefer the `appendPrompt` slot of `assembleSystemPrompt`.
  * @param interactionMode - Interactive vs. headless prompt variant.
  */
-export declare function getCoreSystemPrompt(userMemory?: string, model?: string, appendInstruction?: string, interactionMode?: SystemPromptInteractionMode): string;
+export declare function getCoreSystemPrompt(
+  userMemory?: string,
+  model?: string,
+  appendInstruction?: string,
+  interactionMode?: SystemPromptInteractionMode,
+): string;
 /**
  * System prompt segments, one slot per segment, ordered stable → context →
  * volatile. Callers only classify content into slots; `assembleSystemPrompt`
@@ -58,32 +67,34 @@ export declare function getCoreSystemPrompt(userMemory?: string, model?: string,
  * in the wrong position at a call site.
  */
 export interface SystemPromptLayers {
-    /**
-     * Stable layer: the base prompt (identity, mandates, tool guidance) —
-     * fixed for the whole session.
-     */
-    base: string;
-    /**
-     * Context layer: concatenated context files (QWEN.md hierarchy, baseline
-     * rules, extension files). Reloaded only on explicit refresh.
-     */
-    contextFiles?: string;
-    /** Context layer: caller-supplied append prompt (e.g. --append-system-prompt). */
-    appendPrompt?: string;
-    /**
-     * Context layer: repo snapshot (branch + recent commits), computed once
-     * per session. Joined without a `---` separator — it carries its own
-     * heading.
-     */
-    gitStatus?: string | null;
-    /**
-     * Volatile layer: the managed auto-memory section, rewritten in-session on
-     * every memory save. Always last, so a save invalidates the shortest
-     * possible cached prompt prefix.
-     */
-    autoMemory?: string;
+  /**
+   * Stable layer: the base prompt (identity, mandates, tool guidance) —
+   * fixed for the whole session.
+   */
+  base: string;
+  /**
+   * Context layer: concatenated context files (QWEN.md hierarchy, baseline
+   * rules, extension files). Reloaded only on explicit refresh.
+   */
+  contextFiles?: string;
+  /** Context layer: caller-supplied append prompt (e.g. --append-system-prompt). */
+  appendPrompt?: string;
+  /**
+   * Context layer: repo snapshot (branch + recent commits), computed once
+   * per session. Joined without a `---` separator — it carries its own
+   * heading.
+   */
+  gitStatus?: string | null;
+  /**
+   * Volatile layer: the managed auto-memory section, rewritten in-session on
+   * every memory save. Always last, so a save invalidates the shortest
+   * possible cached prompt prefix.
+   */
+  autoMemory?: string;
 }
-export declare function assembleSystemPrompt(layers: SystemPromptLayers): string;
+export declare function assembleSystemPrompt(
+  layers: SystemPromptLayers,
+): string;
 /**
  * Provides the system prompt for the history compression process.
  *
@@ -139,7 +150,9 @@ export declare function getPlanModeSystemReminder(planOnly?: boolean): string;
  *
  * @param currentMode - The approval mode active when delivery is claimed
  */
-export declare function getManualPlanExitSystemReminder(currentMode: string): string;
+export declare function getManualPlanExitSystemReminder(
+  currentMode: string,
+): string;
 /**
  * Generates a system reminder about an active Arena session.
  *
@@ -147,7 +160,16 @@ export declare function getManualPlanExitSystemReminder(currentMode: string): st
  * @returns A formatted system reminder string wrapped in XML tags
  */
 export declare function getArenaSystemReminder(configFilePath: string): string;
-type InsightPromptType = 'analysis' | 'impressive_workflows' | 'project_areas' | 'future_opportunities' | 'friction_points' | 'memorable_moment' | 'improvements' | 'interaction_style' | 'at_a_glance';
+type InsightPromptType =
+  | 'analysis'
+  | 'impressive_workflows'
+  | 'project_areas'
+  | 'future_opportunities'
+  | 'friction_points'
+  | 'memorable_moment'
+  | 'improvements'
+  | 'interaction_style'
+  | 'at_a_glance';
 /**
  * Get an insight analysis prompt by type.
  * @param type - The type of insight prompt to retrieve

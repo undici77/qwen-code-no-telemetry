@@ -1,250 +1,262 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 export interface Annotation {
-    type: string;
-    value: string;
+  type: string;
+  value: string;
 }
 export interface Usage {
-    input_tokens: number;
-    output_tokens: number;
-    cache_creation_input_tokens?: number;
-    cache_read_input_tokens?: number;
-    total_tokens?: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  total_tokens?: number;
 }
 export interface ExtendedUsage extends Usage {
-    server_tool_use?: {
-        web_search_requests: number;
-    };
-    service_tier?: string;
-    cache_creation?: {
-        ephemeral_1h_input_tokens: number;
-        ephemeral_5m_input_tokens: number;
-    };
+  server_tool_use?: {
+    web_search_requests: number;
+  };
+  service_tier?: string;
+  cache_creation?: {
+    ephemeral_1h_input_tokens: number;
+    ephemeral_5m_input_tokens: number;
+  };
 }
 export interface ModelUsage {
-    inputTokens: number;
-    outputTokens: number;
-    cacheReadInputTokens: number;
-    cacheCreationInputTokens: number;
-    webSearchRequests: number;
-    contextWindow: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  webSearchRequests: number;
+  contextWindow: number;
 }
 export interface CLIPermissionDenial {
-    tool_name: string;
-    tool_use_id: string;
-    tool_input: unknown;
+  tool_name: string;
+  tool_use_id: string;
+  tool_input: unknown;
 }
 export interface TextBlock {
-    type: 'text';
-    text: string;
-    annotations?: Annotation[];
+  type: 'text';
+  text: string;
+  annotations?: Annotation[];
 }
 export interface ThinkingBlock {
-    type: 'thinking';
-    thinking: string;
-    signature?: string;
-    annotations?: Annotation[];
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+  annotations?: Annotation[];
 }
 export interface ToolUseBlock {
-    type: 'tool_use';
-    id: string;
-    name: string;
-    input: unknown;
-    annotations?: Annotation[];
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+  annotations?: Annotation[];
 }
 export interface ToolResultBlock {
-    type: 'tool_result';
-    tool_use_id: string;
-    content?: string | ContentBlock[];
-    is_error?: boolean;
-    annotations?: Annotation[];
+  type: 'tool_result';
+  tool_use_id: string;
+  content?: string | ContentBlock[];
+  is_error?: boolean;
+  annotations?: Annotation[];
 }
-export type ContentBlock = TextBlock | ThinkingBlock | ToolUseBlock | ToolResultBlock;
+export type ContentBlock =
+  | TextBlock
+  | ThinkingBlock
+  | ToolUseBlock
+  | ToolResultBlock;
 export interface APIUserMessage {
-    role: 'user';
-    content: string | ContentBlock[];
+  role: 'user';
+  content: string | ContentBlock[];
 }
 export interface APIAssistantMessage {
-    id: string;
-    type: 'message';
-    role: 'assistant';
-    model: string;
-    content: ContentBlock[];
-    stop_reason?: string | null;
-    usage: Usage;
+  id: string;
+  type: 'message';
+  role: 'assistant';
+  model: string;
+  content: ContentBlock[];
+  stop_reason?: string | null;
+  usage: Usage;
 }
 export interface SDKUserMessage {
-    type: 'user';
-    uuid?: string;
-    session_id: string;
-    message: APIUserMessage;
-    parent_tool_use_id: string | null;
-    options?: Record<string, unknown>;
+  type: 'user';
+  uuid?: string;
+  session_id: string;
+  message: APIUserMessage;
+  parent_tool_use_id: string | null;
+  options?: Record<string, unknown>;
 }
 export interface SDKAssistantMessage {
-    type: 'assistant';
-    uuid: string;
-    session_id: string;
-    message: APIAssistantMessage;
-    parent_tool_use_id: string | null;
+  type: 'assistant';
+  uuid: string;
+  session_id: string;
+  message: APIAssistantMessage;
+  parent_tool_use_id: string | null;
 }
 export interface SDKSystemMessage {
-    type: 'system';
-    subtype: string;
-    uuid: string;
-    session_id: string;
-    data?: unknown;
-    cwd?: string;
-    tools?: string[];
-    mcp_servers?: Array<{
-        name: string;
-        status: string;
-    }>;
-    model?: string;
-    permission_mode?: string;
-    slash_commands?: string[];
-    qwen_code_version?: string;
-    output_style?: string;
-    agents?: string[];
-    skills?: string[];
-    capabilities?: Record<string, unknown>;
-    compact_metadata?: {
-        trigger: 'manual' | 'auto';
-        pre_tokens: number;
-    };
+  type: 'system';
+  subtype: string;
+  uuid: string;
+  session_id: string;
+  data?: unknown;
+  cwd?: string;
+  tools?: string[];
+  mcp_servers?: Array<{
+    name: string;
+    status: string;
+  }>;
+  model?: string;
+  permission_mode?: string;
+  slash_commands?: string[];
+  qwen_code_version?: string;
+  output_style?: string;
+  agents?: string[];
+  skills?: string[];
+  capabilities?: Record<string, unknown>;
+  compact_metadata?: {
+    trigger: 'manual' | 'auto';
+    pre_tokens: number;
+  };
 }
 export interface SDKResultMessageSuccess {
-    type: 'result';
-    subtype: 'success';
-    uuid: string;
-    session_id: string;
-    is_error: false;
-    duration_ms: number;
-    duration_api_ms: number;
-    num_turns: number;
-    result: string;
-    usage: ExtendedUsage;
-    modelUsage?: Record<string, ModelUsage>;
-    permission_denials: CLIPermissionDenial[];
-    [key: string]: unknown;
+  type: 'result';
+  subtype: 'success';
+  uuid: string;
+  session_id: string;
+  is_error: false;
+  duration_ms: number;
+  duration_api_ms: number;
+  num_turns: number;
+  result: string;
+  usage: ExtendedUsage;
+  modelUsage?: Record<string, ModelUsage>;
+  permission_denials: CLIPermissionDenial[];
+  [key: string]: unknown;
 }
 export interface SDKResultMessageError {
-    type: 'result';
-    subtype: 'error_max_turns' | 'error_during_execution';
-    uuid: string;
-    session_id: string;
-    is_error: true;
-    duration_ms: number;
-    duration_api_ms: number;
-    num_turns: number;
-    usage: ExtendedUsage;
-    modelUsage?: Record<string, ModelUsage>;
-    permission_denials: CLIPermissionDenial[];
-    error?: {
-        type?: string;
-        message: string;
-        [key: string]: unknown;
-    };
+  type: 'result';
+  subtype: 'error_max_turns' | 'error_during_execution';
+  uuid: string;
+  session_id: string;
+  is_error: true;
+  duration_ms: number;
+  duration_api_ms: number;
+  num_turns: number;
+  usage: ExtendedUsage;
+  modelUsage?: Record<string, ModelUsage>;
+  permission_denials: CLIPermissionDenial[];
+  error?: {
+    type?: string;
+    message: string;
     [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 export type SDKResultMessage = SDKResultMessageSuccess | SDKResultMessageError;
 export interface MessageStartStreamEvent {
-    type: 'message_start';
-    message: {
-        id: string;
-        role: 'assistant';
-        model: string;
-    };
+  type: 'message_start';
+  message: {
+    id: string;
+    role: 'assistant';
+    model: string;
+  };
 }
 export interface ContentBlockStartEvent {
-    type: 'content_block_start';
-    index: number;
-    content_block: ContentBlock;
+  type: 'content_block_start';
+  index: number;
+  content_block: ContentBlock;
 }
-export type ContentBlockDelta = {
-    type: 'text_delta';
-    text: string;
-} | {
-    type: 'thinking_delta';
-    thinking: string;
-} | {
-    type: 'input_json_delta';
-    partial_json: string;
-};
+export type ContentBlockDelta =
+  | {
+      type: 'text_delta';
+      text: string;
+    }
+  | {
+      type: 'thinking_delta';
+      thinking: string;
+    }
+  | {
+      type: 'input_json_delta';
+      partial_json: string;
+    };
 export interface ContentBlockDeltaEvent {
-    type: 'content_block_delta';
-    index: number;
-    delta: ContentBlockDelta;
+  type: 'content_block_delta';
+  index: number;
+  delta: ContentBlockDelta;
 }
 export interface ContentBlockStopEvent {
-    type: 'content_block_stop';
-    index: number;
+  type: 'content_block_stop';
+  index: number;
 }
 export interface MessageStopStreamEvent {
-    type: 'message_stop';
+  type: 'message_stop';
 }
-export type StreamEvent = MessageStartStreamEvent | ContentBlockStartEvent | ContentBlockDeltaEvent | ContentBlockStopEvent | MessageStopStreamEvent;
+export type StreamEvent =
+  | MessageStartStreamEvent
+  | ContentBlockStartEvent
+  | ContentBlockDeltaEvent
+  | ContentBlockStopEvent
+  | MessageStopStreamEvent;
 export interface SDKPartialAssistantMessage {
-    type: 'stream_event';
-    uuid: string;
-    session_id: string;
-    event: StreamEvent;
-    parent_tool_use_id: string | null;
+  type: 'stream_event';
+  uuid: string;
+  session_id: string;
+  event: StreamEvent;
+  parent_tool_use_id: string | null;
 }
 export type PermissionMode = 'default' | 'plan' | 'auto-edit' | 'yolo';
 /**
  * TODO: Align with `ToolCallConfirmationDetails`
  */
 export interface PermissionSuggestion {
-    type: 'allow' | 'deny' | 'modify';
-    label: string;
-    description?: string;
-    modifiedInput?: unknown;
+  type: 'allow' | 'deny' | 'modify';
+  label: string;
+  description?: string;
+  modifiedInput?: unknown;
 }
 export interface HookRegistration {
-    event: string;
-    callback_id: string;
+  event: string;
+  callback_id: string;
 }
 export interface HookCallbackResult {
-    shouldSkip?: boolean;
-    shouldInterrupt?: boolean;
-    suppressOutput?: boolean;
-    message?: string;
+  shouldSkip?: boolean;
+  shouldInterrupt?: boolean;
+  suppressOutput?: boolean;
+  message?: string;
 }
 export interface CLIControlInterruptRequest {
-    subtype: 'interrupt';
+  subtype: 'interrupt';
 }
 export interface CLIControlPermissionRequest {
-    subtype: 'can_use_tool';
-    tool_name: string;
-    tool_use_id: string;
-    input: unknown;
-    permission_suggestions: PermissionSuggestion[] | null;
-    blocked_path: string | null;
+  subtype: 'can_use_tool';
+  tool_name: string;
+  tool_use_id: string;
+  input: unknown;
+  permission_suggestions: PermissionSuggestion[] | null;
+  blocked_path: string | null;
 }
 export declare enum AuthProviderType {
-    DYNAMIC_DISCOVERY = "dynamic_discovery",
-    GOOGLE_CREDENTIALS = "google_credentials",
-    SERVICE_ACCOUNT_IMPERSONATION = "service_account_impersonation"
+  DYNAMIC_DISCOVERY = 'dynamic_discovery',
+  GOOGLE_CREDENTIALS = 'google_credentials',
+  SERVICE_ACCOUNT_IMPERSONATION = 'service_account_impersonation',
 }
 export interface MCPServerConfig {
-    command?: string;
-    args?: string[];
-    env?: Record<string, string>;
-    cwd?: string;
-    url?: string;
-    httpUrl?: string;
-    headers?: Record<string, string>;
-    tcp?: string;
-    timeout?: number;
-    trust?: boolean;
-    description?: string;
-    includeTools?: string[];
-    excludeTools?: string[];
-    extensionName?: string;
-    oauth?: Record<string, unknown>;
-    authProviderType?: AuthProviderType;
-    targetAudience?: string;
-    targetServiceAccount?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  httpUrl?: string;
+  headers?: Record<string, string>;
+  tcp?: string;
+  timeout?: number;
+  trust?: boolean;
+  description?: string;
+  includeTools?: string[];
+  excludeTools?: string[];
+  extensionName?: string;
+  oauth?: Record<string, unknown>;
+  authProviderType?: AuthProviderType;
+  targetAudience?: string;
+  targetServiceAccount?: string;
 }
 /**
  * SDK MCP Server configuration
@@ -253,114 +265,138 @@ export interface MCPServerConfig {
  * Tool calls are routed through the control plane between SDK and CLI.
  */
 export interface SDKMcpServerConfig {
-    /**
-     * Type identifier for SDK MCP servers
-     */
-    type: 'sdk';
-    /**
-     * Server name for identification and routing
-     */
-    name: string;
-    /**
-     * The MCP Server instance created by createSdkMcpServer()
-     */
-    instance: McpServer;
+  /**
+   * Type identifier for SDK MCP servers
+   */
+  type: 'sdk';
+  /**
+   * Server name for identification and routing
+   */
+  name: string;
+  /**
+   * The MCP Server instance created by createSdkMcpServer()
+   */
+  instance: McpServer;
 }
 /**
  * Wire format for SDK MCP servers sent to the CLI
  */
 export type WireSDKMcpServerConfig = Omit<SDKMcpServerConfig, 'instance'>;
 export interface CLIControlInitializeRequest {
-    subtype: 'initialize';
-    hooks?: HookRegistration[] | null;
-    /**
-     * SDK MCP servers config
-     * These are MCP servers running in the SDK process, connected via control plane.
-     * External MCP servers are configured separately in settings, not via initialization.
-     */
-    sdkMcpServers?: Record<string, WireSDKMcpServerConfig>;
-    /**
-     * External MCP servers that should be managed by the CLI.
-     */
-    mcpServers?: Record<string, MCPServerConfig>;
-    agents?: SubagentConfig[];
+  subtype: 'initialize';
+  hooks?: HookRegistration[] | null;
+  /**
+   * SDK MCP servers config
+   * These are MCP servers running in the SDK process, connected via control plane.
+   * External MCP servers are configured separately in settings, not via initialization.
+   */
+  sdkMcpServers?: Record<string, WireSDKMcpServerConfig>;
+  /**
+   * External MCP servers that should be managed by the CLI.
+   */
+  mcpServers?: Record<string, MCPServerConfig>;
+  agents?: SubagentConfig[];
 }
 export interface CLIControlSetPermissionModeRequest {
-    subtype: 'set_permission_mode';
-    mode: PermissionMode;
+  subtype: 'set_permission_mode';
+  mode: PermissionMode;
 }
 export interface CLIHookCallbackRequest {
-    subtype: 'hook_callback';
-    callback_id: string;
-    input: unknown;
-    tool_use_id: string | null;
+  subtype: 'hook_callback';
+  callback_id: string;
+  input: unknown;
+  tool_use_id: string | null;
 }
 export interface CLIControlMcpMessageRequest {
-    subtype: 'mcp_message';
-    server_name: string;
-    message: {
-        jsonrpc?: string;
-        method: string;
-        params?: Record<string, unknown>;
-        id?: string | number | null;
-    };
+  subtype: 'mcp_message';
+  server_name: string;
+  message: {
+    jsonrpc?: string;
+    method: string;
+    params?: Record<string, unknown>;
+    id?: string | number | null;
+  };
 }
 export interface CLIControlSetModelRequest {
-    subtype: 'set_model';
-    model: string;
+  subtype: 'set_model';
+  model: string;
 }
 export interface CLIControlMcpStatusRequest {
-    subtype: 'mcp_server_status';
+  subtype: 'mcp_server_status';
 }
 export interface CLIControlSupportedCommandsRequest {
-    subtype: 'supported_commands';
+  subtype: 'supported_commands';
 }
 export interface CLIControlGetContextUsageRequest {
-    subtype: 'get_context_usage';
-    show_details?: boolean;
+  subtype: 'get_context_usage';
+  show_details?: boolean;
 }
-export type ControlRequestPayload = CLIControlInterruptRequest | CLIControlPermissionRequest | CLIControlInitializeRequest | CLIControlSetPermissionModeRequest | CLIHookCallbackRequest | CLIControlMcpMessageRequest | CLIControlSetModelRequest | CLIControlMcpStatusRequest | CLIControlSupportedCommandsRequest | CLIControlGetContextUsageRequest;
+export type ControlRequestPayload =
+  | CLIControlInterruptRequest
+  | CLIControlPermissionRequest
+  | CLIControlInitializeRequest
+  | CLIControlSetPermissionModeRequest
+  | CLIHookCallbackRequest
+  | CLIControlMcpMessageRequest
+  | CLIControlSetModelRequest
+  | CLIControlMcpStatusRequest
+  | CLIControlSupportedCommandsRequest
+  | CLIControlGetContextUsageRequest;
 export interface CLIControlRequest {
-    type: 'control_request';
-    request_id: string;
-    request: ControlRequestPayload;
+  type: 'control_request';
+  request_id: string;
+  request: ControlRequestPayload;
 }
 export interface PermissionApproval {
-    allowed: boolean;
-    reason?: string;
-    modifiedInput?: unknown;
+  allowed: boolean;
+  reason?: string;
+  modifiedInput?: unknown;
 }
 export interface ControlResponse {
-    subtype: 'success';
-    request_id: string;
-    response: unknown;
+  subtype: 'success';
+  request_id: string;
+  response: unknown;
 }
 export interface ControlErrorResponse {
-    subtype: 'error';
-    request_id: string;
-    error: string | {
+  subtype: 'error';
+  request_id: string;
+  error:
+    | string
+    | {
         message: string;
         [key: string]: unknown;
-    };
+      };
 }
 export interface CLIControlResponse {
-    type: 'control_response';
-    response: ControlResponse | ControlErrorResponse;
+  type: 'control_response';
+  response: ControlResponse | ControlErrorResponse;
 }
 export interface ControlCancelRequest {
-    type: 'control_cancel_request';
-    request_id?: string;
+  type: 'control_cancel_request';
+  request_id?: string;
 }
-export type ControlMessage = CLIControlRequest | CLIControlResponse | ControlCancelRequest;
+export type ControlMessage =
+  | CLIControlRequest
+  | CLIControlResponse
+  | ControlCancelRequest;
 /**
  * Union of all SDK message types
  */
-export type SDKMessage = SDKUserMessage | SDKAssistantMessage | SDKSystemMessage | SDKResultMessage | SDKPartialAssistantMessage;
+export type SDKMessage =
+  | SDKUserMessage
+  | SDKAssistantMessage
+  | SDKSystemMessage
+  | SDKResultMessage
+  | SDKPartialAssistantMessage;
 export declare function isSDKUserMessage(msg: any): msg is SDKUserMessage;
-export declare function isSDKAssistantMessage(msg: any): msg is SDKAssistantMessage;
+export declare function isSDKAssistantMessage(
+  msg: any,
+): msg is SDKAssistantMessage;
 export declare function isSDKSystemMessage(msg: any): msg is SDKSystemMessage;
 export declare function isSDKResultMessage(msg: any): msg is SDKResultMessage;
-export declare function isSDKPartialAssistantMessage(msg: any): msg is SDKPartialAssistantMessage;
+export declare function isSDKPartialAssistantMessage(
+  msg: any,
+): msg is SDKPartialAssistantMessage;
 export declare function isControlRequest(msg: any): msg is CLIControlRequest;
 export declare function isControlResponse(msg: any): msg is CLIControlResponse;
 export declare function isControlCancel(msg: any): msg is ControlCancelRequest;
@@ -370,20 +406,20 @@ export declare function isToolUseBlock(block: any): block is ToolUseBlock;
 export declare function isToolResultBlock(block: any): block is ToolResultBlock;
 export type SubagentLevel = 'session';
 export interface RunConfig {
-    max_time_minutes?: number;
-    max_turns?: number;
+  max_time_minutes?: number;
+  max_turns?: number;
 }
 export interface SubagentConfig {
-    name: string;
-    description: string;
-    tools?: string[];
-    systemPrompt: string;
-    level: SubagentLevel;
-    filePath?: string;
-    model?: string;
-    runConfig?: Partial<RunConfig>;
-    color?: string;
-    readonly isBuiltin?: boolean;
+  name: string;
+  description: string;
+  tools?: string[];
+  systemPrompt: string;
+  level: SubagentLevel;
+  filePath?: string;
+  model?: string;
+  runConfig?: Partial<RunConfig>;
+  color?: string;
+  readonly isBuiltin?: boolean;
 }
 /**
  * @license
@@ -401,14 +437,14 @@ export interface SubagentConfig {
  * - packages/cli/src/services/control/controllers/hookController.ts
  */
 export declare enum ControlRequestType {
-    INITIALIZE = "initialize",
-    INTERRUPT = "interrupt",
-    SET_MODEL = "set_model",
-    SUPPORTED_COMMANDS = "supported_commands",
-    GET_CONTEXT_USAGE = "get_context_usage",
-    CAN_USE_TOOL = "can_use_tool",
-    SET_PERMISSION_MODE = "set_permission_mode",
-    MCP_MESSAGE = "mcp_message",
-    MCP_SERVER_STATUS = "mcp_server_status",
-    HOOK_CALLBACK = "hook_callback"
+  INITIALIZE = 'initialize',
+  INTERRUPT = 'interrupt',
+  SET_MODEL = 'set_model',
+  SUPPORTED_COMMANDS = 'supported_commands',
+  GET_CONTEXT_USAGE = 'get_context_usage',
+  CAN_USE_TOOL = 'can_use_tool',
+  SET_PERMISSION_MODE = 'set_permission_mode',
+  MCP_MESSAGE = 'mcp_message',
+  MCP_SERVER_STATUS = 'mcp_server_status',
+  HOOK_CALLBACK = 'hook_callback',
 }

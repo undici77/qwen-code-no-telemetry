@@ -15,10 +15,10 @@ import type { RecentSlashCommands } from '../hooks/useSlashCompletion.js';
  * - `LATIN1` (1252): Western European — default on many Western systems.
  */
 export declare const CodePage: {
-    readonly UTF8: 65001;
-    readonly GBK: 936;
-    readonly BIG5: 950;
-    readonly LATIN1: 1252;
+  readonly UTF8: 65001;
+  readonly GBK: 936;
+  readonly BIG5: 950;
+  readonly LATIN1: 1252;
 };
 export type CodePage = (typeof CodePage)[keyof typeof CodePage];
 /**
@@ -56,12 +56,12 @@ export declare const getUrlOpenCommand: () => string;
  * e.g., in "hello /st", startPos=6, partialCommand="st"
  */
 export type MidInputSlashCommand = {
-    /** Full token including slash, e.g. "/st" */
-    token: string;
-    /** Position of the "/" in the full input string */
-    startPos: number;
-    /** Command portion without slash, e.g. "st" */
-    partialCommand: string;
+  /** Full token including slash, e.g. "/st" */
+  token: string;
+  /** Position of the "/" in the full input string */
+  startPos: number;
+  /** Command portion without slash, e.g. "st" */
+  partialCommand: string;
 };
 /**
  * A slash command is completable mid-input (not at the start of the line) only
@@ -70,7 +70,9 @@ export type MidInputSlashCommand = {
  * Shared so the dropdown filter, ghost-text fallback, and exact-match suppressor
  * all agree on which commands qualify.
  */
-export declare function isMidInputCompletableCommand(cmd: SlashCommand): boolean;
+export declare function isMidInputCompletableCommand(
+  cmd: SlashCommand,
+): boolean;
 /**
  * Finds a slash command token that appears mid-input (not at position 0).
  * Only triggers when the "/" is preceded by whitespace and the cursor is
@@ -83,36 +85,43 @@ export declare function isMidInputCompletableCommand(cmd: SlashCommand): boolean
  * `cursorOffset` and all returned positions are code-point offsets, so non-BMP
  * characters before the token (e.g. "please 👍 /sto") don't skew the result.
  */
-export declare function findMidInputSlashCommand(input: string, cursorOffset: number): MidInputSlashCommand | null;
+export declare function findMidInputSlashCommand(
+  input: string,
+  cursorOffset: number,
+): MidInputSlashCommand | null;
 /**
  * Finds the best (alphabetically first) prefix-matching command for a partial
  * command string. Returns the completion suffix and full command name, or null.
  *
  * e.g. partialCommand="st" → { suffix: "ats", fullCommand: "stats" }
  */
-export declare function getBestSlashCommandMatch(partialCommand: string, commands: readonly SlashCommand[], recentCommands?: RecentSlashCommands): {
-    suffix: string;
-    fullCommand: string;
-    command: SlashCommand;
-    argumentHint?: string;
+export declare function getBestSlashCommandMatch(
+  partialCommand: string,
+  commands: readonly SlashCommand[],
+  recentCommands?: RecentSlashCommands,
+): {
+  suffix: string;
+  fullCommand: string;
+  command: SlashCommand;
+  argumentHint?: string;
 } | null;
 /**
  * Represents a slash command token found in input text (potentially mid-input).
  */
 export type SlashCommandToken = {
-    /** Start index (character position) of the token in the text */
-    start: number;
-    /** End index (exclusive) of the token in the text */
-    end: number;
-    /** The matched command name (without the leading slash) */
-    commandName: string;
-    /**
-     * Whether the token corresponds to a known command.
-     * Line-start tokens are valid for all interactive commands. Mid-input tokens
-     * are valid when they match a model-invocable command, or when they are
-     * stackable skills following an existing stacked-skill prefix.
-     */
-    valid: boolean;
+  /** Start index (character position) of the token in the text */
+  start: number;
+  /** End index (exclusive) of the token in the text */
+  end: number;
+  /** The matched command name (without the leading slash) */
+  commandName: string;
+  /**
+   * Whether the token corresponds to a known command.
+   * Line-start tokens are valid for all interactive commands. Mid-input tokens
+   * are valid when they match a model-invocable command, or when they are
+   * stackable skills following an existing stacked-skill prefix.
+   */
+  valid: boolean;
 };
 /**
  * Finds slash command tokens in input text and marks them as valid/invalid
@@ -123,4 +132,7 @@ export type SlashCommandToken = {
  *   `modelInvocable` command, since built-in commands typed mid-text won't be
  *   executed, or if they continue a valid stacked-skill prefix.
  */
-export declare function findSlashCommandTokens(text: string, commands: readonly SlashCommand[]): SlashCommandToken[];
+export declare function findSlashCommandTokens(
+  text: string,
+  commands: readonly SlashCommand[],
+): SlashCommandToken[];

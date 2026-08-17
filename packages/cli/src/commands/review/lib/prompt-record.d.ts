@@ -56,7 +56,11 @@ export declare function findingsPointerOf(prompt: string): string | null;
  * inlines the list into the block — the pre-#8597 shape — instead of
  * pointing a whole round at a file that does not exist.
  */
-export declare function writeFindingsFile(planPath: string, key: string, content: string): string | null;
+export declare function writeFindingsFile(
+  planPath: string,
+  key: string,
+  content: string,
+): string | null;
 /**
  * Write the brief this agent is told to read.
  *
@@ -72,9 +76,17 @@ export declare function writeFindingsFile(planPath: string, key: string, content
  * actually carry — and whether the agent read it is then a fact in the harness's
  * transcript, not a hope.
  */
-export declare function writeBrief(planPath: string, key: string, brief: string): string;
+export declare function writeBrief(
+  planPath: string,
+  key: string,
+  brief: string,
+): string;
 /** Record the prompt `key` was built with. Best-effort: never fails a build. */
-export declare function recordPrompt(planPath: string, key: string, prompt: string): void;
+export declare function recordPrompt(
+  planPath: string,
+  key: string,
+  prompt: string,
+): void;
 /**
  * Every prompt this plan's builder emitted, keyed as it was recorded.
  *
@@ -89,7 +101,10 @@ export declare function recordPrompt(planPath: string, key: string, prompt: stri
  * (retirement) must pass the fence, or the dead attempt's records shadow the
  * live ones.
  */
-export declare function readRecordedPrompts(planPath: string, sinceMs?: number): Map<string, string>;
+export declare function readRecordedPrompts(
+  planPath: string,
+  sinceMs?: number,
+): Map<string, string>;
 /**
  * Was `built` delivered to the agent intact?
  *
@@ -115,7 +130,10 @@ export declare function readRecordedPrompts(planPath: string, sinceMs?: number):
  * So: normalize whitespace away entirely (a wrap is not an edit), then walk the
  * built lines and require each to appear at or after the last one's position.
  */
-export declare function wasDeliveredVerbatim(launchPrompt: string, built: string): boolean;
+export declare function wasDeliveredVerbatim(
+  launchPrompt: string,
+  built: string,
+): boolean;
 /**
  * `wasDeliveredVerbatim` with the launch prompt already put through
  * `flattenPrompt`. The family exists for the one caller that pairs MANY
@@ -125,7 +143,10 @@ export declare function wasDeliveredVerbatim(launchPrompt: string, built: string
  * few thousand full-prompt passes on the run the scheduler was built for,
  * all before the round is admitted. Same contract, same failure modes.
  */
-export declare function deliveredVerbatim(flattenedLaunch: string, built: string): boolean;
+export declare function deliveredVerbatim(
+  flattenedLaunch: string,
+  built: string,
+): boolean;
 /**
  * `deliveredVerbatim` with BOTH halves pre-flattened: the launch through
  * `flattenPrompt`, the built prompt through `promptLines`. The scheduler
@@ -134,7 +155,10 @@ export declare function deliveredVerbatim(flattenedLaunch: string, built: string
  * shape the old per-pair record flatten re-split every record's whole folded
  * prompt (cumulative findings list included) once per candidate.
  */
-export declare function deliveredVerbatimLines(flattenedLaunch: string, builtLines: string[]): boolean;
+export declare function deliveredVerbatimLines(
+  flattenedLaunch: string,
+  builtLines: string[],
+): boolean;
 /**
  * Whitespace collapsed to single spaces: a re-wrap is not an edit. What
  * `deliveredVerbatim` expects its launch side to have been put through.

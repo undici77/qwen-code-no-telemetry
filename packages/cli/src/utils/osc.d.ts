@@ -7,20 +7,25 @@
  * OSC (Operating System Command) escape sequence utilities for terminal
  * notifications, tab status indicators, and multiplexer passthrough.
  */
-export declare const ESC = "\u001B";
-export declare const BEL = "\u0007";
+export declare const ESC = '\u001B';
+export declare const BEL = '\u0007';
 /** String Terminator — used by Kitty instead of BEL */
 export declare const ST: string;
 export declare const OSC_PREFIX: string;
 export declare const OSC: {
-    /** iTerm2 notification / progress */
-    readonly ITERM2: 9;
-    /** Kitty desktop notification protocol */
-    readonly KITTY: 99;
-    /** Ghostty / cmux notification */
-    readonly GHOSTTY: 777;
+  /** iTerm2 notification / progress */
+  readonly ITERM2: 9;
+  /** Kitty desktop notification protocol */
+  readonly KITTY: 99;
+  /** Ghostty / cmux notification */
+  readonly GHOSTTY: 777;
 };
-export type TerminalType = 'iTerm.app' | 'kitty' | 'ghostty' | 'Apple_Terminal' | 'unknown';
+export type TerminalType =
+  | 'iTerm.app'
+  | 'kitty'
+  | 'ghostty'
+  | 'Apple_Terminal'
+  | 'unknown';
 /**
  * Detect the current terminal emulator from environment variables.
  *
@@ -76,12 +81,19 @@ export declare function oscITerm2Notify(title: string, message: string): string;
  *
  * @see https://sw.kovidgoyal.net/kitty/desktop-notifications/
  */
-export declare function oscKittyNotify(title: string, message: string, id: number): string[];
+export declare function oscKittyNotify(
+  title: string,
+  message: string,
+  id: number,
+): string[];
 /**
  * Ghostty / cmux notification via OSC 777.
  * Format: `\e]777;notify;<title>;<message>\a`
  */
-export declare function oscGhosttyNotify(title: string, message: string): string;
+export declare function oscGhosttyNotify(
+  title: string,
+  message: string,
+): string;
 /**
  * Generate a random Kitty notification ID.
  */

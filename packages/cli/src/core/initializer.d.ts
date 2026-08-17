@@ -7,18 +7,18 @@ import { type Config } from '@qwen-code/qwen-code-core';
 import { type LoadedSettings } from '../config/settings.js';
 export type { LoadedSettings } from '../config/settings.js';
 export interface InitializationResult {
-    authError: string | null;
-    themeError: string | null;
-    shouldOpenAuthDialog: boolean;
-    geminiMdFileCount: number;
+  authError: string | null;
+  themeError: string | null;
+  shouldOpenAuthDialog: boolean;
+  geminiMdFileCount: number;
 }
 export interface InitializeAppOptions {
-    /**
-     * When true, skip the awaited IDE connection inside initializeApp().
-     * Ordinary interactive TUI startup uses this so IDE IPC can run after first
-     * paint; non-TUI paths leave it false so the first request keeps IDE context.
-     */
-    deferIdeConnection?: boolean;
+  /**
+   * When true, skip the awaited IDE connection inside initializeApp().
+   * Ordinary interactive TUI startup uses this so IDE IPC can run after first
+   * paint; non-TUI paths leave it false so the first request keeps IDE context.
+   */
+  deferIdeConnection?: boolean;
 }
 /**
  * Establishes the startup IDE connection and records the connection telemetry.
@@ -35,4 +35,8 @@ export declare function connectIdeForStartup(config: Config): Promise<void>;
  * @param settings The loaded application settings.
  * @returns The results of the initialization.
  */
-export declare function initializeApp(config: Config, settings: LoadedSettings, options?: InitializeAppOptions): Promise<InitializationResult>;
+export declare function initializeApp(
+  config: Config,
+  settings: LoadedSettings,
+  options?: InitializeAppOptions,
+): Promise<InitializationResult>;

@@ -7,18 +7,23 @@ import type { Application, RequestHandler, Response } from 'express';
 import type { AcpSessionBridge } from '../acp-session-bridge.js';
 import type { DaemonLogger } from '../daemon-logger.js';
 import type { WorkspaceRegistry } from '../workspace-registry.js';
-type SendPermissionVoteError = (res: Response, err: unknown, ctx: {
+type SendPermissionVoteError = (
+  res: Response,
+  err: unknown,
+  ctx: {
     route: string;
     sessionId?: string;
-}) => void;
+  },
+) => void;
 interface RegisterPermissionRoutesDeps {
-    bridge: AcpSessionBridge;
-    workspaceRegistry: WorkspaceRegistry;
-    daemonLog?: DaemonLogger;
-    mutate: (opts?: {
-        strict?: boolean;
-    }) => RequestHandler;
-    sendPermissionVoteError: SendPermissionVoteError;
+  bridge: AcpSessionBridge;
+  workspaceRegistry: WorkspaceRegistry;
+  daemonLog?: DaemonLogger;
+  mutate: (opts?: { strict?: boolean }) => RequestHandler;
+  sendPermissionVoteError: SendPermissionVoteError;
 }
-export declare function registerPermissionRoutes(app: Application, deps: RegisterPermissionRoutesDeps): void;
+export declare function registerPermissionRoutes(
+  app: Application,
+  deps: RegisterPermissionRoutesDeps,
+): void;
 export {};

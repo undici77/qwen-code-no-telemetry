@@ -22,19 +22,25 @@
  * which schedules the first Goal turn).
  */
 import type { Application } from 'express';
-import type { BridgeSessionGoal, BridgeSessionSummary } from '@qwen-code/acp-bridge';
+import type {
+  BridgeSessionGoal,
+  BridgeSessionSummary,
+} from '@qwen-code/acp-bridge';
 /**
  * The slice of the session bridge this route needs. Narrowed to a structural
  * type so tests can stub it without the full bridge.
  */
 export interface GoalsSessionBridge {
-    listWorkspaceSessions(workspaceCwd: string): BridgeSessionSummary[];
-    getSessionGoal(sessionId: string): Promise<BridgeSessionGoal>;
+  listWorkspaceSessions(workspaceCwd: string): BridgeSessionSummary[];
+  getSessionGoal(sessionId: string): Promise<BridgeSessionGoal>;
 }
 export interface RegisterGoalsRoutesDeps {
-    boundWorkspace: string;
-    bridge: GoalsSessionBridge;
-    isWorkspaceTrusted?: () => boolean;
-    captureGenerationAssertion?: () => (() => void) | undefined;
+  boundWorkspace: string;
+  bridge: GoalsSessionBridge;
+  isWorkspaceTrusted?: () => boolean;
+  captureGenerationAssertion?: () => (() => void) | undefined;
 }
-export declare function registerGoalsRoutes(app: Application, deps: RegisterGoalsRoutesDeps): void;
+export declare function registerGoalsRoutes(
+  app: Application,
+  deps: RegisterGoalsRoutesDeps,
+): void;

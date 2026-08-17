@@ -13,55 +13,55 @@ import type { RoleId } from './agent-briefs.js';
  * writes neither, because it has neither a pull request it can reach locally nor a
  * tree to look at.
  */
-export type ReviewMode = 
-/** Same-repo PR: a worktree, a PR number, a local tree to build and grep. */
-'pr-worktree'
-/** Uncommitted local changes or a single file: a tree, but no PR. */
- | 'local'
-/** Cross-repo lightweight: the diff and nothing else. */
- | 'diff-only';
+export type ReviewMode =
+  /** Same-repo PR: a worktree, a PR number, a local tree to build and grep. */
+  | 'pr-worktree'
+  /** Uncommitted local changes or a single file: a tree, but no PR. */
+  | 'local'
+  /** Cross-repo lightweight: the diff and nothing else. */
+  | 'diff-only';
 /** The plan, as far as the roster needs it. */
 export interface RosterPlan {
-    ownerRepo?: unknown;
-    chunks?: Array<{
-        id?: unknown;
-    }>;
-    files?: Array<{
-        path?: unknown;
-        kind?: unknown;
-        heavy?: unknown;
-        addedLines?: unknown;
-        removedLines?: unknown;
-        /** Lines in the post-change file; 0 for a true deletion (see report.ts). */
-        fileLines?: unknown;
-    }>;
-    srcDiffLines?: unknown;
-    diffLines?: unknown;
-    worktreePath?: unknown;
-    prNumber?: unknown;
-    untrackedFiles?: unknown;
-    /**
-     * The review's effort, as the capturing command recorded it (`--effort`).
-     * `'medium'` is the balanced tier and drops the adversarial personas; anything
-     * else — including absent — keeps the full roster. It lives in the plan, not in
-     * a caller argument, on purpose: the roster this file computes must not be
-     * shrinkable by whoever calls `requiredAgents`, or the shrink is what gets
-     * called. `check-coverage`, `agent-prompt --roster` and `compose-review`'s
-     * recomputation then all read the same value and cannot disagree.
-     */
-    effort?: unknown;
-    repositoryContext?: unknown;
+  ownerRepo?: unknown;
+  chunks?: Array<{
+    id?: unknown;
+  }>;
+  files?: Array<{
+    path?: unknown;
+    kind?: unknown;
+    heavy?: unknown;
+    addedLines?: unknown;
+    removedLines?: unknown;
+    /** Lines in the post-change file; 0 for a true deletion (see report.ts). */
+    fileLines?: unknown;
+  }>;
+  srcDiffLines?: unknown;
+  diffLines?: unknown;
+  worktreePath?: unknown;
+  prNumber?: unknown;
+  untrackedFiles?: unknown;
+  /**
+   * The review's effort, as the capturing command recorded it (`--effort`).
+   * `'medium'` is the balanced tier and drops the adversarial personas; anything
+   * else — including absent — keeps the full roster. It lives in the plan, not in
+   * a caller argument, on purpose: the roster this file computes must not be
+   * shrinkable by whoever calls `requiredAgents`, or the shrink is what gets
+   * called. `check-coverage`, `agent-prompt --roster` and `compose-review`'s
+   * recomputation then all read the same value and cannot disagree.
+   */
+  effort?: unknown;
+  repositoryContext?: unknown;
 }
 /** One agent this review must launch. */
 export interface RequiredAgent {
-    /** The key `agent-prompt` records its prompt under, and coverage looks up. */
-    key: string;
-    /** A dimension role, or a Step 3B territory. */
-    role: RoleId | 'chunk';
-    /** The territory a chunk agent owns. */
-    chunk?: number;
-    /** The heavy file an invariant agent owns. */
-    file?: string;
+  /** The key `agent-prompt` records its prompt under, and coverage looks up. */
+  key: string;
+  /** A dimension role, or a Step 3B territory. */
+  role: RoleId | 'chunk';
+  /** The territory a chunk agent owns. */
+  chunk?: number;
+  /** The heavy file an invariant agent owns. */
+  file?: string;
 }
 export declare function reviewMode(plan: RosterPlan): ReviewMode;
 /**

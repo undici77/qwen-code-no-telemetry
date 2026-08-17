@@ -29,4 +29,8 @@ import type { CdpTunnelRegistry } from './cdp-tunnel-registry.js';
  * @param registry the process-scoped tunnel registry
  * @param log structured stderr logger (e.g. `writeStderrLine`)
  */
-export declare function attachCdpClient(ws: WebSocket, registry: CdpTunnelRegistry, log: (line: string) => void): void;
+export declare function attachCdpClient(
+  ws: WebSocket,
+  registry: CdpTunnelRegistry,
+  log: (line: string) => void,
+): void;

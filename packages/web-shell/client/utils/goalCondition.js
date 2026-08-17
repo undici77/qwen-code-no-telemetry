@@ -11,16 +11,16 @@
  * drift — this client bundles for the browser and cannot import from core.
  */
 export const GOAL_CLEAR_KEYWORDS = new Set([
-    'clear',
-    'stop',
-    'off',
-    'reset',
-    'none',
-    'cancel',
+  'clear',
+  'stop',
+  'off',
+  'reset',
+  'none',
+  'cancel',
 ]);
 /** The argument of a `/goal …` command; `''` for a bare `/goal`. */
 export function goalArgOf(text) {
-    return text.replace(/^\/goal\b/i, '').trim();
+  return text.replace(/^\/goal\b/i, '').trim();
 }
 /**
  * True when `text` is a `/goal <clear-keyword>` invocation.
@@ -31,9 +31,8 @@ export function goalArgOf(text) {
  * box — would answer true to "is this a goal-clear command?".
  */
 export function isGoalClearCommand(text) {
-    if (!/^\/goal\b/i.test(text.trim()))
-        return false;
-    return isGoalClearKeyword(goalArgOf(text.trim()));
+  if (!/^\/goal\b/i.test(text.trim())) return false;
+  return isGoalClearKeyword(goalArgOf(text.trim()));
 }
 /**
  * True when a would-be goal condition is really a clear keyword. `/goal clear`
@@ -41,6 +40,6 @@ export function isGoalClearCommand(text) {
  * silently start a session that immediately drops the goal.
  */
 export function isGoalClearKeyword(condition) {
-    return GOAL_CLEAR_KEYWORDS.has(condition.trim().toLowerCase());
+  return GOAL_CLEAR_KEYWORDS.has(condition.trim().toLowerCase());
 }
 //# sourceMappingURL=goalCondition.js.map

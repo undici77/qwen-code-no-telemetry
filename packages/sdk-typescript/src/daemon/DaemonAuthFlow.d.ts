@@ -52,53 +52,61 @@ export declare const DEVICE_FLOW_EXPIRY_GRACE_MS = 30000;
  * Issue #4175 PR 21.
  */
 export interface DaemonAuthFlowHandle {
-    deviceFlowId: string;
-    providerId: DaemonAuthProviderId;
-    userCode: string;
-    verificationUri: string;
-    verificationUriComplete?: string;
-    expiresAt: number;
-    intervalMs: number;
-    /** True iff the daemon returned an existing pending entry rather than
-     *  starting a fresh IdP request. */
-    attached: boolean;
-    /** Block until the daemon settles the flow into a terminal state, then
-     *  return the final state. The promise rejects on `signal.abort()`. */
-    awaitCompletion(opts?: AwaitCompletionOptions): Promise<DaemonDeviceFlowState>;
-    /** Cancel the in-flight device flow on the daemon. Idempotent. */
-    cancel(): Promise<void>;
+  deviceFlowId: string;
+  providerId: DaemonAuthProviderId;
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string;
+  expiresAt: number;
+  intervalMs: number;
+  /** True iff the daemon returned an existing pending entry rather than
+   *  starting a fresh IdP request. */
+  attached: boolean;
+  /** Block until the daemon settles the flow into a terminal state, then
+   *  return the final state. The promise rejects on `signal.abort()`. */
+  awaitCompletion(
+    opts?: AwaitCompletionOptions,
+  ): Promise<DaemonDeviceFlowState>;
+  /** Cancel the in-flight device flow on the daemon. Idempotent. */
+  cancel(): Promise<void>;
 }
 export interface AwaitCompletionOptions {
-    /** Aborts both SSE consumption and GET-fallback polling. */
-    signal?: AbortSignal;
-    /** Called whenever the daemon reports an upstream `slow_down` (mirroring
-     *  the `auth_device_flow_throttled` event). The new effective interval
-     *  is the value the SDK will use for the next GET poll. */
-    onThrottled?: (intervalMs: number) => void;
-    /** Optional override of the GET-fallback interval. Defaults to the
-     *  daemon-supplied `intervalMs` from `start(...)` and respects bumps
-     *  from `slow_down`. */
-    pollOverrideMs?: number;
-    /** Hard ceiling on `awaitCompletion`'s wall-clock duration, in ms.
-     *  When omitted, `awaitCompletion` runs until the daemon-stated
-     *  `expiresAt` plus `DEVICE_FLOW_EXPIRY_GRACE_MS` (default 30s),
-     *  which lets the daemon's own sweeper surface the authoritative
-     *  terminal state instead of timing out client-side. Set explicitly
-     *  to clamp the wait shorter; values past `expiresAt` will still see
-     *  the daemon return `expired` once its sweeper fires. */
-    timeoutMs?: number;
+  /** Aborts both SSE consumption and GET-fallback polling. */
+  signal?: AbortSignal;
+  /** Called whenever the daemon reports an upstream `slow_down` (mirroring
+   *  the `auth_device_flow_throttled` event). The new effective interval
+   *  is the value the SDK will use for the next GET poll. */
+  onThrottled?: (intervalMs: number) => void;
+  /** Optional override of the GET-fallback interval. Defaults to the
+   *  daemon-supplied `intervalMs` from `start(...)` and respects bumps
+   *  from `slow_down`. */
+  pollOverrideMs?: number;
+  /** Hard ceiling on `awaitCompletion`'s wall-clock duration, in ms.
+   *  When omitted, `awaitCompletion` runs until the daemon-stated
+   *  `expiresAt` plus `DEVICE_FLOW_EXPIRY_GRACE_MS` (default 30s),
+   *  which lets the daemon's own sweeper surface the authoritative
+   *  terminal state instead of timing out client-side. Set explicitly
+   *  to clamp the wait shorter; values past `expiresAt` will still see
+   *  the daemon return `expired` once its sweeper fires. */
+  timeoutMs?: number;
 }
 export declare class DaemonAuthFlow {
-    private readonly client;
-    constructor(client: DaemonClient);
-    start(opts: {
-        providerId: DaemonAuthProviderId;
-        clientId?: string;
-    }): Promise<DaemonAuthFlowHandle>;
-    status(deviceFlowId: string, opts?: {
-        clientId?: string;
-    }): Promise<DaemonDeviceFlowState>;
-    cancel(deviceFlowId: string, opts?: {
-        clientId?: string;
-    }): Promise<void>;
+  private readonly client;
+  constructor(client: DaemonClient);
+  start(opts: {
+    providerId: DaemonAuthProviderId;
+    clientId?: string;
+  }): Promise<DaemonAuthFlowHandle>;
+  status(
+    deviceFlowId: string,
+    opts?: {
+      clientId?: string;
+    },
+  ): Promise<DaemonDeviceFlowState>;
+  cancel(
+    deviceFlowId: string,
+    opts?: {
+      clientId?: string;
+    },
+  ): Promise<void>;
 }

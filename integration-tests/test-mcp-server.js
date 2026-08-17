@@ -9,48 +9,49 @@ import express from 'express';
 import {} from 'node:http';
 import { randomUUID } from 'node:crypto';
 export class TestMcpServer {
-    server;
-    async start() {
-        const app = express();
-        app.use(express.json());
-        const mcpServer = new McpServer({
-            name: 'test-mcp-server',
-            version: '1.0.0',
-        }, { capabilities: {} });
-        const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
-        });
-        mcpServer.connect(transport);
-        app.post('/mcp', async (req, res) => {
-            await transport.handleRequest(req, res, req.body);
-        });
-        return new Promise((resolve, reject) => {
-            this.server = app.listen(0, () => {
-                const address = this.server.address();
-                if (address && typeof address !== 'string') {
-                    resolve(address.port);
-                }
-                else {
-                    reject(new Error('Could not determine server port.'));
-                }
-            });
-            this.server.on('error', reject);
-        });
-    }
-    async stop() {
-        if (this.server) {
-            await new Promise((resolve, reject) => {
-                this.server.close((err) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        resolve();
-                    }
-                });
-            });
-            this.server = undefined;
+  server;
+  async start() {
+    const app = express();
+    app.use(express.json());
+    const mcpServer = new McpServer(
+      {
+        name: 'test-mcp-server',
+        version: '1.0.0',
+      },
+      { capabilities: {} },
+    );
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+    });
+    mcpServer.connect(transport);
+    app.post('/mcp', async (req, res) => {
+      await transport.handleRequest(req, res, req.body);
+    });
+    return new Promise((resolve, reject) => {
+      this.server = app.listen(0, () => {
+        const address = this.server.address();
+        if (address && typeof address !== 'string') {
+          resolve(address.port);
+        } else {
+          reject(new Error('Could not determine server port.'));
         }
+      });
+      this.server.on('error', reject);
+    });
+  }
+  async stop() {
+    if (this.server) {
+      await new Promise((resolve, reject) => {
+        this.server.close((err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      this.server = undefined;
     }
+  }
 }
 //# sourceMappingURL=test-mcp-server.js.map

@@ -10,9 +10,11 @@ export { resolveProjectRelativePath } from '../utils/projectPath.js';
  * skills (with non-empty `paths:`). Unconditional skills are always offered to
  * the model; conditional skills only appear after activation.
  */
-export declare function splitConditionalSkills(skills: readonly SkillConfig[]): {
-    unconditional: SkillConfig[];
-    conditional: SkillConfig[];
+export declare function splitConditionalSkills(
+  skills: readonly SkillConfig[],
+): {
+  unconditional: SkillConfig[];
+  conditional: SkillConfig[];
 };
 /**
  * Tracks which conditional skills have been activated during the session by
@@ -30,24 +32,32 @@ export declare function splitConditionalSkills(skills: readonly SkillConfig[]): 
  * so the failure is surfaced via `getParseErrors()` (and the `/skills`
  * UI) instead of only landing in debug logs.
  */
-export type InvalidPatternHandler = (skill: SkillConfig, pattern: string, error: Error) => void;
+export type InvalidPatternHandler = (
+  skill: SkillConfig,
+  pattern: string,
+  error: Error,
+) => void;
 export declare class SkillActivationRegistry {
-    private readonly compiled;
-    private readonly activated;
-    private readonly projectRoot;
-    constructor(conditionalSkills: readonly SkillConfig[], projectRoot: string, onInvalidPattern?: InvalidPatternHandler);
-    /**
-     * Activate any conditional skills whose `paths` globs match `filePath`.
-     * Returns the names of skills newly activated by this call (empty when
-     * either no skill matched, or every match was already active).
-     *
-     * Handles symlinked paths by checking both the original path and the
-     * realpath-resolved path, so skills work correctly in git worktrees and
-     * monorepos with symlinked directories.
-     */
-    matchAndConsume(filePath: string): Promise<string[]>;
-    isActivated(name: string): boolean;
-    getActivatedNames(): ReadonlySet<string>;
-    get totalCount(): number;
-    get activatedCount(): number;
+  private readonly compiled;
+  private readonly activated;
+  private readonly projectRoot;
+  constructor(
+    conditionalSkills: readonly SkillConfig[],
+    projectRoot: string,
+    onInvalidPattern?: InvalidPatternHandler,
+  );
+  /**
+   * Activate any conditional skills whose `paths` globs match `filePath`.
+   * Returns the names of skills newly activated by this call (empty when
+   * either no skill matched, or every match was already active).
+   *
+   * Handles symlinked paths by checking both the original path and the
+   * realpath-resolved path, so skills work correctly in git worktrees and
+   * monorepos with symlinked directories.
+   */
+  matchAndConsume(filePath: string): Promise<string[]>;
+  isActivated(name: string): boolean;
+  getActivatedNames(): ReadonlySet<string>;
+  get totalCount(): number;
+  get activatedCount(): number;
 }

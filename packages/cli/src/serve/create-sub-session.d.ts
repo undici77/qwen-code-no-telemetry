@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { AcpSessionBridge } from '@qwen-code/acp-bridge/bridgeTypes';
-import type { CreateSubSessionInfo, CreateSubSessionResult } from '@qwen-code/acp-bridge/bridgeOptions';
+import type {
+  CreateSubSessionInfo,
+  CreateSubSessionResult,
+} from '@qwen-code/acp-bridge/bridgeOptions';
 /** Default per-caller ceiling on concurrent in-flight sub-sessions. A
  * `first-turn` request holds a slot until its turn finishes; parallel tool
  * calls from one caller must not spawn unbounded sub-sessions. Over the cap
@@ -35,33 +38,35 @@ export declare const MAX_CONCURRENT_SUB_SESSIONS_TOTAL = 24;
  * only ever discards long-reaped sessions. */
 export declare const MAX_TRACKED_SPAWNED_SESSIONS = 1024;
 export interface SubSessionLauncher {
-    /** The `onCreateSubSession` callback wired into the bridge. Returns a Promise
-     * the child's tool awaits. */
-    launch(info: CreateSubSessionInfo): Promise<CreateSubSessionResult>;
-    /** Stop accepting new sub-sessions (daemon shutdown). Idempotent. */
-    stop(): void;
+  /** The `onCreateSubSession` callback wired into the bridge. Returns a Promise
+   * the child's tool awaits. */
+  launch(info: CreateSubSessionInfo): Promise<CreateSubSessionResult>;
+  /** Stop accepting new sub-sessions (daemon shutdown). Idempotent. */
+  stop(): void;
 }
 export interface CreateSubSessionLauncherOptions {
-    getBridge: () => AcpSessionBridge | undefined;
-    boundWorkspace: string;
-    /** Return sent-mode completions to the parent as automatic follow-up turns.
-     * Enabled only for the Live conversation runtime. */
-    notifySentCompletion?: boolean;
-    isolatedWorkspace?: {
-        materializeDirectory(sessionId: string): Promise<string>;
-        discardEmptyDirectory(sessionId: string): Promise<unknown>;
-    };
-    /** Per-request `first-turn` wall-clock timeout; defaults to
-     * {@link FIRST_TURN_TIMEOUT_MS}. Exposed for tests. */
-    firstTurnTimeoutMs?: number;
-    /** Sent-mode background-drain ceiling; defaults to
-     * {@link SENT_MODE_DRAIN_TIMEOUT_MS}. Exposed for tests. */
-    sentModeDrainTimeoutMs?: number;
-    /** Per-caller concurrency cap; defaults to
-     * {@link MAX_CONCURRENT_SUB_SESSIONS_PER_CALLER}. */
-    maxConcurrentPerCaller?: number;
-    /** Workspace-wide concurrency cap; defaults to
-     * {@link MAX_CONCURRENT_SUB_SESSIONS_TOTAL}. */
-    maxConcurrentTotal?: number;
+  getBridge: () => AcpSessionBridge | undefined;
+  boundWorkspace: string;
+  /** Return sent-mode completions to the parent as automatic follow-up turns.
+   * Enabled only for the Live conversation runtime. */
+  notifySentCompletion?: boolean;
+  isolatedWorkspace?: {
+    materializeDirectory(sessionId: string): Promise<string>;
+    discardEmptyDirectory(sessionId: string): Promise<unknown>;
+  };
+  /** Per-request `first-turn` wall-clock timeout; defaults to
+   * {@link FIRST_TURN_TIMEOUT_MS}. Exposed for tests. */
+  firstTurnTimeoutMs?: number;
+  /** Sent-mode background-drain ceiling; defaults to
+   * {@link SENT_MODE_DRAIN_TIMEOUT_MS}. Exposed for tests. */
+  sentModeDrainTimeoutMs?: number;
+  /** Per-caller concurrency cap; defaults to
+   * {@link MAX_CONCURRENT_SUB_SESSIONS_PER_CALLER}. */
+  maxConcurrentPerCaller?: number;
+  /** Workspace-wide concurrency cap; defaults to
+   * {@link MAX_CONCURRENT_SUB_SESSIONS_TOTAL}. */
+  maxConcurrentTotal?: number;
 }
-export declare function createSubSessionLauncher(opts: CreateSubSessionLauncherOptions): SubSessionLauncher;
+export declare function createSubSessionLauncher(
+  opts: CreateSubSessionLauncherOptions,
+): SubSessionLauncher;

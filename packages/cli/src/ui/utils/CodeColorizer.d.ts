@@ -19,7 +19,11 @@ import type { LoadedSettings } from '../../config/settings.js';
  * Returns `true` if the line should skip `highlightAuto` and render as plain text.
  */
 export declare function looksLikeDiagramOrArt(line: string): boolean;
-export declare function colorizeLine(line: string, language: string | null, theme?: Theme): React.ReactNode;
+export declare function colorizeLine(
+  line: string,
+  language: string | null,
+  theme?: Theme,
+): React.ReactNode;
 /**
  * Renders syntax-highlighted code for Ink applications using a selected theme.
  *
@@ -37,9 +41,15 @@ export declare function colorizeLine(line: string, language: string | null, them
  * @returns A React.ReactNode containing Ink <Text> elements for the highlighted code.
  */
 export interface ColorizeCodeOptions {
-    theme?: Theme;
-    settings?: LoadedSettings;
-    tabWidth?: number;
-    startLineNumber?: number;
+  theme?: Theme;
+  settings?: LoadedSettings;
+  tabWidth?: number;
+  startLineNumber?: number;
 }
-export declare function colorizeCode(code: string, language: string | null, availableHeight?: number, maxWidth?: number, options?: ColorizeCodeOptions): React.ReactNode;
+export declare function colorizeCode(
+  code: string,
+  language: string | null,
+  availableHeight?: number,
+  maxWidth?: number,
+  options?: ColorizeCodeOptions,
+): React.ReactNode;

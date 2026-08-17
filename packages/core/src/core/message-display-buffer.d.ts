@@ -15,21 +15,23 @@ export declare const MESSAGE_DISPLAY_DEBOUNCE_MS = 200;
  * decision is unit-testable without mocking timers.
  */
 export interface MessageDisplayState {
-    /** Cumulative text streamed so far (all Content chunks appended in order). */
-    displayedText: string;
-    /** Wall-clock time (ms) the last flush fired, or the state's creation time if none yet. */
-    lastFlushMs: number;
-    /** The `displayedText` value as of the last flush, to detect "nothing new to say". */
-    lastFlushedText: string;
+  /** Cumulative text streamed so far (all Content chunks appended in order). */
+  displayedText: string;
+  /** Wall-clock time (ms) the last flush fired, or the state's creation time if none yet. */
+  lastFlushMs: number;
+  /** The `displayedText` value as of the last flush, to detect "nothing new to say". */
+  lastFlushedText: string;
 }
-export declare function createInitialMessageDisplayState(nowMs: number): MessageDisplayState;
+export declare function createInitialMessageDisplayState(
+  nowMs: number,
+): MessageDisplayState;
 /** What a batch produced: the updated state, plus a flush payload if one is due. */
 export interface MessageDisplayStep {
-    next: MessageDisplayState;
-    flush?: {
-        displayedText: string;
-        isFinal: boolean;
-    };
+  next: MessageDisplayState;
+  flush?: {
+    displayedText: string;
+    isFinal: boolean;
+  };
 }
 /**
  * Decide what one streamed chunk does to the MessageDisplay accumulator,
@@ -44,4 +46,10 @@ export interface MessageDisplayStep {
  * Otherwise the chunk is folded into `displayedText` with no flush — the
  * caller fires nothing this batch.
  */
-export declare function stepMessageDisplay(prev: MessageDisplayState, chunk: string, nowMs: number, debounceMs: number, isFinal: boolean): MessageDisplayStep;
+export declare function stepMessageDisplay(
+  prev: MessageDisplayState,
+  chunk: string,
+  nowMs: number,
+  debounceMs: number,
+  isFinal: boolean,
+): MessageDisplayStep;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 /** Where the build stamps the digest of the sources it bundled. */
-export declare const DIGEST_FILE = "review-sources.sha256";
+export declare const DIGEST_FILE = 'review-sources.sha256';
 /**
  * Files the bundle does not contain, and which therefore cannot make it stale.
  *
@@ -45,8 +45,8 @@ export declare const NOT_BUNDLED_SKILL_FILE: Set<string>;
 /** Which half of the build carries a root into the bundle. */
 export type ReviewSourceKind = 'code' | 'skill';
 export interface ReviewSourceRoot {
-    path: string;
-    kind: ReviewSourceKind;
+  path: string;
+  kind: ReviewSourceKind;
 }
 /**
  * The extensions each root kind can put in the bundle.
@@ -59,12 +59,15 @@ export interface ReviewSourceRoot {
  * graph; the skill root is the markdown the asset copier ships, so extend its
  * set the day the skill grows a file the copier would carry.
  */
-export declare const DIGESTED_EXTENSIONS: Record<ReviewSourceKind, ReadonlySet<string>>;
+export declare const DIGESTED_EXTENSIONS: Record<
+  ReviewSourceKind,
+  ReadonlySet<string>
+>;
 export interface BundleStaleness {
-    /** `true` only when both digests are known and differ. */
-    stale: boolean;
-    /** Why no comparison was made. Absent when one was. */
-    unmeasured?: string;
+  /** `true` only when both digests are known and differ. */
+  stale: boolean;
+  /** Why no comparison was made. Absent when one was. */
+  unmeasured?: string;
 }
 /**
  * A digest over every review source, stable across machines and checkouts.
@@ -74,7 +77,10 @@ export interface BundleStaleness {
  * folded in sorted order, because `readdir` order is a property of the
  * filesystem and not of the source.
  */
-export declare function reviewSourcesDigest(repoRoot: string, roots: readonly ReviewSourceRoot[]): string | undefined;
+export declare function reviewSourcesDigest(
+  repoRoot: string,
+  roots: readonly ReviewSourceRoot[],
+): string | undefined;
 /**
  * Compare the digest the build stamped beside the bundle against the sources
  * present now.
@@ -86,7 +92,10 @@ export declare function reviewSourcesDigest(repoRoot: string, roots: readonly Re
  * either way. Each such case names itself in `unmeasured` rather than passing
  * silently, for the same reason a probe does.
  */
-export declare function bundleStaleness(stampedDigest: string | undefined, currentDigest: string | undefined): BundleStaleness;
+export declare function bundleStaleness(
+  stampedDigest: string | undefined,
+  currentDigest: string | undefined,
+): BundleStaleness;
 /**
  * The review sources a checkout at `repoRoot` holds.
  *
@@ -111,7 +120,10 @@ export declare function reviewSourceRoots(repoRoot: string): ReviewSourceRoot[];
  * already printed in full at the start of the review, and a repeated
  * paragraph becomes wallpaper the reader learns to skip.
  */
-export declare function bundleStalenessNotices(entryPath: string | undefined, brief?: boolean): string | undefined;
+export declare function bundleStalenessNotices(
+  entryPath: string | undefined,
+  brief?: boolean,
+): string | undefined;
 /**
  * The warning a stale bundle earns, or `undefined` when there is nothing to
  * say.
@@ -120,4 +132,7 @@ export declare function bundleStalenessNotices(entryPath: string | undefined, br
  * the line is that the run they are about to trust may not be running their
  * code — so it says what runs from the bundle and what to do about it.
  */
-export declare function staleBundleWarning(s: BundleStaleness, brief?: boolean): string | undefined;
+export declare function staleBundleWarning(
+  s: BundleStaleness,
+  brief?: boolean,
+): string | undefined;

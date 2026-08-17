@@ -5,8 +5,8 @@
  */
 import type { Part } from '@google/genai';
 export interface ExtractedToolCall {
-    name: string;
-    args: Record<string, unknown>;
+  name: string;
+  args: Record<string, unknown>;
 }
 /**
  * Detects whether text contains XML-style tool call patterns.
@@ -27,7 +27,7 @@ export declare function extractXmlToolCalls(text: string): ExtractedToolCall[];
  * plain text since extractXmlToolCalls intentionally skips them.
  */
 export declare function tryRecoverXmlToolCalls(text: string): {
-    recovered: boolean;
-    functionCallParts: Part[];
-    remainingText: string;
+  recovered: boolean;
+  functionCallParts: Part[];
+  remainingText: string;
 };

@@ -8,12 +8,17 @@
  * a "start `qwen serve`" hint instead of a broken chat.
  */
 import type { DaemonConfig } from './config.js';
-export type DaemonHealth = {
-    reachable: true;
-    status: string;
-} | {
-    reachable: false;
-    error: string;
-};
+export type DaemonHealth =
+  | {
+      reachable: true;
+      status: string;
+    }
+  | {
+      reachable: false;
+      error: string;
+    };
 /** Probe the daemon's `/health` endpoint with a short timeout. */
-export declare function checkDaemonHealth(config: DaemonConfig, timeoutMs?: number): Promise<DaemonHealth>;
+export declare function checkDaemonHealth(
+  config: DaemonConfig,
+  timeoutMs?: number,
+): Promise<DaemonHealth>;

@@ -18,6 +18,7 @@ The CLI has three layers of testing, with different purposes and expected times:
 ## Quick test commands
 
 ### Run all CLI tests (recommended)
+
 ```bash
 cd packages/cli && npx vitest run --reporter=verbose 2>&1 | tee /tmp/test.log
 ```
@@ -29,6 +30,7 @@ cd packages/cli && npx vitest run --reporter=verbose 2>&1 | tee /tmp/test.log
   - `src/utils/pathReader.test.ts` — same permission issue
 
 ### Run specific test patterns
+
 ```bash
 # Unit tests only
 cd packages/cli && npx vitest run --reporter=verbose src/tools/edit.test.ts
@@ -44,6 +46,7 @@ npm run test:sdk:python
 ```
 
 ### Fail-fast / watch mode
+
 ```bash
 cd packages/cli && npx vitest run --reporter=verbose 2>&1 | tee /tmp/test.log
 ```
@@ -53,16 +56,19 @@ cd packages/cli && npx vitest run --reporter=verbose 2>&1 | tee /tmp/test.log
 Before running tests:
 
 1. Verify Node.js version (>= 22.0.0 required):
+
    ```bash
    node --version
    ```
 
 2. Install dependencies if needed:
+
    ```bash
    npm install
    ```
 
 3. Build the project (required for some tests):
+
    ```bash
    npm run build
    npm run bundle
@@ -104,6 +110,7 @@ Tests produce structured JSON. Key assertions use patterns:
 ### Common failure patterns
 
 1. **"No matching export"** — stale `.js` files in `src/`:
+
    ```bash
    find packages/*/src -name "*.ts" -o -name "*.tsx" \
      | sed 's/\.ts$//; s/\.tsx$//' \
@@ -111,6 +118,7 @@ Tests produce structured JSON. Key assertions use patterns:
    ```
 
 2. **`ERR_MODULE_NOT_FOUND`** — imports from `@opentelemetry/api` must be relative:
+
    ```bash
    grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts"
    ```
@@ -120,6 +128,7 @@ Tests produce structured JSON. Key assertions use patterns:
    - `src/utils/pathReader.test.ts` — expected failure
 
 4. **Timeout on test suite** — reduce timeout:
+
    ```bash
    npm run build && npm run bundle && \
      QWEN_SANDBOX=false npx vitest run 2>&1 | tee /tmp/test.log

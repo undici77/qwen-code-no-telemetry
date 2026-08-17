@@ -16,9 +16,9 @@ import type { CommandModule } from 'yargs';
  * diff to empty. Either would close a live PR on an infrastructure error.
  */
 export declare function isEmptyDiff(i: {
-    diffPath: string | null;
-    baseFetchFailed: boolean;
-    diffText: string;
+  diffPath: string | null;
+  baseFetchFailed: boolean;
+  diffText: string;
 }): boolean;
 /**
  * Whether the recomputed diff has collapsed against GitHub's advertised stat —
@@ -35,10 +35,10 @@ export declare function isEmptyDiff(i: {
  * measured twice.
  */
 export declare function isCollapsedFromUpstream(i: {
-    diffText: string;
-    baseFetchFailed: boolean;
-    additions: number;
-    deletions: number;
+  diffText: string;
+  baseFetchFailed: boolean;
+  additions: number;
+  deletions: number;
 }): boolean;
 /** Changed (+/-) lines in a unified diff — headers excluded. */
 export declare function countDiffChangedLines(diffText: string): number;

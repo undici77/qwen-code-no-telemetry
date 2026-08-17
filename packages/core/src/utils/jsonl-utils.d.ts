@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 type JsonlReadOptions = {
-    throwOnNonEnoentError?: boolean;
+  throwOnNonEnoentError?: boolean;
 };
 type JsonlReadLinesOptions = {
-    signal?: AbortSignal;
+  signal?: AbortSignal;
 };
 /**
  * Recovers parsed objects from a single physical line that may contain one
@@ -38,17 +38,27 @@ export declare function _recoverObjectsFromLine<T = unknown>(line: string): T[];
  * forwarding scalars or arrays would trip property accesses in callers
  * (`record.type`, `record.uuid`).
  */
-export declare function parseLineTolerant<T>(line: string, filePath: string): T[];
+export declare function parseLineTolerant<T>(
+  line: string,
+  filePath: string,
+): T[];
 /**
  * Reads the first N lines from a JSONL file efficiently.
  * Returns an array of parsed objects.
  */
-export declare function readLines<T = unknown>(filePath: string, count: number, options?: JsonlReadLinesOptions): Promise<T[]>;
+export declare function readLines<T = unknown>(
+  filePath: string,
+  count: number,
+  options?: JsonlReadLinesOptions,
+): Promise<T[]>;
 /**
  * Reads all lines from a JSONL file.
  * Returns an array of parsed objects.
  */
-export declare function read<T = unknown>(filePath: string, options?: JsonlReadOptions): Promise<T[]>;
+export declare function read<T = unknown>(
+  filePath: string,
+  options?: JsonlReadOptions,
+): Promise<T[]>;
 /**
  * Test-only: clear the per-directory mkdir cache. Needed when tests mutate
  * fs state at the same directory path across cases.
@@ -59,7 +69,10 @@ export declare function _resetEnsuredDirsCacheForTest(): void;
  * Uses a per-file mutex so concurrent callers serialize, and `fs.promises`
  * so the actual I/O does not block the event loop.
  */
-export declare function writeLine(filePath: string, data: unknown): Promise<void>;
+export declare function writeLine(
+  filePath: string,
+  data: unknown,
+): Promise<void>;
 /**
  * Synchronous version of writeLine for use in non-async contexts.
  *

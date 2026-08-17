@@ -21,7 +21,9 @@ export declare function defaultModalities(model: string): InputModalities;
  * and the DashScope provider's effort mapping so the family fact lives
  * in one place.
  */
-export declare function isQwenFamilyWireModel(model: string | undefined): boolean;
+export declare function isQwenFamilyWireModel(
+  model: string | undefined,
+): boolean;
 /**
  * True for the qwen3.8-max wire model family — the only family that
  * reads the tiered `reasoning_effort` field directly. Prefix-matched so
@@ -29,4 +31,6 @@ export declare function isQwenFamilyWireModel(model: string | undefined): boolea
  * family pattern in MODALITY_PATTERNS above. Older qwen hybrids expose
  * only the on/off `enable_thinking` switch instead.
  */
-export declare function isTieredEffortWireModel(model: string | undefined): boolean;
+export declare function isTieredEffortWireModel(
+  model: string | undefined,
+): boolean;

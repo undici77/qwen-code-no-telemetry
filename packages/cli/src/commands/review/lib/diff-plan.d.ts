@@ -5,19 +5,19 @@
  */
 /** A single `@@` hunk. All line numbers are 1-based and inclusive. */
 export interface DiffHunk {
-    /** Range within the diff FILE (what `read_file` offset/limit addresses). */
-    diffStart: number;
-    diffEnd: number;
-    /** Range within the post-change ("+") side of the source file. */
-    newStart: number;
-    newEnd: number;
-    /**
-     * How many lines the hunk occupies on the new side. Zero for a pure deletion
-     * (`@@ -3,4 +2,0 @@`): the range is then empty and no RIGHT-side inline
-     * comment can be anchored inside it. GitHub answers such an anchor with a 422
-     * that sinks the entire review.
-     */
-    newCount: number;
+  /** Range within the diff FILE (what `read_file` offset/limit addresses). */
+  diffStart: number;
+  diffEnd: number;
+  /** Range within the post-change ("+") side of the source file. */
+  newStart: number;
+  newEnd: number;
+  /**
+   * How many lines the hunk occupies on the new side. Zero for a pure deletion
+   * (`@@ -3,4 +2,0 @@`): the range is then empty and no RIGHT-side inline
+   * comment can be anchored inside it. GitHub answers such an anchor with a 422
+   * that sinks the entire review.
+   */
+  newCount: number;
 }
 /**
  * What kind of code a path holds.
@@ -35,64 +35,64 @@ export type PathKind = 'source' | 'test' | 'generated' | 'docs';
 export declare function classifyPath(path: string): PathKind;
 /** One file's section of the diff, from `diff --git` to the next one. */
 export interface DiffFile {
-    /** New-side path, or the old path for a deletion. */
-    path: string;
-    kind: PathKind;
-    /** Range within the diff FILE, covering header + all hunks. */
-    diffStart: number;
-    diffEnd: number;
-    hunks: DiffHunk[];
-    /**
-     * New-side line ranges the PR actually **wrote** — the `+` lines, coalesced.
-     *
-     * Distinct from `hunks`, which also span the three context lines git prints
-     * around every change. Telling a whole-file agent that a hunk's whole range
-     * is "changed" would have it treat six untouched lines as new and report
-     * defects that predate the PR. Anchor validation wants `hunks`; deciding
-     * what is new wants this.
-     */
-    addedRanges: Array<{
-        start: number;
-        end: number;
-    }>;
-    addedLines: number;
-    removedLines: number;
-    /** True for `Binary files ... differ` sections (no hunks to review). */
-    binary: boolean;
+  /** New-side path, or the old path for a deletion. */
+  path: string;
+  kind: PathKind;
+  /** Range within the diff FILE, covering header + all hunks. */
+  diffStart: number;
+  diffEnd: number;
+  hunks: DiffHunk[];
+  /**
+   * New-side line ranges the PR actually **wrote** — the `+` lines, coalesced.
+   *
+   * Distinct from `hunks`, which also span the three context lines git prints
+   * around every change. Telling a whole-file agent that a hunk's whole range
+   * is "changed" would have it treat six untouched lines as new and report
+   * defects that predate the PR. Anchor validation wants `hunks`; deciding
+   * what is new wants this.
+   */
+  addedRanges: Array<{
+    start: number;
+    end: number;
+  }>;
+  addedLines: number;
+  removedLines: number;
+  /** True for `Binary files ... differ` sections (no hunks to review). */
+  binary: boolean;
 }
 /** A contiguous slice of the diff file assigned to exactly one agent. */
 export interface DiffChunk {
-    /** 1-based, stable across a run. Used as the agent's coverage receipt id. */
-    id: number;
-    /** Range within the diff FILE, 1-based inclusive. */
-    startLine: number;
-    endLine: number;
-    lines: number;
-    /** Characters in the range. Above `READ_FILE_CHAR_CAP` one read truncates. */
-    chars: number;
-    /**
-     * Longest single line in the range.
-     *
-     * Paging recovers a chunk that is merely long, because `read_file` takes a
-     * line `offset`. It cannot recover a single *line* longer than the read cap:
-     * every page starts at a line boundary, so the tail of that line is
-     * unreachable. Such a chunk cannot honestly be receipted as fully reviewed.
-     */
-    maxLineChars: number;
-    /**
-     * True when this chunk is a single hunk that exceeds `maxChunkLines` or
-     * `MAX_CHUNK_CHARS` and offered no safe interior boundary to split on. Such
-     * a chunk stands alone: cutting it anywhere else would slice a function in
-     * half, which is the failure mode chunking exists to prevent. An oversized
-     * chunk may exceed one read's worth of characters, so its agent must page.
-     */
-    oversized: boolean;
-    /** Which source files (and which of their lines) this chunk covers. */
-    files: Array<{
-        path: string;
-        newStart: number;
-        newEnd: number;
-    }>;
+  /** 1-based, stable across a run. Used as the agent's coverage receipt id. */
+  id: number;
+  /** Range within the diff FILE, 1-based inclusive. */
+  startLine: number;
+  endLine: number;
+  lines: number;
+  /** Characters in the range. Above `READ_FILE_CHAR_CAP` one read truncates. */
+  chars: number;
+  /**
+   * Longest single line in the range.
+   *
+   * Paging recovers a chunk that is merely long, because `read_file` takes a
+   * line `offset`. It cannot recover a single *line* longer than the read cap:
+   * every page starts at a line boundary, so the tail of that line is
+   * unreachable. Such a chunk cannot honestly be receipted as fully reviewed.
+   */
+  maxLineChars: number;
+  /**
+   * True when this chunk is a single hunk that exceeds `maxChunkLines` or
+   * `MAX_CHUNK_CHARS` and offered no safe interior boundary to split on. Such
+   * a chunk stands alone: cutting it anywhere else would slice a function in
+   * half, which is the failure mode chunking exists to prevent. An oversized
+   * chunk may exceed one read's worth of characters, so its agent must page.
+   */
+  oversized: boolean;
+  /** Which source files (and which of their lines) this chunk covers. */
+  files: Array<{
+    path: string;
+    newStart: number;
+    newEnd: number;
+  }>;
 }
 /**
  * Why these chunk ids cannot key a review — or null when they can.
@@ -105,21 +105,21 @@ export interface DiffChunk {
  */
 export declare function chunkIdsProblem(ids: readonly unknown[]): string | null;
 export interface DiffPlan {
-    diffLines: number;
-    diffChars: number;
-    /**
-     * Diff lines belonging to `source` files. This — not `diffLines` — is what
-     * the review topology is chosen from: a change of 150 production lines that
-     * ships 800 lines of new tests carries the review risk of a small change,
-     * and deserves the many-lenses treatment rather than being carved into
-     * territories where most territories are test code.
-     */
-    srcDiffLines: number;
-    testDiffLines: number;
-    generatedDiffLines: number;
-    docsDiffLines: number;
-    files: DiffFile[];
-    chunks: DiffChunk[];
+  diffLines: number;
+  diffChars: number;
+  /**
+   * Diff lines belonging to `source` files. This — not `diffLines` — is what
+   * the review topology is chosen from: a change of 150 production lines that
+   * ships 800 lines of new tests carries the review risk of a small change,
+   * and deserves the many-lenses treatment rather than being carved into
+   * territories where most territories are test code.
+   */
+  srcDiffLines: number;
+  testDiffLines: number;
+  generatedDiffLines: number;
+  docsDiffLines: number;
+  files: DiffFile[];
+  chunks: DiffChunk[];
 }
 /** Default target size of a chunk, in diff lines. */
 export declare const DEFAULT_MAX_CHUNK_LINES = 400;
@@ -147,8 +147,8 @@ export declare const READ_FILE_CHAR_CAP = 25000;
  * `planChunks` guarantee full coverage.
  */
 export declare function parseDiff(diffText: string): {
-    files: DiffFile[];
-    diffLines: number;
+  files: DiffFile[];
+  diffLines: number;
 };
 /**
  * Partition the diff into contiguous chunks of at most `maxChunkLines` diff
@@ -165,13 +165,23 @@ export declare function parseDiff(diffText: string): {
  * its first hunk so a chunk never begins with an orphaned header. Chunks may
  * span several small files.
  */
-export declare function planChunks(files: DiffFile[], lines: string[], maxChunkLines?: number): DiffChunk[];
+export declare function planChunks(
+  files: DiffFile[],
+  lines: string[],
+  maxChunkLines?: number,
+): DiffChunk[];
 /** Parse + partition in one call. */
-export declare function buildDiffPlan(diffText: string, maxChunkLines?: number): DiffPlan;
+export declare function buildDiffPlan(
+  diffText: string,
+  maxChunkLines?: number,
+): DiffPlan;
 /**
  * True iff the chunks tile `[1, diffLines]` with no gap and no overlap.
  *
  * The orchestrator's coverage assertion depends on this; a regression here
  * would silently reintroduce the blind spot the whole design removes.
  */
-export declare function chunksCoverDiff(chunks: DiffChunk[], diffLines: number): boolean;
+export declare function chunksCoverDiff(
+  chunks: DiffChunk[],
+  diffLines: number,
+): boolean;

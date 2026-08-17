@@ -17,8 +17,8 @@ import { hashMcpServerConfig } from '@qwen-code/qwen-code-core';
 // This implements the MCP protocol directly using Node.js built-ins
 const INTEGRATION_TOKEN = 'qwen-mcp-tool-token-7f31d0';
 const additionServerConfig = {
-    command: 'node',
-    args: ['mcp-server.cjs'],
+  command: 'node',
+  args: ['mcp-server.cjs'],
 };
 const serverScript = `#!/usr/bin/env node
 /**
@@ -164,83 +164,100 @@ rpc.send({
 });
 `;
 describe('simple-mcp-server', () => {
-    const rig = new TestRig();
-    let previousLegacyMcpBlocking;
-    let previousMcpApprovalsPath;
-    beforeAll(async () => {
-        // Force the pre-#3994 synchronous MCP discovery path: under progressive
-        // MCP availability the spawned CLI's first non-interactive `--prompt`
-        // request fires without the MCP `add` tool wired into the model's tool
-        // surface, so the model answers `15` directly and `foundToolCall` stays
-        // false. Remove once QwenLM/qwen-code#4163 is fixed.
-        previousLegacyMcpBlocking = process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'];
-        process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'] = '1';
-        // Setup test directory with MCP server configuration
-        await rig.setup('simple-mcp-server', {
-            settings: {
-                mcpServers: {
-                    'addition-server': additionServerConfig,
-                },
+  const rig = new TestRig();
+  let previousLegacyMcpBlocking;
+  let previousMcpApprovalsPath;
+  beforeAll(async () => {
+    // Force the pre-#3994 synchronous MCP discovery path: under progressive
+    // MCP availability the spawned CLI's first non-interactive `--prompt`
+    // request fires without the MCP `add` tool wired into the model's tool
+    // surface, so the model answers `15` directly and `foundToolCall` stays
+    // false. Remove once QwenLM/qwen-code#4163 is fixed.
+    previousLegacyMcpBlocking = process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'];
+    process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'] = '1';
+    // Setup test directory with MCP server configuration
+    await rig.setup('simple-mcp-server', {
+      settings: {
+        mcpServers: {
+          'addition-server': additionServerConfig,
+        },
+      },
+    });
+    previousMcpApprovalsPath = process.env['QWEN_CODE_MCP_APPROVALS_PATH'];
+    const approvalsPath = join(rig.testDir, '.qwen', 'mcpApprovals.json');
+    process.env['QWEN_CODE_MCP_APPROVALS_PATH'] = approvalsPath;
+    writeFileSync(
+      approvalsPath,
+      JSON.stringify(
+        {
+          [resolve(rig.testDir)]: {
+            'addition-server': {
+              hash: hashMcpServerConfig(additionServerConfig),
+              status: 'approved',
             },
-        });
-        previousMcpApprovalsPath = process.env['QWEN_CODE_MCP_APPROVALS_PATH'];
-        const approvalsPath = join(rig.testDir, '.qwen', 'mcpApprovals.json');
-        process.env['QWEN_CODE_MCP_APPROVALS_PATH'] = approvalsPath;
-        writeFileSync(approvalsPath, JSON.stringify({
-            [resolve(rig.testDir)]: {
-                'addition-server': {
-                    hash: hashMcpServerConfig(additionServerConfig),
-                    status: 'approved',
-                },
-            },
-        }, null, 2));
-        // Create server script in the test directory
-        const testServerPath = join(rig.testDir, 'mcp-server.cjs');
-        writeFileSync(testServerPath, serverScript);
-        // Make the script executable (though running with 'node' should work anyway)
-        if (process.platform !== 'win32') {
-            const { chmodSync } = await import('node:fs');
-            chmodSync(testServerPath, 0o755);
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    // Create server script in the test directory
+    const testServerPath = join(rig.testDir, 'mcp-server.cjs');
+    writeFileSync(testServerPath, serverScript);
+    // Make the script executable (though running with 'node' should work anyway)
+    if (process.platform !== 'win32') {
+      const { chmodSync } = await import('node:fs');
+      chmodSync(testServerPath, 0o755);
+    }
+    // Poll for script for up to 5s
+    const { accessSync, constants } = await import('node:fs');
+    const isReady = await rig.poll(
+      () => {
+        try {
+          accessSync(testServerPath, constants.F_OK);
+          return true;
+        } catch {
+          return false;
         }
-        // Poll for script for up to 5s
-        const { accessSync, constants } = await import('node:fs');
-        const isReady = await rig.poll(() => {
-            try {
-                accessSync(testServerPath, constants.F_OK);
-                return true;
-            }
-            catch {
-                return false;
-            }
-        }, 5000, // Max wait 5 seconds
-        100);
-        if (!isReady) {
-            throw new Error('MCP server script was not ready in time.');
-        }
-    });
-    afterAll(() => {
-        if (previousLegacyMcpBlocking === undefined) {
-            delete process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'];
-        }
-        else {
-            process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'] = previousLegacyMcpBlocking;
-        }
-        if (previousMcpApprovalsPath === undefined) {
-            delete process.env['QWEN_CODE_MCP_APPROVALS_PATH'];
-        }
-        else {
-            process.env['QWEN_CODE_MCP_APPROVALS_PATH'] = previousMcpApprovalsPath;
-        }
-    });
-    it('should call an MCP tool and return its result', async () => {
-        // Test directory is already set up in before hook
-        // Just run the command - MCP server config is in settings.json
-        const output = await rig.run('Use the get_integration_token tool and print the returned token. Do not guess it.');
-        const foundToolCall = await rig.waitForToolCall('mcp__addition-server__get_integration_token');
-        expect(foundToolCall, 'Expected to find a get_integration_token tool call').toBeTruthy();
-        // Validate model output - will throw if no output, fail if missing expected content
-        validateModelOutput(output, INTEGRATION_TOKEN, 'MCP server test');
-        expect(output.includes(INTEGRATION_TOKEN), 'Expected output to contain the MCP tool token').toBeTruthy();
-    });
+      },
+      5000, // Max wait 5 seconds
+      100,
+    );
+    if (!isReady) {
+      throw new Error('MCP server script was not ready in time.');
+    }
+  });
+  afterAll(() => {
+    if (previousLegacyMcpBlocking === undefined) {
+      delete process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'];
+    } else {
+      process.env['QWEN_CODE_LEGACY_MCP_BLOCKING'] = previousLegacyMcpBlocking;
+    }
+    if (previousMcpApprovalsPath === undefined) {
+      delete process.env['QWEN_CODE_MCP_APPROVALS_PATH'];
+    } else {
+      process.env['QWEN_CODE_MCP_APPROVALS_PATH'] = previousMcpApprovalsPath;
+    }
+  });
+  it('should call an MCP tool and return its result', async () => {
+    // Test directory is already set up in before hook
+    // Just run the command - MCP server config is in settings.json
+    const output = await rig.run(
+      'Use the get_integration_token tool and print the returned token. Do not guess it.',
+    );
+    const foundToolCall = await rig.waitForToolCall(
+      'mcp__addition-server__get_integration_token',
+    );
+    expect(
+      foundToolCall,
+      'Expected to find a get_integration_token tool call',
+    ).toBeTruthy();
+    // Validate model output - will throw if no output, fail if missing expected content
+    validateModelOutput(output, INTEGRATION_TOKEN, 'MCP server test');
+    expect(
+      output.includes(INTEGRATION_TOKEN),
+      'Expected output to contain the MCP tool token',
+    ).toBeTruthy();
+  });
 });
 //# sourceMappingURL=simple-mcp-server.test.js.map

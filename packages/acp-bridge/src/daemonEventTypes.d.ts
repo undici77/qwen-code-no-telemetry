@@ -20,7 +20,8 @@
  * source of truth: a rename here propagates to every importer, so it can't
  * silently break browser-side dedup. `data: { sessionId, messages: string[] }`.
  */
-export declare const MID_TURN_MESSAGE_INJECTED_EVENT = "mid_turn_message_injected";
+export declare const MID_TURN_MESSAGE_INJECTED_EVENT =
+  'mid_turn_message_injected';
 /**
  * Published when a prompt is accepted into the per-session FIFO queue
  * (i.e. a previous prompt is still running, so this one must wait).
@@ -28,12 +29,12 @@ export declare const MID_TURN_MESSAGE_INJECTED_EVENT = "mid_turn_message_injecte
  * it starts immediately without queueing.
  * `data: { sessionId, promptId, text, queuedAt }`.
  */
-export declare const PENDING_PROMPT_ADDED_EVENT = "pending_prompt_added";
+export declare const PENDING_PROMPT_ADDED_EVENT = 'pending_prompt_added';
 /**
  * Published when a queued prompt begins dispatch (reaches the head of the
  * FIFO). `data: { sessionId, promptId, text }`.
  */
-export declare const PENDING_PROMPT_STARTED_EVENT = "pending_prompt_started";
+export declare const PENDING_PROMPT_STARTED_EVENT = 'pending_prompt_started';
 /**
  * Published when a pending prompt settles (completed normally or
  * explicitly removed). `data: { sessionId, promptId, state:
@@ -41,4 +42,5 @@ export declare const PENDING_PROMPT_STARTED_EVENT = "pending_prompt_started";
  * produce `'completed'` — the terminal SSE event (`turn_error`)
  * carries the actual error detail.
  */
-export declare const PENDING_PROMPT_COMPLETED_EVENT = "pending_prompt_completed";
+export declare const PENDING_PROMPT_COMPLETED_EVENT =
+  'pending_prompt_completed';

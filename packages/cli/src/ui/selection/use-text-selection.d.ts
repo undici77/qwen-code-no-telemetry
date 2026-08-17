@@ -5,22 +5,19 @@
  */
 import { type ViewportRect } from './selection-coords.js';
 interface ScrollState {
-    scrollTop: number;
-    scrollHeight: number;
-    innerHeight: number;
+  scrollTop: number;
+  scrollHeight: number;
+  innerHeight: number;
 }
 export interface TextSelectionControllerProps {
-    /** Selection is only handled while active (VP mode, no dialog, focused). */
-    isActive: boolean;
-    /** Reads from the history viewport; called at event time (may be null early). */
-    getViewportRect: () => ViewportRect | null;
-    /** Additional selectable regions outside the history viewport. */
-    getAdditionalSelectableRects?: () => readonly ViewportRect[];
-    getScrollState: () => ScrollState;
-    hitTestScrollbar: (location: {
-        col: number;
-        row: number;
-    }) => boolean;
+  /** Selection is only handled while active (VP mode, no dialog, focused). */
+  isActive: boolean;
+  /** Reads from the history viewport; called at event time (may be null early). */
+  getViewportRect: () => ViewportRect | null;
+  /** Additional selectable regions outside the history viewport. */
+  getAdditionalSelectableRects?: () => readonly ViewportRect[];
+  getScrollState: () => ScrollState;
+  hitTestScrollbar: (location: { col: number; row: number }) => boolean;
 }
 /**
  * Headless controller that turns mouse press/drag/release in selectable VP
@@ -31,5 +28,7 @@ export interface TextSelectionControllerProps {
  * on scroll, while every selection clears when its owning content or layout
  * changes.
  */
-export declare function TextSelectionController(props: TextSelectionControllerProps): null;
+export declare function TextSelectionController(
+  props: TextSelectionControllerProps,
+): null;
 export {};

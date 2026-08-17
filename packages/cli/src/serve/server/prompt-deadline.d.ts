@@ -9,4 +9,7 @@
  * deadline applies. The request override may SHORTEN the deadline but
  * never EXTEND it — operators stay the upper bound.
  */
-export declare function resolvePromptDeadlineMs(serverMs: number | undefined, requestMs: number | undefined): number | undefined;
+export declare function resolvePromptDeadlineMs(
+  serverMs: number | undefined,
+  requestMs: number | undefined,
+): number | undefined;

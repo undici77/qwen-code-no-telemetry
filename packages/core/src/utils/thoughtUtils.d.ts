@@ -5,8 +5,8 @@
  */
 import type { GenerateContentResponse, Part } from '@google/genai';
 export type ThoughtSummary = {
-    subject: string;
-    description: string;
+  subject: string;
+  description: string;
 };
 export declare function createOpenAIReasoningThoughtPart(text: string): Part;
 /**
@@ -26,4 +26,6 @@ export declare function isOpenAIReasoningThoughtPart(part: Part): boolean;
  * string is treated as the description.
  */
 export declare function parseThought(rawText: string): ThoughtSummary;
-export declare function getThoughtSummary(response: GenerateContentResponse): ThoughtSummary | null;
+export declare function getThoughtSummary(
+  response: GenerateContentResponse,
+): ThoughtSummary | null;

@@ -18,11 +18,14 @@ export { formatMemoryUsage } from '@qwen-code/qwen-code-core';
 export declare const formatRelativeTime: (timestamp: number) => string;
 export declare const formatTokenCount: (count: number) => string;
 export interface FormatDurationOptions {
-    /**
-     * When true, drops a trailing `.0` in the sub-minute range so that whole
-     * seconds render as `5s` rather than `5.0s`. Non-integer values keep their
-     * decimal (e.g. `5.5s`). Matches Claude Code's `ShellTimeDisplay` style.
-     */
-    hideTrailingZeros?: boolean;
+  /**
+   * When true, drops a trailing `.0` in the sub-minute range so that whole
+   * seconds render as `5s` rather than `5.0s`. Non-integer values keep their
+   * decimal (e.g. `5.5s`). Matches Claude Code's `ShellTimeDisplay` style.
+   */
+  hideTrailingZeros?: boolean;
 }
-export declare const formatDuration: (milliseconds: number, options?: FormatDurationOptions) => string;
+export declare const formatDuration: (
+  milliseconds: number,
+  options?: FormatDurationOptions,
+) => string;

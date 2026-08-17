@@ -19,30 +19,34 @@
  * See `packages/chrome-extension/docs/06-plan-c-cdp-tunnel.md`.
  */
 /** Any outbound `cdp_*` frame (extension → daemon). */
-type CdpOutbound = {
-    type: 'cdp_result';
-    id: number;
-    result?: unknown;
-    error?: {
+type CdpOutbound =
+  | {
+      type: 'cdp_result';
+      id: number;
+      result?: unknown;
+      error?: {
         code?: number;
         message?: string;
-    };
-} | {
-    type: 'cdp_event';
-    method: string;
-    params?: Record<string, unknown>;
-} | {
-    type: 'cdp_attached';
-    id: number;
-    url?: string;
-    title?: string;
-    error?: {
+      };
+    }
+  | {
+      type: 'cdp_event';
+      method: string;
+      params?: Record<string, unknown>;
+    }
+  | {
+      type: 'cdp_attached';
+      id: number;
+      url?: string;
+      title?: string;
+      error?: {
         message: string;
+      };
+    }
+  | {
+      type: 'cdp_detach';
+      reason: string;
     };
-} | {
-    type: 'cdp_detach';
-    reason: string;
-};
 /** Sink that pushes one outbound frame down the daemon `/acp` socket. */
 type CdpSend = (frame: CdpOutbound) => void;
 /** Whether a frame `type` is one this bridge owns (daemon → extension). */
@@ -52,9 +56,12 @@ export declare function isCdpBridgeFrame(type: unknown): boolean;
  * {@link isCdpBridgeFrame} first. `send` pushes outbound frames down the same
  * socket; it is recorded as the active sink so events/detach reach the daemon.
  */
-export declare function handleCdpFrame(frame: {
+export declare function handleCdpFrame(
+  frame: {
     type?: unknown;
-}, send: CdpSend): void;
+  },
+  send: CdpSend,
+): void;
 /**
  * Tear down the bridge: detach the debugger and stop forwarding. Called when
  * the daemon socket closes so a stale attachment doesn't linger. Idempotent.

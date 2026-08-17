@@ -1,125 +1,128 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SenderGate } from './SenderGate.js';
 function mockPairingStore(overrides = {}) {
-    return {
-        isApproved: vi.fn().mockReturnValue(false),
-        createRequest: vi.fn().mockReturnValue({ code: 'ABCD1234' }),
-        approve: vi.fn(),
-        listPending: vi.fn().mockReturnValue([]),
-        getAllowlist: vi.fn().mockReturnValue([]),
-        ...overrides,
-    };
+  return {
+    isApproved: vi.fn().mockReturnValue(false),
+    createRequest: vi.fn().mockReturnValue({ code: 'ABCD1234' }),
+    approve: vi.fn(),
+    listPending: vi.fn().mockReturnValue([]),
+    getAllowlist: vi.fn().mockReturnValue([]),
+    ...overrides,
+  };
 }
 describe('SenderGate', () => {
-    describe('open policy', () => {
-        it('allows any sender', () => {
-            const gate = new SenderGate('open');
-            expect(gate.check('anyone').allowed).toBe(true);
-        });
-        it('passively allows any sender', () => {
-            const gate = new SenderGate('open');
-            expect(gate.isAllowed('anyone')).toBe(true);
-        });
+  describe('open policy', () => {
+    it('allows any sender', () => {
+      const gate = new SenderGate('open');
+      expect(gate.check('anyone').allowed).toBe(true);
     });
-    describe('allowlist policy', () => {
-        it('allows listed users', () => {
-            const gate = new SenderGate('allowlist', ['alice', 'bob']);
-            expect(gate.check('alice').allowed).toBe(true);
-        });
-        it('rejects unlisted users', () => {
-            const gate = new SenderGate('allowlist', ['alice']);
-            const result = gate.check('eve');
-            expect(result.allowed).toBe(false);
-            expect(result.pairing).toBeUndefined();
-        });
-        it('works with empty allowlist', () => {
-            const gate = new SenderGate('allowlist');
-            expect(gate.check('anyone').allowed).toBe(false);
-        });
-        it('passively checks allowlisted users', () => {
-            const gate = new SenderGate('allowlist', ['alice']);
-            expect(gate.isAllowed('alice')).toBe(true);
-            expect(gate.isAllowed('eve')).toBe(false);
-        });
-        it('replaceAllowedUsers swaps the snapshotted allowlist', () => {
-            const gate = new SenderGate('allowlist', ['alice']);
-            gate.replaceAllowedUsers(['10001']);
-            expect(gate.check('10001').allowed).toBe(true);
-            expect(gate.check('alice').allowed).toBe(false);
-        });
+    it('passively allows any sender', () => {
+      const gate = new SenderGate('open');
+      expect(gate.isAllowed('anyone')).toBe(true);
     });
-    describe('pairing policy', () => {
-        it('allows static allowlisted users without checking store', () => {
-            const store = mockPairingStore();
-            const gate = new SenderGate('pairing', ['admin'], store);
-            const result = gate.check('admin');
-            expect(result.allowed).toBe(true);
-            expect(store.isApproved).not.toHaveBeenCalled();
-        });
-        it('allows dynamically approved users', () => {
-            const store = mockPairingStore({
-                isApproved: vi.fn().mockReturnValue(true),
-            });
-            const gate = new SenderGate('pairing', [], store);
-            expect(gate.check('user1').allowed).toBe(true);
-        });
-        it('generates pairing code for unknown sender', () => {
-            const store = mockPairingStore({
-                createRequest: vi.fn().mockReturnValue({ code: 'XYZW5678' }),
-            });
-            const gate = new SenderGate('pairing', [], store);
-            const result = gate.check('stranger', 'Stranger Name');
-            expect(result.allowed).toBe(false);
-            expect(result.pairing).toEqual({ code: 'XYZW5678' });
-            expect(store.createRequest).toHaveBeenCalledWith('stranger', 'Stranger Name');
-        });
-        it('passes through the store rejection when the cap is reached', () => {
-            const store = mockPairingStore({
-                createRequest: vi.fn().mockReturnValue({ rejected: 'cap_reached' }),
-            });
-            const gate = new SenderGate('pairing', [], store);
-            const result = gate.check('stranger');
-            expect(result.allowed).toBe(false);
-            expect(result.pairing).toEqual({ rejected: 'cap_reached' });
-        });
-        it('passes through the rejection when the sender already holds a request', () => {
-            const store = mockPairingStore({
-                createRequest: vi.fn().mockReturnValue({ rejected: 'sender_pending' }),
-            });
-            const gate = new SenderGate('pairing', [], store);
-            const result = gate.check('stranger');
-            expect(result.allowed).toBe(false);
-            expect(result.pairing).toEqual({ rejected: 'sender_pending' });
-        });
-        it('uses senderId as senderName fallback', () => {
-            const store = mockPairingStore();
-            const gate = new SenderGate('pairing', [], store);
-            gate.check('user42');
-            expect(store.createRequest).toHaveBeenCalledWith('user42', 'user42');
-        });
-        it('works without pairing store (no store provided)', () => {
-            const gate = new SenderGate('pairing');
-            const result = gate.check('anyone');
-            expect(result.allowed).toBe(false);
-            expect(result.pairing).toEqual({ rejected: 'cap_reached' });
-        });
-        it('passively checks pairing authorization without creating requests', () => {
-            const store = mockPairingStore({
-                isApproved: vi.fn((senderId) => senderId === 'approved'),
-            });
-            const gate = new SenderGate('pairing', ['admin'], store);
-            expect(gate.isAllowed('admin')).toBe(true);
-            expect(gate.isAllowed('approved')).toBe(true);
-            expect(gate.isAllowed('stranger')).toBe(false);
-            expect(store.createRequest).not.toHaveBeenCalled();
-        });
+  });
+  describe('allowlist policy', () => {
+    it('allows listed users', () => {
+      const gate = new SenderGate('allowlist', ['alice', 'bob']);
+      expect(gate.check('alice').allowed).toBe(true);
     });
-    describe('unknown policy', () => {
-        it('throws on unknown policy', () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const gate = new SenderGate('unknown');
-            expect(() => gate.check('user')).toThrow('Unknown sender policy');
-        });
+    it('rejects unlisted users', () => {
+      const gate = new SenderGate('allowlist', ['alice']);
+      const result = gate.check('eve');
+      expect(result.allowed).toBe(false);
+      expect(result.pairing).toBeUndefined();
     });
+    it('works with empty allowlist', () => {
+      const gate = new SenderGate('allowlist');
+      expect(gate.check('anyone').allowed).toBe(false);
+    });
+    it('passively checks allowlisted users', () => {
+      const gate = new SenderGate('allowlist', ['alice']);
+      expect(gate.isAllowed('alice')).toBe(true);
+      expect(gate.isAllowed('eve')).toBe(false);
+    });
+    it('replaceAllowedUsers swaps the snapshotted allowlist', () => {
+      const gate = new SenderGate('allowlist', ['alice']);
+      gate.replaceAllowedUsers(['10001']);
+      expect(gate.check('10001').allowed).toBe(true);
+      expect(gate.check('alice').allowed).toBe(false);
+    });
+  });
+  describe('pairing policy', () => {
+    it('allows static allowlisted users without checking store', () => {
+      const store = mockPairingStore();
+      const gate = new SenderGate('pairing', ['admin'], store);
+      const result = gate.check('admin');
+      expect(result.allowed).toBe(true);
+      expect(store.isApproved).not.toHaveBeenCalled();
+    });
+    it('allows dynamically approved users', () => {
+      const store = mockPairingStore({
+        isApproved: vi.fn().mockReturnValue(true),
+      });
+      const gate = new SenderGate('pairing', [], store);
+      expect(gate.check('user1').allowed).toBe(true);
+    });
+    it('generates pairing code for unknown sender', () => {
+      const store = mockPairingStore({
+        createRequest: vi.fn().mockReturnValue({ code: 'XYZW5678' }),
+      });
+      const gate = new SenderGate('pairing', [], store);
+      const result = gate.check('stranger', 'Stranger Name');
+      expect(result.allowed).toBe(false);
+      expect(result.pairing).toEqual({ code: 'XYZW5678' });
+      expect(store.createRequest).toHaveBeenCalledWith(
+        'stranger',
+        'Stranger Name',
+      );
+    });
+    it('passes through the store rejection when the cap is reached', () => {
+      const store = mockPairingStore({
+        createRequest: vi.fn().mockReturnValue({ rejected: 'cap_reached' }),
+      });
+      const gate = new SenderGate('pairing', [], store);
+      const result = gate.check('stranger');
+      expect(result.allowed).toBe(false);
+      expect(result.pairing).toEqual({ rejected: 'cap_reached' });
+    });
+    it('passes through the rejection when the sender already holds a request', () => {
+      const store = mockPairingStore({
+        createRequest: vi.fn().mockReturnValue({ rejected: 'sender_pending' }),
+      });
+      const gate = new SenderGate('pairing', [], store);
+      const result = gate.check('stranger');
+      expect(result.allowed).toBe(false);
+      expect(result.pairing).toEqual({ rejected: 'sender_pending' });
+    });
+    it('uses senderId as senderName fallback', () => {
+      const store = mockPairingStore();
+      const gate = new SenderGate('pairing', [], store);
+      gate.check('user42');
+      expect(store.createRequest).toHaveBeenCalledWith('user42', 'user42');
+    });
+    it('works without pairing store (no store provided)', () => {
+      const gate = new SenderGate('pairing');
+      const result = gate.check('anyone');
+      expect(result.allowed).toBe(false);
+      expect(result.pairing).toEqual({ rejected: 'cap_reached' });
+    });
+    it('passively checks pairing authorization without creating requests', () => {
+      const store = mockPairingStore({
+        isApproved: vi.fn((senderId) => senderId === 'approved'),
+      });
+      const gate = new SenderGate('pairing', ['admin'], store);
+      expect(gate.isAllowed('admin')).toBe(true);
+      expect(gate.isAllowed('approved')).toBe(true);
+      expect(gate.isAllowed('stranger')).toBe(false);
+      expect(store.createRequest).not.toHaveBeenCalled();
+    });
+  });
+  describe('unknown policy', () => {
+    it('throws on unknown policy', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const gate = new SenderGate('unknown');
+      expect(() => gate.check('user')).toThrow('Unknown sender policy');
+    });
+  });
 });
 //# sourceMappingURL=SenderGate.test.js.map

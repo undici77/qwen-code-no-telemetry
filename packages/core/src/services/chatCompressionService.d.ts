@@ -64,14 +64,14 @@ export declare const MAX_CONSECUTIVE_FAILURES = 3;
  */
 export declare const MAX_HOOK_INSTRUCTIONS_CHARS = 4000;
 export interface CompactionThresholds {
-    /** Token count at which UI warn tier triggers. */
-    readonly warn: number;
-    /** Token count at which auto-compaction triggers. */
-    readonly auto: number;
-    /** Token count at which auto-compaction is force-triggered (bypasses the consecutive-failure breaker). */
-    readonly hard: number;
-    /** Window minus SUMMARY_RESERVE; the budget available for input + summary. */
-    readonly effectiveWindow: number;
+  /** Token count at which UI warn tier triggers. */
+  readonly warn: number;
+  /** Token count at which auto-compaction triggers. */
+  readonly auto: number;
+  /** Token count at which auto-compaction is force-triggered (bypasses the consecutive-failure breaker). */
+  readonly hard: number;
+  /** Window minus SUMMARY_RESERVE; the budget available for input + summary. */
+  readonly effectiveWindow: number;
 }
 /**
  * Compute the three-tier threshold ladder for a given context window.
@@ -92,63 +92,69 @@ export interface CompactionThresholds {
  *
  * Pure function — no I/O, no shared state — safe to call repeatedly.
  */
-export declare function computeThresholds(window: number, pct?: number): CompactionThresholds;
+export declare function computeThresholds(
+  window: number,
+  pct?: number,
+): CompactionThresholds;
 export type CompactTrigger = 'manual' | 'auto';
 export interface CompressOptions {
-    promptId: string;
-    force: boolean;
-    config: Config;
-    /**
-     * Number of consecutive auto-compaction failures for this chat. When it reaches
-     * MAX_CONSECUTIVE_FAILURES, the cheap-gate stops trying until a successful
-     * force=true call resets it.
-     */
-    consecutiveFailures: number;
-    /**
-     * Most recent prompt token count for this chat. Compared against
-     * `computeThresholds(contextWindowSize).auto` for the auto-compaction
-     * gate, optionally augmented by the pending user message's estimated
-     * token count via `estimatePromptTokens` (see Task 3 / Task 6). Callers
-     * source this from the per-chat counter (main session, subagents alike) —
-     * the service does not read or write any global telemetry.
-     */
-    originalTokenCount: number;
-    /**
-     * Hook trigger to report for this compression. `force=true` bypasses the
-     * threshold gate but does not always mean the user manually requested
-     * compaction; reactive overflow recovery is forced but still automatic.
-     */
-    trigger?: CompactTrigger;
-    signal?: AbortSignal;
-    /**
-     * Pending user message about to be sent. When present, the cheap-gate
-     * adds its estimated token count to `originalTokenCount` (which reflects
-     * only the prior turn's API usage) so the gate sees the real prompt size.
-     * Optional for backward compatibility with callers that don't have a
-     * user message in hand (e.g. manual /compress force=true paths).
-     */
-    pendingUserMessage?: Content;
-    /**
-     * Pre-computed all-inclusive effective-token count. This is normally from
-     * `estimatePromptTokens()`, or from a provider-reported count after reactive
-     * overflow. When provided, the cheap-gate skips its estimation pass and the
-     * cache-sharing preflight does not add the previous model output again.
-     */
-    precomputedEffectiveTokens?: number;
-    /** Per-request overrides used by the main turn, including transient tools. */
-    requestGenerationConfig?: GenerateContentConfig;
-    /**
-     * User-supplied focus directives passed to the compression side-query.
-     * Appended to the system prompt as an `Additional Instructions:` block.
-     * Sourced from `/compress <text>`. PreCompact hooks may further append
-     * `additionalContext` via `hookSpecificOutput`; user text always comes
-     * first, hook text last (matches claude-code mergeHookInstructions).
-     */
-    customInstructions?: string;
+  promptId: string;
+  force: boolean;
+  config: Config;
+  /**
+   * Number of consecutive auto-compaction failures for this chat. When it reaches
+   * MAX_CONSECUTIVE_FAILURES, the cheap-gate stops trying until a successful
+   * force=true call resets it.
+   */
+  consecutiveFailures: number;
+  /**
+   * Most recent prompt token count for this chat. Compared against
+   * `computeThresholds(contextWindowSize).auto` for the auto-compaction
+   * gate, optionally augmented by the pending user message's estimated
+   * token count via `estimatePromptTokens` (see Task 3 / Task 6). Callers
+   * source this from the per-chat counter (main session, subagents alike) —
+   * the service does not read or write any global telemetry.
+   */
+  originalTokenCount: number;
+  /**
+   * Hook trigger to report for this compression. `force=true` bypasses the
+   * threshold gate but does not always mean the user manually requested
+   * compaction; reactive overflow recovery is forced but still automatic.
+   */
+  trigger?: CompactTrigger;
+  signal?: AbortSignal;
+  /**
+   * Pending user message about to be sent. When present, the cheap-gate
+   * adds its estimated token count to `originalTokenCount` (which reflects
+   * only the prior turn's API usage) so the gate sees the real prompt size.
+   * Optional for backward compatibility with callers that don't have a
+   * user message in hand (e.g. manual /compress force=true paths).
+   */
+  pendingUserMessage?: Content;
+  /**
+   * Pre-computed all-inclusive effective-token count. This is normally from
+   * `estimatePromptTokens()`, or from a provider-reported count after reactive
+   * overflow. When provided, the cheap-gate skips its estimation pass and the
+   * cache-sharing preflight does not add the previous model output again.
+   */
+  precomputedEffectiveTokens?: number;
+  /** Per-request overrides used by the main turn, including transient tools. */
+  requestGenerationConfig?: GenerateContentConfig;
+  /**
+   * User-supplied focus directives passed to the compression side-query.
+   * Appended to the system prompt as an `Additional Instructions:` block.
+   * Sourced from `/compress <text>`. PreCompact hooks may further append
+   * `additionalContext` via `hookSpecificOutput`; user text always comes
+   * first, hook text last (matches claude-code mergeHookInstructions).
+   */
+  customInstructions?: string;
 }
 export declare class ChatCompressionService {
-    compress(chat: GeminiChat, opts: CompressOptions): Promise<{
-        newHistory: Content[] | null;
-        info: ChatCompressionInfo;
-    }>;
+  compress(
+    chat: GeminiChat,
+    opts: CompressOptions,
+  ): Promise<{
+    newHistory: Content[] | null;
+    info: ChatCompressionInfo;
+  }>;
 }

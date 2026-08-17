@@ -22,7 +22,10 @@
  *
  * @param logPrefix distinguishes the surface in logs, e.g. `'/acp '` vs `''`.
  */
-export declare function parseLastEventId(raw: unknown, logPrefix?: string): number | undefined;
+export declare function parseLastEventId(
+  raw: unknown,
+  logPrefix?: string,
+): number | undefined;
 /**
  * Parse an `X-Qwen-Event-Epoch` request header into an epoch token for the
  * EventBus stale-cursor detection (DAEMON-001). Shared by the REST
@@ -37,4 +40,7 @@ export declare function parseLastEventId(raw: unknown, logPrefix?: string): numb
  *
  * @param logPrefix distinguishes the surface in logs, e.g. `'/acp '` vs `''`.
  */
-export declare function parseEventEpochHeader(raw: unknown, logPrefix?: string): string | undefined;
+export declare function parseEventEpochHeader(
+  raw: unknown,
+  logPrefix?: string,
+): string | undefined;

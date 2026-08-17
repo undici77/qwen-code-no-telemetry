@@ -10,20 +10,20 @@ import type { QwenAgentCallbacks } from '../types/chatTypes.js';
  * Processes various session update events and calls appropriate callbacks
  */
 export declare class QwenSessionUpdateHandler {
-    private callbacks;
-    constructor(callbacks: QwenAgentCallbacks);
-    /**
-     * Update callbacks
-     *
-     * @param callbacks - New callback collection
-     */
-    updateCallbacks(callbacks: QwenAgentCallbacks): void;
-    /**
-     * Handle session update
-     *
-     * @param data - ACP session update data
-     */
-    handleSessionUpdate(data: SessionNotification): void;
-    private getTextContent;
-    private emitUsageMeta;
+  private callbacks;
+  constructor(callbacks: QwenAgentCallbacks);
+  /**
+   * Update callbacks
+   *
+   * @param callbacks - New callback collection
+   */
+  updateCallbacks(callbacks: QwenAgentCallbacks): void;
+  /**
+   * Handle session update
+   *
+   * @param data - ACP session update data
+   */
+  handleSessionUpdate(data: SessionNotification): void;
+  private getTextContent;
+  private emitUsageMeta;
 }

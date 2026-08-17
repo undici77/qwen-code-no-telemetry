@@ -10,18 +10,17 @@
  * re-arms the action that currently applies rather than confirming.
  */
 export function decideEscapeIntent(ctx) {
-    if (ctx.blocked)
-        return { kind: 'ignore' };
-    if (ctx.streaming) {
-        return ctx.armed === 'cancel'
-            ? { kind: 'cancel' }
-            : { kind: 'arm', action: 'cancel' };
-    }
-    if (ctx.hasInput) {
-        return ctx.armed === 'clear'
-            ? { kind: 'clear' }
-            : { kind: 'arm', action: 'clear' };
-    }
-    return { kind: 'ignore' };
+  if (ctx.blocked) return { kind: 'ignore' };
+  if (ctx.streaming) {
+    return ctx.armed === 'cancel'
+      ? { kind: 'cancel' }
+      : { kind: 'arm', action: 'cancel' };
+  }
+  if (ctx.hasInput) {
+    return ctx.armed === 'clear'
+      ? { kind: 'clear' }
+      : { kind: 'arm', action: 'clear' };
+  }
+  return { kind: 'ignore' };
 }
 //# sourceMappingURL=escapeIntent.js.map

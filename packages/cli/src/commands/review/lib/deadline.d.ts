@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 /** Unix seconds at which the review process will be killed. Set by CI. */
-export declare const DEADLINE_ENV = "QWEN_REVIEW_DEADLINE_EPOCH";
+export declare const DEADLINE_ENV = 'QWEN_REVIEW_DEADLINE_EPOCH';
 /** Override for the tail reserve, in seconds. */
-export declare const RESERVE_ENV = "QWEN_REVIEW_DEADLINE_RESERVE_SECONDS";
+export declare const RESERVE_ENV = 'QWEN_REVIEW_DEADLINE_RESERVE_SECONDS';
 /**
  * What must still fit after the last reverse-audit round completes: the
  * verification of that round's findings, compose-review, anchor resolution
@@ -74,7 +74,8 @@ export declare const DEFAULT_RESERVE_SECONDS = 4800;
  */
 export declare const DEFAULT_COMPOSE_FLOOR_SECONDS = 1200;
 /** Override for the compose floor, in seconds. */
-export declare const COMPOSE_FLOOR_ENV = "QWEN_REVIEW_DEADLINE_COMPOSE_FLOOR_SECONDS";
+export declare const COMPOSE_FLOOR_ENV =
+  'QWEN_REVIEW_DEADLINE_COMPOSE_FLOOR_SECONDS';
 /**
  * The admission estimate for a round nothing has measured yet — round 1, or
  * a record dir that lost its stamps. Thirty minutes covers a measured
@@ -90,11 +91,11 @@ export declare const DEFAULT_ROUND_SECONDS = 1800;
  * it, and an `agent-prompt` subprocess inherits the orchestrator's
  * environment — so the gate and the launches it gates read the same pool.
  */
-export declare const TOOL_CONCURRENCY_ENV = "QWEN_CODE_MAX_TOOL_CONCURRENCY";
+export declare const TOOL_CONCURRENCY_ENV = 'QWEN_CODE_MAX_TOOL_CONCURRENCY';
 export declare const DEFAULT_TOOL_CONCURRENCY = 10;
 interface RoundStamp {
-    round: number | null;
-    atMs: number;
+  round: number | null;
+  atMs: number;
 }
 /**
  * The admission stamps written so far THIS RUN, oldest first. Unreadable →
@@ -108,7 +109,11 @@ export declare function readRoundStamps(planPath: string): RoundStamp[];
  * Write errors are swallowed for the same reason `recordPrompt` swallows
  * them — a read-only tmp dir must not stop a review being built.
  */
-export declare function stampRound(planPath: string, round: number | undefined, nowMs?: number): void;
+export declare function stampRound(
+  planPath: string,
+  round: number | undefined,
+  nowMs?: number,
+): void;
 /**
  * What the round about to be admitted is expected to cost, in seconds: the
  * COSTLIEST round the run has measured (admission-to-admission — its audit
@@ -124,7 +129,11 @@ export declare function stampRound(planPath: string, round: number | undefined, 
  * is ignored — that is a rebuild, and measuring it would report a round
  * as cheap because its prompts were built twice quickly.
  */
-export declare function expectedRoundSeconds(planPath: string, round: number | undefined, nowMs?: number): number;
+export declare function expectedRoundSeconds(
+  planPath: string,
+  round: number | undefined,
+  nowMs?: number,
+): number;
 /**
  * What the ADMISSION itself commits, in seconds — `expectedRoundSeconds`,
  * except when the round being admitted launches while its predecessor is
@@ -159,14 +168,20 @@ export declare function expectedRoundSeconds(planPath: string, round: number | u
  * would have fit — a capped verdict that still posts — never the
  * killed-before-compose shape the gate exists to prevent.
  */
-export declare function expectedAdmissionSeconds(planPath: string, round: number | undefined, fanOutWidth: number, env: NodeJS.ProcessEnv, nowMs?: number): number;
+export declare function expectedAdmissionSeconds(
+  planPath: string,
+  round: number | undefined,
+  fanOutWidth: number,
+  env: NodeJS.ProcessEnv,
+  nowMs?: number,
+): number;
 export interface BudgetExhausted {
-    /** Whole seconds until the deadline; can be negative when already past. */
-    remainingSeconds: number;
-    /** The tail reserve the remaining time failed to clear. */
-    reserveSeconds: number;
-    /** The admission estimate for the refused round itself. */
-    expectedRoundSeconds: number;
+  /** Whole seconds until the deadline; can be negative when already past. */
+  remainingSeconds: number;
+  /** The tail reserve the remaining time failed to clear. */
+  reserveSeconds: number;
+  /** The admission estimate for the refused round itself. */
+  expectedRoundSeconds: number;
 }
 /**
  * Decide whether another reverse-audit round still fits the review's time
@@ -174,12 +189,16 @@ export interface BudgetExhausted {
  * tail after it. Returns `null` when it does — or when no (well-formed)
  * deadline is present, which is every local run.
  */
-export declare function reverseAuditBudgetExhausted(env: NodeJS.ProcessEnv, roundCostSeconds: number, nowMs?: number): BudgetExhausted | null;
+export declare function reverseAuditBudgetExhausted(
+  env: NodeJS.ProcessEnv,
+  roundCostSeconds: number,
+  nowMs?: number,
+): BudgetExhausted | null;
 export interface ComposeFloorExhausted {
-    /** Whole seconds until the deadline; can be negative when already past. */
-    remainingSeconds: number;
-    /** The compose floor the remaining time failed to clear. */
-    composeFloorSeconds: number;
+  /** Whole seconds until the deadline; can be negative when already past. */
+  remainingSeconds: number;
+  /** The compose floor the remaining time failed to clear. */
+  composeFloorSeconds: number;
 }
 /**
  * Decide whether a verification shard still fits before the compose floor:
@@ -195,33 +214,38 @@ export interface ComposeFloorExhausted {
  * verification whose cost the finding set made larger than the reserve
  * planned for.
  */
-export declare function verifyBudgetExhausted(env: NodeJS.ProcessEnv, nowMs?: number): ComposeFloorExhausted | null;
+export declare function verifyBudgetExhausted(
+  env: NodeJS.ProcessEnv,
+  nowMs?: number,
+): ComposeFloorExhausted | null;
 /**
  * The stderr line the verify gate prints on refusal — a termination rule
  * for the verification pass, not an error, spelled so the orchestrator
  * composes now rather than re-attempting the build.
  */
-export declare function verifyBudgetMessage(spent: ComposeFloorExhausted): string;
+export declare function verifyBudgetMessage(
+  spent: ComposeFloorExhausted,
+): string;
 export interface BudgetStop {
-    /**
-     * Which termination wrote this marker: the time budget (the reverse-audit
-     * loop ran out of clock) or the round cap (it ran its full allotted
-     * rounds without converging). `compose-review` picks the disclosure text
-     * by this; an absent value reads as `time-budget` for back-compat.
-     */
-    cause?: 'time-budget' | 'round-cap';
-    /** The round cap, when `cause` is `round-cap` — what `compose-review`
-     * re-derives the disclosure from, the way it uses `round` for a time stop. */
-    cap?: number;
-    /** The exact `unreviewedDimensions` entry, composed here so the text that
-     * caps the verdict is this module's in both channels. */
-    entry: string;
-    /** The Chinese pair of `entry` — the posted body is bilingual. */
-    entryZh: string;
-    round: number | null;
-    remainingSeconds: number;
-    reserveSeconds: number;
-    atMs: number;
+  /**
+   * Which termination wrote this marker: the time budget (the reverse-audit
+   * loop ran out of clock) or the round cap (it ran its full allotted
+   * rounds without converging). `compose-review` picks the disclosure text
+   * by this; an absent value reads as `time-budget` for back-compat.
+   */
+  cause?: 'time-budget' | 'round-cap';
+  /** The round cap, when `cause` is `round-cap` — what `compose-review`
+   * re-derives the disclosure from, the way it uses `round` for a time stop. */
+  cap?: number;
+  /** The exact `unreviewedDimensions` entry, composed here so the text that
+   * caps the verdict is this module's in both channels. */
+  entry: string;
+  /** The Chinese pair of `entry` — the posted body is bilingual. */
+  entryZh: string;
+  round: number | null;
+  remainingSeconds: number;
+  reserveSeconds: number;
+  atMs: number;
 }
 /**
  * The phrase that identifies the budget-stop disclosure wherever it is
@@ -229,17 +253,17 @@ export interface BudgetStop {
  * against the marker's by the same text the entry itself is spelled with —
  * a reword of the entry moves its key along with it.
  */
-export declare const BUDGET_STOP_PHRASE = "review time budget";
+export declare const BUDGET_STOP_PHRASE = 'review time budget';
 /**
  * The disclosure as structural parts, both languages: compose-review renders
  * it through the same bilingual coverage path as every other structural gap.
  * The entry texts below are these parts joined, never the other way around.
  */
 export declare function budgetStopDisclosure(round: number | undefined): {
-    subject: string;
-    reason: string;
-    subjectZh: string;
-    reasonZh: string;
+  subject: string;
+  reason: string;
+  subjectZh: string;
+  reasonZh: string;
 };
 /** The disclosure entry, spelled once for the marker AND the stderr message. */
 export declare function budgetStopEntry(round: number | undefined): string;
@@ -250,17 +274,17 @@ export declare function budgetStopEntryZh(round: number | undefined): string;
  * the cap analogue of `BUDGET_STOP_PHRASE`, so `compose-review` dedups the
  * orchestrator's relayed copy against the marker's by shared text.
  */
-export declare const ROUND_CAP_PHRASE = "reverse-audit round cap";
+export declare const ROUND_CAP_PHRASE = 'reverse-audit round cap';
 /**
  * The round-cap disclosure as structural parts, both languages — the
  * analogue of `budgetStopDisclosure` for a loop that ran its full allotted
  * rounds without converging.
  */
 export declare function roundCapStopDisclosure(cap: number): {
-    subject: string;
-    reason: string;
-    subjectZh: string;
-    reasonZh: string;
+  subject: string;
+  reason: string;
+  subjectZh: string;
+  reasonZh: string;
 };
 /** The round-cap entry, spelled once for the marker AND the stderr message. */
 export declare function roundCapStopEntry(cap: number): string;
@@ -275,7 +299,12 @@ export declare function roundCapStopEntryZh(cap: number): string;
  * first — the same-run guard below enforces it, so a retry-past-cap after a
  * time-budget stop cannot flip the recorded cause.
  */
-export declare function writeRoundCapStop(planPath: string, cap: number, round: number | undefined, nowMs?: number): void;
+export declare function writeRoundCapStop(
+  planPath: string,
+  cap: number,
+  round: number | undefined,
+  nowMs?: number,
+): void;
 /**
  * Persist the refusal beside the prompt records, where `compose-review`
  * reads it back and synthesizes the verdict-capping disclosure without
@@ -284,7 +313,12 @@ export declare function writeRoundCapStop(planPath: string, cap: number, round: 
  * that cannot write must still refuse. First refusal wins here too — a
  * same-run marker already on disk is left untouched.
  */
-export declare function writeBudgetStop(planPath: string, spent: BudgetExhausted, round: number | undefined, nowMs?: number): void;
+export declare function writeBudgetStop(
+  planPath: string,
+  spent: BudgetExhausted,
+  round: number | undefined,
+  nowMs?: number,
+): void;
 /**
  * The budget-stop marker, if THIS RUN wrote one. Unreadable → null; so is a
  * marker older than the plan's own capture — a previous run's refusal, left
@@ -309,5 +343,8 @@ export declare function clearBudgetStop(planPath: string): void;
  * `budget-stop.json` marker byte for byte, so both channels cap the verdict
  * with one text.
  */
-export declare function reverseAuditBudgetMessage(spent: BudgetExhausted, round: number | undefined): string;
+export declare function reverseAuditBudgetMessage(
+  spent: BudgetExhausted,
+  round: number | undefined,
+): string;
 export {};

@@ -48,49 +48,54 @@ export type TaskKind = 'agent' | 'shell' | 'monitor' | 'workflow';
  * cancellation; not every kind uses every state (shells and monitors
  * never `paused`, for example).
  */
-export type TaskStatus = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export type TaskStatus =
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 /**
  * Common envelope every task carries regardless of kind. Per-kind
  * modules extend this via intersection (`TaskBase & { kind: 'agent', ... }`).
  */
 export interface TaskBase<Status extends string = TaskStatus> {
-    /** Stable id used as the registry key. Per-kind types alias this to
-     *  their existing field name (e.g. `agentId`) during the back-compat
-     *  window; both fields are populated to the same value at register time. */
-    id: string;
-    /** Discriminator selecting the per-kind shape. */
-    kind: TaskKind;
-    /** Human label rendered in the pill/panel/dialog. */
-    description: string;
-    status: Status;
-    /** ms epoch when the task was registered. */
-    startTime: number;
-    /** ms epoch when the task transitioned out of running. */
-    endTime?: number;
-    /**
-     * Absolute path of the per-task primary stream. Reserved at register
-     * time even when no writer is attached today (monitors). Materialized
-     * by each kind's writer on its first append, not at register time.
-     * Note this is "first append", not "first runtime event": the agent
-     * writer seeds the launch prompt as its first record at attach time,
-     * so a foreground/background subagent with a prompt materializes its
-     * JSONL immediately — before any tool call or model turn. A subagent
-     * cancelled before any event therefore still leaves a JSONL (prompt
-     * only) plus the meta sidecar, not meta alone.
-     */
-    outputFile: string;
-    /**
-     * Byte offset into `outputFile` for incremental reads. Initialized to
-     * 0 and advanced by readers. Stays at 0 forever for kinds that don't
-     * materialize the file (monitors).
-     */
-    outputOffset: number;
-    /** True once the kind's terminal notification has fired. */
-    notified: boolean;
-    /** Todo work chain that created this task, when it was model-launched. */
-    todoWorkChainId?: string;
-    /** Unified cancellation handle. */
-    abortController: AbortController;
+  /** Stable id used as the registry key. Per-kind types alias this to
+   *  their existing field name (e.g. `agentId`) during the back-compat
+   *  window; both fields are populated to the same value at register time. */
+  id: string;
+  /** Discriminator selecting the per-kind shape. */
+  kind: TaskKind;
+  /** Human label rendered in the pill/panel/dialog. */
+  description: string;
+  status: Status;
+  /** ms epoch when the task was registered. */
+  startTime: number;
+  /** ms epoch when the task transitioned out of running. */
+  endTime?: number;
+  /**
+   * Absolute path of the per-task primary stream. Reserved at register
+   * time even when no writer is attached today (monitors). Materialized
+   * by each kind's writer on its first append, not at register time.
+   * Note this is "first append", not "first runtime event": the agent
+   * writer seeds the launch prompt as its first record at attach time,
+   * so a foreground/background subagent with a prompt materializes its
+   * JSONL immediately — before any tool call or model turn. A subagent
+   * cancelled before any event therefore still leaves a JSONL (prompt
+   * only) plus the meta sidecar, not meta alone.
+   */
+  outputFile: string;
+  /**
+   * Byte offset into `outputFile` for incremental reads. Initialized to
+   * 0 and advanced by readers. Stays at 0 forever for kinds that don't
+   * materialize the file (monitors).
+   */
+  outputOffset: number;
+  /** True once the kind's terminal notification has fired. */
+  notified: boolean;
+  /** Todo work chain that created this task, when it was model-launched. */
+  todoWorkChainId?: string;
+  /** Unified cancellation handle. */
+  abortController: AbortController;
 }
 /**
  * Shape callers pass to a registry's `register()`. The four `TaskBase`
@@ -100,7 +105,10 @@ export interface TaskBase<Status extends string = TaskStatus> {
  * further (e.g. shells let the registry alias `outputPath` →
  * `outputFile`).
  */
-export type TaskRegistration<T extends TaskBase<string>> = Omit<T, 'id' | 'kind' | 'outputOffset' | 'notified'>;
+export type TaskRegistration<T extends TaskBase<string>> = Omit<
+  T,
+  'id' | 'kind' | 'outputOffset' | 'notified'
+>;
 import type { AgentTask } from '../background-tasks.js';
 import type { ShellTask } from '../../services/backgroundShellRegistry.js';
 import type { MonitorTask } from '../../services/monitorRegistry.js';

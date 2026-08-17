@@ -14,37 +14,37 @@
  * fires, so there is no surviving entry to attach history to.
  */
 export interface CronTaskRun {
-    /** Fire time (epoch ms), minute-aligned like `lastFiredAt`. */
-    at: number;
-    /**
-     * How the run was delivered:
-     *  - `'scheduled'` — fired on time by the running scheduler tick.
-     *  - `'catch-up'` — a recurring fire that came due while no session owned
-     *    the schedule, delivered late when a session took over.
-     *  - `'manual'` — triggered by the user via the management UI's "run now",
-     *    not by the scheduler.
-     * Absent is treated as `'scheduled'` by consumers. Typed loosely (any
-     * string is accepted on read) so a future kind can't fail validation on an
-     * older reader.
-     */
-    kind?: 'scheduled' | 'catch-up' | 'manual';
-    /**
-     * Id of the session that owned the schedule when this fire ran — the session
-     * whose transcript contains the run. Lets a management UI link a run back to
-     * the conversation it happened in. Absent on tool-created history or when no
-     * owner id was known.
-     */
-    sessionId?: string;
-    /**
-     * READ-ONLY backward-compatibility field. A pre-removal version stamped this
-     * on a fire whose precondition withheld the prompt (it was booked as a run
-     * but nothing executed). The isolated/precondition machinery is gone, so this
-     * is never written anymore — but stored history still carries it, and dropping
-     * it would misreport a deliberately-skipped fire as an ordinary successful
-     * run. Preserved through read/validation/passthrough so the UI keeps its
-     * "skipped" marker on legacy entries. Absent = a real dispatched run.
-     */
-    withheld?: boolean;
+  /** Fire time (epoch ms), minute-aligned like `lastFiredAt`. */
+  at: number;
+  /**
+   * How the run was delivered:
+   *  - `'scheduled'` — fired on time by the running scheduler tick.
+   *  - `'catch-up'` — a recurring fire that came due while no session owned
+   *    the schedule, delivered late when a session took over.
+   *  - `'manual'` — triggered by the user via the management UI's "run now",
+   *    not by the scheduler.
+   * Absent is treated as `'scheduled'` by consumers. Typed loosely (any
+   * string is accepted on read) so a future kind can't fail validation on an
+   * older reader.
+   */
+  kind?: 'scheduled' | 'catch-up' | 'manual';
+  /**
+   * Id of the session that owned the schedule when this fire ran — the session
+   * whose transcript contains the run. Lets a management UI link a run back to
+   * the conversation it happened in. Absent on tool-created history or when no
+   * owner id was known.
+   */
+  sessionId?: string;
+  /**
+   * READ-ONLY backward-compatibility field. A pre-removal version stamped this
+   * on a fire whose precondition withheld the prompt (it was booked as a run
+   * but nothing executed). The isolated/precondition machinery is gone, so this
+   * is never written anymore — but stored history still carries it, and dropping
+   * it would misreport a deliberately-skipped fire as an ordinary successful
+   * run. Preserved through read/validation/passthrough so the UI keeps its
+   * "skipped" marker on legacy entries. Absent = a real dispatched run.
+   */
+  withheld?: boolean;
 }
 /** Cap on a task's on-disk run history. A ring, newest kept — this bounds the
  * per-task growth of the tasks file (every fire already rewrites it to stamp
@@ -53,56 +53,56 @@ export declare const MAX_TASK_RUNS = 20;
 export declare const MAX_CHANNEL_DELIVERY_NAME_LENGTH = 2048;
 export declare const MAX_CHANNEL_DELIVERY_TARGET_ID_LENGTH = 2048;
 export interface CronTaskDelivery {
-    kind: 'channel';
-    target: {
-        channelName: string;
-        type: 'user' | 'chat';
-        id: string;
-    };
+  kind: 'channel';
+  target: {
+    channelName: string;
+    type: 'user' | 'chat';
+    id: string;
+  };
 }
 export interface DurableCronTask {
-    id: string;
-    cron: string;
-    prompt: string;
-    recurring: boolean;
-    createdAt: number;
-    lastFiredAt: number | null;
-    /**
-     * Optional display name, shown in management UIs (the Web Shell
-     * scheduled-tasks page). Absent on tool-created tasks — consumers fall
-     * back to the prompt. Never used for scheduling.
-     */
-    name?: string;
-    /**
-     * Whether the task is active. Absent or `true` = scheduled; `false` =
-     * kept on disk but skipped by the scheduler — a reversible "off" switch
-     * for the management UI. Absent defaults to enabled so tool-created
-     * tasks (which never write this field) keep firing.
-     */
-    enabled?: boolean;
-    /**
-     * Set when a task was disabled BY archiving its bound session (not by the
-     * user's own off-switch). Only such tasks are re-enabled when the session is
-     * unarchived, so a task the user deliberately disabled stays disabled across
-     * an archive/unarchive cycle. Cleared on re-enable.
-     */
-    disabledByArchive?: boolean;
-    /**
-     * Id of the dedicated session this task is bound to. A task created through
-     * the Web Shell management page mints its own session and stores its id here;
-     * the task then fires ONLY inside that session (not via the shared per-project
-     * durable owner), so the session's transcript is the task's run history, and
-     * archiving/deleting that session stops the task. Absent on tool-created
-     * (`cron_create`) and legacy tasks, which keep the shared-owner firing model.
-     */
-    sessionId?: string;
-    delivery?: CronTaskDelivery;
-    /**
-     * Bounded, newest-last history of recent fires (capped at MAX_TASK_RUNS).
-     * Absent on tool-created tasks and on any task that has not fired yet.
-     * Appended at the scheduler's persist sites via {@link appendCronRun}.
-     */
-    runs?: CronTaskRun[];
+  id: string;
+  cron: string;
+  prompt: string;
+  recurring: boolean;
+  createdAt: number;
+  lastFiredAt: number | null;
+  /**
+   * Optional display name, shown in management UIs (the Web Shell
+   * scheduled-tasks page). Absent on tool-created tasks — consumers fall
+   * back to the prompt. Never used for scheduling.
+   */
+  name?: string;
+  /**
+   * Whether the task is active. Absent or `true` = scheduled; `false` =
+   * kept on disk but skipped by the scheduler — a reversible "off" switch
+   * for the management UI. Absent defaults to enabled so tool-created
+   * tasks (which never write this field) keep firing.
+   */
+  enabled?: boolean;
+  /**
+   * Set when a task was disabled BY archiving its bound session (not by the
+   * user's own off-switch). Only such tasks are re-enabled when the session is
+   * unarchived, so a task the user deliberately disabled stays disabled across
+   * an archive/unarchive cycle. Cleared on re-enable.
+   */
+  disabledByArchive?: boolean;
+  /**
+   * Id of the dedicated session this task is bound to. A task created through
+   * the Web Shell management page mints its own session and stores its id here;
+   * the task then fires ONLY inside that session (not via the shared per-project
+   * durable owner), so the session's transcript is the task's run history, and
+   * archiving/deleting that session stops the task. Absent on tool-created
+   * (`cron_create`) and legacy tasks, which keep the shared-owner firing model.
+   */
+  sessionId?: string;
+  delivery?: CronTaskDelivery;
+  /**
+   * Bounded, newest-last history of recent fires (capped at MAX_TASK_RUNS).
+   * Absent on tool-created tasks and on any task that has not fired yet.
+   * Appended at the scheduler's persist sites via {@link appendCronRun}.
+   */
+  runs?: CronTaskRun[];
 }
 /**
  * Appends a run record to a task's bounded history ring (newest last), capping
@@ -111,7 +111,10 @@ export interface DurableCronTask {
  * that predates the field. Shared by every scheduler persist site so the cap
  * is enforced in exactly one place.
  */
-export declare function appendCronRun(runs: CronTaskRun[] | undefined, entry: CronTaskRun): CronTaskRun[];
+export declare function appendCronRun(
+  runs: CronTaskRun[] | undefined,
+  entry: CronTaskRun,
+): CronTaskRun[];
 /**
  * True for a task written by a pre-removal version as an `isolated` task with a
  * `condition` precondition. The field is no longer part of {@link
@@ -148,12 +151,19 @@ export declare function generateCronTaskId(): string;
 /** Generic label for the tasks file, for user-facing messages and tool
  * descriptions. The real path is per-project (hashed); this template
  * communicates the location without leaking the hash. */
-export declare const CRON_TASKS_DISPLAY_PATH = "~/.qwen/tmp/<project-hash>/scheduled_tasks.json";
+export declare const CRON_TASKS_DISPLAY_PATH =
+  '~/.qwen/tmp/<project-hash>/scheduled_tasks.json';
 export declare function getCronFilePath(projectRoot: string): string;
-export declare function readCronTasks(projectRoot: string): Promise<DurableCronTask[]>;
-export declare function writeCronTasks(projectRoot: string, tasks: DurableCronTask[], options?: {
+export declare function readCronTasks(
+  projectRoot: string,
+): Promise<DurableCronTask[]>;
+export declare function writeCronTasks(
+  projectRoot: string,
+  tasks: DurableCronTask[],
+  options?: {
     assertCanCommit?: () => void;
-}): Promise<void>;
+  },
+): Promise<void>;
 /**
  * Applies `mutate` to the on-disk task list in a single read-modify-write
  * cycle. Cycles are serialized — by a mutex within this process, guarded
@@ -163,9 +173,19 @@ export declare function writeCronTasks(projectRoot: string, tasks: DurableCronTa
  * Returning the input array unchanged signals a no-op: the write is
  * skipped, so other sessions' file watchers don't reload for nothing.
  */
-export declare function updateCronTasks(projectRoot: string, mutate: (tasks: DurableCronTask[]) => DurableCronTask[], options?: {
+export declare function updateCronTasks(
+  projectRoot: string,
+  mutate: (tasks: DurableCronTask[]) => DurableCronTask[],
+  options?: {
     assertCanCommit?: () => void;
-}): Promise<void>;
-export declare function addCronTask(projectRoot: string, task: DurableCronTask): Promise<void>;
+  },
+): Promise<void>;
+export declare function addCronTask(
+  projectRoot: string,
+  task: DurableCronTask,
+): Promise<void>;
 /** Returns the number of tasks actually removed. */
-export declare function removeCronTasks(projectRoot: string, ids: string[]): Promise<number>;
+export declare function removeCronTasks(
+  projectRoot: string,
+  ids: string[],
+): Promise<number>;

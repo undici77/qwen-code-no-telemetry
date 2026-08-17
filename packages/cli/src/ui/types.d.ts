@@ -3,191 +3,203 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { CompactionThresholds, CompressionStatus, MCPServerConfig, ThoughtSummary, ToolCallConfirmationDetails, ToolConfirmationOutcome, ToolResultDisplay, AgentStatus, ArenaDiffSummary, GoalSnapshotV2, GoalStateCause } from '@qwen-code/qwen-code-core';
+import type {
+  CompactionThresholds,
+  CompressionStatus,
+  MCPServerConfig,
+  ThoughtSummary,
+  ToolCallConfirmationDetails,
+  ToolConfirmationOutcome,
+  ToolResultDisplay,
+  AgentStatus,
+  ArenaDiffSummary,
+  GoalSnapshotV2,
+  GoalStateCause,
+} from '@qwen-code/qwen-code-core';
 import type { PartListUnion } from '@google/genai';
 import type { ReactNode } from 'react';
 export type { ThoughtSummary };
 export declare enum AuthState {
-    Unauthenticated = "unauthenticated",
-    Updating = "updating",
-    Authenticated = "authenticated"
+  Unauthenticated = 'unauthenticated',
+  Updating = 'updating',
+  Authenticated = 'authenticated',
 }
 export declare enum StreamingState {
-    Idle = "idle",
-    Responding = "responding",
-    WaitingForConfirmation = "waiting_for_confirmation"
+  Idle = 'idle',
+  Responding = 'responding',
+  WaitingForConfirmation = 'waiting_for_confirmation',
 }
 export declare enum GeminiEventType {
-    Content = "content",
-    ToolCallRequest = "tool_call_request"
+  Content = 'content',
+  ToolCallRequest = 'tool_call_request',
 }
 export declare enum ToolCallStatus {
-    Pending = "Pending",
-    Canceled = "Canceled",
-    Confirming = "Confirming",
-    Executing = "Executing",
-    Success = "Success",
-    Error = "Error"
+  Pending = 'Pending',
+  Canceled = 'Canceled',
+  Confirming = 'Confirming',
+  Executing = 'Executing',
+  Success = 'Success',
+  Error = 'Error',
 }
 export interface InlineImageData {
-    data: string;
-    mimeType: string;
+  data: string;
+  mimeType: string;
 }
 export interface ToolCallEvent {
-    type: 'tool_call';
-    status: ToolCallStatus;
-    callId: string;
-    name: string;
-    args: Record<string, never>;
-    resultDisplay: ToolResultDisplay | undefined;
-    confirmationDetails: ToolCallConfirmationDetails | undefined;
+  type: 'tool_call';
+  status: ToolCallStatus;
+  callId: string;
+  name: string;
+  args: Record<string, never>;
+  resultDisplay: ToolResultDisplay | undefined;
+  confirmationDetails: ToolCallConfirmationDetails | undefined;
 }
 export interface IndividualToolCallDisplay {
-    callId: string;
-    name: string;
-    description: string;
-    resultDisplay: ToolResultDisplay | string | undefined;
-    visionBridgeNotice?: string;
-    /**
-     * Full tool-result text for the Ctrl+O full-detail transcript (§4.9).
-     * Derived (NOT persisted) — extracted via `getToolResponseDisplayText` from
-     * the already-persisted `functionResponse` parts at live/resume/replay time.
-     * Used only when `fullDetail && isCollapsibleTool(name)` to replace the
-     * summary `resultDisplay` for read/search/list tools whose `returnDisplay`
-     * is only a count. Undefined → fall back to the summary.
-     */
-    detailedDisplay?: string;
-    /** Inline images carried by this tool's persisted response parts. */
-    images?: InlineImageData[];
-    /** Images hidden after the per-row rendering limit. */
-    omittedImageCount?: number;
-    status: ToolCallStatus;
-    confirmationDetails: ToolCallConfirmationDetails | undefined;
-    renderOutputAsMarkdown?: boolean;
-    ptyId?: number;
-    executionStartTime?: number;
-    /** If this tool call operated on a managed-auto-memory file, indicates whether it was a read or write. */
-    isMemoryOp?: 'read' | 'write';
+  callId: string;
+  name: string;
+  description: string;
+  resultDisplay: ToolResultDisplay | string | undefined;
+  visionBridgeNotice?: string;
+  /**
+   * Full tool-result text for the Ctrl+O full-detail transcript (§4.9).
+   * Derived (NOT persisted) — extracted via `getToolResponseDisplayText` from
+   * the already-persisted `functionResponse` parts at live/resume/replay time.
+   * Used only when `fullDetail && isCollapsibleTool(name)` to replace the
+   * summary `resultDisplay` for read/search/list tools whose `returnDisplay`
+   * is only a count. Undefined → fall back to the summary.
+   */
+  detailedDisplay?: string;
+  /** Inline images carried by this tool's persisted response parts. */
+  images?: InlineImageData[];
+  /** Images hidden after the per-row rendering limit. */
+  omittedImageCount?: number;
+  status: ToolCallStatus;
+  confirmationDetails: ToolCallConfirmationDetails | undefined;
+  renderOutputAsMarkdown?: boolean;
+  ptyId?: number;
+  executionStartTime?: number;
+  /** If this tool call operated on a managed-auto-memory file, indicates whether it was a read or write. */
+  isMemoryOp?: 'read' | 'write';
 }
 export interface CompressionProps {
-    isPending: boolean;
-    originalTokenCount: number | null;
-    newTokenCount: number | null;
-    compressionStatus: CompressionStatus | null;
+  isPending: boolean;
+  originalTokenCount: number | null;
+  newTokenCount: number | null;
+  compressionStatus: CompressionStatus | null;
 }
 export interface SummaryProps {
-    isPending: boolean;
-    stage: 'generating' | 'saving' | 'completed';
-    filePath?: string;
+  isPending: boolean;
+  stage: 'generating' | 'saving' | 'completed';
+  filePath?: string;
 }
 export interface HistoryItemBase {
-    text?: string;
-    /** Display-only flags that do not affect canonical history semantics. */
-    display?: {
-        /**
-         * If true, the item is kept in history for turn mapping but not
-         * rendered in the restored transcript. Set by ui.history.collapseOnResume
-         * when resuming a session.
-         */
-        suppressOnRestore?: boolean;
-        /**
-         * Identifies special display-only items, like the summary row added
-         * when history is collapsed.
-         */
-        kind?: 'collapse-summary';
-    };
+  text?: string;
+  /** Display-only flags that do not affect canonical history semantics. */
+  display?: {
+    /**
+     * If true, the item is kept in history for turn mapping but not
+     * rendered in the restored transcript. Set by ui.history.collapseOnResume
+     * when resuming a session.
+     */
+    suppressOnRestore?: boolean;
+    /**
+     * Identifies special display-only items, like the summary row added
+     * when history is collapsed.
+     */
+    kind?: 'collapse-summary';
+  };
 }
 export type HistoryItemUser = HistoryItemBase & {
-    type: 'user';
-    text: string;
-    promptId?: string;
-    /**
-     * Whether this UI history item represents a user turn that reached the model.
-     *
-     * NOTE: This is set explicitly by slash command processing because visible
-     * slash-command invocations may be handled locally without entering API
-     * history. Regular user messages leave this undefined and are classified by
-     * the legacy lexical fallback in isRealUserTurn. New user-item paths with
-     * ambiguous model-history behavior must set this explicitly.
-     */
-    sentToModel?: boolean;
+  type: 'user';
+  text: string;
+  promptId?: string;
+  /**
+   * Whether this UI history item represents a user turn that reached the model.
+   *
+   * NOTE: This is set explicitly by slash command processing because visible
+   * slash-command invocations may be handled locally without entering API
+   * history. Regular user messages leave this undefined and are classified by
+   * the legacy lexical fallback in isRealUserTurn. New user-item paths with
+   * ambiguous model-history behavior must set this explicitly.
+   */
+  sentToModel?: boolean;
 };
 export type HistoryItemGemini = HistoryItemBase & {
-    type: 'gemini';
-    text: string;
-    images?: InlineImageData[];
-    omittedImageCount?: number;
-    timestamp?: number;
+  type: 'gemini';
+  text: string;
+  images?: InlineImageData[];
+  omittedImageCount?: number;
+  timestamp?: number;
 };
 export type HistoryItemGeminiContent = HistoryItemBase & {
-    type: 'gemini_content';
-    text: string;
-    images?: InlineImageData[];
-    omittedImageCount?: number;
+  type: 'gemini_content';
+  text: string;
+  images?: InlineImageData[];
+  omittedImageCount?: number;
 };
 export type HistoryItemGeminiThought = HistoryItemBase & {
-    type: 'gemini_thought';
-    text: string;
-    durationMs?: number;
+  type: 'gemini_thought';
+  text: string;
+  durationMs?: number;
 };
 export type HistoryItemGeminiThoughtContent = HistoryItemBase & {
-    type: 'gemini_thought_content';
-    text: string;
+  type: 'gemini_thought_content';
+  text: string;
 };
 export type HistoryItemInfo = HistoryItemBase & {
-    type: 'info';
-    text: string;
-    linkUrl?: string;
-    linkText?: string;
+  type: 'info';
+  text: string;
+  linkUrl?: string;
+  linkText?: string;
 };
 export type HistoryItemError = HistoryItemBase & {
-    type: 'error';
-    text: string;
-    hint?: string;
+  type: 'error';
+  text: string;
+  hint?: string;
 };
 export type HistoryItemWarning = HistoryItemBase & {
-    type: 'warning';
-    text: string;
+  type: 'warning';
+  text: string;
 };
 export type HistoryItemSuccess = HistoryItemBase & {
-    type: 'success';
-    text: string;
+  type: 'success';
+  text: string;
 };
 export type HistoryItemRetryCountdown = HistoryItemBase & {
-    type: 'retry_countdown';
-    text: string;
+  type: 'retry_countdown';
+  text: string;
 };
 export type HistoryItemVisionNotice = HistoryItemBase & {
-    type: 'vision_notice';
-    text: string;
+  type: 'vision_notice';
+  text: string;
 };
 export type HistoryItemAbout = HistoryItemBase & {
-    type: 'about';
-    systemInfo: {
-        cliVersion: string;
-        osPlatform: string;
-        osArch: string;
-        osRelease: string;
-        nodeVersion: string;
-        npmVersion: string;
-        sandboxEnv: string;
-        modelVersion: string;
-        selectedAuthType: string;
-        ideClient: string;
-        sessionId: string;
-        memoryUsage: string;
-        baseUrl?: string;
-        gitCommit?: string;
-        lspStatus?: string;
-    };
+  type: 'about';
+  systemInfo: {
+    cliVersion: string;
+    osPlatform: string;
+    osArch: string;
+    osRelease: string;
+    nodeVersion: string;
+    npmVersion: string;
+    sandboxEnv: string;
+    modelVersion: string;
+    selectedAuthType: string;
+    ideClient: string;
+    sessionId: string;
+    memoryUsage: string;
+    baseUrl?: string;
+    gitCommit?: string;
+    lspStatus?: string;
+  };
 };
 export type HistoryItemHelp = HistoryItemBase & {
-    type: 'help';
-    timestamp: Date;
+  type: 'help';
+  timestamp: Date;
 };
 export type HistoryItemStats = HistoryItemBase & {
-    type: 'stats';
-    duration: string;
+  type: 'stats';
+  duration: string;
 };
 /**
  * Structured payload rendered by `/diff`. Kept as plain data (not React nodes)
@@ -195,67 +207,67 @@ export type HistoryItemStats = HistoryItemBase & {
  * plain-text non-interactive / ACP output.
  */
 export interface DiffRenderRow {
-    filename: string;
-    /** Pre-rename path when this row is a rename; absent otherwise. `filename`
-     *  is the current (post-rename) path used to address the file. */
-    oldPath?: string;
-    /** `undefined` for binary files; a line count (lower bound if `truncated`)
-     *  otherwise. */
-    added?: number;
-    /** `undefined` for binary and untracked files. */
-    removed?: number;
-    isBinary: boolean;
-    isUntracked: boolean;
-    /** `true` when the file is removed from the worktree relative to HEAD.
-     *  Mutually exclusive with `isUntracked`. */
-    isDeleted: boolean;
-    /** Only set for untracked text files that exceeded the read cap. */
-    truncated: boolean;
+  filename: string;
+  /** Pre-rename path when this row is a rename; absent otherwise. `filename`
+   *  is the current (post-rename) path used to address the file. */
+  oldPath?: string;
+  /** `undefined` for binary files; a line count (lower bound if `truncated`)
+   *  otherwise. */
+  added?: number;
+  /** `undefined` for binary and untracked files. */
+  removed?: number;
+  isBinary: boolean;
+  isUntracked: boolean;
+  /** `true` when the file is removed from the worktree relative to HEAD.
+   *  Mutually exclusive with `isUntracked`. */
+  isDeleted: boolean;
+  /** Only set for untracked text files that exceeded the read cap. */
+  truncated: boolean;
 }
 export interface DiffRenderModel {
-    filesCount: number;
-    linesAdded: number;
-    linesRemoved: number;
-    rows: DiffRenderRow[];
-    /** `filesCount - rows.length` when the per-file cap truncated the listing. */
-    hiddenCount: number;
+  filesCount: number;
+  linesAdded: number;
+  linesRemoved: number;
+  rows: DiffRenderRow[];
+  /** `filesCount - rows.length` when the per-file cap truncated the listing. */
+  hiddenCount: number;
 }
 export type HistoryItemDiffStats = HistoryItemBase & {
-    type: 'diff_stats';
-    model: DiffRenderModel;
+  type: 'diff_stats';
+  model: DiffRenderModel;
 };
 export type HistoryItemModelStats = HistoryItemBase & {
-    type: 'model_stats';
+  type: 'model_stats';
 };
 export type HistoryItemToolStats = HistoryItemBase & {
-    type: 'tool_stats';
+  type: 'tool_stats';
 };
 export type HistoryItemSkillStats = HistoryItemBase & {
-    type: 'skill_stats';
+  type: 'skill_stats';
 };
 export type HistoryItemQuit = HistoryItemBase & {
-    type: 'quit';
-    duration: string;
+  type: 'quit';
+  duration: string;
 };
 /**
  * Displayed after a turn when managed-auto-memory files were written
  * (either in-turn by the model, or by the post-turn dream/extract pipeline).
  */
 export type HistoryItemMemorySaved = HistoryItemBase & {
-    type: 'memory_saved';
-    /** Number of memory files written / updated. */
-    writtenCount: number;
-    /** Verb to display, e.g. 'Saved' or 'Updated'. Defaults to 'Saved'. */
-    verb?: string;
+  type: 'memory_saved';
+  /** Number of memory files written / updated. */
+  writtenCount: number;
+  /** Verb to display, e.g. 'Saved' or 'Updated'. Defaults to 'Saved'. */
+  verb?: string;
 };
 export type HistoryItemToolGroup = HistoryItemBase & {
-    type: 'tool_group';
-    tools: IndividualToolCallDisplay[];
-    /** Count of tool calls that wrote to managed-auto-memory files. Pre-computed for badge rendering. */
-    memoryWriteCount?: number;
-    /** Count of tool calls that read from managed-auto-memory files. Pre-computed for badge rendering. */
-    memoryReadCount?: number;
-    isUserInitiated?: boolean;
+  type: 'tool_group';
+  tools: IndividualToolCallDisplay[];
+  /** Count of tool calls that wrote to managed-auto-memory files. Pre-computed for badge rendering. */
+  memoryWriteCount?: number;
+  /** Count of tool calls that read from managed-auto-memory files. Pre-computed for badge rendering. */
+  memoryReadCount?: number;
+  isUserInitiated?: boolean;
 };
 /**
  * Short LLM-generated label summarizing a preceding tool batch. Emitted after
@@ -264,78 +276,81 @@ export type HistoryItemToolGroup = HistoryItemBase & {
  * surfaces to SDK clients as a `tool_use_summary` stream message.
  */
 export type HistoryItemToolUseSummary = HistoryItemBase & {
-    type: 'tool_use_summary';
-    summary: string;
-    /** Tool callIds this summary describes. Used to locate the target tool_group. */
-    precedingToolUseIds: string[];
+  type: 'tool_use_summary';
+  summary: string;
+  /** Tool callIds this summary describes. Used to locate the target tool_group. */
+  precedingToolUseIds: string[];
 };
 export type HistoryItemNotification = HistoryItemBase & {
-    type: 'notification';
-    text: string;
+  type: 'notification';
+  text: string;
 };
 export type HistoryItemUserShell = HistoryItemBase & {
-    type: 'user_shell';
-    text: string;
+  type: 'user_shell';
+  text: string;
 };
 export type HistoryItemCompression = HistoryItemBase & {
-    type: 'compression';
-    compression: CompressionProps;
+  type: 'compression';
+  compression: CompressionProps;
 };
 export type HistoryItemSummary = HistoryItemBase & {
-    type: 'summary';
-    summary: SummaryProps;
+  type: 'summary';
+  summary: SummaryProps;
 };
 export type HistoryItemExtensionsList = HistoryItemBase & {
-    type: 'extensions_list';
+  type: 'extensions_list';
 };
 export interface ToolDefinition {
-    name: string;
-    displayName: string;
-    description?: string;
+  name: string;
+  displayName: string;
+  description?: string;
 }
 export interface SkillDefinition {
-    name: string;
-    description?: string;
-    level?: string;
+  name: string;
+  description?: string;
+  level?: string;
 }
 export type HistoryItemToolsList = HistoryItemBase & {
-    type: 'tools_list';
-    tools: ToolDefinition[];
-    showDescriptions: boolean;
+  type: 'tools_list';
+  tools: ToolDefinition[];
+  showDescriptions: boolean;
 };
 export type HistoryItemSkillsList = HistoryItemBase & {
-    type: 'skills_list';
-    skills: SkillDefinition[];
+  type: 'skills_list';
+  skills: SkillDefinition[];
 };
 export interface JsonMcpTool {
-    serverName: string;
-    name: string;
-    description?: string;
-    schema?: {
-        parametersJsonSchema?: unknown;
-        parameters?: unknown;
-    };
+  serverName: string;
+  name: string;
+  description?: string;
+  schema?: {
+    parametersJsonSchema?: unknown;
+    parameters?: unknown;
+  };
 }
 export interface JsonMcpPrompt {
-    serverName: string;
-    name: string;
-    description?: string;
+  serverName: string;
+  name: string;
+  description?: string;
 }
 export type HistoryItemMcpStatus = HistoryItemBase & {
-    type: 'mcp_status';
-    servers: Record<string, MCPServerConfig>;
-    tools: JsonMcpTool[];
-    prompts: JsonMcpPrompt[];
-    authStatus: Record<string, 'authenticated' | 'expired' | 'unauthenticated' | 'not-configured'>;
-    blockedServers: Array<{
-        name: string;
-        extensionName: string;
-    }>;
-    discoveryInProgress: boolean;
-    connectingServers: string[];
-    showDescriptions: boolean;
-    showSchema: boolean;
-    showTips: boolean;
+  type: 'mcp_status';
+  servers: Record<string, MCPServerConfig>;
+  tools: JsonMcpTool[];
+  prompts: JsonMcpPrompt[];
+  authStatus: Record<
+    string,
+    'authenticated' | 'expired' | 'unauthenticated' | 'not-configured'
+  >;
+  blockedServers: Array<{
+    name: string;
+    extensionName: string;
+  }>;
+  discoveryInProgress: boolean;
+  connectingServers: string[];
+  showDescriptions: boolean;
+  showSchema: boolean;
+  showTips: boolean;
 };
 export type ContextTier = 'safe' | 'warn' | 'auto' | 'hard';
 /**
@@ -347,106 +362,106 @@ export type ContextTier = 'safe' | 'warn' | 'auto' | 'hard';
  */
 export type ContextThresholds = CompactionThresholds;
 export interface ContextCategoryBreakdown {
-    systemPrompt: number;
-    builtinTools: number;
-    mcpTools: number;
-    memoryFiles: number;
-    skills: number;
-    messages: number;
-    freeSpace: number;
-    /**
-     * Distance from the auto-compaction threshold to the window edge.
-     * Derived from `thresholds.auto` (= `contextWindowSize - auto`); retained
-     * so the legacy three-segment progress bar in `ContextUsage.tsx` keeps
-     * working without a separate code path.
-     */
-    autocompactBuffer: number;
-    /** Three-tier ladder used by auto-compaction (warn / auto / hard) plus the effective window. */
-    thresholds: ContextThresholds;
-    /**
-     * Which tier the current usage sits in. `safe` is below `warn`; `warn` /
-     * `auto` / `hard` mean `totalTokens` has crossed the corresponding tier.
-     */
-    currentTier: ContextTier;
+  systemPrompt: number;
+  builtinTools: number;
+  mcpTools: number;
+  memoryFiles: number;
+  skills: number;
+  messages: number;
+  freeSpace: number;
+  /**
+   * Distance from the auto-compaction threshold to the window edge.
+   * Derived from `thresholds.auto` (= `contextWindowSize - auto`); retained
+   * so the legacy three-segment progress bar in `ContextUsage.tsx` keeps
+   * working without a separate code path.
+   */
+  autocompactBuffer: number;
+  /** Three-tier ladder used by auto-compaction (warn / auto / hard) plus the effective window. */
+  thresholds: ContextThresholds;
+  /**
+   * Which tier the current usage sits in. `safe` is below `warn`; `warn` /
+   * `auto` / `hard` mean `totalTokens` has crossed the corresponding tier.
+   */
+  currentTier: ContextTier;
 }
 export interface ContextToolDetail {
-    name: string;
-    tokens: number;
+  name: string;
+  tokens: number;
 }
 export interface ContextMemoryDetail {
-    path: string;
-    tokens: number;
+  path: string;
+  tokens: number;
 }
 export interface ContextSkillDetail {
-    name: string;
-    /** Token cost of the skill listing (name+description) in the tool definition */
-    tokens: number;
-    /** Whether this skill has been invoked and its full body loaded into context */
-    loaded?: boolean;
-    /** Token cost of the loaded SKILL.md body (only set when loaded is true) */
-    bodyTokens?: number;
+  name: string;
+  /** Token cost of the skill listing (name+description) in the tool definition */
+  tokens: number;
+  /** Whether this skill has been invoked and its full body loaded into context */
+  loaded?: boolean;
+  /** Token cost of the loaded SKILL.md body (only set when loaded is true) */
+  bodyTokens?: number;
 }
 export type HistoryItemContextUsage = HistoryItemBase & {
-    type: 'context_usage';
-    modelName: string;
-    totalTokens: number;
-    contextWindowSize: number;
-    breakdown: ContextCategoryBreakdown;
-    builtinTools: ContextToolDetail[];
-    mcpTools: ContextToolDetail[];
-    memoryFiles: ContextMemoryDetail[];
-    skills: ContextSkillDetail[];
-    /** True when totalTokens is absent or derived from a local estimate rather than provider usage. */
-    isEstimated?: boolean;
-    /** When true, show per-item detail sections (tools, memory, skills). Default: false (compact). */
-    showDetails?: boolean;
+  type: 'context_usage';
+  modelName: string;
+  totalTokens: number;
+  contextWindowSize: number;
+  breakdown: ContextCategoryBreakdown;
+  builtinTools: ContextToolDetail[];
+  mcpTools: ContextToolDetail[];
+  memoryFiles: ContextMemoryDetail[];
+  skills: ContextSkillDetail[];
+  /** True when totalTokens is absent or derived from a local estimate rather than provider usage. */
+  isEstimated?: boolean;
+  /** When true, show per-item detail sections (tools, memory, skills). Default: false (compact). */
+  showDetails?: boolean;
 };
 /**
  * Arena agent completion card data.
  */
 export interface ArenaAgentCardData {
-    label: string;
-    status: AgentStatus;
-    durationMs: number;
-    totalTokens: number;
-    inputTokens: number;
-    outputTokens: number;
-    toolCalls: number;
-    successfulToolCalls: number;
-    failedToolCalls: number;
-    rounds: number;
-    error?: string;
-    diff?: string;
-    diffSummary?: ArenaDiffSummary;
-    modifiedFiles?: string[];
-    approachSummary?: string;
+  label: string;
+  status: AgentStatus;
+  durationMs: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  toolCalls: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  rounds: number;
+  error?: string;
+  diff?: string;
+  diffSummary?: ArenaDiffSummary;
+  modifiedFiles?: string[];
+  approachSummary?: string;
 }
 export type HistoryItemArenaAgentComplete = HistoryItemBase & {
-    type: 'arena_agent_complete';
-    agent: ArenaAgentCardData;
+  type: 'arena_agent_complete';
+  agent: ArenaAgentCardData;
 };
 export type HistoryItemArenaSessionComplete = HistoryItemBase & {
-    type: 'arena_session_complete';
-    sessionStatus: string;
-    task: string;
-    totalDurationMs: number;
-    agents: ArenaAgentCardData[];
+  type: 'arena_session_complete';
+  sessionStatus: string;
+  task: string;
+  totalDurationMs: number;
+  agents: ArenaAgentCardData[];
 };
 /**
  * Insight progress message.
  */
 export type HistoryItemInsightProgress = HistoryItemBase & {
-    type: 'insight_progress';
-    progress: InsightProgressProps;
+  type: 'insight_progress';
+  progress: InsightProgressProps;
 };
 export interface BtwProps {
-    question: string;
-    answer: string;
-    isPending: boolean;
+  question: string;
+  answer: string;
+  isPending: boolean;
 }
 export type HistoryItemBtw = HistoryItemBase & {
-    type: 'btw';
-    btw: BtwProps;
+  type: 'btw';
+  btw: BtwProps;
 };
 /**
  * Away-summary recap shown when the user returns to the session after a
@@ -455,77 +470,143 @@ export type HistoryItemBtw = HistoryItemBase & {
  * with the conversation, no sticky pinning.
  */
 export type HistoryItemAwayRecap = HistoryItemBase & {
-    type: 'away_recap';
-    text: string;
+  type: 'away_recap';
+  text: string;
 };
 /**
  * UserPromptSubmit hook blocked event.
  * Displayed when a UserPromptSubmit hook blocks the user's prompt.
  */
 export type HistoryItemUserPromptSubmitBlocked = HistoryItemBase & {
-    type: 'user_prompt_submit_blocked';
-    reason: string;
-    originalPrompt: string;
+  type: 'user_prompt_submit_blocked';
+  reason: string;
+  originalPrompt: string;
 };
 /**
  * Stop hook loop event.
  * Displayed when Stop hooks create a loop, forcing the agent to continue.
  */
 export type HistoryItemStopHookLoop = HistoryItemBase & {
-    type: 'stop_hook_loop';
-    iterationCount: number;
-    reasons: string[];
-    stopHookCount: number;
+  type: 'stop_hook_loop';
+  iterationCount: number;
+  reasons: string[];
+  stopHookCount: number;
 };
 /**
  * Stop hook system message.
  * Displayed when Stop hooks return a systemMessage to show to the user.
  */
 export type HistoryItemStopHookSystemMessage = HistoryItemBase & {
-    type: 'stop_hook_system_message';
-    message: string;
+  type: 'stop_hook_system_message';
+  message: string;
 };
 export type DoctorCheckStatus = 'pass' | 'warn' | 'fail';
 export interface DoctorCheckResult {
-    category: string;
-    name: string;
-    status: DoctorCheckStatus;
-    message: string;
-    detail?: string;
+  category: string;
+  name: string;
+  status: DoctorCheckStatus;
+  message: string;
+  detail?: string;
 }
 export type HistoryItemDoctor = HistoryItemBase & {
-    type: 'doctor';
-    checks: DoctorCheckResult[];
-    summary: {
-        pass: number;
-        warn: number;
-        fail: number;
-    };
+  type: 'doctor';
+  checks: DoctorCheckResult[];
+  summary: {
+    pass: number;
+    warn: number;
+    fail: number;
+  };
 };
-export type GoalStatusKind = 'set' | 'achieved' | 'cleared' | 'failed' | 'aborted' | 'paused' | 'checking';
-export declare const GOAL_STATUS_KINDS: readonly ["set", "achieved", "cleared", "failed", "aborted", "paused", "checking"];
+export type GoalStatusKind =
+  | 'set'
+  | 'achieved'
+  | 'cleared'
+  | 'failed'
+  | 'aborted'
+  | 'paused'
+  | 'checking';
+export declare const GOAL_STATUS_KINDS: readonly [
+  'set',
+  'achieved',
+  'cleared',
+  'failed',
+  'aborted',
+  'paused',
+  'checking',
+];
 /** Narrows an untrusted value (e.g. a persisted transcript field). */
-export declare function isGoalStatusKind(value: unknown): value is GoalStatusKind;
-export declare const TERMINAL_GOAL_STATUS_KINDS: readonly ["achieved", "aborted", "failed"];
-export declare function isTerminalGoalStatusKind(kind: GoalStatusKind): kind is (typeof TERMINAL_GOAL_STATUS_KINDS)[number];
+export declare function isGoalStatusKind(
+  value: unknown,
+): value is GoalStatusKind;
+export declare const TERMINAL_GOAL_STATUS_KINDS: readonly [
+  'achieved',
+  'aborted',
+  'failed',
+];
+export declare function isTerminalGoalStatusKind(
+  kind: GoalStatusKind,
+): kind is (typeof TERMINAL_GOAL_STATUS_KINDS)[number];
 export type HistoryItemGoalStatus = HistoryItemBase & {
-    type: 'goal_status';
-    kind: GoalStatusKind;
-    condition: string;
-    /** Set for active, progress, and terminal goal states. */
-    iterations?: number;
-    setAt?: number;
-    durationMs?: number;
-    lastReason?: string;
+  type: 'goal_status';
+  kind: GoalStatusKind;
+  condition: string;
+  /** Set for active, progress, and terminal goal states. */
+  iterations?: number;
+  setAt?: number;
+  durationMs?: number;
+  lastReason?: string;
 };
 export type HistoryItemGoalState = HistoryItemBase & {
-    type: 'goal_state';
-    snapshot: GoalSnapshotV2;
-    cause?: GoalStateCause;
+  type: 'goal_state';
+  snapshot: GoalSnapshotV2;
+  cause?: GoalStateCause;
 };
-export type HistoryItemWithoutId = HistoryItemUser | HistoryItemNotification | HistoryItemUserShell | HistoryItemGemini | HistoryItemGeminiContent | HistoryItemGeminiThought | HistoryItemGeminiThoughtContent | HistoryItemInfo | HistoryItemError | HistoryItemWarning | HistoryItemSuccess | HistoryItemRetryCountdown | HistoryItemVisionNotice | HistoryItemAbout | HistoryItemHelp | HistoryItemToolGroup | HistoryItemToolUseSummary | HistoryItemStats | HistoryItemModelStats | HistoryItemToolStats | HistoryItemSkillStats | HistoryItemQuit | HistoryItemCompression | HistoryItemSummary | HistoryItemCompression | HistoryItemExtensionsList | HistoryItemToolsList | HistoryItemSkillsList | HistoryItemMcpStatus | HistoryItemContextUsage | HistoryItemArenaAgentComplete | HistoryItemArenaSessionComplete | HistoryItemInsightProgress | HistoryItemBtw | HistoryItemMemorySaved | HistoryItemAwayRecap | HistoryItemUserPromptSubmitBlocked | HistoryItemStopHookLoop | HistoryItemStopHookSystemMessage | HistoryItemDoctor | HistoryItemDiffStats | HistoryItemGoalStatus | HistoryItemGoalState;
+export type HistoryItemWithoutId =
+  | HistoryItemUser
+  | HistoryItemNotification
+  | HistoryItemUserShell
+  | HistoryItemGemini
+  | HistoryItemGeminiContent
+  | HistoryItemGeminiThought
+  | HistoryItemGeminiThoughtContent
+  | HistoryItemInfo
+  | HistoryItemError
+  | HistoryItemWarning
+  | HistoryItemSuccess
+  | HistoryItemRetryCountdown
+  | HistoryItemVisionNotice
+  | HistoryItemAbout
+  | HistoryItemHelp
+  | HistoryItemToolGroup
+  | HistoryItemToolUseSummary
+  | HistoryItemStats
+  | HistoryItemModelStats
+  | HistoryItemToolStats
+  | HistoryItemSkillStats
+  | HistoryItemQuit
+  | HistoryItemCompression
+  | HistoryItemSummary
+  | HistoryItemCompression
+  | HistoryItemExtensionsList
+  | HistoryItemToolsList
+  | HistoryItemSkillsList
+  | HistoryItemMcpStatus
+  | HistoryItemContextUsage
+  | HistoryItemArenaAgentComplete
+  | HistoryItemArenaSessionComplete
+  | HistoryItemInsightProgress
+  | HistoryItemBtw
+  | HistoryItemMemorySaved
+  | HistoryItemAwayRecap
+  | HistoryItemUserPromptSubmitBlocked
+  | HistoryItemStopHookLoop
+  | HistoryItemStopHookSystemMessage
+  | HistoryItemDoctor
+  | HistoryItemDiffStats
+  | HistoryItemGoalStatus
+  | HistoryItemGoalState;
 export type HistoryItem = HistoryItemWithoutId & {
-    id: number;
+  id: number;
 };
 /**
  * Shared visibility predicate: an item collapsed on session resume
@@ -535,53 +616,61 @@ export type HistoryItem = HistoryItemWithoutId & {
  * filter on this, so keep the single source of truth here to prevent the two
  * surfaces from diverging.
  */
-export declare const isHistoryItemVisibleAfterRestore: (item: Pick<HistoryItem, "display">) => boolean;
+export declare const isHistoryItemVisibleAfterRestore: (
+  item: Pick<HistoryItem, 'display'>,
+) => boolean;
 export declare enum MessageType {
-    INFO = "info",
-    SUCCESS = "success",
-    ERROR = "error",
-    WARNING = "warning",
-    USER = "user",
-    ABOUT = "about",
-    HELP = "help",
-    STATS = "stats",
-    MODEL_STATS = "model_stats",
-    TOOL_STATS = "tool_stats",
-    SKILL_STATS = "skill_stats",
-    QUIT = "quit",
-    GEMINI = "gemini",
-    COMPRESSION = "compression",
-    SUMMARY = "summary",
-    EXTENSIONS_LIST = "extensions_list",
-    TOOLS_LIST = "tools_list",
-    SKILLS_LIST = "skills_list",
-    MCP_STATUS = "mcp_status",
-    CONTEXT_USAGE = "context_usage",
-    ARENA_AGENT_COMPLETE = "arena_agent_complete",
-    ARENA_SESSION_COMPLETE = "arena_session_complete",
-    INSIGHT_PROGRESS = "insight_progress",
-    BTW = "btw",
-    NOTIFICATION = "notification",
-    DIFF_STATS = "diff_stats",
-    GOAL_STATUS = "goal_status",
-    GOAL_STATE = "goal_state",
-    VISION_NOTICE = "vision_notice"
+  INFO = 'info',
+  SUCCESS = 'success',
+  ERROR = 'error',
+  WARNING = 'warning',
+  USER = 'user',
+  ABOUT = 'about',
+  HELP = 'help',
+  STATS = 'stats',
+  MODEL_STATS = 'model_stats',
+  TOOL_STATS = 'tool_stats',
+  SKILL_STATS = 'skill_stats',
+  QUIT = 'quit',
+  GEMINI = 'gemini',
+  COMPRESSION = 'compression',
+  SUMMARY = 'summary',
+  EXTENSIONS_LIST = 'extensions_list',
+  TOOLS_LIST = 'tools_list',
+  SKILLS_LIST = 'skills_list',
+  MCP_STATUS = 'mcp_status',
+  CONTEXT_USAGE = 'context_usage',
+  ARENA_AGENT_COMPLETE = 'arena_agent_complete',
+  ARENA_SESSION_COMPLETE = 'arena_session_complete',
+  INSIGHT_PROGRESS = 'insight_progress',
+  BTW = 'btw',
+  NOTIFICATION = 'notification',
+  DIFF_STATS = 'diff_stats',
+  GOAL_STATUS = 'goal_status',
+  GOAL_STATE = 'goal_state',
+  VISION_NOTICE = 'vision_notice',
 }
 export interface InsightProgressProps {
-    stage: string;
-    progress: number;
-    detail?: string;
-    isComplete?: boolean;
-    error?: string;
+  stage: string;
+  progress: number;
+  detail?: string;
+  isComplete?: boolean;
+  error?: string;
 }
-export type Message = {
-    type: MessageType.INFO | MessageType.WARNING | MessageType.ERROR | MessageType.USER;
-    content: string;
-    timestamp: Date;
-} | {
-    type: MessageType.ABOUT;
-    timestamp: Date;
-    systemInfo: {
+export type Message =
+  | {
+      type:
+        | MessageType.INFO
+        | MessageType.WARNING
+        | MessageType.ERROR
+        | MessageType.USER;
+      content: string;
+      timestamp: Date;
+    }
+  | {
+      type: MessageType.ABOUT;
+      timestamp: Date;
+      systemInfo: {
         cliVersion: string;
         osPlatform: string;
         osArch: string;
@@ -597,106 +686,119 @@ export type Message = {
         baseUrl?: string;
         gitCommit?: string;
         lspStatus?: string;
+      };
+      content?: string;
+    }
+  | {
+      type: MessageType.HELP;
+      timestamp: Date;
+      content?: string;
+    }
+  | {
+      type: MessageType.STATS;
+      timestamp: Date;
+      duration: string;
+      content?: string;
+    }
+  | {
+      type: MessageType.MODEL_STATS;
+      timestamp: Date;
+      content?: string;
+    }
+  | {
+      type: MessageType.TOOL_STATS;
+      timestamp: Date;
+      content?: string;
+    }
+  | {
+      type: MessageType.SKILL_STATS;
+      timestamp: Date;
+      content?: string;
+    }
+  | {
+      type: MessageType.QUIT;
+      timestamp: Date;
+      duration: string;
+      content?: string;
+    }
+  | {
+      type: MessageType.COMPRESSION;
+      compression: CompressionProps;
+      timestamp: Date;
+    }
+  | {
+      type: MessageType.SUMMARY;
+      summary: SummaryProps;
+      timestamp: Date;
+    }
+  | {
+      type: MessageType.INSIGHT_PROGRESS;
+      progress: InsightProgressProps;
+      timestamp: Date;
     };
-    content?: string;
-} | {
-    type: MessageType.HELP;
-    timestamp: Date;
-    content?: string;
-} | {
-    type: MessageType.STATS;
-    timestamp: Date;
-    duration: string;
-    content?: string;
-} | {
-    type: MessageType.MODEL_STATS;
-    timestamp: Date;
-    content?: string;
-} | {
-    type: MessageType.TOOL_STATS;
-    timestamp: Date;
-    content?: string;
-} | {
-    type: MessageType.SKILL_STATS;
-    timestamp: Date;
-    content?: string;
-} | {
-    type: MessageType.QUIT;
-    timestamp: Date;
-    duration: string;
-    content?: string;
-} | {
-    type: MessageType.COMPRESSION;
-    compression: CompressionProps;
-    timestamp: Date;
-} | {
-    type: MessageType.SUMMARY;
-    summary: SummaryProps;
-    timestamp: Date;
-} | {
-    type: MessageType.INSIGHT_PROGRESS;
-    progress: InsightProgressProps;
-    timestamp: Date;
-};
 export interface ConsoleMessageItem {
-    type: 'log' | 'warn' | 'error' | 'debug' | 'info';
-    content: string;
-    count: number;
+  type: 'log' | 'warn' | 'error' | 'debug' | 'info';
+  content: string;
+  count: number;
 }
 /**
  * Result type for a slash command that should immediately result in a prompt
  * being submitted to the Gemini model.
  */
 export interface SubmitPromptResult {
-    type: 'submit_prompt';
-    content: PartListUnion;
-    /** Optional callback invoked after the agent turn completes successfully. */
-    onComplete?: () => Promise<void>;
-    /** Refresh context-file-backed instructions after this prompt writes them. */
-    refreshContextFilesOnWrite?: boolean;
-    /**
-     * Optional per-turn model id. Applies to this submitted prompt (and its
-     * tool-call continuations) only — no session change, no persistence.
-     */
-    modelOverride?: string;
+  type: 'submit_prompt';
+  content: PartListUnion;
+  /** Optional callback invoked after the agent turn completes successfully. */
+  onComplete?: () => Promise<void>;
+  /** Refresh context-file-backed instructions after this prompt writes them. */
+  refreshContextFilesOnWrite?: boolean;
+  /**
+   * Optional per-turn model id. Applies to this submitted prompt (and its
+   * tool-call continuations) only — no session change, no persistence.
+   */
+  modelOverride?: string;
 }
 /**
  * Defines the result of the slash command processor for its consumer (useGeminiStream).
  */
-export type SlashCommandProcessorResult = {
-    type: 'schedule_tool';
-    toolName: string;
-    toolArgs: Record<string, unknown>;
-} | {
-    type: 'handled';
-} | SubmitPromptResult;
+export type SlashCommandProcessorResult =
+  | {
+      type: 'schedule_tool';
+      toolName: string;
+      toolArgs: Record<string, unknown>;
+    }
+  | {
+      type: 'handled';
+    }
+  | SubmitPromptResult;
 export interface ShellConfirmationRequest {
-    commands: string[];
-    onConfirm: (outcome: ToolConfirmationOutcome, approvedCommands?: string[]) => void;
+  commands: string[];
+  onConfirm: (
+    outcome: ToolConfirmationOutcome,
+    approvedCommands?: string[],
+  ) => void;
 }
 export interface ConfirmationRequest {
-    prompt: ReactNode;
-    onConfirm: (confirm: boolean) => void;
+  prompt: ReactNode;
+  onConfirm: (confirm: boolean) => void;
 }
 export interface LoopDetectionConfirmationRequest {
-    onComplete: (result: {
-        userSelection: 'disable' | 'keep';
-    }) => void;
+  onComplete: (result: { userSelection: 'disable' | 'keep' }) => void;
 }
 export interface SettingInputRequest {
-    settingName: string;
-    settingDescription: string;
-    sensitive: boolean;
-    onSubmit: (value: string) => void;
-    onCancel: () => void;
+  settingName: string;
+  settingDescription: string;
+  sensitive: boolean;
+  onSubmit: (value: string) => void;
+  onCancel: () => void;
 }
 export interface PluginChoice {
-    name: string;
-    description?: string;
+  name: string;
+  description?: string;
 }
 export interface PluginChoiceRequest {
-    marketplaceName: string;
-    plugins: PluginChoice[];
-    onSelect: (pluginName: string) => void;
-    onCancel: () => void;
+  marketplaceName: string;
+  plugins: PluginChoice[];
+  onSelect: (pluginName: string) => void;
+  onCancel: () => void;
 }

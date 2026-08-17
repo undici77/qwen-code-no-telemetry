@@ -4,21 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { AuthType } from '../core/contentGenerator.js';
-export type RetryErrorKind = 'http' | 'sse-provider' | 'provider' | 'transport' | 'abort' | 'provider-business' | 'unknown';
+export type RetryErrorKind =
+  | 'http'
+  | 'sse-provider'
+  | 'provider'
+  | 'transport'
+  | 'abort'
+  | 'provider-business'
+  | 'unknown';
 export type RetryErrorDiagnosis = 'retryable' | 'fail-fast' | 'unknown';
 export interface RetryErrorClassificationContext {
-    authType?: AuthType | string;
-    extraRetryErrorCodes?: readonly number[];
+  authType?: AuthType | string;
+  extraRetryErrorCodes?: readonly number[];
 }
 export interface RetryErrorClassification {
-    kind: RetryErrorKind;
-    diagnosis: RetryErrorDiagnosis;
-    reason: string;
-    statusCode?: number;
-    providerCode?: string;
-    providerMessage?: string;
-    requestId?: string;
-    transportCode?: string;
+  kind: RetryErrorKind;
+  diagnosis: RetryErrorDiagnosis;
+  reason: string;
+  statusCode?: number;
+  providerCode?: string;
+  providerMessage?: string;
+  requestId?: string;
+  transportCode?: string;
 }
 /**
  * Classifies retry-related failures.
@@ -29,7 +36,10 @@ export interface RetryErrorClassification {
  * exhaustion surfacing as HTTP 429) out of the unbounded persistent loop.
  * Beyond that, it does not drive retry, fail-fast, or fallback control.
  */
-export declare function classifyRetryError(error: unknown, context?: RetryErrorClassificationContext): RetryErrorClassification;
+export declare function classifyRetryError(
+  error: unknown,
+  context?: RetryErrorClassificationContext,
+): RetryErrorClassification;
 export declare function getTransportCode(error: unknown): string | undefined;
 /**
  * Determines whether a classified error is eligible for model fallback.
@@ -38,4 +48,6 @@ export declare function getTransportCode(error: unknown): string | undefined;
  * capacity statuses documented for the feature (429/503/529), after same-model
  * retries are exhausted.
  */
-export declare function isFallbackEligible(classification: RetryErrorClassification): boolean;
+export declare function isFallbackEligible(
+  classification: RetryErrorClassification,
+): boolean;

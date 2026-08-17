@@ -5,15 +5,15 @@
  */
 import { vi } from 'vitest';
 vi.mock('fs', async () => {
-    const actual = await vi.importActual('fs');
-    const appendFileSync = vi.fn();
-    return {
-        ...actual,
-        appendFileSync,
-        default: {
-            ...actual,
-            appendFileSync,
-        },
-    };
+  const actual = await vi.importActual('fs');
+  const appendFileSync = vi.fn();
+  return {
+    ...actual,
+    appendFileSync,
+    default: {
+      ...actual,
+      appendFileSync,
+    },
+  };
 });
 //# sourceMappingURL=test-setup.js.map

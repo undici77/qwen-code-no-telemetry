@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Config } from '../config/config.js';
-export declare const QWEN_DIR = ".qwen";
-export declare const GOOGLE_ACCOUNTS_FILENAME = "google_accounts.json";
+export declare const QWEN_DIR = '.qwen';
+export declare const GOOGLE_ACCOUNTS_FILENAME = 'google_accounts.json';
 /**
  * Test-only: clear the validatePath stat cache. Module-level state would
  * otherwise leak across vitest cases — `beforeEach(() => _resetValidatePathCacheForTest())`.
@@ -17,7 +17,12 @@ export declare function _resetValidatePathCacheForTest(): void;
  * asterisks, question marks, dollar signs, backticks, quotes, hash, and other shell metacharacters.
  */
 export declare const SHELL_SPECIAL_CHARS: RegExp;
-export declare const PATH_ARG_KEYS: readonly ["file_path", "path", "filePath", "notebook_path"];
+export declare const PATH_ARG_KEYS: readonly [
+  'file_path',
+  'path',
+  'filePath',
+  'notebook_path',
+];
 /**
  * Replaces the home directory with a tilde.
  * @param filePath - The path to tildeify.
@@ -45,7 +50,10 @@ export declare function shortenPath(filePath: string, maxLen?: number): string;
  * @param rootDirectory The absolute path of the directory to make the target path relative to.
  * @returns The relative path from rootDirectory to targetPath.
  */
-export declare function makeRelative(targetPath: string, rootDirectory: string): string;
+export declare function makeRelative(
+  targetPath: string,
+  rootDirectory: string,
+): string;
 /**
  * Formats a file path for terminal display.
  *
@@ -64,7 +72,11 @@ export declare function makeRelative(targetPath: string, rootDirectory: string):
  * @param maxLen Maximum display length before middle-segment compression.
  * @returns The formatted path for display.
  */
-export declare function formatDisplayPath(filePath: string, rootDirectory: string, maxLen?: number): string;
+export declare function formatDisplayPath(
+  filePath: string,
+  rootDirectory: string,
+  maxLen?: number,
+): string;
 /**
  * Escapes special characters in a file path like macOS terminal does.
  * Escapes: spaces, parentheses, brackets, braces, semicolons, ampersands, pipes,
@@ -116,8 +128,14 @@ export declare function sanitizeCwd(cwd: string): string;
  * @param childPath The child path.
  * @returns True if childPath is a subpath of parentPath, false otherwise.
  */
-export declare function isSubpath(parentPath: string, childPath: string): boolean;
-export declare function isSubpaths(parentPath: string[], childPath: string): boolean;
+export declare function isSubpath(
+  parentPath: string,
+  childPath: string,
+): boolean;
+export declare function isSubpaths(
+  parentPath: string[],
+  childPath: string,
+): boolean;
 /**
  * Canonicalize `inputPath` as far as the filesystem allows: resolve symlinks
  * across the existing prefix, then re-append the segments that do not exist
@@ -137,18 +155,21 @@ export declare function realpathNearestExisting(inputPath: string): string;
  * @param relativePath The path to resolve (can be relative, absolute, or tilde-prefixed)
  * @returns The resolved absolute path
  */
-export declare function resolvePath(baseDir: string | undefined, relativePath: string): string;
+export declare function resolvePath(
+  baseDir: string | undefined,
+  relativePath: string,
+): string;
 export interface PathValidationOptions {
-    /**
-     * If true, allows both files and directories. If false (default), only allows directories.
-     */
-    allowFiles?: boolean;
-    /**
-     * If true, allows paths outside the workspace boundaries.
-     * The caller is responsible for adjusting permissions (e.g. 'ask') for
-     * external paths.
-     */
-    allowExternalPaths?: boolean;
+  /**
+   * If true, allows both files and directories. If false (default), only allows directories.
+   */
+  allowFiles?: boolean;
+  /**
+   * If true, allows paths outside the workspace boundaries.
+   * The caller is responsible for adjusting permissions (e.g. 'ask') for
+   * external paths.
+   */
+  allowExternalPaths?: boolean;
 }
 /**
  * Validates that a resolved path exists within the workspace boundaries.
@@ -158,7 +179,11 @@ export interface PathValidationOptions {
  * @param options Validation options
  * @throws Error if the path is outside workspace boundaries, doesn't exist, or is not a directory (when allowFiles is false)
  */
-export declare function validatePath(config: Config, resolvedPath: string, options?: PathValidationOptions): void;
+export declare function validatePath(
+  config: Config,
+  resolvedPath: string,
+  options?: PathValidationOptions,
+): void;
 /**
  * Resolves a path relative to the workspace root and verifies that it exists
  * within the workspace boundaries defined in the config.
@@ -167,4 +192,8 @@ export declare function validatePath(config: Config, resolvedPath: string, optio
  * @param relativePath The relative path to resolve (optional, defaults to target directory)
  * @param options Validation options (e.g., allowFiles to permit file paths)
  */
-export declare function resolveAndValidatePath(config: Config, relativePath?: string, options?: PathValidationOptions): string;
+export declare function resolveAndValidatePath(
+  config: Config,
+  relativePath?: string,
+  options?: PathValidationOptions,
+): string;

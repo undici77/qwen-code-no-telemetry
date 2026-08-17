@@ -17,5 +17,9 @@ export * from './runtime/index.js';
 export * from './team/index.js';
 export * from './background-tasks.js';
 export * from './background-agent-resume.js';
-export { getSubagentSessionDir, getSubagentsRootDir, readAgentMeta, } from './agent-transcript.js';
+export {
+  getSubagentSessionDir,
+  getSubagentsRootDir,
+  readAgentMeta,
+} from './agent-transcript.js';
 export * from './tasks/types.js';

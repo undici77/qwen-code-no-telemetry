@@ -10,4 +10,4 @@
  * charts for the range. Mounts only when the tab is active, so the aggregate
  * loads on demand; the daemon caches it per range.
  */
-export declare function UsageDashboardTab(): import("react/jsx-runtime").JSX.Element;
+export declare function UsageDashboardTab(): import('react/jsx-runtime').JSX.Element;

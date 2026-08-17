@@ -18,10 +18,10 @@ import type { SpanExporter } from './dummy-otel.js';
  */
 export type LogToSpanDiagnosticsSink = (message: string) => void;
 interface LogToSpanProcessorOptions {
-    flushIntervalMs?: number;
-    includeSensitiveSpanAttributes?: boolean;
-    maxBufferSize?: number;
-    diagnosticsSink?: LogToSpanDiagnosticsSink;
+  flushIntervalMs?: number;
+  includeSensitiveSpanAttributes?: boolean;
+  maxBufferSize?: number;
+  diagnosticsSink?: LogToSpanDiagnosticsSink;
 }
 /**
  * A LogRecordProcessor that converts each OTel log record into a span
@@ -41,39 +41,43 @@ interface LogToSpanProcessorOptions {
  * will have a matching duration. Otherwise, the span is instantaneous.
  */
 export declare class LogToSpanProcessor implements LogRecordProcessor {
-    private readonly spanExporter;
-    private buffer;
-    private flushTimer;
-    private inFlightExport;
-    private readonly flushIntervalMs;
-    private cachedSessionId;
-    private cachedTraceId;
-    private readonly includeSensitiveSpanAttributes;
-    private readonly maxBufferSize;
-    private readonly diagnosticsSink;
-    private lastBufferOverflowWarningMs;
-    private droppedSpansSinceLastBufferWarning;
-    private totalDroppedSpans;
-    private isShutdown;
-    constructor(spanExporter: SpanExporter);
-    constructor(spanExporter: SpanExporter, flushIntervalMs: number, maxBufferSize?: number);
-    constructor(spanExporter: SpanExporter, options: LogToSpanProcessorOptions);
-    onEmit(logRecord: ReadableLogRecord, emitContext?: Context): void;
-    private warnBufferOverflow;
-    private emitBufferOverflowWarning;
-    /**
-     * Route a diagnostic message to the configured sink, swallowing any sink
-     * error so a misbehaving sink can never interrupt telemetry ingestion.
-     *
-     * Tradeoff: when the sink itself is broken (e.g. file-logger failing on
-     * EACCES), bridge-specific diagnostics go dark. We accept that — the host
-     * surfaces overall logging health via `isDebugLoggingDegraded()`, and
-     * falling back to stderr here would re-introduce the TUI-pollution this
-     * sink injection was added to prevent.
-     */
-    private emitDiagnostic;
-    private flush;
-    shutdown(): Promise<void>;
-    forceFlush(): Promise<void>;
+  private readonly spanExporter;
+  private buffer;
+  private flushTimer;
+  private inFlightExport;
+  private readonly flushIntervalMs;
+  private cachedSessionId;
+  private cachedTraceId;
+  private readonly includeSensitiveSpanAttributes;
+  private readonly maxBufferSize;
+  private readonly diagnosticsSink;
+  private lastBufferOverflowWarningMs;
+  private droppedSpansSinceLastBufferWarning;
+  private totalDroppedSpans;
+  private isShutdown;
+  constructor(spanExporter: SpanExporter);
+  constructor(
+    spanExporter: SpanExporter,
+    flushIntervalMs: number,
+    maxBufferSize?: number,
+  );
+  constructor(spanExporter: SpanExporter, options: LogToSpanProcessorOptions);
+  onEmit(logRecord: ReadableLogRecord, emitContext?: Context): void;
+  private warnBufferOverflow;
+  private emitBufferOverflowWarning;
+  /**
+   * Route a diagnostic message to the configured sink, swallowing any sink
+   * error so a misbehaving sink can never interrupt telemetry ingestion.
+   *
+   * Tradeoff: when the sink itself is broken (e.g. file-logger failing on
+   * EACCES), bridge-specific diagnostics go dark. We accept that — the host
+   * surfaces overall logging health via `isDebugLoggingDegraded()`, and
+   * falling back to stderr here would re-introduce the TUI-pollution this
+   * sink injection was added to prevent.
+   */
+  private emitDiagnostic;
+  private flush;
+  shutdown(): Promise<void>;
+  forceFlush(): Promise<void>;
 }
 export {};

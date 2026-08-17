@@ -8,8 +8,8 @@
  * subset the virtual-viewport scroll path needs (SGR + X11 parsing,
  * incomplete-sequence detection, enable/disable helpers).
  */
-export declare const SGR_EVENT_PREFIX = "\u001B[<";
-export declare const X11_EVENT_PREFIX = "\u001B[M";
+export declare const SGR_EVENT_PREFIX = '\u001B[<';
+export declare const X11_EVENT_PREFIX = '\u001B[M';
 /**
  * Upper bound on an SGR mouse sequence's length while still incomplete. SGR
  * sequences (`\x1b[<btn;col;rowM`) are short; once a buffer exceeds this
@@ -20,27 +20,38 @@ export declare const X11_EVENT_PREFIX = "\u001B[M";
 export declare const MAX_SGR_MOUSE_SEQUENCE_LENGTH = 50;
 export declare const SGR_MOUSE_REGEX: RegExp;
 export declare const X11_MOUSE_REGEX: RegExp;
-export type MouseEventName = 'left-press' | 'left-release' | 'right-press' | 'right-release' | 'middle-press' | 'middle-release' | 'scroll-up' | 'scroll-down' | 'scroll-left' | 'scroll-right' | 'move';
+export type MouseEventName =
+  | 'left-press'
+  | 'left-release'
+  | 'right-press'
+  | 'right-release'
+  | 'middle-press'
+  | 'middle-release'
+  | 'scroll-up'
+  | 'scroll-down'
+  | 'scroll-left'
+  | 'scroll-right'
+  | 'move';
 export interface MouseEvent {
-    name: MouseEventName;
-    col: number;
-    row: number;
-    shift: boolean;
-    meta: boolean;
-    ctrl: boolean;
-    button: 'left' | 'middle' | 'right' | 'none';
+  name: MouseEventName;
+  col: number;
+  row: number;
+  shift: boolean;
+  meta: boolean;
+  ctrl: boolean;
+  button: 'left' | 'middle' | 'right' | 'none';
 }
 export declare function parseSGRMouseEvent(buffer: string): {
-    event: MouseEvent;
-    length: number;
+  event: MouseEvent;
+  length: number;
 } | null;
 export declare function parseX11MouseEvent(buffer: string): {
-    event: MouseEvent;
-    length: number;
+  event: MouseEvent;
+  length: number;
 } | null;
 export declare function parseMouseEvent(buffer: string): {
-    event: MouseEvent;
-    length: number;
+  event: MouseEvent;
+  length: number;
 } | null;
 export declare function isIncompleteMouseSequence(buffer: string): boolean;
 /**
@@ -60,5 +71,11 @@ export declare function isIncompleteMouseSequence(buffer: string): boolean;
  * switching levels must disable the old one (see useMouseEvents).
  */
 export type MouseTracking = 'button' | 'any';
-export declare function enableMouseEvents(stdout: NodeJS.WriteStream, tracking?: MouseTracking): void;
-export declare function disableMouseEvents(stdout: NodeJS.WriteStream, tracking?: MouseTracking): void;
+export declare function enableMouseEvents(
+  stdout: NodeJS.WriteStream,
+  tracking?: MouseTracking,
+): void;
+export declare function disableMouseEvents(
+  stdout: NodeJS.WriteStream,
+  tracking?: MouseTracking,
+): void;

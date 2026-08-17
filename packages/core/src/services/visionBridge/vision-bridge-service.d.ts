@@ -8,30 +8,30 @@ import type { Config } from '../../config/config.js';
 import type { InputModalities } from '../../core/contentGenerator.js';
 /** Minimal shape of a registered model needed to auto-pick a bridge model. */
 export interface VisionModelCandidate {
-    id: string;
-    authType?: string;
-    baseUrl?: string;
-    modalities?: InputModalities;
-    isVision?: boolean;
-    capabilities?: {
-        agent?: boolean;
-    };
-    fastOnly?: boolean;
-    voiceOnly?: boolean;
-    imageOnly?: boolean;
+  id: string;
+  authType?: string;
+  baseUrl?: string;
+  modalities?: InputModalities;
+  isVision?: boolean;
+  capabilities?: {
+    agent?: boolean;
+  };
+  fastOnly?: boolean;
+  voiceOnly?: boolean;
+  imageOnly?: boolean;
 }
 /** The model/endpoint selected for a vision bridge call. */
 export interface VisionBridgeModelSelection {
-    id: string;
-    baseUrl?: string;
-    agentCapable?: true;
-    /**
-     * AuthType the selected model belongs to, when known. Used to look up the
-     * model's own configured `generationConfig.timeout` as the vision-bridge
-     * timeout default, so a provider explicitly configured for slow inference
-     * (e.g. a local model) isn't cut off by the bridge's shorter fallback.
-     */
-    authType?: string;
+  id: string;
+  baseUrl?: string;
+  agentCapable?: true;
+  /**
+   * AuthType the selected model belongs to, when known. Used to look up the
+   * model's own configured `generationConfig.timeout` as the vision-bridge
+   * timeout default, so a provider explicitly configured for slow inference
+   * (e.g. a local model) isn't cut off by the bridge's shorter fallback.
+   */
+  authType?: string;
 }
 /**
  * Whether a model can accept image input — the single source of truth the vision
@@ -40,10 +40,18 @@ export interface VisionBridgeModelSelection {
  * flag or resolved `modalities`, else falls back to name-based defaults.
  */
 export declare function isImageCapable(model: VisionModelCandidate): boolean;
-export declare function isFullTurnVisionCapable(model: VisionModelCandidate): boolean;
-export declare function getQualifiedVisionModelId(model: Pick<VisionModelCandidate, 'id' | 'authType'>): string;
-export declare function getVisionModelSelector(selection: VisionBridgeModelSelection): string;
-export declare function getFullTurnVisionModelSelector(selection: VisionBridgeModelSelection): string;
+export declare function isFullTurnVisionCapable(
+  model: VisionModelCandidate,
+): boolean;
+export declare function getQualifiedVisionModelId(
+  model: Pick<VisionModelCandidate, 'id' | 'authType'>,
+): string;
+export declare function getVisionModelSelector(
+  selection: VisionBridgeModelSelection,
+): string;
+export declare function getFullTurnVisionModelSelector(
+  selection: VisionBridgeModelSelection,
+): string;
 /**
  * Auto-pick an image-capable model to borrow as the vision bridge — but ONLY
  * one on the SAME provider as the primary model (same endpoint when the primary
@@ -58,16 +66,25 @@ export declare function getFullTurnVisionModelSelector(selection: VisionBridgeMo
  * @param primaryProvider The current primary model's provider identity.
  * @returns A same-provider image-capable model, or `undefined`.
  */
-export declare function selectVisionBridgeModel(primaryModelId: string | undefined, models: VisionModelCandidate[], primaryProvider?: {
+export declare function selectVisionBridgeModel(
+  primaryModelId: string | undefined,
+  models: VisionModelCandidate[],
+  primaryProvider?: {
     authType?: string;
     baseUrl?: string;
-}): VisionBridgeModelSelection | undefined;
+  },
+): VisionBridgeModelSelection | undefined;
 /**
  * The bridge runs when the primary model is not known to accept images and an
  * image-capable model is available to borrow. Gating on image parts is the
  * caller's job.
  */
-export declare function shouldRunVisionBridge(config: Pick<Config, 'getEffectiveInputModalities' | 'getDefaultVisionBridgeModel'>): boolean;
+export declare function shouldRunVisionBridge(
+  config: Pick<
+    Config,
+    'getEffectiveInputModalities' | 'getDefaultVisionBridgeModel'
+  >,
+): boolean;
 /**
  * Outcome of a bridge attempt.
  * - `ok`: conversion succeeded; `parts` carry the description.
@@ -78,51 +95,61 @@ export declare function shouldRunVisionBridge(config: Pick<Config, 'getEffective
 export type VisionBridgeStatus = 'ok' | 'failed' | 'skipped';
 /** Structured result returned to the (UI) caller. */
 export interface VisionBridgeResult {
-    /** Whether transformed parts should replace the original request. */
-    applied: boolean;
-    status: VisionBridgeStatus;
-    /** Transformed, image-free parts to send to the primary model. */
-    parts?: PartListUnion;
-    /** Images actually sent to the bridge model. */
-    convertedCount: number;
-    /** Images dropped because they were unreadable, too large, or over the cap. */
-    omittedCount: number;
-    /** Resolved bridge model id, when a call was attempted. */
-    modelId?: string;
-    /** Host of the bridge model's endpoint, for cross-provider egress clarity. */
-    modelEndpoint?: string;
-    /** True when image data was (or may have been) sent to the bridge model. */
-    egressOccurred?: boolean;
-    /** Failure reason, when `status === 'failed'`. */
-    error?: string;
+  /** Whether transformed parts should replace the original request. */
+  applied: boolean;
+  status: VisionBridgeStatus;
+  /** Transformed, image-free parts to send to the primary model. */
+  parts?: PartListUnion;
+  /** Images actually sent to the bridge model. */
+  convertedCount: number;
+  /** Images dropped because they were unreadable, too large, or over the cap. */
+  omittedCount: number;
+  /** Resolved bridge model id, when a call was attempted. */
+  modelId?: string;
+  /** Host of the bridge model's endpoint, for cross-provider egress clarity. */
+  modelEndpoint?: string;
+  /** True when image data was (or may have been) sent to the bridge model. */
+  egressOccurred?: boolean;
+  /** Failure reason, when `status === 'failed'`. */
+  error?: string;
 }
 export interface VisionBridgePdfSourceContext {
-    displayName: string;
-    renderedRange: {
-        firstPage: number;
-        lastPage: number;
-    };
-    continuation?: VisionBridgePdfContinuation;
-}
-export type VisionBridgePdfContinuation = {
-    certainty: 'known';
+  displayName: string;
+  renderedRange: {
     firstPage: number;
     lastPage: number;
-} | {
-    certainty: 'possible';
-    firstPage: number;
-    requestedLastPage?: number;
-};
-export interface VisionBridgeNoticeDisplay {
-    type: 'vision_bridge_notice';
-    summary: string;
-    notice: string;
+  };
+  continuation?: VisionBridgePdfContinuation;
 }
-export declare function isVisionBridgeNoticeDisplay(value: unknown): value is VisionBridgeNoticeDisplay;
-export declare function formatVisionBridgeNoticeDisplay(display: VisionBridgeNoticeDisplay): string;
+export type VisionBridgePdfContinuation =
+  | {
+      certainty: 'known';
+      firstPage: number;
+      lastPage: number;
+    }
+  | {
+      certainty: 'possible';
+      firstPage: number;
+      requestedLastPage?: number;
+    };
+export interface VisionBridgeNoticeDisplay {
+  type: 'vision_bridge_notice';
+  summary: string;
+  notice: string;
+}
+export declare function isVisionBridgeNoticeDisplay(
+  value: unknown,
+): value is VisionBridgeNoticeDisplay;
+export declare function formatVisionBridgeNoticeDisplay(
+  display: VisionBridgeNoticeDisplay,
+): string;
 /** Build the user-facing, sanitized disclosure for a bridge attempt. */
-export declare function formatVisionBridgeNotice(result: VisionBridgeResult): string;
-export declare function formatFullTurnVisionNotice(selection: VisionBridgeModelSelection): string;
+export declare function formatVisionBridgeNotice(
+  result: VisionBridgeResult,
+): string;
+export declare function formatFullTurnVisionNotice(
+  selection: VisionBridgeModelSelection,
+): string;
 /**
  * Run the vision bridge: convert inline image parts into a text description via
  * an auto-selected vision model, and return image-free parts for the primary
@@ -138,9 +165,9 @@ export declare function formatFullTurnVisionNotice(selection: VisionBridgeModelS
  * @returns A {@link VisionBridgeResult} describing the outcome.
  */
 export declare function runVisionBridge(params: {
-    config: Config;
-    parts: PartListUnion;
-    signal: AbortSignal;
-    sourceContext?: VisionBridgePdfSourceContext;
-    intentText?: string;
+  config: Config;
+  parts: PartListUnion;
+  signal: AbortSignal;
+  sourceContext?: VisionBridgePdfSourceContext;
+  intentText?: string;
 }): Promise<VisionBridgeResult>;

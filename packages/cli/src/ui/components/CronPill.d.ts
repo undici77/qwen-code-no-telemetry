@@ -6,7 +6,7 @@
 import type React from 'react';
 export declare function useFooterCronTaskCount(): number;
 type CronPillProps = {
-    count: number;
+  count: number;
 };
 export declare const CronPill: React.FC<CronPillProps>;
 export {};

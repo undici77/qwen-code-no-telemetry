@@ -28,26 +28,26 @@
  * them there.
  */
 export interface ApiActivityCounts {
-    /** Model API error responses (one per failed attempt) since the last drain. */
-    errors: number;
-    /** Automatic backoff retries since the last drain. */
-    retries: number;
+  /** Model API error responses (one per failed attempt) since the last drain. */
+  errors: number;
+  /** Automatic backoff retries since the last drain. */
+  retries: number;
 }
 declare class ApiActivityTracker {
-    #private;
-    /** Fold in one model API error (called from `logApiError`). */
-    recordError(): void;
-    /** Fold in one automatic retry (called from `logApiRetry`). */
-    recordRetry(): void;
-    /**
-     * Return the counts accumulated since the last drain and reset them to zero.
-     * The read+reset is synchronous (no `await` between), so a `recordError` /
-     * `recordRetry` racing an in-progress drain can never be lost — it simply
-     * lands in the next window.
-     */
-    drain(): ApiActivityCounts;
-    /** Peek at the pending counts without draining (tests / diagnostics). */
-    peek(): ApiActivityCounts;
+  #private;
+  /** Fold in one model API error (called from `logApiError`). */
+  recordError(): void;
+  /** Fold in one automatic retry (called from `logApiRetry`). */
+  recordRetry(): void;
+  /**
+   * Return the counts accumulated since the last drain and reset them to zero.
+   * The read+reset is synchronous (no `await` between), so a `recordError` /
+   * `recordRetry` racing an in-progress drain can never be lost — it simply
+   * lands in the next window.
+   */
+  drain(): ApiActivityCounts;
+  /** Peek at the pending counts without draining (tests / diagnostics). */
+  peek(): ApiActivityCounts;
 }
 /** Process-wide singleton. See {@link ApiActivityTracker}. */
 export declare const apiActivityTracker: ApiActivityTracker;

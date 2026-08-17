@@ -5,32 +5,32 @@
  */
 /** One finding the review stands behind, carried to the next round. */
 export interface LedgerFinding {
-    /**
-     * The finding's id. A **new** finding gets `R<round>-<n>`; a finding carried
-     * forward from an earlier round keeps the id it already has — Step 6 re-reports
-     * a still-standing entry under its original id, and `buildLedger` reads that id
-     * back off the comment body, so `R1-2` names the same claim in every round.
-     * Renumbering it by position would hand the next round a work list keyed by
-     * ids the report it accompanies never used.
-     */
-    id: string;
-    /** `C` (Critical) or `S` (Suggestion). Compact on purpose — body bytes. */
-    sev: 'C' | 'S';
-    file: string;
-    line?: number;
-    /** One line, capped — enough for the next round to re-locate the claim. */
-    title: string;
+  /**
+   * The finding's id. A **new** finding gets `R<round>-<n>`; a finding carried
+   * forward from an earlier round keeps the id it already has — Step 6 re-reports
+   * a still-standing entry under its original id, and `buildLedger` reads that id
+   * back off the comment body, so `R1-2` names the same claim in every round.
+   * Renumbering it by position would hand the next round a work list keyed by
+   * ids the report it accompanies never used.
+   */
+  id: string;
+  /** `C` (Critical) or `S` (Suggestion). Compact on purpose — body bytes. */
+  sev: 'C' | 'S';
+  file: string;
+  line?: number;
+  /** One line, capped — enough for the next round to re-locate the claim. */
+  title: string;
 }
 export interface Ledger {
-    v: 1;
-    round: number;
-    findings: LedgerFinding[];
-    /**
-     * How many findings the size cap dropped, when it dropped any. Absent means
-     * the list is complete — which is the claim the next round acts on, so the
-     * incomplete case has to say so rather than look identical to it.
-     */
-    dropped?: number;
+  v: 1;
+  round: number;
+  findings: LedgerFinding[];
+  /**
+   * How many findings the size cap dropped, when it dropped any. Absent means
+   * the list is complete — which is the claim the next round acts on, so the
+   * incomplete case has to say so rather than look identical to it.
+   */
+  dropped?: number;
 }
 /** Caps keep the marker a footnote, never a payload: GitHub's body limit is
  *  65,536 chars and the marker rides inside it. Every cap binds BOTH halves —

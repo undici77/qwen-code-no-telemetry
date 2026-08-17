@@ -5,7 +5,11 @@
  */
 import { type ExtensionsManagerDialogProps } from './types.js';
 export interface StatusMessage {
-    type: 'info' | 'success' | 'warning' | 'error';
-    text: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  text: string;
 }
-export declare function ExtensionsManagerDialog({ onClose, config, initialTab, }: ExtensionsManagerDialogProps): import("react/jsx-runtime").JSX.Element;
+export declare function ExtensionsManagerDialog({
+  onClose,
+  config,
+  initialTab,
+}: ExtensionsManagerDialogProps): import('react/jsx-runtime').JSX.Element;

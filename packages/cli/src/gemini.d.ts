@@ -5,7 +5,9 @@
  */
 import { type Config } from '@qwen-code/qwen-code-core';
 import type { DnsResolutionOrder } from './config/settings.js';
-export declare function validateDnsResolutionOrder(order: string | undefined): DnsResolutionOrder;
+export declare function validateDnsResolutionOrder(
+  order: string | undefined,
+): DnsResolutionOrder;
 export declare function setupUncaughtExceptionHandler(config: Config): void;
 export declare function setupUnhandledRejectionHandler(): void;
 export declare function main(): Promise<void>;
@@ -20,4 +22,7 @@ export declare function createNonInteractivePromptId(sessionId: string): string;
  * Emits {@link AppEvent.LspStatusChanged} after every successful reload
  * so the UI can reflect the new server state.
  */
-export declare function registerLspHotReload(config: Config, registerCleanup: (fn: () => void | Promise<void>) => void): void;
+export declare function registerLspHotReload(
+  config: Config,
+  registerCleanup: (fn: () => void | Promise<void>) => void,
+): void;

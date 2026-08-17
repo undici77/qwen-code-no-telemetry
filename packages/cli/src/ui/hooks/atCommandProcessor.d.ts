@@ -5,30 +5,33 @@
  */
 import type { PartListUnion } from '@google/genai';
 import type { Config } from '@qwen-code/qwen-code-core';
-import type { HistoryItemWithoutId, IndividualToolCallDisplay } from '../types.js';
+import type {
+  HistoryItemWithoutId,
+  IndividualToolCallDisplay,
+} from '../types.js';
 export interface ResolveAtCommandParams {
-    query: string;
-    config: Config;
-    onDebugMessage: (message: string) => void;
-    messageId: number;
-    signal: AbortSignal;
+  query: string;
+  config: Config;
+  onDebugMessage: (message: string) => void;
+  messageId: number;
+  signal: AbortSignal;
 }
 interface HandleAtCommandParams extends ResolveAtCommandParams {
-    addItem?: (item: HistoryItemWithoutId, baseTimestamp: number) => number;
+  addItem?: (item: HistoryItemWithoutId, baseTimestamp: number) => number;
 }
 export interface HandleAtCommandResult {
-    processedQuery: PartListUnion | null;
-    shouldProceed: boolean;
-    toolDisplays?: IndividualToolCallDisplay[];
-    filesRead?: string[];
+  processedQuery: PartListUnion | null;
+  shouldProceed: boolean;
+  toolDisplays?: IndividualToolCallDisplay[];
+  filesRead?: string[];
 }
 export interface AtCommandRecording {
-    filesRead: string[];
-    status: 'success' | 'error';
-    message?: string;
+  filesRead: string[];
+  status: 'success' | 'error';
+  message?: string;
 }
 export interface ResolveAtCommandResult extends HandleAtCommandResult {
-    recording?: AtCommandRecording;
+  recording?: AtCommandRecording;
 }
 export declare function extractAtPathCommands(query: string): string[];
 /**
@@ -41,6 +44,14 @@ export declare function extractAtPathCommands(query: string): string[];
  * @returns An object indicating whether the main hook should proceed with an
  *          LLM call and the processed query parts (including file content).
  */
-export declare function resolveAtCommandQuery({ query, config, onDebugMessage, messageId: userMessageTimestamp, signal, }: ResolveAtCommandParams): Promise<ResolveAtCommandResult>;
-export declare function handleAtCommand(params: HandleAtCommandParams): Promise<HandleAtCommandResult>;
+export declare function resolveAtCommandQuery({
+  query,
+  config,
+  onDebugMessage,
+  messageId: userMessageTimestamp,
+  signal,
+}: ResolveAtCommandParams): Promise<ResolveAtCommandResult>;
+export declare function handleAtCommand(
+  params: HandleAtCommandParams,
+): Promise<HandleAtCommandResult>;
 export {};

@@ -48,7 +48,9 @@ export declare function getGhHost(): string | undefined;
  * `??`, being non-nullish) must read as "no host", not as a host named ""
  * that fails every comparison.
  */
-export declare function resolveGhHost(flagHost: string | undefined): string | undefined;
+export declare function resolveGhHost(
+  flagHost: string | undefined,
+): string | undefined;
 /**
  * Environment for `gh` child processes. `undefined` means "inherit the
  * parent env untouched"; with a host set, the inherited env is extended
@@ -72,7 +74,10 @@ export declare function gh(...args: string[]): string;
  * (publish-assets: content-hashed PUTs, a ref create whose duplicate is
  * caught). Non-idempotent writes use `ghWithInput` below.
  */
-export declare function ghWithInputRetried(input: string, ...args: string[]): string;
+export declare function ghWithInputRetried(
+  input: string,
+  ...args: string[]
+): string;
 /**
  * Run `gh` with `input` on its stdin. Returns stdout, trimmed.
  *
@@ -150,9 +155,12 @@ export declare function ghApiAllNested(path: string, key: string): unknown[];
  * run). Non-strict skips a stray line, for the rare caller that genuinely
  * expects interleaved human-readable notices and can tolerate a lost record.
  */
-export declare function parseNdjson(out: string, opts?: {
+export declare function parseNdjson(
+  out: string,
+  opts?: {
     strict?: boolean;
-}): unknown[];
+  },
+): unknown[];
 /** Login of the currently authenticated GitHub user. */
 export declare function currentUser(): string;
 /**

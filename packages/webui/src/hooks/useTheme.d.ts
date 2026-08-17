@@ -4,6 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export declare const useTheme: () => {
-    theme: "auto" | "dark" | "light";
-    toggleTheme: () => void;
+  theme: 'auto' | 'dark' | 'light';
+  toggleTheme: () => void;
 };

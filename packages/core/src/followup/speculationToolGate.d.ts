@@ -17,8 +17,8 @@
 import { ApprovalMode } from '../config/config.js';
 import type { OverlayFs } from './overlayFs.js';
 export interface ToolGateResult {
-    action: 'allow' | 'redirect' | 'boundary';
-    reason?: string;
+  action: 'allow' | 'redirect' | 'boundary';
+  reason?: string;
 }
 /**
  * Evaluate whether a tool call is allowed during speculative execution.
@@ -30,9 +30,18 @@ export interface ToolGateResult {
  * @param cwd - Default execution directory for shell commands
  * @returns Gate result: allow, redirect, or boundary
  */
-export declare function evaluateToolCall(toolName: string, args: Record<string, unknown>, overlayFs: OverlayFs, approvalMode: ApprovalMode, cwd?: string): Promise<ToolGateResult>;
+export declare function evaluateToolCall(
+  toolName: string,
+  args: Record<string, unknown>,
+  overlayFs: OverlayFs,
+  approvalMode: ApprovalMode,
+  cwd?: string,
+): Promise<ToolGateResult>;
 /**
  * Rewrite file path arguments to point to the overlay filesystem.
  * Mutates the args object in place.
  */
-export declare function rewritePathArgs(args: Record<string, unknown>, overlayFs: OverlayFs): Promise<void>;
+export declare function rewritePathArgs(
+  args: Record<string, unknown>,
+  overlayFs: OverlayFs,
+): Promise<void>;

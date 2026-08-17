@@ -16,54 +16,61 @@ import { resolve } from 'path';
  * - CSS: dist/styles.css
  */
 export default defineConfig(({ command }) => ({
-    resolve: command === 'serve'
-        ? {
-            alias: {
-                '@qwen-code/sdk/daemon': resolve(__dirname, '../sdk-typescript/src/daemon/index.ts'),
-                '@qwen-code/sdk': resolve(__dirname, '../sdk-typescript/src/index.ts'),
-            },
+  resolve:
+    command === 'serve'
+      ? {
+          alias: {
+            '@qwen-code/sdk/daemon': resolve(
+              __dirname,
+              '../sdk-typescript/src/daemon/index.ts',
+            ),
+            '@qwen-code/sdk': resolve(
+              __dirname,
+              '../sdk-typescript/src/index.ts',
+            ),
+          },
         }
-        : undefined,
-    plugins: [
-        react(),
-        dts({
-            include: ['src'],
-            outDir: 'dist',
-            rollupTypes: true,
-            insertTypesEntry: true,
-            aliasesExclude: [/^@qwen-code\//],
-        }),
-    ],
-    build: {
-        lib: {
-            entry: {
-                index: resolve(__dirname, 'src/index.ts'),
-                'daemon-react-sdk': resolve(__dirname, 'src/daemon-react-sdk.ts'),
-            },
-            formats: ['es', 'cjs'],
-        },
-        rollupOptions: {
-            external: [
-                '@qwen-code/sdk',
-                '@qwen-code/sdk/daemon',
-                'react',
-                'react-dom',
-                'react/jsx-runtime',
-            ],
-            output: {
-                globals: {
-                    '@qwen-code/sdk': 'QwenCodeSdk',
-                    '@qwen-code/sdk/daemon': 'QwenCodeSdkDaemon',
-                    react: 'React',
-                    'react-dom': 'ReactDOM',
-                    'react/jsx-runtime': 'ReactJSXRuntime',
-                },
-                assetFileNames: 'styles.[ext]',
-            },
-        },
-        sourcemap: true,
-        minify: false,
-        cssCodeSplit: false,
+      : undefined,
+  plugins: [
+    react(),
+    dts({
+      include: ['src'],
+      outDir: 'dist',
+      rollupTypes: true,
+      insertTypesEntry: true,
+      aliasesExclude: [/^@qwen-code\//],
+    }),
+  ],
+  build: {
+    lib: {
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        'daemon-react-sdk': resolve(__dirname, 'src/daemon-react-sdk.ts'),
+      },
+      formats: ['es', 'cjs'],
     },
+    rollupOptions: {
+      external: [
+        '@qwen-code/sdk',
+        '@qwen-code/sdk/daemon',
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+      ],
+      output: {
+        globals: {
+          '@qwen-code/sdk': 'QwenCodeSdk',
+          '@qwen-code/sdk/daemon': 'QwenCodeSdkDaemon',
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react/jsx-runtime': 'ReactJSXRuntime',
+        },
+        assetFileNames: 'styles.[ext]',
+      },
+    },
+    sourcemap: true,
+    minify: false,
+    cssCodeSplit: false,
+  },
 }));
 //# sourceMappingURL=vite.config.js.map

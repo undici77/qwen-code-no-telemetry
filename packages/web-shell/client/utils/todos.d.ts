@@ -1,4 +1,9 @@
-import type { ACPToolCall, Message, PermissionRequest, TodoItem } from '../adapters/types';
+import type {
+  ACPToolCall,
+  Message,
+  PermissionRequest,
+  TodoItem,
+} from '../adapters/types';
 /**
  * The todo tool is registered as `todo_write` on the wire, but older paths and
  * the ACP plan bridge use `todowrite`. Match both so detection never hinges on
@@ -10,34 +15,51 @@ export declare function isTodoWriteToolName(name: string): boolean;
  * exit_plan_mode wire name. Shared by App, ChatPane, and ToolApproval so the
  * surfaces that gate the revision-bound approval UI never drift.
  */
-export declare function isExitPlanApprovalRequest(request: Pick<PermissionRequest, 'toolKind' | 'toolName'> | null | undefined): boolean;
-export declare function parseTodoItemsFromEntries(entries: readonly unknown[]): TodoItem[];
-export declare function extractTodosFromToolCall(tool: ACPToolCall): TodoItem[] | undefined;
+export declare function isExitPlanApprovalRequest(
+  request: Pick<PermissionRequest, 'toolKind' | 'toolName'> | null | undefined,
+): boolean;
+export declare function parseTodoItemsFromEntries(
+  entries: readonly unknown[],
+): TodoItem[];
+export declare function extractTodosFromToolCall(
+  tool: ACPToolCall,
+): TodoItem[] | undefined;
 export declare function hasActiveTodos(todos: readonly TodoItem[]): boolean;
 export declare function getTodoStatusIcon(status: TodoItem['status']): string;
 export interface FloatingTodosState {
-    todos: TodoItem[];
-    planId: string | null;
-    /** Every item is completed — the panel shows a transient "all done" state. */
-    allCompleted: boolean;
-    /** Transcript message the latest todo update came from. */
-    sourceMessageId: string | null;
+  todos: TodoItem[];
+  planId: string | null;
+  /** Every item is completed — the panel shows a transient "all done" state. */
+  allCompleted: boolean;
+  /** Transcript message the latest todo update came from. */
+  sourceMessageId: string | null;
 }
-export declare function getFloatingTodos(messages: readonly Message[]): FloatingTodosState;
-export declare function getActiveTodosForPlanRevision(messages: readonly Message[], revision: {
-    planId: string;
-    sourceCallId: string;
-} | null | undefined): TodoItem[];
-export declare function getAgentToolsForPlan(messages: readonly Message[], plan: Pick<FloatingTodosState, 'planId' | 'sourceMessageId'>): ACPToolCall[];
+export declare function getFloatingTodos(
+  messages: readonly Message[],
+): FloatingTodosState;
+export declare function getActiveTodosForPlanRevision(
+  messages: readonly Message[],
+  revision:
+    | {
+        planId: string;
+        sourceCallId: string;
+      }
+    | null
+    | undefined,
+): TodoItem[];
+export declare function getAgentToolsForPlan(
+  messages: readonly Message[],
+  plan: Pick<FloatingTodosState, 'planId' | 'sourceMessageId'>,
+): ACPToolCall[];
 /** A status transition surfaced for a single todo snapshot. */
 export interface TodoEvent {
-    kind: 'started' | 'completed';
-    id: string;
-    content: string;
+  kind: 'started' | 'completed';
+  id: string;
+  content: string;
 }
 /** What changed in one todo snapshot relative to the conversation so far. */
 export interface TodoSnapshotDiff {
-    events: TodoEvent[];
+  events: TodoEvent[];
 }
 /**
  * Identity used to track an item across snapshots. Folds content into the key
@@ -75,7 +97,9 @@ export declare function todoStateKey(todo: TodoItem): string;
  * snapshot) is recorded silently so its old completion is not replayed as if it
  * just happened.
  */
-export declare function computeTodoTimeline(messages: readonly Message[]): Map<string, TodoSnapshotDiff>;
+export declare function computeTodoTimeline(
+  messages: readonly Message[],
+): Map<string, TodoSnapshotDiff>;
 /**
  * A cheap signature of the todo snapshots in a transcript: each snapshot's key
  * plus its items' id, status, and content. App memoizes the timeline on this so
@@ -83,7 +107,9 @@ export declare function computeTodoTimeline(messages: readonly Message[]): Map<s
  * streaming ticks (which would otherwise re-render every todo/plan row that
  * consumes the timeline).
  */
-export declare function todoTimelineSignature(messages: readonly Message[]): string;
+export declare function todoTimelineSignature(
+  messages: readonly Message[],
+): string;
 /**
  * Like {@link todoTimelineSignature} but folds in everything
  * {@link computeTodoDetails} reads beyond item status: each snapshot's message
@@ -91,17 +117,22 @@ export declare function todoTimelineSignature(messages: readonly Message[]): str
  * feed tool time). App memoizes the detail map on this so the TodoDetailContext
  * value stays referentially stable across streaming ticks that touch none of it.
  */
-export declare function todoDetailSignature(messages: readonly Message[]): string;
+export declare function todoDetailSignature(
+  messages: readonly Message[],
+): string;
 export interface TodoWindow {
-    start: number;
-    end: number;
+  start: number;
+  end: number;
 }
 /**
  * Natural-order window of up to maxVisible items anchored on the current
  * item (first in_progress, else first pending): one item of completed
  * context above the anchor, the rest of the budget below it.
  */
-export declare function getTodoWindow(todos: readonly TodoItem[], maxVisible: number): TodoWindow;
+export declare function getTodoWindow(
+  todos: readonly TodoItem[],
+  maxVisible: number,
+): TodoWindow;
 /**
  * Cumulative-usage baseline the agent stamps onto each todo update
  * (`_meta.stats`, surfaced via the tool call's rawOutput). The web-shell diffs
@@ -109,17 +140,19 @@ export declare function getTodoWindow(todos: readonly TodoItem[], maxVisible: nu
  * live — replayed sessions carry tokens but not per-turn durations.
  */
 export interface TodoStatsSnapshot {
-    promptTokens: number;
-    cachedTokens: number;
-    candidateTokens: number;
-    apiTimeMs: number;
+  promptTokens: number;
+  cachedTokens: number;
+  candidateTokens: number;
+  apiTimeMs: number;
 }
 /**
  * Read the cumulative-usage snapshot the agent stamped onto a todo_write tool
  * call's rawOutput. Absent for snapshots emitted by an agent that predates the
  * stamping, or non-tool todo sources (plain plan messages).
  */
-export declare function extractTodoStats(tool: ACPToolCall): TodoStatsSnapshot | undefined;
+export declare function extractTodoStats(
+  tool: ACPToolCall,
+): TodoStatsSnapshot | undefined;
 /**
  * Resource usage consumed during a single todo's [start, end] window. Every
  * field is optional: tokens/API time come from the snapshot diff (absent on
@@ -128,25 +161,25 @@ export declare function extractTodoStats(tool: ACPToolCall): TodoStatsSnapshot |
  * whenever any tool ran in the window.
  */
 export interface TodoResources {
-    inputTokens?: number;
-    cachedTokens?: number;
-    outputTokens?: number;
-    apiTimeMs?: number;
-    toolTimeMs?: number;
+  inputTokens?: number;
+  cachedTokens?: number;
+  outputTokens?: number;
+  apiTimeMs?: number;
+  toolTimeMs?: number;
 }
 /** Per-todo timing and resource breakdown. */
 export interface TodoDetail {
-    /** Wall-clock ms when the item first became in_progress. */
-    startTs?: number;
-    /** Wall-clock ms when the item became completed. */
-    endTs?: number;
-    /**
-     * Tokens and time spent while this item was the active task. Tokens and API
-     * time come from diffing the cumulative-usage snapshots stamped on its start
-     * and end todo boundaries; tool time is summed from the transcript's tool
-     * durations in the window. Undefined when nothing could be measured.
-     */
-    resources?: TodoResources;
+  /** Wall-clock ms when the item first became in_progress. */
+  startTs?: number;
+  /** Wall-clock ms when the item became completed. */
+  endTs?: number;
+  /**
+   * Tokens and time spent while this item was the active task. Tokens and API
+   * time come from diffing the cumulative-usage snapshots stamped on its start
+   * and end todo boundaries; tool time is summed from the transcript's tool
+   * durations in the window. Undefined when nothing could be measured.
+   */
+  resources?: TodoResources;
 }
 /**
  * Per-todo detail keyed by {@link todoStateKey}: when each item started and
@@ -159,5 +192,7 @@ export interface TodoDetail {
  * seen already completed (a restored opening snapshot) yields no detail, exactly
  * as it produces no timeline event.
  */
-export declare function computeTodoDetails(messages: readonly Message[]): Map<string, TodoDetail>;
+export declare function computeTodoDetails(
+  messages: readonly Message[],
+): Map<string, TodoDetail>;
 export declare function getTodoPlanId(tool: ACPToolCall): string | null;

@@ -6,7 +6,10 @@
 import type { MCPServerConfig } from '../config/config.js';
 import type { PromptRegistry } from '../prompts/prompt-registry.js';
 import type { ResourceRegistry } from '../resources/resource-registry.js';
-import type { DiscoveredMCPPrompt, DiscoveredMCPResource } from './mcp-client.js';
+import type {
+  DiscoveredMCPPrompt,
+  DiscoveredMCPResource,
+} from './mcp-client.js';
 import type { DiscoveredMCPTool } from './mcp-tool.js';
 import type { ToolRegistry } from './tool-registry.js';
 /**
@@ -33,7 +36,11 @@ import type { ToolRegistry } from './tool-registry.js';
  * share one implementation. Set construction is paid per call here
  * (negligible for unit tests / one-off audit-path probes).
  */
-export declare function passesSessionFilter(tool: DiscoveredMCPTool, includeTools?: readonly string[], excludeTools?: readonly string[]): boolean;
+export declare function passesSessionFilter(
+  tool: DiscoveredMCPTool,
+  includeTools?: readonly string[],
+  excludeTools?: readonly string[],
+): boolean;
 /**
  * prompt-side analog
  * of `passesSessionFilter`. Same `excludeTools` / `includeTools`
@@ -51,7 +58,11 @@ export declare function passesSessionFilter(tool: DiscoveredMCPTool, includeTool
  * PR-A-R2 #2: same delegation to the compiled path as
  * `passesSessionFilter`.
  */
-export declare function passesSessionPromptFilter(promptName: string, includeTools?: readonly string[], excludeTools?: readonly string[]): boolean;
+export declare function passesSessionPromptFilter(
+  promptName: string,
+  includeTools?: readonly string[],
+  excludeTools?: readonly string[],
+): boolean;
 /**
  * Per-session, per-server projection of a pool entry's tool, prompt, and
  * resource snapshots into the session-owned registries.
@@ -72,101 +83,108 @@ export declare function passesSessionPromptFilter(promptName: string, includeToo
  *     `/mcp disable`, session close, or `disconnected` event from pool
  */
 export declare class SessionMcpView {
-    private readonly sessionToolRegistry;
-    private readonly sessionPromptRegistry;
-    private readonly sessionResourceRegistry;
-    readonly sessionId: string;
-    readonly serverName: string;
-    private cfg;
-    private metadataKey;
-    /**
-     * @param sessionToolRegistry The session-owned ToolRegistry; receives
-     *   filtered + trust-decorated `DiscoveredMCPTool` instances.
-     * @param sessionPromptRegistry The session-owned PromptRegistry; receives
-     *   prompts selected by the same name filter as tools.
-     * @param sessionResourceRegistry The session-owned ResourceRegistry;
-     *   receives the full resource snapshot because tool-name filters do not
-     *   apply to resource URIs.
-     * @param sessionId Stamped onto debug logs for cross-session
-     *   correlation; not used for routing (pool's reverse index handles that).
-     * @param serverName Server name as advertised in the per-session
-     *   merged mcpServers map; used as the key into the registries'
-     *   `removeMcpToolsByServer` / `removePromptsByServer` cleanup paths.
-     * @param cfg The session's view of this server's config, source of
-     *   `includeTools` / `excludeTools` / `trust` / `alwaysLoadTools`.
-     */
-    constructor(sessionToolRegistry: ToolRegistry, sessionPromptRegistry: PromptRegistry, sessionResourceRegistry: ResourceRegistry, sessionId: string, serverName: string, cfg: MCPServerConfig);
-    /**
-     * Replace this session's registered tools for `serverName` with a
-     * filtered+decorated copy of `snapshot`. Idempotent: re-apply on
-     * `toolsChanged` first removes any prior registration then registers
-     * the new set, so a server that hot-removes a tool propagates correctly.
-     */
-    applyTools(snapshot: readonly DiscoveredMCPTool[]): void;
-    /**
-     * Replace this session's registered prompts for `serverName` with
-     * `snapshot`. Apply the same `excludeTools` / `includeTools`
-     * filter the tool path uses. Pre-fix prompts were
-     * registered unconditionally — a session restricting tools to a
-     * subset still received every prompt the server advertised, AND
-     * each prompt's bound `invoke` closure over the pool's shared
-     * `Client` reached the same server state/credentials as the
-     * more-trusted sibling. Now the filter rejects prompts the
-     * session has explicitly excluded; un-listed prompts pass when
-     * `includeTools` is unset (matching the tool path's lenient default).
-     *
-     * Note: prompts carry a bound `invoke` closure over the pool's
-     * shared `Client`. When the pool reconnects (new client instance),
-     * the snapshot is re-emitted via `promptsChanged`, and this method
-     * re-registers with the new bound invokes — stale invokes from a
-     * prior generation are dropped via `removePromptsByServer`.
-     */
-    applyPrompts(snapshot: readonly DiscoveredMCPPrompt[]): void;
-    /**
-     * Replace this session's registered resources for `serverName` with
-     * `snapshot`. Idempotent (removes prior registration first), mirroring
-     * `applyPrompts` / `applyTools` so a hot-changed or reconnected server
-     * propagates correctly.
-     *
-     * Unlike `applyTools` / `applyPrompts`, resources are NOT run through the
-     * `includeTools` / `excludeTools` filter: those knobs match tool (and
-     * prompt) NAMES, whereas a resource's identity is its URI. Filtering URIs
-     * by a tool-name allow/deny list is semantically meaningless and would
-     * only ever drop a resource whose URI coincidentally equalled a filtered
-     * tool name. The full set is fanned out to every session.
-     *
-     * An EMPTY snapshot is a no-op (does not clear): `discoverAndReturn` /
-     * `listMcpResources` swallow a transient `resources/list` failure to `[]`,
-     * so on a pool restart the snapshot may be empty because the list call
-     * failed, not because the server has no resources. Wiping the session's
-     * resources on every failed re-read would be silent data loss. This mirrors
-     * the `resources.length > 0` guard in the non-pool `McpClient.discover()`.
-     * (`applyTools` / `applyPrompts` keep their pre-existing clear-on-empty
-     * behavior — the transient-failure exposure there is out of scope for the
-     * resource feature this PR adds.) Trade-off: a server that legitimately
-     * drops to zero resources keeps the prior set until a non-empty snapshot.
-     */
-    applyResources(snapshot: readonly DiscoveredMCPResource[]): void;
-    /**
-     * Update the session's view of this server's config (e.g. when
-     * `/mcp` tweaks `includeTools` at runtime). Re-apply uses the new
-     * filter against the most recent snapshot.
-     *
-     * The caller is responsible for invoking `applyTools` / `applyPrompts` /
-     * `applyResources` with the current snapshots when this method returns true.
-     * The captured key also detects callers that mutate and resubmit the same
-     * config object.
-     */
-    updateConfig(cfg: MCPServerConfig): boolean;
-    /**
-     * Tear down this view's registrations. Called on:
-     *   - Session close (full teardown via pool's `releaseSession`)
-     *   - `/mcp disable <serverName>` for this session
-     *   - Permanent pool entry failure (subscribers should drop the
-     *     server from their UI rather than show stale tools)
-     *
-     * Safe to call multiple times (delegates to idempotent
-     * `removeMcpToolsByServer` / `removePromptsByServer`).
-     */
-    teardown(): void;
+  private readonly sessionToolRegistry;
+  private readonly sessionPromptRegistry;
+  private readonly sessionResourceRegistry;
+  readonly sessionId: string;
+  readonly serverName: string;
+  private cfg;
+  private metadataKey;
+  /**
+   * @param sessionToolRegistry The session-owned ToolRegistry; receives
+   *   filtered + trust-decorated `DiscoveredMCPTool` instances.
+   * @param sessionPromptRegistry The session-owned PromptRegistry; receives
+   *   prompts selected by the same name filter as tools.
+   * @param sessionResourceRegistry The session-owned ResourceRegistry;
+   *   receives the full resource snapshot because tool-name filters do not
+   *   apply to resource URIs.
+   * @param sessionId Stamped onto debug logs for cross-session
+   *   correlation; not used for routing (pool's reverse index handles that).
+   * @param serverName Server name as advertised in the per-session
+   *   merged mcpServers map; used as the key into the registries'
+   *   `removeMcpToolsByServer` / `removePromptsByServer` cleanup paths.
+   * @param cfg The session's view of this server's config, source of
+   *   `includeTools` / `excludeTools` / `trust` / `alwaysLoadTools`.
+   */
+  constructor(
+    sessionToolRegistry: ToolRegistry,
+    sessionPromptRegistry: PromptRegistry,
+    sessionResourceRegistry: ResourceRegistry,
+    sessionId: string,
+    serverName: string,
+    cfg: MCPServerConfig,
+  );
+  /**
+   * Replace this session's registered tools for `serverName` with a
+   * filtered+decorated copy of `snapshot`. Idempotent: re-apply on
+   * `toolsChanged` first removes any prior registration then registers
+   * the new set, so a server that hot-removes a tool propagates correctly.
+   */
+  applyTools(snapshot: readonly DiscoveredMCPTool[]): void;
+  /**
+   * Replace this session's registered prompts for `serverName` with
+   * `snapshot`. Apply the same `excludeTools` / `includeTools`
+   * filter the tool path uses. Pre-fix prompts were
+   * registered unconditionally — a session restricting tools to a
+   * subset still received every prompt the server advertised, AND
+   * each prompt's bound `invoke` closure over the pool's shared
+   * `Client` reached the same server state/credentials as the
+   * more-trusted sibling. Now the filter rejects prompts the
+   * session has explicitly excluded; un-listed prompts pass when
+   * `includeTools` is unset (matching the tool path's lenient default).
+   *
+   * Note: prompts carry a bound `invoke` closure over the pool's
+   * shared `Client`. When the pool reconnects (new client instance),
+   * the snapshot is re-emitted via `promptsChanged`, and this method
+   * re-registers with the new bound invokes — stale invokes from a
+   * prior generation are dropped via `removePromptsByServer`.
+   */
+  applyPrompts(snapshot: readonly DiscoveredMCPPrompt[]): void;
+  /**
+   * Replace this session's registered resources for `serverName` with
+   * `snapshot`. Idempotent (removes prior registration first), mirroring
+   * `applyPrompts` / `applyTools` so a hot-changed or reconnected server
+   * propagates correctly.
+   *
+   * Unlike `applyTools` / `applyPrompts`, resources are NOT run through the
+   * `includeTools` / `excludeTools` filter: those knobs match tool (and
+   * prompt) NAMES, whereas a resource's identity is its URI. Filtering URIs
+   * by a tool-name allow/deny list is semantically meaningless and would
+   * only ever drop a resource whose URI coincidentally equalled a filtered
+   * tool name. The full set is fanned out to every session.
+   *
+   * An EMPTY snapshot is a no-op (does not clear): `discoverAndReturn` /
+   * `listMcpResources` swallow a transient `resources/list` failure to `[]`,
+   * so on a pool restart the snapshot may be empty because the list call
+   * failed, not because the server has no resources. Wiping the session's
+   * resources on every failed re-read would be silent data loss. This mirrors
+   * the `resources.length > 0` guard in the non-pool `McpClient.discover()`.
+   * (`applyTools` / `applyPrompts` keep their pre-existing clear-on-empty
+   * behavior — the transient-failure exposure there is out of scope for the
+   * resource feature this PR adds.) Trade-off: a server that legitimately
+   * drops to zero resources keeps the prior set until a non-empty snapshot.
+   */
+  applyResources(snapshot: readonly DiscoveredMCPResource[]): void;
+  /**
+   * Update the session's view of this server's config (e.g. when
+   * `/mcp` tweaks `includeTools` at runtime). Re-apply uses the new
+   * filter against the most recent snapshot.
+   *
+   * The caller is responsible for invoking `applyTools` / `applyPrompts` /
+   * `applyResources` with the current snapshots when this method returns true.
+   * The captured key also detects callers that mutate and resubmit the same
+   * config object.
+   */
+  updateConfig(cfg: MCPServerConfig): boolean;
+  /**
+   * Tear down this view's registrations. Called on:
+   *   - Session close (full teardown via pool's `releaseSession`)
+   *   - `/mcp disable <serverName>` for this session
+   *   - Permanent pool entry failure (subscribers should drop the
+   *     server from their UI rather than show stale tools)
+   *
+   * Safe to call multiple times (delegates to idempotent
+   * `removeMcpToolsByServer` / `removePromptsByServer`).
+   */
+  teardown(): void;
 }

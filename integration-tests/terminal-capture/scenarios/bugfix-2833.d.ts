@@ -4,20 +4,20 @@
  * to capture the full evolution of the debugging process.
  */
 declare const _default: {
-    name: string;
-    spawn: string[];
-    terminal: {
-        title: string;
-        cwd: string;
+  name: string;
+  spawn: string[];
+  terminal: {
+    title: string;
+    cwd: string;
+  };
+  gif: true;
+  flow: {
+    type: string;
+    streaming: {
+      delayMs: number;
+      intervalMs: number;
+      count: number;
     };
-    gif: true;
-    flow: {
-        type: string;
-        streaming: {
-            delayMs: number;
-            intervalMs: number;
-            count: number;
-        };
-    }[];
+  }[];
 };
 export default _default;

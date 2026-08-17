@@ -6,21 +6,31 @@
 import type { Request, Response } from 'express';
 import type { AcpSessionBridge } from '@qwen-code/acp-bridge/bridgeTypes';
 import type { WorkspaceRequestContext } from '../workspace-service/index.js';
-export declare function sendJsonBodyParserError(res: Response, err: unknown): boolean;
-export declare const CLIENT_ID_HEADER = "x-qwen-client-id";
+export declare function sendJsonBodyParserError(
+  res: Response,
+  err: unknown,
+): boolean;
+export declare const CLIENT_ID_HEADER = 'x-qwen-client-id';
 export declare const MAX_CLIENT_ID_LENGTH = 128;
 export declare const MAX_TOOL_NAME_LENGTH = 256;
 export declare const MAX_SKILL_NAME_LENGTH = 256;
 export declare const MAX_SERVER_NAME_LENGTH = 256;
 export declare const CLIENT_ID_RE: RegExp;
 export interface DeferredRuntimeRequestTiming {
-    startedAt: Date;
-    path: 'started_on_request' | 'joined';
-    waitMs?: number;
+  startedAt: Date;
+  path: 'started_on_request' | 'joined';
+  waitMs?: number;
 }
-export declare function setDeferredRuntimeRequestTiming(req: Request, timing: DeferredRuntimeRequestTiming): void;
-export declare function getDeferredRuntimeRequestTiming(req: Request): DeferredRuntimeRequestTiming | undefined;
-type PermissionVoteResponse = Parameters<AcpSessionBridge['respondToPermission']>[1];
+export declare function setDeferredRuntimeRequestTiming(
+  req: Request,
+  timing: DeferredRuntimeRequestTiming,
+): void;
+export declare function getDeferredRuntimeRequestTiming(
+  req: Request,
+): DeferredRuntimeRequestTiming | undefined;
+type PermissionVoteResponse = Parameters<
+  AcpSessionBridge['respondToPermission']
+>[1];
 /**
  * Coerce `req.body` into a safe `Record<string, unknown>` for route
  * handlers.
@@ -31,9 +41,19 @@ type PermissionVoteResponse = Parameters<AcpSessionBridge['respondToPermission']
  * prototype attacks.
  */
 export declare function safeBody(req: Request): Record<string, unknown>;
-export declare function parseOptionalWorkspaceCwd(body: Record<string, unknown>, boundWorkspace: string, res: Response): string | undefined;
-export declare function requireSessionId(req: Request, res: Response): string | null;
-export declare function parseClientIdHeader(req: Request, res: Response): string | undefined | null;
+export declare function parseOptionalWorkspaceCwd(
+  body: Record<string, unknown>,
+  boundWorkspace: string,
+  res: Response,
+): string | undefined;
+export declare function requireSessionId(
+  req: Request,
+  res: Response,
+): string | null;
+export declare function parseClientIdHeader(
+  req: Request,
+  res: Response,
+): string | undefined | null;
 /**
  * Decide whether a permission vote arrived from a loopback peer.
  *
@@ -46,9 +66,9 @@ export declare function parseClientIdHeader(req: Request, res: Response): string
  * CLOSED: unrecognized shapes return `false`.
  */
 export declare function detectFromLoopback(req: {
-    socket?: {
-        remoteAddress?: string | undefined;
-    };
+  socket?: {
+    remoteAddress?: string | undefined;
+  };
 }): boolean;
 /**
  * Validate that a server name from a route parameter is a non-empty
@@ -56,7 +76,10 @@ export declare function detectFromLoopback(req: {
  * property name. Emits a 400 JSON response and returns `false` on
  * validation failure.
  */
-export declare function validateMcpRuntimeServerName(name: unknown, res: Response): name is string;
+export declare function validateMcpRuntimeServerName(
+  name: unknown,
+  res: Response,
+): name is string;
 /**
  * Workspace-level mutation routes validate the parsed `X-Qwen-Client-Id`
  * against the supplied bridge set so the `originatorClientId` stamped
@@ -64,9 +87,18 @@ export declare function validateMcpRuntimeServerName(name: unknown, res: Respons
  * validated client id (or `undefined` when no header was supplied),
  * `null` when a 400 has already been emitted.
  */
-export declare function parseAndValidateWorkspaceClientId(req: Request, res: Response, bridge: AcpSessionBridge | readonly AcpSessionBridge[]): string | undefined | null;
-export declare function createBuildWorkspaceCtx(boundWorkspace: string): (route: string, clientId?: string) => WorkspaceRequestContext;
-export declare function parsePermissionVoteBody(req: Request, res: Response): PermissionVoteResponse | undefined;
+export declare function parseAndValidateWorkspaceClientId(
+  req: Request,
+  res: Response,
+  bridge: AcpSessionBridge | readonly AcpSessionBridge[],
+): string | undefined | null;
+export declare function createBuildWorkspaceCtx(
+  boundWorkspace: string,
+): (route: string, clientId?: string) => WorkspaceRequestContext;
+export declare function parsePermissionVoteBody(
+  req: Request,
+  res: Response,
+): PermissionVoteResponse | undefined;
 /**
  * Parse the optional `?maxQueued=N` query param on
  * `GET /session/:id/events`. Returns:
@@ -82,7 +114,10 @@ export declare function parsePermissionVoteBody(req: Request, res: Response): Pe
  * replay backlog); upper bound 2048 (so a single subscriber can't
  * pin ~1 MB of queue memory just by asking).
  */
-export declare function parseMaxQueuedQuery(raw: unknown, res: Response): number | undefined | null;
+export declare function parseMaxQueuedQuery(
+  raw: unknown,
+  res: Response,
+): number | undefined | null;
 /**
  * Wrap an attacker-controllable string for safe interpolation into a
  * stderr log line. `JSON.stringify` escapes control characters

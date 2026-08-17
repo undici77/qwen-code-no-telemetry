@@ -11,12 +11,13 @@ import { isAskUserQuestionToolName } from '../components/messages/toolFormatting
  * the split-view ChatPane so the two never drift.
  */
 export function isAskUserPermission(request) {
-    if (!request?.rawInput?.questions ||
-        !Array.isArray(request.rawInput.questions)) {
-        return false;
-    }
-    if (!request.toolName)
-        return true;
-    return isAskUserQuestionToolName(request.toolName);
+  if (
+    !request?.rawInput?.questions ||
+    !Array.isArray(request.rawInput.questions)
+  ) {
+    return false;
+  }
+  if (!request.toolName) return true;
+  return isAskUserQuestionToolName(request.toolName);
 }
 //# sourceMappingURL=askUserPermission.js.map

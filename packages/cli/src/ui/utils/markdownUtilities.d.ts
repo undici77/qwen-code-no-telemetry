@@ -10,11 +10,17 @@
  * from other tall blocks like tables/lists (which must stay whole), and from
  * whole-source blocks like mermaid (which must not be split mid-diagram).
  */
-export declare const getEnclosingFenceInfo: (content: string, index: number) => {
-    lang: string | null;
-    startLine: number;
+export declare const getEnclosingFenceInfo: (
+  content: string,
+  index: number,
+) => {
+  lang: string | null;
+  startLine: number;
 } | null;
-export declare const findLastSafeSplitPoint: (content: string, idealMaxLength?: number) => number;
+export declare const findLastSafeSplitPoint: (
+  content: string,
+  idealMaxLength?: number,
+) => number;
 /**
  * Parses a fenced code block's info string into its language (first token, with
  * the internal start-line directive removed) and the gutter start line (1 when
@@ -22,8 +28,8 @@ export declare const findLastSafeSplitPoint: (content: string, idealMaxLength?: 
  * leaks into language detection.
  */
 export declare const parseCodeFenceInfo: (info: string | undefined | null) => {
-    lang: string | null;
-    startLine: number;
+  lang: string | null;
+  startLine: number;
 };
 /**
  * Splits `content` at `splitPoint` into a head (committed to <Static>) and a
@@ -42,7 +48,10 @@ export declare const parseCodeFenceInfo: (info: string | undefined | null) => {
  * of the tail. When the split is not inside a fence it is a plain substring
  * split, identical to the previous behavior.
  */
-export declare const splitFencedMarkdown: (content: string, splitPoint: number) => {
-    before: string;
-    after: string;
+export declare const splitFencedMarkdown: (
+  content: string,
+  splitPoint: number,
+) => {
+  before: string;
+  after: string;
 };

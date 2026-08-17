@@ -9,16 +9,16 @@ import './ChatViewer.css';
  * Message part containing text content (Qwen format)
  */
 export interface MessagePart {
-    text: string;
+  text: string;
 }
 /**
  * Claude format content item
  */
 export interface ClaudeContentItem {
-    type: 'text' | 'tool_use' | 'tool_result';
-    text?: string;
-    name?: string;
-    input?: unknown;
+  type: 'text' | 'tool_use' | 'tool_result';
+  text?: string;
+  name?: string;
+  input?: unknown;
 }
 /**
  * Tool call data for rendering tool call UI
@@ -29,51 +29,51 @@ export type ToolCallData = BaseToolCallData;
  * Supports both Qwen format and Claude format
  */
 export interface ChatMessageData {
-    uuid: string;
-    parentUuid?: string | null;
-    sessionId?: string;
-    timestamp: string;
-    type: 'user' | 'assistant' | 'system' | 'tool_call';
-    message?: {
-        role?: string;
-        parts?: MessagePart[];
-        content?: string | ClaudeContentItem[];
-    };
-    model?: string;
-    toolCall?: ToolCallData;
-    systemPayload?: unknown;
-    cwd?: string;
-    gitBranch?: string;
+  uuid: string;
+  parentUuid?: string | null;
+  sessionId?: string;
+  timestamp: string;
+  type: 'user' | 'assistant' | 'system' | 'tool_call';
+  message?: {
+    role?: string;
+    parts?: MessagePart[];
+    content?: string | ClaudeContentItem[];
+  };
+  model?: string;
+  toolCall?: ToolCallData;
+  systemPayload?: unknown;
+  cwd?: string;
+  gitBranch?: string;
 }
 /**
  * ChatViewer ref handle for programmatic control
  */
 export interface ChatViewerHandle {
-    /** Scroll to the bottom of the messages */
-    scrollToBottom: (behavior?: ScrollBehavior) => void;
-    /** Scroll to the top of the messages */
-    scrollToTop: (behavior?: ScrollBehavior) => void;
-    /** Get the scroll container element */
-    getScrollContainer: () => HTMLDivElement | null;
+  /** Scroll to the bottom of the messages */
+  scrollToBottom: (behavior?: ScrollBehavior) => void;
+  /** Scroll to the top of the messages */
+  scrollToTop: (behavior?: ScrollBehavior) => void;
+  /** Get the scroll container element */
+  getScrollContainer: () => HTMLDivElement | null;
 }
 /**
  * ChatViewer component props
  */
 export interface ChatViewerProps {
-    /** Array of chat messages in JSONL format */
-    messages: ChatMessageData[];
-    /** Optional additional CSS class name */
-    className?: string;
-    /** Optional callback when a file path is clicked */
-    onFileClick?: (path: string) => void;
-    /** Optional empty state message */
-    emptyMessage?: string;
-    /** Whether to auto-scroll to bottom when new messages arrive (default: true) */
-    autoScroll?: boolean;
-    /** Theme variant: 'dark' | 'light' | 'auto' (default: 'auto') */
-    theme?: 'dark' | 'light' | 'auto';
-    /** Show empty state icon (default: true) */
-    showEmptyIcon?: boolean;
+  /** Array of chat messages in JSONL format */
+  messages: ChatMessageData[];
+  /** Optional additional CSS class name */
+  className?: string;
+  /** Optional callback when a file path is clicked */
+  onFileClick?: (path: string) => void;
+  /** Optional empty state message */
+  emptyMessage?: string;
+  /** Whether to auto-scroll to bottom when new messages arrive (default: true) */
+  autoScroll?: boolean;
+  /** Theme variant: 'dark' | 'light' | 'auto' (default: 'auto') */
+  theme?: 'dark' | 'light' | 'auto';
+  /** Show empty state icon (default: true) */
+  showEmptyIcon?: boolean;
 }
 /**
  * ChatViewer - A standalone component for displaying chat conversations
@@ -102,5 +102,7 @@ export interface ChatViewerProps {
  * <ChatViewer ref={chatRef} messages={messages} />
  * ```
  */
-export declare const ChatViewer: import("react").ForwardRefExoticComponent<ChatViewerProps & import("react").RefAttributes<ChatViewerHandle>>;
+export declare const ChatViewer: import('react').ForwardRefExoticComponent<
+  ChatViewerProps & import('react').RefAttributes<ChatViewerHandle>
+>;
 export default ChatViewer;

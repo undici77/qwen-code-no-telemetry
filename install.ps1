@@ -9,11 +9,11 @@
 # git.exe on PATH to fetch the package from GitHub.
 #
 # Usage (after downloading this file):
-#   .\install.ps1 v0.21.11-no-telemetry
-#   .\install.ps1 v0.21.11-no-telemetry -Source github
+#   .\install.ps1 v0.21.13-no-telemetry
+#   .\install.ps1 v0.21.13-no-telemetry -Source github
 #
 # One-liner:
-#   iwr https://undici77.it/install.ps1 -OutFile install.ps1; .\install.ps1 v0.21.11-no-telemetry
+#   iwr https://undici77.it/install.ps1 -OutFile install.ps1; .\install.ps1 v0.21.13-no-telemetry
 
 param(
     [Parameter(Position = 0)]
@@ -41,8 +41,8 @@ function Show-Usage {
     Write-Host "Usage: .\install.ps1 <branch-or-tag> [-Source SOURCE]"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  .\install.ps1 v0.21.11-no-telemetry"
-    Write-Host "  .\install.ps1 v0.21.11-no-telemetry -Source github"
+    Write-Host "  .\install.ps1 v0.21.13-no-telemetry"
+    Write-Host "  .\install.ps1 v0.21.13-no-telemetry -Source github"
     Write-Host ""
 }
 

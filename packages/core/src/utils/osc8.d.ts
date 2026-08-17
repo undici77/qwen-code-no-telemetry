@@ -73,10 +73,34 @@ export declare function osc8Hyperlink(url: string, label?: string): string;
  * call — env state can change at runtime (`/theme` toggles, NO_COLOR set
  * mid-session) and memoizing would freeze a stale answer.
  */
-export declare function supportsHyperlinks(stream?: NodeJS.WriteStream | undefined): boolean;
+export declare function supportsHyperlinks(
+  stream?: NodeJS.WriteStream | undefined,
+): boolean;
 /**
  * Every env var `supportsHyperlinks()` reads. Test files clear these in
  * `beforeEach` so a developer's iTerm2 session doesn't leak into snapshot
  * output. Exported so tests stay in lockstep with the detector.
  */
-export declare const HYPERLINK_ENV_KEYS: readonly ["NO_COLOR", "FORCE_COLOR", "CI", "TMUX", "STY", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "WT_SESSION", "KITTY_WINDOW_ID", "VTE_VERSION", "DOMTERM", "GHOSTTY_RESOURCES_DIR", "KONSOLE_VERSION", "TERMINAL_EMULATOR", "ALACRITTY_LOG", "ALACRITTY_WINDOW_ID", "ALACRITTY_SOCKET", "TERM", "TEAMCITY_VERSION", "FORCE_HYPERLINK", "QWEN_DISABLE_HYPERLINKS"];
+export declare const HYPERLINK_ENV_KEYS: readonly [
+  'NO_COLOR',
+  'FORCE_COLOR',
+  'CI',
+  'TMUX',
+  'STY',
+  'TERM_PROGRAM',
+  'TERM_PROGRAM_VERSION',
+  'WT_SESSION',
+  'KITTY_WINDOW_ID',
+  'VTE_VERSION',
+  'DOMTERM',
+  'GHOSTTY_RESOURCES_DIR',
+  'KONSOLE_VERSION',
+  'TERMINAL_EMULATOR',
+  'ALACRITTY_LOG',
+  'ALACRITTY_WINDOW_ID',
+  'ALACRITTY_SOCKET',
+  'TERM',
+  'TEAMCITY_VERSION',
+  'FORCE_HYPERLINK',
+  'QWEN_DISABLE_HYPERLINKS',
+];

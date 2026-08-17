@@ -10,11 +10,11 @@
  * returns the base path (or `/` at the root).
  */
 export function buildSessionPathname(currentPathname, sessionId) {
-    const sessionPath = currentPathname.match(/^(.*)\/session\/[^/]+\/?$/);
-    const basePath = sessionPath?.[1] ?? currentPathname.replace(/\/$/, '');
-    return sessionId
-        ? `${basePath}/session/${encodeURIComponent(sessionId)}`
-        : basePath || '/';
+  const sessionPath = currentPathname.match(/^(.*)\/session\/[^/]+\/?$/);
+  const basePath = sessionPath?.[1] ?? currentPathname.replace(/\/$/, '');
+  return sessionId
+    ? `${basePath}/session/${encodeURIComponent(sessionId)}`
+    : basePath || '/';
 }
 /**
  * Extract the session id from a standalone pathname. Anchored to the last
@@ -23,14 +23,12 @@ export function buildSessionPathname(currentPathname, sessionId) {
  * the base path itself ends in `/session` (e.g. `/app/session/session/<id>`).
  */
 export function parseSessionId(pathname) {
-    const match = pathname.match(/\/session\/([^/]+)\/?$/);
-    if (!match)
-        return undefined;
-    try {
-        return decodeURIComponent(match[1]);
-    }
-    catch {
-        return undefined;
-    }
+  const match = pathname.match(/\/session\/([^/]+)\/?$/);
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return undefined;
+  }
 }
 //# sourceMappingURL=sessionPath.js.map

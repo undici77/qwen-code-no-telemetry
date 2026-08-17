@@ -1,4 +1,4 @@
 declare const _default: {
-    'keyboard-shortcuts': string;
+  'keyboard-shortcuts': string;
 };
 export default _default;

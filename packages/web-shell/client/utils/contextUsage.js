@@ -6,10 +6,8 @@
 export const CONTEXT_USAGE_WARNING_PCT = 60;
 export const CONTEXT_USAGE_ERROR_PCT = 80;
 export function getContextUsageLevel(pct) {
-    if (pct > CONTEXT_USAGE_ERROR_PCT)
-        return 'error';
-    if (pct > CONTEXT_USAGE_WARNING_PCT)
-        return 'warning';
-    return 'normal';
+  if (pct > CONTEXT_USAGE_ERROR_PCT) return 'error';
+  if (pct > CONTEXT_USAGE_WARNING_PCT) return 'warning';
+  return 'normal';
 }
 //# sourceMappingURL=contextUsage.js.map

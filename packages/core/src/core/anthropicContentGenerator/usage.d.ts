@@ -5,12 +5,12 @@
  */
 import type { GenerateContentResponseUsageMetadata } from '@google/genai';
 export interface AnthropicTokenParts {
-    inputTokens: number;
-    cacheReadTokens: number;
-    cacheCreationTokens: number;
-    outputTokens?: number;
-    cacheReadTokensReported?: boolean;
-    cacheCreationTokensReported?: boolean;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  outputTokens?: number;
+  cacheReadTokensReported?: boolean;
+  cacheCreationTokensReported?: boolean;
 }
 /**
  * Normalize Anthropic-side token counts into Gemini's `usageMetadata` shape.
@@ -37,4 +37,6 @@ export interface AnthropicTokenParts {
  * portion from the displayed prompt size and produce a one-shot Footer
  * "drop" at the crossover point.
  */
-export declare function buildAnthropicUsageMetadata(parts: AnthropicTokenParts): GenerateContentResponseUsageMetadata;
+export declare function buildAnthropicUsageMetadata(
+  parts: AnthropicTokenParts,
+): GenerateContentResponseUsageMetadata;

@@ -5,10 +5,10 @@
  */
 import type { CommandModule } from 'yargs';
 interface MatchRemoteArgs {
-    owner: string;
-    repo: string;
-    /** Absent means inherit an operator-exported GH_HOST, else github.com. */
-    host?: string;
+  owner: string;
+  repo: string;
+  /** Absent means inherit an operator-exported GH_HOST, else github.com. */
+  host?: string;
 }
 export declare function runMatchRemote(args: MatchRemoteArgs): void;
 export declare const matchRemoteCommand: CommandModule;

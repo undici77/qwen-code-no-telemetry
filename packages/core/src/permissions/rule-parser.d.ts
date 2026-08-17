@@ -3,7 +3,11 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { PermissionCheckContext, PermissionRule, SpecifierKind } from './types.js';
+import type {
+  PermissionCheckContext,
+  PermissionRule,
+  SpecifierKind,
+} from './types.js';
 /**
  * Map of known tool name aliases to their canonical names.
  * Covers all built-in tools plus common aliases (including Claude Code's "Bash").
@@ -23,7 +27,9 @@ export declare function resolveToolName(rawName: string): string;
  * Determine the specifier kind for a given canonical tool name.
  * This tells the matching engine which algorithm to use for the specifier.
  */
-export declare function getSpecifierKind(canonicalToolName: string): SpecifierKind;
+export declare function getSpecifierKind(
+  canonicalToolName: string,
+): SpecifierKind;
 /**
  * Check whether a given tool (by canonical name) is covered by a rule's tool name,
  * taking meta-categories into account.
@@ -34,7 +40,10 @@ export declare function getSpecifierKind(canonicalToolName: string): SpecifierKi
  * "Bash" → resolves to "run_shell_command", but also covers monitor
  * "Monitor" → resolves to "monitor" only; it does not cover shell
  */
-export declare function toolMatchesRuleToolName(ruleToolName: string, contextToolName: string): boolean;
+export declare function toolMatchesRuleToolName(
+  ruleToolName: string,
+  contextToolName: string,
+): boolean;
 /**
  * Parse a raw permission rule string into a PermissionRule object.
  *
@@ -89,7 +98,9 @@ export declare function getRuleDisplayName(canonicalToolName: string): string;
  * @param ctx - The permission check context (built in coreToolScheduler L4).
  * @returns Array of rule strings (usually a single element).
  */
-export declare function buildPermissionRules(ctx: PermissionCheckContext): string[];
+export declare function buildPermissionRules(
+  ctx: PermissionCheckContext,
+): string[];
 /**
  * Build a human-readable label describing what a set of permission rules allow.
  *
@@ -110,14 +121,14 @@ export declare function buildHumanReadableRuleLabel(rules: string[]): string;
  * One segment of a compound command, together with the operator that ended it.
  */
 export interface CompoundCommandSegment {
-    /** The trimmed simple command. */
-    command: string;
-    /**
-     * The operator that terminated this segment, or `''` when the segment ran to
-     * the end of the input. Lets callers tell a foreground segment from one the
-     * shell runs in a subshell (`&`).
-     */
-    terminator: string;
+  /** The trimmed simple command. */
+  command: string;
+  /**
+   * The operator that terminated this segment, or `''` when the segment ran to
+   * the end of the input. Lets callers tell a foreground segment from one the
+   * shell runs in a subshell (`&`).
+   */
+  terminator: string;
 }
 /**
  * Split a compound shell command into its individual simple commands, keeping
@@ -126,7 +137,9 @@ export interface CompoundCommandSegment {
  * See {@link splitCompoundCommand} for the string-only form and for examples;
  * this is the same split, and that function is a projection of this one.
  */
-export declare function splitCompoundCommandSegments(command: string): CompoundCommandSegment[];
+export declare function splitCompoundCommandSegments(
+  command: string,
+): CompoundCommandSegment[];
 /**
  * Split a compound shell command into its individual simple commands
  * by splitting on unquoted shell operators (&&, ||, ;, |, etc.).
@@ -163,7 +176,10 @@ export declare function splitCompoundCommand(command: string): string[];
  *
  * 5. `Bash(*)` is equivalent to `Bash` and matches any command.
  */
-export declare function matchesCommandPattern(pattern: string, command: string): boolean;
+export declare function matchesCommandPattern(
+  pattern: string,
+  command: string,
+): boolean;
 /**
  * Resolve a path pattern from a permission rule specifier to an absolute
  * glob pattern for matching.
@@ -181,7 +197,11 @@ export declare function matchesCommandPattern(pattern: string, command: string):
  * WARNING: `/Users/alice/file` is NOT an absolute path — it's relative to
  * the project root. Use `//Users/alice/file` for absolute paths.
  */
-export declare function resolvePathPattern(specifier: string, projectRoot: string, cwd: string): string;
+export declare function resolvePathPattern(
+  specifier: string,
+  projectRoot: string,
+  cwd: string,
+): string;
 /**
  * Match a file path against a gitignore-style path pattern.
  *
@@ -199,7 +219,13 @@ export declare function resolvePathPattern(specifier: string, projectRoot: strin
  * @param matchMode - Whether to also match the canonical filesystem destination
  * @returns True if the file path matches the pattern
  */
-export declare function matchesPathPattern(specifier: string, filePath: string, projectRoot: string, cwd: string, matchMode?: 'lexical' | 'canonical'): boolean;
+export declare function matchesPathPattern(
+  specifier: string,
+  filePath: string,
+  projectRoot: string,
+  cwd: string,
+  matchMode?: 'lexical' | 'canonical',
+): boolean;
 /**
  * Match a domain against a WebFetch domain specifier.
  *
@@ -211,7 +237,10 @@ export declare function matchesPathPattern(specifier: string, filePath: string, 
  *   matchesDomainPattern("domain:example.com", "sub.example.com")  → true
  *   matchesDomainPattern("domain:example.com", "notexample.com")   → false
  */
-export declare function matchesDomainPattern(specifier: string, domain: string): boolean;
+export declare function matchesDomainPattern(
+  specifier: string,
+  domain: string,
+): boolean;
 /**
  * Match an MCP tool name against a pattern that may contain wildcards.
  *
@@ -220,16 +249,19 @@ export declare function matchesDomainPattern(specifier: string, domain: string):
  *   "mcp__puppeteer__*" wildcard syntax, also matches all tools from the server
  *   "mcp__puppeteer__puppeteer_navigate" matches only that exact tool
  */
-export declare function matchesMcpPattern(pattern: string, toolName: string): boolean;
+export declare function matchesMcpPattern(
+  pattern: string,
+  toolName: string,
+): boolean;
 /**
  * Options for path-based matching, providing the directory context needed
  * to resolve relative path patterns.
  */
 export interface PathMatchContext {
-    /** The project root directory (absolute path). */
-    projectRoot: string;
-    /** The current working directory (absolute path). */
-    cwd: string;
+  /** The project root directory (absolute path). */
+  projectRoot: string;
+  /** The current working directory (absolute path). */
+  cwd: string;
 }
 /**
  * Check whether a parsed PermissionRule matches a given context.
@@ -257,4 +289,15 @@ export interface PathMatchContext {
  * @param pathContext - Project root and cwd for resolving relative path patterns
  * @param pathMatchMode - Whether path rules also match canonical destinations
  */
-export declare function matchesRule(rule: PermissionRule, toolName: string, command?: string, filePath?: string, domain?: string, pathContext?: PathMatchContext, specifier?: string, toolParams?: Record<string, unknown>, toolAliases?: readonly string[], pathMatchMode?: 'lexical' | 'canonical'): boolean;
+export declare function matchesRule(
+  rule: PermissionRule,
+  toolName: string,
+  command?: string,
+  filePath?: string,
+  domain?: string,
+  pathContext?: PathMatchContext,
+  specifier?: string,
+  toolParams?: Record<string, unknown>,
+  toolAliases?: readonly string[],
+  pathMatchMode?: 'lexical' | 'canonical',
+): boolean;

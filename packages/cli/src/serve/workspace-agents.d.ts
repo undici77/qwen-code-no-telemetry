@@ -4,10 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Application, Request, RequestHandler, Response } from 'express';
-import { SubagentManager, type SubagentConfig } from '@qwen-code/qwen-code-core';
-import { InvalidClientIdError, type AcpSessionBridge } from './acp-session-bridge.js';
+import {
+  SubagentManager,
+  type SubagentConfig,
+} from '@qwen-code/qwen-code-core';
+import {
+  InvalidClientIdError,
+  type AcpSessionBridge,
+} from './acp-session-bridge.js';
 import type { WorkspaceRegistry } from './workspace-registry.js';
-import { type ServeWorkspaceAgentDetail, type ServeWorkspaceAgentSummary } from '@qwen-code/acp-bridge/status';
+import {
+  type ServeWorkspaceAgentDetail,
+  type ServeWorkspaceAgentSummary,
+} from '@qwen-code/acp-bridge/status';
 /**
  * Workspace subagent CRUD routes.
  *
@@ -27,28 +36,34 @@ import { type ServeWorkspaceAgentDetail, type ServeWorkspaceAgentSummary } from 
  * throw immediately so a silent dependency creep can't ship as a 500.
  */
 export interface WorkspaceAgentsRouteDeps {
-    bridge: AcpSessionBridge;
-    boundWorkspace: string;
-    mutate: (opts?: {
-        strict?: boolean;
-    }) => RequestHandler;
-    parseClientId: (req: Request, res: Response) => string | undefined | null;
-    safeBody: (req: Request) => Record<string, unknown>;
-    isWorkspaceTrusted?: () => boolean;
-    captureGenerationAssertion?: () => (() => void) | undefined;
+  bridge: AcpSessionBridge;
+  boundWorkspace: string;
+  mutate: (opts?: { strict?: boolean }) => RequestHandler;
+  parseClientId: (req: Request, res: Response) => string | undefined | null;
+  safeBody: (req: Request) => Record<string, unknown>;
+  isWorkspaceTrusted?: () => boolean;
+  captureGenerationAssertion?: () => (() => void) | undefined;
 }
 export interface WorkspaceQualifiedAgentsRouteDeps {
-    workspaceRegistry: WorkspaceRegistry;
-    mutate: (opts?: {
-        strict?: boolean;
-    }) => RequestHandler;
-    parseClientId: (req: Request, res: Response) => string | undefined | null;
-    safeBody: (req: Request) => Record<string, unknown>;
+  workspaceRegistry: WorkspaceRegistry;
+  mutate: (opts?: { strict?: boolean }) => RequestHandler;
+  parseClientId: (req: Request, res: Response) => string | undefined | null;
+  safeBody: (req: Request) => Record<string, unknown>;
 }
-export declare function mountWorkspaceAgentsRoutes(app: Application, deps: WorkspaceAgentsRouteDeps): void;
-export declare function mountWorkspaceQualifiedAgentsRoutes(app: Application, deps: WorkspaceQualifiedAgentsRouteDeps): void;
-export declare function toSummary(config: SubagentConfig): ServeWorkspaceAgentSummary;
-export declare function toDetail(config: SubagentConfig): ServeWorkspaceAgentDetail;
+export declare function mountWorkspaceAgentsRoutes(
+  app: Application,
+  deps: WorkspaceAgentsRouteDeps,
+): void;
+export declare function mountWorkspaceQualifiedAgentsRoutes(
+  app: Application,
+  deps: WorkspaceQualifiedAgentsRouteDeps,
+): void;
+export declare function toSummary(
+  config: SubagentConfig,
+): ServeWorkspaceAgentSummary;
+export declare function toDetail(
+  config: SubagentConfig,
+): ServeWorkspaceAgentDetail;
 /**
  * Build a CRUD-scoped `SubagentManager` for the daemon. The
  * underlying manager only touches five `Config` methods on its
@@ -58,5 +73,8 @@ export declare function toDetail(config: SubagentConfig): ServeWorkspaceAgentDet
  * produce incorrect data. The CRUD catalog has no session settings context,
  * so built-in agents use their registry defaults here.
  */
-export declare function createDaemonSubagentManager(boundWorkspace: string, safeMode?: boolean): SubagentManager;
+export declare function createDaemonSubagentManager(
+  boundWorkspace: string,
+  safeMode?: boolean,
+): SubagentManager;
 export { InvalidClientIdError };

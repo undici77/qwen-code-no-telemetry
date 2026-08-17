@@ -10,9 +10,9 @@
  * Cmd+Ctrl combined presses are rejected as ambiguous.
  */
 export declare function isSidebarToggleShortcut(event: {
-    key: string;
-    metaKey: boolean;
-    ctrlKey: boolean;
-    altKey: boolean;
-    shiftKey: boolean;
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
 }): boolean;

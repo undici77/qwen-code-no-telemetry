@@ -9,5 +9,11 @@
  * Async because undici loads behind a dynamic import to keep it out of the
  * eager startup closure (issue #7264).
  */
-export declare function resolveProxy(cliProxy?: string, settingsProxy?: string): Promise<string | undefined>;
-export declare function resolveProxyUrl(cliProxy?: string, settingsProxy?: string): string | undefined;
+export declare function resolveProxy(
+  cliProxy?: string,
+  settingsProxy?: string,
+): Promise<string | undefined>;
+export declare function resolveProxyUrl(
+  cliProxy?: string,
+  settingsProxy?: string,
+): string | undefined;

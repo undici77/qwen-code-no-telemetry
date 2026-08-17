@@ -7,38 +7,48 @@ import type { Stats } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
 import { type ReadTextCursorWindowResult } from '../utils/read-text-range.js';
 import { type IconvLite } from '../utils/load-iconv-lite.js';
-import type { ReadTextFileRequest, WriteTextFileRequest, WriteTextFileResponse } from '@agentclientprotocol/sdk';
+import type {
+  ReadTextFileRequest,
+  WriteTextFileRequest,
+  WriteTextFileResponse,
+} from '@agentclientprotocol/sdk';
 import type { ToolWriteOrigin } from './tool-write-origin.js';
 export type LineEnding = 'crlf' | 'lf';
 export type ReadTextFileResponse = {
-    content: string;
-    _meta?: {
-        bom?: boolean;
-        encoding?: string;
-        originalLineCount?: number;
-        originalLineCountExact?: boolean;
-        lineEnding?: LineEnding;
-        truncatedByBytes?: boolean;
-        /** Byte offset to resume from; absent once the read reached EOF. */
-        nextByteOffset?: number;
-    };
+  content: string;
+  _meta?: {
+    bom?: boolean;
+    encoding?: string;
+    originalLineCount?: number;
+    originalLineCountExact?: boolean;
+    lineEnding?: LineEnding;
+    truncatedByBytes?: boolean;
+    /** Byte offset to resume from; absent once the read reached EOF. */
+    nextByteOffset?: number;
+  };
 };
-export type CoreReadTextFileRequest = Omit<ReadTextFileRequest, 'sessionId' | 'line'> & {
-    /**
-     * Core-local callers use 0-based line offsets. ACP protocol boundaries remain
-     * 1-based and convert explicitly before remote calls.
-     */
-    line?: number | null;
-    maxOutputBytes?: number;
-    signal?: AbortSignal;
-    stats?: Stats;
+export type CoreReadTextFileRequest = Omit<
+  ReadTextFileRequest,
+  'sessionId' | 'line'
+> & {
+  /**
+   * Core-local callers use 0-based line offsets. ACP protocol boundaries remain
+   * 1-based and convert explicitly before remote calls.
+   */
+  line?: number | null;
+  maxOutputBytes?: number;
+  signal?: AbortSignal;
+  stats?: Stats;
 };
-export type CoreWriteTextFileRequest = Omit<WriteTextFileRequest, 'sessionId'> & {
-    /**
-     * Internal core provenance for a final built-in tool write. This is not part
-     * of any tool schema and is serialized only at the ACP boundary.
-     */
-    toolWriteOrigin?: ToolWriteOrigin;
+export type CoreWriteTextFileRequest = Omit<
+  WriteTextFileRequest,
+  'sessionId'
+> & {
+  /**
+   * Internal core provenance for a final built-in tool write. This is not part
+   * of any tool schema and is serialized only at the ACP boundary.
+   */
+  toolWriteOrigin?: ToolWriteOrigin;
 };
 /**
  * Handle-bound range read used by filesystem security boundaries. The caller
@@ -58,15 +68,15 @@ export type CoreWriteTextFileRequest = Omit<WriteTextFileRequest, 'sessionId'> &
  * `maxScanBytes` is what actually keeps the read affordable.
  */
 export interface CoreReadTextFileHandleRequest {
-    fileHandle: FileHandle;
-    /** File size captured from the opened descriptor before reading. */
-    fileSize: number;
-    /** 0-based start line, matching {@link CoreReadTextFileRequest}. */
-    line?: number | null;
-    limit?: number;
-    maxOutputBytes: number;
-    maxScanBytes: number;
-    signal?: AbortSignal;
+  fileHandle: FileHandle;
+  /** File size captured from the opened descriptor before reading. */
+  fileSize: number;
+  /** 0-based start line, matching {@link CoreReadTextFileRequest}. */
+  line?: number | null;
+  limit?: number;
+  maxOutputBytes: number;
+  maxScanBytes: number;
+  signal?: AbortSignal;
 }
 /**
  * Byte-cursor read used by filesystem security boundaries to page text without
@@ -74,20 +84,20 @@ export interface CoreReadTextFileHandleRequest {
  * {@link CoreReadTextFileHandleRequest}.
  */
 export interface CoreReadTextCursorRequest {
-    fileHandle: FileHandle;
-    startOffset: number;
-    fileSize: number;
-    limit?: number;
-    maxOutputBytes: number;
-    maxSnapBytes: number;
-    signal?: AbortSignal;
+  fileHandle: FileHandle;
+  startOffset: number;
+  fileSize: number;
+  limit?: number;
+  maxOutputBytes: number;
+  maxSnapBytes: number;
+  signal?: AbortSignal;
 }
 /**
  * Supported file encodings for new files.
  */
 export declare const FileEncoding: {
-    readonly UTF8: "utf-8";
-    readonly UTF8_BOM: "utf-8-bom";
+  readonly UTF8: 'utf-8';
+  readonly UTF8_BOM: 'utf-8-bom';
 };
 /**
  * Type for file encoding values.
@@ -97,35 +107,39 @@ export type FileEncodingType = (typeof FileEncoding)[keyof typeof FileEncoding];
  * Interface for file system operations that may be delegated to different implementations
  */
 export interface FileSystemService {
-    readTextFile(params: CoreReadTextFileRequest): Promise<ReadTextFileResponse>;
-    readTextFileFromHandle?(params: CoreReadTextFileHandleRequest): Promise<ReadTextFileResponse>;
-    writeTextFile(params: CoreWriteTextFileRequest): Promise<WriteTextFileResponse>;
-    /**
-     * Finds files with a given name within specified search paths.
-     *
-     * @param fileName - The name of the file to find.
-     * @param searchPaths - An array of directory paths to search within.
-     * @returns An array of absolute paths to the found files.
-     */
-    findFiles(fileName: string, searchPaths: readonly string[]): string[];
+  readTextFile(params: CoreReadTextFileRequest): Promise<ReadTextFileResponse>;
+  readTextFileFromHandle?(
+    params: CoreReadTextFileHandleRequest,
+  ): Promise<ReadTextFileResponse>;
+  writeTextFile(
+    params: CoreWriteTextFileRequest,
+  ): Promise<WriteTextFileResponse>;
+  /**
+   * Finds files with a given name within specified search paths.
+   *
+   * @param fileName - The name of the file to find.
+   * @param searchPaths - An array of directory paths to search within.
+   * @returns An array of absolute paths to the found files.
+   */
+  findFiles(fileName: string, searchPaths: readonly string[]): string[];
 }
 /**
  * Options for writing text files
  */
 export interface WriteTextFileOptions {
-    /**
-     * Whether to write the file with UTF-8 BOM.
-     * If true, EF BB BF will be prepended to the content.
-     * @default false
-     */
-    bom?: boolean;
-    /**
-     * The encoding to use when writing the file.
-     * If specified and not UTF-8 compatible, iconv-lite will be used to encode.
-     * This is used to preserve the original encoding of non-UTF-8 files (e.g. GBK, Big5).
-     * @default undefined (writes as UTF-8)
-     */
-    encoding?: string;
+  /**
+   * Whether to write the file with UTF-8 BOM.
+   * If true, EF BB BF will be prepended to the content.
+   * @default false
+   */
+  bom?: boolean;
+  /**
+   * The encoding to use when writing the file.
+   * If specified and not UTF-8 compatible, iconv-lite will be used to encode.
+   * This is used to preserve the original encoding of non-UTF-8 files (e.g. GBK, Big5).
+   * @default undefined (writes as UTF-8)
+   */
+  encoding?: string;
 }
 /**
  * Returns true if a newly created file at the given path should be written
@@ -151,19 +165,38 @@ export declare function ensureCrlfLineEndings(content: string): string;
  */
 export declare function detectLineEnding(content: string): LineEnding;
 export interface PreparedTextFileContent {
-    data: string | Buffer;
-    encoding?: BufferEncoding;
+  data: string | Buffer;
+  encoding?: BufferEncoding;
 }
-export declare function prepareTextFileContent(filePath: string, content: string, meta?: ReadTextFileResponse['_meta'] | null, iconvLite?: IconvLite): PreparedTextFileContent | undefined;
-export declare function prepareTextFileContentAsync(filePath: string, content: string, meta?: ReadTextFileResponse['_meta'] | null): Promise<PreparedTextFileContent>;
-export declare function encodeTextFileContentAsync(filePath: string, content: string, meta?: ReadTextFileResponse['_meta'] | null): Promise<Buffer>;
+export declare function prepareTextFileContent(
+  filePath: string,
+  content: string,
+  meta?: ReadTextFileResponse['_meta'] | null,
+  iconvLite?: IconvLite,
+): PreparedTextFileContent | undefined;
+export declare function prepareTextFileContentAsync(
+  filePath: string,
+  content: string,
+  meta?: ReadTextFileResponse['_meta'] | null,
+): Promise<PreparedTextFileContent>;
+export declare function encodeTextFileContentAsync(
+  filePath: string,
+  content: string,
+  meta?: ReadTextFileResponse['_meta'] | null,
+): Promise<Buffer>;
 /**
  * Standard file system implementation
  */
 export declare class StandardFileSystemService implements FileSystemService {
-    readTextFile(params: CoreReadTextFileRequest): Promise<ReadTextFileResponse>;
-    readTextFileFromHandle(params: CoreReadTextFileHandleRequest): Promise<ReadTextFileResponse>;
-    readTextCursorFromHandle(params: CoreReadTextCursorRequest): Promise<ReadTextCursorWindowResult>;
-    writeTextFile(params: CoreWriteTextFileRequest): Promise<WriteTextFileResponse>;
-    findFiles(fileName: string, searchPaths: readonly string[]): string[];
+  readTextFile(params: CoreReadTextFileRequest): Promise<ReadTextFileResponse>;
+  readTextFileFromHandle(
+    params: CoreReadTextFileHandleRequest,
+  ): Promise<ReadTextFileResponse>;
+  readTextCursorFromHandle(
+    params: CoreReadTextCursorRequest,
+  ): Promise<ReadTextCursorWindowResult>;
+  writeTextFile(
+    params: CoreWriteTextFileRequest,
+  ): Promise<WriteTextFileResponse>;
+  findFiles(fileName: string, searchPaths: readonly string[]): string[];
 }

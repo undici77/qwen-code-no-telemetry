@@ -162,37 +162,37 @@ rpc.send({
 });
 `;
 describe('mcp server with cyclic tool schema is detected', () => {
-    const rig = new TestRig();
-    beforeAll(async () => {
-        // Setup test directory with MCP server configuration
-        await rig.setup('cyclic-schema-mcp-server', {
-            settings: {
-                mcpServers: {
-                    'cyclic-schema-server': {
-                        command: 'node',
-                        args: ['mcp-server.cjs'],
-                    },
-                },
-            },
-        });
-        // Create server script in the test directory
-        const testServerPath = join(rig.testDir, 'mcp-server.cjs');
-        writeFileSync(testServerPath, serverScript);
-        // Make the script executable (though running with 'node' should work anyway)
-        if (process.platform !== 'win32') {
-            const { chmodSync } = await import('node:fs');
-            chmodSync(testServerPath, 0o755);
-        }
+  const rig = new TestRig();
+  beforeAll(async () => {
+    // Setup test directory with MCP server configuration
+    await rig.setup('cyclic-schema-mcp-server', {
+      settings: {
+        mcpServers: {
+          'cyclic-schema-server': {
+            command: 'node',
+            args: ['mcp-server.cjs'],
+          },
+        },
+      },
     });
-    it('mcp tool with cyclic schema should be accessible', async () => {
-        const mcp_list_output = await rig.runCommand(['mcp', 'list']);
-        // Verify the cyclic schema server is configured
-        expect(mcp_list_output).toContain('cyclic-schema-server');
-    });
-    it('gemini api call should be successful with cyclic mcp tool schema', async () => {
-        // Run any command and verify that we get a non-error response from
-        // the Gemini API.
-        await rig.run('hello');
-    });
+    // Create server script in the test directory
+    const testServerPath = join(rig.testDir, 'mcp-server.cjs');
+    writeFileSync(testServerPath, serverScript);
+    // Make the script executable (though running with 'node' should work anyway)
+    if (process.platform !== 'win32') {
+      const { chmodSync } = await import('node:fs');
+      chmodSync(testServerPath, 0o755);
+    }
+  });
+  it('mcp tool with cyclic schema should be accessible', async () => {
+    const mcp_list_output = await rig.runCommand(['mcp', 'list']);
+    // Verify the cyclic schema server is configured
+    expect(mcp_list_output).toContain('cyclic-schema-server');
+  });
+  it('gemini api call should be successful with cyclic mcp tool schema', async () => {
+    // Run any command and verify that we get a non-error response from
+    // the Gemini API.
+    await rig.run('hello');
+  });
 });
 //# sourceMappingURL=mcp_server_cyclic_schema.test.js.map

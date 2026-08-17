@@ -14,39 +14,39 @@ import { type Ledger } from './lib/ledger.js';
  * "Already discussed" section — otherwise a stale table of suggestions would
  * read as settled discussion and suppress still-open findings.
  */
-export declare const SUMMARY_MARKER = "<!-- qwen-review-suggestion-summary -->";
+export declare const SUMMARY_MARKER = '<!-- qwen-review-suggestion-summary -->';
 export interface PrMetadata {
-    title: string;
-    body: string | null;
-    author: {
-        login: string;
-    } | null;
-    baseRefName: string;
-    headRefName: string;
-    headRefOid: string;
-    additions: number;
-    deletions: number;
-    changedFiles: number;
-    state: string;
+  title: string;
+  body: string | null;
+  author: {
+    login: string;
+  } | null;
+  baseRefName: string;
+  headRefName: string;
+  headRefOid: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  state: string;
 }
 export interface RawComment {
-    id: number;
-    user?: {
-        login: string;
-    };
-    body?: string;
-    path?: string;
-    line?: number;
-    in_reply_to_id?: number;
+  id: number;
+  user?: {
+    login: string;
+  };
+  body?: string;
+  path?: string;
+  line?: number;
+  in_reply_to_id?: number;
 }
 export interface RawReview {
-    id: number;
-    user?: {
-        login: string;
-    };
-    body?: string;
-    state?: string;
-    submitted_at?: string;
+  id: number;
+  user?: {
+    login: string;
+  };
+  body?: string;
+  state?: string;
+  submitted_at?: string;
 }
 /**
  * True for a legacy suggestion-summary issue comment, whoever authored it.
@@ -63,7 +63,9 @@ export interface RawReview {
  * the marker verbatim merely hides their own text from the review agents —
  * they cannot add it to someone else's comment. Kept pure for unit testing.
  */
-export declare function isLegacySuggestionSummary(body: string | undefined): boolean;
+export declare function isLegacySuggestionSummary(
+  body: string | undefined,
+): boolean;
 /**
  * Repo coordinates for building refetch refs. When provided, emitted refs
  * are copy-runnable commands with real values. The placeholder fallback
@@ -73,15 +75,27 @@ export declare function isLegacySuggestionSummary(body: string | undefined): boo
  * literally, so a machine-generated ref must not rely on placeholders.
  */
 interface RefContext {
-    ownerRepo?: string;
-    prNumber?: string;
+  ownerRepo?: string;
+  prNumber?: string;
 }
 /** Cap a full review body; the cut names the review id so the tail stays fetchable. */
-export declare function fullBody(s: string | undefined, id?: number, ctx?: RefContext): string;
+export declare function fullBody(
+  s: string | undefined,
+  id?: number,
+  ctx?: RefContext,
+): string;
 /** Cap a full inline-comment body; the cut names the comment id. */
-export declare function fullCommentBody(s: string | undefined, id?: number, ctx?: RefContext): string;
+export declare function fullCommentBody(
+  s: string | undefined,
+  id?: number,
+  ctx?: RefContext,
+): string;
 /** Cap a full issue-comment body; the cut names the issue-comment id. */
-export declare function fullIssueCommentBody(s: string | undefined, id?: number, ctx?: RefContext): string;
+export declare function fullIssueCommentBody(
+  s: string | undefined,
+  id?: number,
+  ctx?: RefContext,
+): string;
 export declare function extractCodeRefs(body: string | undefined): string[];
 export declare function carriesBlockerSignal(body: string | undefined): boolean;
 /**
@@ -93,10 +107,12 @@ export declare function carriesBlockerSignal(body: string | undefined): boolean;
  * agreeing by construction — a cycle-guard fix applied to one private copy
  * and not the other would silently diverge their thread classification.
  */
-export declare function findRootId<T extends {
+export declare function findRootId<
+  T extends {
     id: number;
     in_reply_to_id?: number | null;
-}>(startId: number, byId: Map<number, T>): number;
+  },
+>(startId: number, byId: Map<number, T>): number;
 /**
  * The exact "no issues found, LGTM" template the qwen-review pipeline
  * auto-emits, optionally followed by its model footer — and NOTHING else.
@@ -117,11 +133,11 @@ export declare const CANONICAL_LGTM_RE: RegExp;
  */
 export declare function isReviewWorthShowing(body: string | undefined): boolean;
 export interface InlineThreads {
-    openRoots: RawComment[];
-    openBlockerRoots: RawComment[];
-    repliedBlockerRoots: RawComment[];
-    repliedRoots: RawComment[];
-    repliesByRoot: Map<number, RawComment[]>;
+  openRoots: RawComment[];
+  openBlockerRoots: RawComment[];
+  repliedBlockerRoots: RawComment[];
+  repliedRoots: RawComment[];
+  repliesByRoot: Map<number, RawComment[]>;
 }
 /**
  * Group the flat inline-comment list into threads and classify each root.
@@ -129,7 +145,9 @@ export interface InlineThreads {
  * stdout summary counts from it, so the reported count can never diverge
  * from what the file contains.
  */
-export declare function classifyInlineThreads(inline: RawComment[]): InlineThreads;
+export declare function classifyInlineThreads(
+  inline: RawComment[],
+): InlineThreads;
 /**
  * The latest machine ledger the REVIEWING account itself posted, if any.
  *
@@ -143,17 +161,31 @@ export declare function classifyInlineThreads(inline: RawComment[]): InlineThrea
  * round the older work list, the one failure this whole recovery exists to
  * prevent.
  */
-export declare function latestOwnLedger(reviews: RawReview[], login: string | null): Ledger | null;
+export declare function latestOwnLedger(
+  reviews: RawReview[],
+  login: string | null,
+): Ledger | null;
 /** Render the previous round's ledger for the context file. */
 export declare function renderLedgerSection(ledger: Ledger): string;
-export declare function buildMarkdown(prNumber: string, ownerRepo: string, meta: PrMetadata, inline: RawComment[], issue: RawComment[], reviews: RawReview[], prevLedger?: Ledger | null): string;
+export declare function buildMarkdown(
+  prNumber: string,
+  ownerRepo: string,
+  meta: PrMetadata,
+  inline: RawComment[],
+  issue: RawComment[],
+  reviews: RawReview[],
+  prevLedger?: Ledger | null,
+): string;
 /**
  * Headings that begin past `truncateToolOutputThreshold`, which `read_file` will
  * not return on a single read. Reordering buys headroom; it does not create it.
  */
-export declare function truncatedHeadings(markdown: string, limit: number): Array<{
-    offset: number;
-    heading: string;
+export declare function truncatedHeadings(
+  markdown: string,
+  limit: number,
+): Array<{
+  offset: number;
+  heading: string;
 }>;
 export declare const prContextCommand: CommandModule;
 export {};

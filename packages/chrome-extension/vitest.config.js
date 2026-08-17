@@ -5,10 +5,10 @@
  */
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
-    test: {
-        include: ['src/**/*.test.ts', 'scripts/**/*.test.js'],
-        environment: 'jsdom',
-        globals: true,
-    },
+  test: {
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.js'],
+    environment: 'jsdom',
+    globals: true,
+  },
 });
 //# sourceMappingURL=vitest.config.js.map

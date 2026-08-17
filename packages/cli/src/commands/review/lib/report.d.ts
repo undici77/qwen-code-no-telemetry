@@ -7,95 +7,95 @@ import type { DiffChunk, DiffPlan, PathKind } from './diff-plan.js';
 import { type ReviewBudget } from './budget.js';
 import type { RepositoryContext } from './repository-context.js';
 export interface FileMetric {
-    path: string;
-    kind: PathKind;
-    /**
-     * New-side line ranges this file's hunks occupy, 1-based inclusive.
-     *
-     * Step 7 anchors an inline comment at `(path, line)` and GitHub rejects the
-     * whole review with a 422 if any line falls outside every hunk, so validation
-     * is a lookup here rather than trial-and-error against the API.
-     *
-     * These are **hunk** ranges, which include the three context lines git prints
-     * around every change. For "which lines did this PR write", use
-     * `addedRanges` — see there.
-     *
-     * Pure-deletion hunks (`@@ -3,4 +2,0 @@`) are omitted: they occupy no new-side
-     * line, nothing can be anchored in them, and nothing in them is new.
-     */
-    hunks: Array<{
-        newStart: number;
-        newEnd: number;
-    }>;
-    /**
-     * New-side ranges the PR actually wrote — present only on `heavy` files.
-     *
-     * Step 3B's whole-file invariant agents are the only consumer, and they only
-     * run on heavy files. Emitting them for every file inflates the report past
-     * what one `read_file` returns, which is the same hole this design closes for
-     * the diff itself.
-     */
-    addedRanges?: Array<{
-        start: number;
-        end: number;
-    }>;
-    /**
-     * This file's own section of the diff file, 1-based inclusive.
-     *
-     * An invariant agent reads the post-change file, where a deletion leaves no
-     * trace: removing a `clearTimeout()`, a `Map.delete()`, or a counter
-     * increment is invisible in the text it is given. Reading this range of the
-     * diff shows it the `-` lines. Present only on `heavy` files, the only
-     * agents that need it.
-     */
-    diffRange?: {
-        startLine: number;
-        endLine: number;
-    };
-    addedLines: number;
-    removedLines: number;
-    changedLines: number;
-    /** Lines in the pre-change file; 0 when created, or when unknown. */
-    preLines: number;
-    /** Lines in the post-change file; 0 for a deletion, a binary blob, or unknown. */
-    fileLines: number;
-    /** changedLines / fileLines, rounded to 2dp. 0 when fileLines is 0. */
-    rewriteRatio: number;
-    /**
-     * True when the change is large enough that reviewing it hunk-by-hunk is the
-     * wrong frame: the interactions are between the new lines themselves, which
-     * may sit hundreds of lines apart. Such a file gets three agents that read it
-     * whole and check lifecycle invariants. See SKILL.md Step 3B.
-     */
-    heavy: boolean;
-    binary: boolean;
+  path: string;
+  kind: PathKind;
+  /**
+   * New-side line ranges this file's hunks occupy, 1-based inclusive.
+   *
+   * Step 7 anchors an inline comment at `(path, line)` and GitHub rejects the
+   * whole review with a 422 if any line falls outside every hunk, so validation
+   * is a lookup here rather than trial-and-error against the API.
+   *
+   * These are **hunk** ranges, which include the three context lines git prints
+   * around every change. For "which lines did this PR write", use
+   * `addedRanges` — see there.
+   *
+   * Pure-deletion hunks (`@@ -3,4 +2,0 @@`) are omitted: they occupy no new-side
+   * line, nothing can be anchored in them, and nothing in them is new.
+   */
+  hunks: Array<{
+    newStart: number;
+    newEnd: number;
+  }>;
+  /**
+   * New-side ranges the PR actually wrote — present only on `heavy` files.
+   *
+   * Step 3B's whole-file invariant agents are the only consumer, and they only
+   * run on heavy files. Emitting them for every file inflates the report past
+   * what one `read_file` returns, which is the same hole this design closes for
+   * the diff itself.
+   */
+  addedRanges?: Array<{
+    start: number;
+    end: number;
+  }>;
+  /**
+   * This file's own section of the diff file, 1-based inclusive.
+   *
+   * An invariant agent reads the post-change file, where a deletion leaves no
+   * trace: removing a `clearTimeout()`, a `Map.delete()`, or a counter
+   * increment is invisible in the text it is given. Reading this range of the
+   * diff shows it the `-` lines. Present only on `heavy` files, the only
+   * agents that need it.
+   */
+  diffRange?: {
+    startLine: number;
+    endLine: number;
+  };
+  addedLines: number;
+  removedLines: number;
+  changedLines: number;
+  /** Lines in the pre-change file; 0 when created, or when unknown. */
+  preLines: number;
+  /** Lines in the post-change file; 0 for a deletion, a binary blob, or unknown. */
+  fileLines: number;
+  /** changedLines / fileLines, rounded to 2dp. 0 when fileLines is 0. */
+  rewriteRatio: number;
+  /**
+   * True when the change is large enough that reviewing it hunk-by-hunk is the
+   * wrong frame: the interactions are between the new lines themselves, which
+   * may sit hundreds of lines apart. Such a file gets three agents that read it
+   * whole and check lifecycle invariants. See SKILL.md Step 3B.
+   */
+  heavy: boolean;
+  binary: boolean;
 }
 /** Everything a review plan says about a diff, regardless of where it came from. */
 export interface PlanReport {
-    diffLines: number;
-    diffChars: number;
-    /**
-     * Diff lines in `source` files. The review topology is chosen from this, not
-     * from `diffLines` — a 150-line production change shipping 800 lines of new
-     * tests carries the risk of a small change, and neither do prose or lockfiles.
-     */
-    srcDiffLines: number;
-    testDiffLines: number;
-    docsDiffLines: number;
-    generatedDiffLines: number;
-    /** Contiguous, non-overlapping line ranges tiling the whole diff file. */
-    chunks: DiffChunk[];
-    files: FileMetric[];
-    /**
-     * How much walking the size-elastic parts of the run owe (see lib/budget.ts).
-     *
-     * In the plan rather than in a flag, for the reason `effort` is: every reader
-     * must see the same number, and a budget the caller passes is a budget the
-     * caller can inflate. It never scales a *dimension* away — that is the
-     * roster's job, and the roster reads `effort`.
-     */
-    budget: ReviewBudget;
-    repositoryContext?: RepositoryContext;
+  diffLines: number;
+  diffChars: number;
+  /**
+   * Diff lines in `source` files. The review topology is chosen from this, not
+   * from `diffLines` — a 150-line production change shipping 800 lines of new
+   * tests carries the risk of a small change, and neither do prose or lockfiles.
+   */
+  srcDiffLines: number;
+  testDiffLines: number;
+  docsDiffLines: number;
+  generatedDiffLines: number;
+  /** Contiguous, non-overlapping line ranges tiling the whole diff file. */
+  chunks: DiffChunk[];
+  files: FileMetric[];
+  /**
+   * How much walking the size-elastic parts of the run owe (see lib/budget.ts).
+   *
+   * In the plan rather than in a flag, for the reason `effort` is: every reader
+   * must see the same number, and a budget the caller passes is a budget the
+   * caller can inflate. It never scales a *dimension* away — that is the
+   * roster's job, and the roster reads `effort`.
+   */
+  budget: ReviewBudget;
+  repositoryContext?: RepositoryContext;
 }
 /**
  * Build the shared half of a plan report.
@@ -104,7 +104,10 @@ export interface PlanReport {
  * null when there is no tree to resolve against — a bare diff file — in which
  * case heaviness cannot be decided and no file is heavy.
  */
-export declare function buildPlanReport(plan: DiffPlan, postImageLines: ((path: string) => number) | null): PlanReport;
+export declare function buildPlanReport(
+  plan: DiffPlan,
+  postImageLines: ((path: string) => number) | null,
+): PlanReport;
 /**
  * Warn when the report itself is too large for one `read_file` call.
  *

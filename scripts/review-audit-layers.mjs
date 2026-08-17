@@ -32,94 +32,107 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { glob } from 'glob';
-import { SHELL_MODEL_LAYERS, layerCoverage, } from '../packages/cli/src/commands/review/lib/audit-layers.ts';
+import {
+  SHELL_MODEL_LAYERS,
+  layerCoverage,
+} from '../packages/cli/src/commands/review/lib/audit-layers.ts';
 function roundOf(name) {
-    const m = /round[-_ ]?(\d+)/i.exec(name);
-    return m ? Number(m[1]) : null;
+  const m = /round[-_ ]?(\d+)/i.exec(name);
+  return m ? Number(m[1]) : null;
 }
 async function collectPaths(args) {
-    const out = [];
-    for (const arg of args) {
-        if (/[*?[\]]/.test(arg)) {
-            out.push(...(await glob(arg)));
-        }
-        else {
-            out.push(arg);
-        }
+  const out = [];
+  for (const arg of args) {
+    if (/[*?[\]]/.test(arg)) {
+      out.push(...(await glob(arg)));
+    } else {
+      out.push(arg);
     }
-    return out;
+  }
+  return out;
 }
 function loadReturns(paths) {
-    const returns = [];
-    for (const path of paths) {
-        const raw = readFileSync(path, 'utf8');
-        if (path.endsWith('.json')) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-                parsed.forEach((e, i) => {
-                    const o = (e ?? {});
-                    returns.push({
-                        round: typeof o.round === 'number' ? o.round : null,
-                        label: typeof o.chunk === 'number'
-                            ? `${basename(path)}#${o.chunk}`
-                            : `${basename(path)}#${i}`,
-                        text: typeof o.text === 'string' ? o.text : '',
-                    });
-                });
-                continue;
-            }
-        }
-        returns.push({
-            round: roundOf(basename(path)),
-            label: basename(path),
-            text: raw,
+  const returns = [];
+  for (const path of paths) {
+    const raw = readFileSync(path, 'utf8');
+    if (path.endsWith('.json')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((e, i) => {
+          const o = e ?? {};
+          returns.push({
+            round: typeof o.round === 'number' ? o.round : null,
+            label:
+              typeof o.chunk === 'number'
+                ? `${basename(path)}#${o.chunk}`
+                : `${basename(path)}#${i}`,
+            text: typeof o.text === 'string' ? o.text : '',
+          });
         });
+        continue;
+      }
     }
-    return returns;
+    returns.push({
+      round: roundOf(basename(path)),
+      label: basename(path),
+      text: raw,
+    });
+  }
+  return returns;
 }
 function report(returns, keywordFallback) {
-    const texts = returns.map((r) => r.text);
-    const overall = layerCoverage(texts, { keywordFallback });
-    // Group by round so you can watch a layer stay uncovered across the loop.
-    const rounds = [...new Set(returns.map((r) => r.round))].sort((a, b) => {
-        if (a === null)
-            return 1;
-        if (b === null)
-            return -1;
-        return a - b;
-    });
-    process.stdout.write(`\nDefect-layer coverage — ${returns.length} auditor return(s), ` +
-        `${keywordFallback ? 'keyword estimate ON' : 'structured receipts only'}\n\n`);
-    for (const round of rounds) {
-        const inRound = returns.filter((r) => r.round === round);
-        const cov = layerCoverage(inRound.map((r) => r.text), { keywordFallback });
-        const label = round === null ? 'unlabelled' : `round ${round}`;
-        const covered = SHELL_MODEL_LAYERS.filter((l) => cov.covered[l.id]).map((l) => l.id);
-        process.stdout.write(`  ${label.padEnd(12)} covered: ${covered.join(', ') || '(none)'}\n`);
-    }
-    process.stdout.write('\n  Whole run:\n');
-    for (const layer of SHELL_MODEL_LAYERS) {
-        const mark = overall.covered[layer.id] ? '✓' : '✗ OWED';
-        process.stdout.write(`    [${mark}] ${layer.id} — ${layer.label}\n`);
-    }
-    if (overall.uncovered.length > 0) {
-        process.stdout.write(`\n  ${overall.uncovered.length} layer(s) never walked: ` +
-            `${overall.uncovered.join(', ')}\n` +
-            `  A "two dry rounds" stop would certify the diff with these unreviewed.\n`);
-    }
-    else {
-        process.stdout.write('\n  Every layer was walked.\n');
-    }
+  const texts = returns.map((r) => r.text);
+  const overall = layerCoverage(texts, { keywordFallback });
+  // Group by round so you can watch a layer stay uncovered across the loop.
+  const rounds = [...new Set(returns.map((r) => r.round))].sort((a, b) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  });
+  process.stdout.write(
+    `\nDefect-layer coverage — ${returns.length} auditor return(s), ` +
+      `${keywordFallback ? 'keyword estimate ON' : 'structured receipts only'}\n\n`,
+  );
+  for (const round of rounds) {
+    const inRound = returns.filter((r) => r.round === round);
+    const cov = layerCoverage(
+      inRound.map((r) => r.text),
+      { keywordFallback },
+    );
+    const label = round === null ? 'unlabelled' : `round ${round}`;
+    const covered = SHELL_MODEL_LAYERS.filter((l) => cov.covered[l.id]).map(
+      (l) => l.id,
+    );
+    process.stdout.write(
+      `  ${label.padEnd(12)} covered: ${covered.join(', ') || '(none)'}\n`,
+    );
+  }
+  process.stdout.write('\n  Whole run:\n');
+  for (const layer of SHELL_MODEL_LAYERS) {
+    const mark = overall.covered[layer.id] ? '✓' : '✗ OWED';
+    process.stdout.write(`    [${mark}] ${layer.id} — ${layer.label}\n`);
+  }
+  if (overall.uncovered.length > 0) {
+    process.stdout.write(
+      `\n  ${overall.uncovered.length} layer(s) never walked: ` +
+        `${overall.uncovered.join(', ')}\n` +
+        `  A "two dry rounds" stop would certify the diff with these unreviewed.\n`,
+    );
+  } else {
+    process.stdout.write('\n  Every layer was walked.\n');
+  }
 }
 async function main() {
-    const argv = process.argv.slice(2);
-    const keywordFallback = argv.includes('--infer');
-    const paths = await collectPaths(argv.filter((a) => a !== '--infer'));
-    if (paths.length === 0) {
-        process.stderr.write('usage: tsx scripts/review-audit-layers.mts <file-or-glob> [...] [--infer]\n');
-        process.exit(2);
-    }
-    report(loadReturns(paths), keywordFallback);
+  const argv = process.argv.slice(2);
+  const keywordFallback = argv.includes('--infer');
+  const paths = await collectPaths(argv.filter((a) => a !== '--infer'));
+  if (paths.length === 0) {
+    process.stderr.write(
+      'usage: tsx scripts/review-audit-layers.mts <file-or-glob> [...] [--infer]\n',
+    );
+    process.exit(2);
+  }
+  report(loadReturns(paths), keywordFallback);
 }
 await main();
 //# sourceMappingURL=review-audit-layers.mjs.map

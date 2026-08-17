@@ -5,7 +5,10 @@
  */
 import type { DaemonSessionSummary } from '@qwen-code/sdk/daemon';
 export interface OtherWorkspaceSessionsResult {
-    sessions: DaemonSessionSummary[];
-    reload: () => Promise<void>;
+  sessions: DaemonSessionSummary[];
+  reload: () => Promise<void>;
 }
-export declare function useOtherWorkspaceSessions(enabled?: boolean, pollIntervalMs?: number): OtherWorkspaceSessionsResult;
+export declare function useOtherWorkspaceSessions(
+  enabled?: boolean,
+  pollIntervalMs?: number,
+): OtherWorkspaceSessionsResult;

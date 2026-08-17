@@ -12,5 +12,8 @@ import type { ReviewToolchainAdapter } from './toolchain.js';
  * third-party module is a broken install or a genuine defect in the diff — not
  * something a wider build set can fix — and widening on it would loop.
  */
-export declare function unresolvedWorkspaceDeps(output: string, packages: WorkspacePackage[]): string[];
+export declare function unresolvedWorkspaceDeps(
+  output: string,
+  packages: WorkspacePackage[],
+): string[];
 export declare const npmToolchainAdapter: ReviewToolchainAdapter;

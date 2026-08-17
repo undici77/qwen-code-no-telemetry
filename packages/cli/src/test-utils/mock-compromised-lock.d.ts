@@ -11,7 +11,7 @@ import lockfile from 'proper-lockfile';
  * `ERELEASED`; the mocked release reproduces that exact state.
  */
 export declare function mockCompromisedLock(): {
-    lockSpy: import("vitest").MockInstance<typeof lockfile.lock>;
-    getLockedFile: () => string | undefined;
-    getOnCompromised: () => ((error: Error) => void) | undefined;
+  lockSpy: import('vitest').MockInstance<typeof lockfile.lock>;
+  getLockedFile: () => string | undefined;
+  getOnCompromised: () => ((error: Error) => void) | undefined;
 };

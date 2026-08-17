@@ -38,10 +38,10 @@ export declare function isImagePart(part: Part): boolean;
 export declare function hasImageParts(input: PartListUnion): boolean;
 /** Result of splitting a part list into image and non-image parts. */
 export interface SplitParts {
-    /** Inline image parts, in their original order. */
-    imageParts: Part[];
-    /** Everything that is not a usable inline image (text, tool data, etc.). */
-    nonImageParts: Part[];
+  /** Inline image parts, in their original order. */
+  imageParts: Part[];
+  /** Everything that is not a usable inline image (text, tool data, etc.). */
+  nonImageParts: Part[];
 }
 /**
  * Split a part list into image parts and everything else, preserving order.
@@ -64,7 +64,10 @@ export declare function splitImageParts(input: PartListUnion): SplitParts;
  * @param text The replacement text to drop into the first image's position.
  * @returns A new flat array of parts with images collapsed into `text`.
  */
-export declare function replaceImagesWithText(input: PartListUnion, text: string): Part[];
+export declare function replaceImagesWithText(
+  input: PartListUnion,
+  text: string,
+): Part[];
 /**
  * Report whether an image part is safe to send to the bridge model.
  *

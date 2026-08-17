@@ -6,8 +6,12 @@
 import { type LookupFunction } from 'node:net';
 import type { ExtensionNetworkPolicy } from '../config/config.js';
 export interface ResolvedNetworkTarget {
-    url: URL;
-    lookup?: LookupFunction;
-    curlResolve?: string;
+  url: URL;
+  lookup?: LookupFunction;
+  curlResolve?: string;
 }
-export declare function resolveNetworkTarget(value: string | URL, policy?: ExtensionNetworkPolicy, signal?: AbortSignal): Promise<ResolvedNetworkTarget>;
+export declare function resolveNetworkTarget(
+  value: string | URL,
+  policy?: ExtensionNetworkPolicy,
+  signal?: AbortSignal,
+): Promise<ResolvedNetworkTarget>;

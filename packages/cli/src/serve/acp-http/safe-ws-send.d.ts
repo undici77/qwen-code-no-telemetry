@@ -16,4 +16,8 @@ import type { WebSocket } from 'ws';
  * tunnel that's been quietly cut shows up in the logs under `QWEN_SERVE_DEBUG`
  * instead of disappearing without a trace.
  */
-export declare function safeWsSend(ws: WebSocket, payload: string, context?: string): void;
+export declare function safeWsSend(
+  ws: WebSocket,
+  payload: string,
+  context?: string,
+): void;

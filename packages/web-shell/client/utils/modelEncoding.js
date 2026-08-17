@@ -4,12 +4,12 @@
  * If the input is not in ACP format, returns it unchanged.
  */
 export function encodeVisionModelForSetting(modelId) {
-    const match = modelId.match(/^(.+)\(([^()]+)\)$/);
-    return match ? `${match[2]}:${match[1]}` : modelId;
+  const match = modelId.match(/^(.+)\(([^()]+)\)$/);
+  return match ? `${match[2]}:${match[1]}` : modelId;
 }
 export function extractBareModelId(modelId) {
-    const match = modelId.match(/^(.+)\(([^()]+)\)$/);
-    return match ? match[1] : modelId;
+  const match = modelId.match(/^(.+)\(([^()]+)\)$/);
+  return match ? match[1] : modelId;
 }
 /**
  * Decodes a stored model ID from authType:modelId format back to ACP format
@@ -19,14 +19,14 @@ export function extractBareModelId(modelId) {
  * If the input has no colon, returns it unchanged.
  */
 export function decodeVisionModelForPicker(storedValue) {
-    // CLI stores custom-endpoint vision models as authType:modelId\0baseUrl.
-    // Strip the \0 suffix before decoding to ACP format.
-    const nullIdx = storedValue.indexOf('\0');
-    const selector = nullIdx >= 0 ? storedValue.slice(0, nullIdx) : storedValue;
-    const colonIdx = selector.indexOf(':');
-    if (colonIdx > 0) {
-        return `${selector.slice(colonIdx + 1)}(${selector.slice(0, colonIdx)})`;
-    }
-    return selector;
+  // CLI stores custom-endpoint vision models as authType:modelId\0baseUrl.
+  // Strip the \0 suffix before decoding to ACP format.
+  const nullIdx = storedValue.indexOf('\0');
+  const selector = nullIdx >= 0 ? storedValue.slice(0, nullIdx) : storedValue;
+  const colonIdx = selector.indexOf(':');
+  if (colonIdx > 0) {
+    return `${selector.slice(colonIdx + 1)}(${selector.slice(0, colonIdx)})`;
+  }
+  return selector;
 }
 //# sourceMappingURL=modelEncoding.js.map

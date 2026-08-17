@@ -1,24 +1,28 @@
 export type EscArmedAction = 'cancel' | 'clear';
 export interface EscapeContext {
-    /** A pending approval or blocking dialog swallows Escape entirely. */
-    blocked: boolean;
-    /** A turn is in flight (streamingState !== 'idle'). */
-    streaming: boolean;
-    /** The composer currently has text that could be cleared. */
-    hasInput: boolean;
-    /** Which action the previous Escape armed, or null when idle. */
-    armed: EscArmedAction | null;
+  /** A pending approval or blocking dialog swallows Escape entirely. */
+  blocked: boolean;
+  /** A turn is in flight (streamingState !== 'idle'). */
+  streaming: boolean;
+  /** The composer currently has text that could be cleared. */
+  hasInput: boolean;
+  /** Which action the previous Escape armed, or null when idle. */
+  armed: EscArmedAction | null;
 }
-export type EscapeIntent = {
-    kind: 'cancel';
-} | {
-    kind: 'clear';
-} | {
-    kind: 'arm';
-    action: EscArmedAction;
-} | {
-    kind: 'ignore';
-};
+export type EscapeIntent =
+  | {
+      kind: 'cancel';
+    }
+  | {
+      kind: 'clear';
+    }
+  | {
+      kind: 'arm';
+      action: EscArmedAction;
+    }
+  | {
+      kind: 'ignore';
+    };
 /**
  * Decide what an Escape press means. Streaming takes priority over clearing
  * text (stopping a live turn is what the user most wants), and each action is a

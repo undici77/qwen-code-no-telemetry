@@ -7,35 +7,38 @@
 import type { LanguageDefinition } from '../packages/cli/src/i18n/languages.js';
 import { type TranslationDict } from '../packages/cli/src/i18n/translationDict.js';
 export interface LocaleStats {
-    code: string;
-    id: string;
-    totalKeys: number;
-    translatedKeys: number;
-    missingKeys: string[];
-    extraKeys: string[];
-    untranslatedMustKeys: string[];
+  code: string;
+  id: string;
+  totalKeys: number;
+  translatedKeys: number;
+  missingKeys: string[];
+  extraKeys: string[];
+  untranslatedMustKeys: string[];
 }
 export interface CheckResult {
-    success: boolean;
-    errors: string[];
-    warnings: string[];
-    stats: {
-        totalKeys: number;
-        unusedKeys: string[];
-        unusedKeysOnlyInLocales?: string[];
-        locales: LocaleStats[];
-    };
+  success: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: {
+    totalKeys: number;
+    unusedKeys: string[];
+    unusedKeysOnlyInLocales?: string[];
+    locales: LocaleStats[];
+  };
 }
 export interface CheckI18nOptions {
-    localesDir?: string;
-    sourceDir?: string;
-    supportedLanguages?: readonly Pick<LanguageDefinition, 'code' | 'id' | 'strictParity'>[];
-    mustTranslateKeys?: readonly string[];
-    strictKeyParityLocales?: ReadonlySet<string>;
+  localesDir?: string;
+  sourceDir?: string;
+  supportedLanguages?: readonly Pick<
+    LanguageDefinition,
+    'code' | 'id' | 'strictParity'
+  >[];
+  mustTranslateKeys?: readonly string[];
+  strictKeyParityLocales?: ReadonlySet<string>;
 }
 export interface PrintCheckI18nOptions {
-    writeUnusedKeysJson?: boolean;
-    unusedKeysOutputPath?: string;
+  writeUnusedKeysJson?: boolean;
+  unusedKeysOutputPath?: string;
 }
 export declare function shouldWriteUnusedKeysJson(): boolean;
 /**
@@ -47,10 +50,17 @@ export declare function shouldWriteUnusedKeysJson(): boolean;
  * Only the longest matching pattern per value is reported, to keep CI output
  * focused on the most actionable fix.
  */
-export declare function findForbiddenZhTwPatterns(translations: TranslationDict): Array<{
-    key: string;
-    pattern: string;
-    preferred: string;
+export declare function findForbiddenZhTwPatterns(
+  translations: TranslationDict,
+): Array<{
+  key: string;
+  pattern: string;
+  preferred: string;
 }>;
-export declare function checkI18n(options?: CheckI18nOptions): Promise<CheckResult>;
-export declare function printCheckI18nResult(result: CheckResult, options?: PrintCheckI18nOptions): void;
+export declare function checkI18n(
+  options?: CheckI18nOptions,
+): Promise<CheckResult>;
+export declare function printCheckI18nResult(
+  result: CheckResult,
+  options?: PrintCheckI18nOptions,
+): void;

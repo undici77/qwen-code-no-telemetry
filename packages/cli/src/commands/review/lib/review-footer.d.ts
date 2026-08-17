@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 /** The attribution marker the strip regex anchors on. */
-export declare const FOOTER_MARKER = "via Qwen Code /review";
+export declare const FOOTER_MARKER = 'via Qwen Code /review';
 /** The footer naming the reviewing model and the CLI version it ran under. */
-export declare function reviewFooter(modelId: string, cliVersion: string): string;
+export declare function reviewFooter(
+  modelId: string,
+  cliVersion: string,
+): string;
 /**
  * One or more trailing footers, with the whitespace around them.
  *
@@ -41,4 +44,6 @@ export declare function isFooterSafeModelId(modelId: string): boolean;
  * cannot remove on a second pass. Anything but the shape of a real package
  * version yields undefined so the caller falls back to its own version.
  */
-export declare function footerVersion(stamp: string | undefined): string | undefined;
+export declare function footerVersion(
+  stamp: string | undefined,
+): string | undefined;

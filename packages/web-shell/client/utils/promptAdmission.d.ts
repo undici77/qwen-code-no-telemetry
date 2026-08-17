@@ -1,1 +1,3 @@
-export declare function isDefinitelyRejectedPromptAdmission(error: unknown): boolean;
+export declare function isDefinitelyRejectedPromptAdmission(
+  error: unknown,
+): boolean;

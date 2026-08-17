@@ -36,7 +36,10 @@ export declare function sanitizeSenderName(name: string): string;
  * within maxLen) so the agent can tell a quote/filename was cut rather than
  * silently ending mid-token.
  */
-export declare function sanitizeQuotedText(text: string, maxLen: number): string;
+export declare function sanitizeQuotedText(
+  text: string,
+  maxLen: number,
+): string;
 export declare function sanitizePromptText(text: string): string;
 /**
  * Neutralize attacker-controlled text that is surfaced VERBATIM to users
@@ -48,7 +51,10 @@ export declare function sanitizePromptText(text: string): string;
  * sanitizePromptText it preserves newlines and brackets: display text is
  * rendered to a human, not parsed as prompt structure.
  */
-export declare function sanitizeDisplayText(text: string, maxLen: number): string;
+export declare function sanitizeDisplayText(
+  text: string,
+  maxLen: number,
+): string;
 /**
  * Neutralize an attacker-influenced filesystem path before rendering it on
  * its own line in a prompt (`... saved to: <path>`). Unlike

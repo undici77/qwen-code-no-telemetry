@@ -3,12 +3,17 @@
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
  */
-export declare function _setSandboxMountExistsForTest(fn?: (p: string) => boolean): void;
-export declare function translateWindowsWorkspaceForPosixSandbox(p: string, opts?: {
+export declare function _setSandboxMountExistsForTest(
+  fn?: (p: string) => boolean,
+): void;
+export declare function translateWindowsWorkspaceForPosixSandbox(
+  p: string,
+  opts?: {
     platform?: NodeJS.Platform;
     sandboxEnv?: string | undefined;
     exists?: (candidate: string) => boolean;
-}): string;
+  },
+): string;
 /**
  * Canonicalize a workspace path so the boot-time bound path and every
  * request's `workspaceCwd` collapse to the same key. `path.resolve`
@@ -53,9 +58,13 @@ export declare function translateWindowsWorkspaceForPosixSandbox(p: string, opts
  * Returns the translated path, or null when it is not absolute — callers
  * keep their own error surface (HTTP 400, AcpParamError, boot Error).
  */
-export declare function translateAndCheckAbsoluteWorkspacePath(raw: string): string | null;
+export declare function translateAndCheckAbsoluteWorkspacePath(
+  raw: string,
+): string | null;
 export declare function canonicalizeWorkspace(p: string): string;
-export declare function canonicalizeWorkspaces(paths: readonly string[]): string[];
+export declare function canonicalizeWorkspaces(
+  paths: readonly string[],
+): string[];
 /**
  * PATH_MAX on Linux is 4096; macOS / BSD is 1024. We use the Linux
  * value as a generous ceiling — anything bigger is either a

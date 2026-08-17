@@ -1,4 +1,4 @@
-import { jsx as _jsx } from "react/jsx-runtime";
+import { jsx as _jsx } from 'react/jsx-runtime';
 // @vitest-environment jsdom
 import * as React from 'react';
 import { act } from 'react';
@@ -16,44 +16,44 @@ import { SelectTrigger } from './select';
 const FORWARD_REF_TYPE = Symbol.for('react.forward_ref');
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 describe('React 18 ref compatibility', () => {
-    it.each([
-        ['AlertDialogContent', AlertDialogContent],
-        ['AlertDialogOverlay', AlertDialogOverlay],
-        ['Button', Button],
-        ['Checkbox', Checkbox],
-        ['DialogContent', DialogContent],
-        ['DialogOverlay', DialogOverlay],
-        ['DrawerContent', DrawerContent],
-        ['DrawerOverlay', DrawerOverlay],
-        ['Input', Input],
-        ['PopoverAnchor', PopoverAnchor],
-        ['PopoverContent', PopoverContent],
-        ['PopoverTrigger', PopoverTrigger],
-        ['DropdownMenuTrigger', DropdownMenuTrigger],
-        ['DropdownMenuSubTrigger', DropdownMenuSubTrigger],
-        ['SelectTrigger', SelectTrigger],
-    ])('%s forwards refs', (_name, Component) => {
-        expect(Component).toHaveProperty('$$typeof', FORWARD_REF_TYPE);
-    });
-    it('forwards a Button ref to its DOM element', () => {
-        const ref = React.createRef();
-        const container = document.createElement('div');
-        document.body.appendChild(container);
-        const root = createRoot(container);
-        act(() => root.render(_jsx(Button, { ref: ref, children: "Button" })));
-        expect(ref.current).toBeInstanceOf(HTMLButtonElement);
-        act(() => root.unmount());
-        container.remove();
-    });
-    it('forwards a Checkbox ref to its DOM element', () => {
-        const ref = React.createRef();
-        const container = document.createElement('div');
-        document.body.appendChild(container);
-        const root = createRoot(container);
-        act(() => root.render(_jsx(Checkbox, { ref: ref })));
-        expect(ref.current).toBeInstanceOf(HTMLButtonElement);
-        act(() => root.unmount());
-        container.remove();
-    });
+  it.each([
+    ['AlertDialogContent', AlertDialogContent],
+    ['AlertDialogOverlay', AlertDialogOverlay],
+    ['Button', Button],
+    ['Checkbox', Checkbox],
+    ['DialogContent', DialogContent],
+    ['DialogOverlay', DialogOverlay],
+    ['DrawerContent', DrawerContent],
+    ['DrawerOverlay', DrawerOverlay],
+    ['Input', Input],
+    ['PopoverAnchor', PopoverAnchor],
+    ['PopoverContent', PopoverContent],
+    ['PopoverTrigger', PopoverTrigger],
+    ['DropdownMenuTrigger', DropdownMenuTrigger],
+    ['DropdownMenuSubTrigger', DropdownMenuSubTrigger],
+    ['SelectTrigger', SelectTrigger],
+  ])('%s forwards refs', (_name, Component) => {
+    expect(Component).toHaveProperty('$$typeof', FORWARD_REF_TYPE);
+  });
+  it('forwards a Button ref to its DOM element', () => {
+    const ref = React.createRef();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => root.render(_jsx(Button, { ref: ref, children: 'Button' })));
+    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
+    act(() => root.unmount());
+    container.remove();
+  });
+  it('forwards a Checkbox ref to its DOM element', () => {
+    const ref = React.createRef();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => root.render(_jsx(Checkbox, { ref: ref })));
+    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
+    act(() => root.unmount());
+    container.remove();
+  });
 });
 //# sourceMappingURL=react18-ref-compat.test.js.map

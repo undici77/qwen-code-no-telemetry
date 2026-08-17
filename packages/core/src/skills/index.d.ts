@@ -18,9 +18,18 @@
  * - Extension-level: provided by installed extensions
  * - Bundled: built-in skills shipped with qwen-code
  */
-export type { SkillConfig, SkillLevel, SkillValidationResult, ListSkillsOptions, SkillErrorCode, } from './types.js';
+export type {
+  SkillConfig,
+  SkillLevel,
+  SkillValidationResult,
+  ListSkillsOptions,
+  SkillErrorCode,
+} from './types.js';
 export { SkillError } from './types.js';
 export { SkillManager } from './skill-manager.js';
 export { normalizeSkillPriority } from './skill-load.js';
-export { SkillActivationRegistry, splitConditionalSkills, } from './skill-activation.js';
+export {
+  SkillActivationRegistry,
+  splitConditionalSkills,
+} from './skill-activation.js';
 export * from './skill-curator.js';

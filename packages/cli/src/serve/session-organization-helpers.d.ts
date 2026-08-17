@@ -4,4 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { SessionOrganizationService } from '@qwen-code/qwen-code-core';
-export declare function createSessionOrganizationService(workspaceCwd: string): SessionOrganizationService;
+export declare function createSessionOrganizationService(
+  workspaceCwd: string,
+): SessionOrganizationService;

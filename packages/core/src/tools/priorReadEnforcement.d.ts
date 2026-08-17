@@ -22,14 +22,16 @@ export { StructuredToolError } from './tool-error.js';
  * `calculateEdit`, a thrown error from `getConfirmationDetails`, or a
  * `ToolResult` from `execute`.
  */
-export type PriorReadDecision = {
-    ok: true;
-} | {
-    ok: false;
-    type: ToolErrorType;
-    rawMessage: string;
-    displayMessage: string;
-};
+export type PriorReadDecision =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      type: ToolErrorType;
+      rawMessage: string;
+      displayMessage: string;
+    };
 /**
  * Verb used in the user-facing prose ("editing" / "overwriting").
  * Kept as a parameter rather than baked into the tool because EditTool
@@ -71,7 +73,7 @@ export type PriorReadVerb = 'editing' | 'overwriting';
  * and the residual #2499 risk it accepts.
  */
 export interface CheckPriorReadOptions {
-    expectExisting?: boolean;
+  expectExisting?: boolean;
 }
 /**
  * Test whether a mutating tool is cleared to proceed against
@@ -117,4 +119,9 @@ export interface CheckPriorReadOptions {
  * for the purposes of prior-read enforcement that counts as having
  * seen them.
  */
-export declare function checkPriorRead(cache: FileReadCache, filePath: string, verb: PriorReadVerb, options?: CheckPriorReadOptions): Promise<PriorReadDecision>;
+export declare function checkPriorRead(
+  cache: FileReadCache,
+  filePath: string,
+  verb: PriorReadVerb,
+  options?: CheckPriorReadOptions,
+): Promise<PriorReadDecision>;

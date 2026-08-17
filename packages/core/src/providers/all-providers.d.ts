@@ -19,15 +19,36 @@ import { zaiProvider } from './presets/zai.js';
 import { idealabProvider } from './presets/idealab.js';
 import { modelscopeProvider } from './presets/modelscope.js';
 import { customProvider } from './presets/custom-provider.js';
-export { codingPlanProvider, tokenPlanProvider, alibabaStandardProvider, openRouterProvider, requestyProvider, deepseekProvider, grokProvider, minimaxProvider, zaiProvider, idealabProvider, modelscopeProvider, customProvider, };
-export { CUSTOM_API_KEY_ENV_PREFIX, generateCustomEnvKey, } from './presets/custom-provider.js';
+export {
+  codingPlanProvider,
+  tokenPlanProvider,
+  alibabaStandardProvider,
+  openRouterProvider,
+  requestyProvider,
+  deepseekProvider,
+  grokProvider,
+  minimaxProvider,
+  zaiProvider,
+  idealabProvider,
+  modelscopeProvider,
+  customProvider,
+};
+export {
+  CUSTOM_API_KEY_ENV_PREFIX,
+  generateCustomEnvKey,
+} from './presets/custom-provider.js';
 /** All known providers, in display order. */
 export declare const ALL_PROVIDERS: readonly ProviderConfig[];
 /** Providers grouped by uiGroup. */
 export declare const ALIBABA_PROVIDERS: ProviderConfig[];
 export declare const THIRD_PARTY_PROVIDERS: ProviderConfig[];
-export declare function findProviderById(id: string): ProviderConfig | undefined;
+export declare function findProviderById(
+  id: string,
+): ProviderConfig | undefined;
 /** Find a provider by model credentials (baseUrl + envKey). */
-export declare function findProviderByCredentials(baseUrl: string | undefined, envKey: string | undefined): ProviderConfig | undefined;
+export declare function findProviderByCredentials(
+  baseUrl: string | undefined,
+  envKey: string | undefined,
+): ProviderConfig | undefined;
 /** All known provider base URLs (for preconnect, validation, etc.). */
 export declare function getAllProviderBaseUrls(): string[];

@@ -13,10 +13,13 @@ import { type ActiveWorkHoldV1 } from '@qwen-code/acp-bridge/bridgeTypes';
  * republish that leak on every report.
  */
 export interface ActiveWorkSource {
-    readonly sessionId: string;
-    collectActiveWorkHolds(): ActiveWorkHoldV1[];
+  readonly sessionId: string;
+  collectActiveWorkHolds(): ActiveWorkHoldV1[];
 }
-type SendNotification = (method: string, params: Record<string, unknown>) => Promise<void>;
+type SendNotification = (
+  method: string,
+  params: Record<string, unknown>,
+) => Promise<void>;
 /**
  * Publishes channel-wide active-work snapshots to the daemon.
  *
@@ -31,30 +34,34 @@ type SendNotification = (method: string, params: Record<string, unknown>) => Pro
  * retransmit, ack, or local "last reported" state to diff against.
  */
 export declare class ActiveWorkReporter {
-    #private;
-    private readonly send;
-    private readonly listSources;
-    readonly intervalMs: number;
-    constructor(send: SendNotification, listSources: () => Iterable<ActiveWorkSource>, intervalMs: number);
-    /**
-     * Note that some Session's derived state may have changed. Coalesced to
-     * one snapshot per microtask so a burst of transitions (an agent finishing
-     * and its terminal notification enqueuing in the same tick) produces a
-     * single message that already reflects the settled state.
-     */
-    notifyChanged(): void;
-    /**
-     * Publish now and resolve once the snapshot has been handed to the
-     * transport.
-     *
-     * Callers use this to order a snapshot ahead of an RPC response on the same
-     * stream. The prompt path needs it: the daemon drops its own
-     * `pendingPromptCount` the moment the prompt response lands, so a hold
-     * taken during that prompt (a background agent it started) has to be on the
-     * wire *first* or the daemon briefly sees neither fact and may reap the
-     * Session.
-     */
-    flush(): Promise<void>;
-    dispose(): void;
+  #private;
+  private readonly send;
+  private readonly listSources;
+  readonly intervalMs: number;
+  constructor(
+    send: SendNotification,
+    listSources: () => Iterable<ActiveWorkSource>,
+    intervalMs: number,
+  );
+  /**
+   * Note that some Session's derived state may have changed. Coalesced to
+   * one snapshot per microtask so a burst of transitions (an agent finishing
+   * and its terminal notification enqueuing in the same tick) produces a
+   * single message that already reflects the settled state.
+   */
+  notifyChanged(): void;
+  /**
+   * Publish now and resolve once the snapshot has been handed to the
+   * transport.
+   *
+   * Callers use this to order a snapshot ahead of an RPC response on the same
+   * stream. The prompt path needs it: the daemon drops its own
+   * `pendingPromptCount` the moment the prompt response lands, so a hold
+   * taken during that prompt (a background agent it started) has to be on the
+   * wire *first* or the daemon briefly sees neither fact and may reap the
+   * Session.
+   */
+  flush(): Promise<void>;
+  dispose(): void;
 }
 export {};

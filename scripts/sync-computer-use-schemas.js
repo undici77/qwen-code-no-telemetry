@@ -19,32 +19,40 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { CUA_DRIVER_VERSION, binaryPath, } from '../packages/core/src/tools/computer-use/constants.js';
+import {
+  CUA_DRIVER_VERSION,
+  binaryPath,
+} from '../packages/core/src/tools/computer-use/constants.js';
 // cua-driver 0.5.2 advertises 35 tools. A drift here just means the upstream
 // surface changed — warn (so a bump is reviewed) but don't fail the sync.
 const EXPECTED_TOOL_COUNT = 35;
 async function main() {
-    // Default to the pinned, locally-installed binary; allow an explicit override.
-    const binary = process.argv[2] ?? binaryPath(homedir());
-    const transport = new StdioClientTransport({
-        command: binary,
-        args: ['mcp'],
-    });
-    const client = new Client({ name: 'qwen-code-schema-sync', version: '1.0.0' }, { capabilities: {} });
-    await client.connect(transport);
-    const result = await client.listTools();
-    await client.close();
-    if (result.tools.length !== EXPECTED_TOOL_COUNT) {
-        process.stderr.write(`WARNING: cua-driver v${CUA_DRIVER_VERSION} returned ${result.tools.length} tools, expected ${EXPECTED_TOOL_COUNT}. Review the diff before committing.\n`);
-    }
-    const schemas = {};
-    for (const tool of result.tools) {
-        schemas[tool.name] = {
-            description: tool.description ?? '',
-            parameterSchema: tool.inputSchema ?? { type: 'object', properties: {} },
-        };
-    }
-    const out = `/**
+  // Default to the pinned, locally-installed binary; allow an explicit override.
+  const binary = process.argv[2] ?? binaryPath(homedir());
+  const transport = new StdioClientTransport({
+    command: binary,
+    args: ['mcp'],
+  });
+  const client = new Client(
+    { name: 'qwen-code-schema-sync', version: '1.0.0' },
+    { capabilities: {} },
+  );
+  await client.connect(transport);
+  const result = await client.listTools();
+  await client.close();
+  if (result.tools.length !== EXPECTED_TOOL_COUNT) {
+    process.stderr.write(
+      `WARNING: cua-driver v${CUA_DRIVER_VERSION} returned ${result.tools.length} tools, expected ${EXPECTED_TOOL_COUNT}. Review the diff before committing.\n`,
+    );
+  }
+  const schemas = {};
+  for (const tool of result.tools) {
+    schemas[tool.name] = {
+      description: tool.description ?? '',
+      parameterSchema: tool.inputSchema ?? { type: 'object', properties: {} },
+    };
+  }
+  const out = `/**
  * @license
  * Copyright 2025 Qwen Team
  * SPDX-License-Identifier: Apache-2.0
@@ -68,18 +76,24 @@ export interface ComputerUseToolSchema {
   parameterSchema: Record<string, unknown>;
 }
 
-export const COMPUTER_USE_TOOL_NAMES = ${JSON.stringify(result.tools.map((t) => t.name), null, 2)} as const;
+export const COMPUTER_USE_TOOL_NAMES = ${JSON.stringify(
+    result.tools.map((t) => t.name),
+    null,
+    2,
+  )} as const;
 
 export type ComputerUseToolName = (typeof COMPUTER_USE_TOOL_NAMES)[number];
 
 export const COMPUTER_USE_SCHEMAS: Record<ComputerUseToolName, ComputerUseToolSchema> = ${JSON.stringify(schemas, null, 2)};
 `;
-    const target = resolve('packages/core/src/tools/computer-use/schemas.ts');
-    await writeFile(target, out, 'utf8');
-    process.stdout.write(`Wrote ${result.tools.length} cua-driver tool schemas to ${target}\n`);
+  const target = resolve('packages/core/src/tools/computer-use/schemas.ts');
+  await writeFile(target, out, 'utf8');
+  process.stdout.write(
+    `Wrote ${result.tools.length} cua-driver tool schemas to ${target}\n`,
+  );
 }
 main().catch((err) => {
-    process.stderr.write(`Schema sync failed: ${err}\n`);
-    process.exit(1);
+  process.stderr.write(`Schema sync failed: ${err}\n`);
+  process.exit(1);
 });
 //# sourceMappingURL=sync-computer-use-schemas.js.map

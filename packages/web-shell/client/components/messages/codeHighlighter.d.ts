@@ -6,7 +6,11 @@
 import { type Highlighter } from 'shiki';
 export declare const SHIKI_CACHE_MAX = 128;
 /** Returns previously-highlighted HTML for this exact code/lang/theme, or null. */
-export declare function getCachedHtml(code: string, lang: string, theme: string): string | null;
+export declare function getCachedHtml(
+  code: string,
+  lang: string,
+  theme: string,
+): string | null;
 /** Returns the shared highlighter with `lang` loaded (lazily, cached). */
 export declare function getCodeHighlighter(lang: string): Promise<Highlighter>;
 export declare const MAX_HIGHLIGHT_TOTAL_CHARS = 100000;
@@ -20,6 +24,11 @@ export declare function isTooLargeToHighlight(code: string): boolean;
  * The size policy (isTooLargeToHighlight) lives at the caller, which already
  * gates before reaching this function — so it is not re-checked here.
  */
-export declare function highlightToHtmlSync(code: string, lang: string, theme: string, persist?: boolean): string | null;
+export declare function highlightToHtmlSync(
+  code: string,
+  lang: string,
+  theme: string,
+  persist?: boolean,
+): string | null;
 /** Resets all module-level highlighter state (incl. the HTML cache). Tests only. */
 export declare function __resetForTesting(): void;

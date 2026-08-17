@@ -1,351 +1,372 @@
 import { randomUUID } from 'node:crypto';
-import { QUESTION_CARD_TEMPLATE_ID, } from './interactive-card-client.js';
+import { QUESTION_CARD_TEMPLATE_ID } from './interactive-card-client.js';
 const OTHER_OPTION_VALUE = '__qwen_other__';
 export class QuestionCardController {
-    options;
-    byRequest = new Map();
-    byOutTrack = new Map();
-    activeByScope = new Map();
-    pendingByRun = new Map();
-    nextSequence = 0;
-    constructor(options) {
-        this.options = options;
+  options;
+  byRequest = new Map();
+  byOutTrack = new Map();
+  activeByScope = new Map();
+  pendingByRun = new Map();
+  nextSequence = 0;
+  constructor(options) {
+    this.options = options;
+  }
+  async present(context, target) {
+    const scopeKey = this.scopeKey(context);
+    const active = this.activeByScope.get(scopeKey);
+    if (active?.state === 'reserved' || active?.state === 'pending') {
+      if (active.context.runId === context.runId) {
+        return { kind: 'unsupported' };
+      }
+      if (active.state === 'pending') this.reserveTerminalProjection(active);
+      void this.finalize(
+        active,
+        'expired',
+        'A newer question is available. Answer the latest card.',
+      );
     }
-    async present(context, target) {
-        const scopeKey = this.scopeKey(context);
-        const active = this.activeByScope.get(scopeKey);
-        if (active?.state === 'reserved' || active?.state === 'pending') {
-            if (active.context.runId === context.runId) {
-                return { kind: 'unsupported' };
-            }
-            if (active.state === 'pending')
-                this.reserveTerminalProjection(active);
-            void this.finalize(active, 'expired', 'A newer question is available. Answer the latest card.');
-        }
-        const record = {
-            context,
-            target,
-            outTrackId: `qwen-question-${randomUUID()}`,
-            scopeKey,
-            sequence: this.nextSequence++,
-            state: 'reserved',
-            delivered: false,
-            forbiddenActors: new Set(),
-        };
-        this.byRequest.set(context.requestId, record);
-        this.byOutTrack.set(record.outTrackId, record);
-        this.activeByScope.set(record.scopeKey, record);
-        const unsubscribe = context.onSettled((reason) => {
-            if (record.state === 'claimed')
-                return;
-            if (record.state === 'pending')
-                this.reserveTerminalProjection(record);
-            void this.finalize(record, reason === 'resolved_outside_presenter'
-                ? 'resolved_outside_presenter'
-                : 'cancelled');
-        });
-        record.unsubscribe = unsubscribe;
-        if (record.state === 'terminal')
-            unsubscribe();
-        try {
-            await this.options.client.createAndDeliver({
-                templateId: QUESTION_CARD_TEMPLATE_ID,
-                outTrackId: record.outTrackId,
-                target,
-                cardParamMap: this.cardData(context),
-            });
-            record.delivered = true;
-        }
-        catch (error) {
-            this.options.onError?.('question card creation', error);
-            if (record.state === 'terminal') {
-                return { kind: 'presented' };
-            }
-            await this.finalize(record, 'cancelled');
-            try {
-                await this.options.sendFallback(context.target.chatId, this.fallbackText(context));
-            }
-            catch (fallbackError) {
-                this.options.onError?.('question fallback delivery', fallbackError);
-            }
-            await context.respond({ outcome: { outcome: 'cancelled' } });
-            return { kind: 'handled' };
-        }
-        if (record.state !== 'reserved') {
-            await this.projectTerminal(record);
-            return { kind: 'presented' };
-        }
-        const latest = this.activeByScope.get(record.scopeKey);
-        if (latest && latest.sequence > record.sequence) {
-            await this.finalize(record, 'expired', 'A newer question is available. Answer the latest card.');
-            return { kind: 'presented' };
-        }
-        record.state = 'pending';
-        this.activeByScope.set(record.scopeKey, record);
-        const pending = this.pendingByRun.get(context.runId) ?? new Set();
-        pending.add(context.requestId);
-        this.pendingByRun.set(context.runId, pending);
-        record.timer = setTimeout(() => {
-            void this.expire(record);
-        }, this.options.timeoutMs);
-        record.timer.unref?.();
+    const record = {
+      context,
+      target,
+      outTrackId: `qwen-question-${randomUUID()}`,
+      scopeKey,
+      sequence: this.nextSequence++,
+      state: 'reserved',
+      delivered: false,
+      forbiddenActors: new Set(),
+    };
+    this.byRequest.set(context.requestId, record);
+    this.byOutTrack.set(record.outTrackId, record);
+    this.activeByScope.set(record.scopeKey, record);
+    const unsubscribe = context.onSettled((reason) => {
+      if (record.state === 'claimed') return;
+      if (record.state === 'pending') this.reserveTerminalProjection(record);
+      void this.finalize(
+        record,
+        reason === 'resolved_outside_presenter'
+          ? 'resolved_outside_presenter'
+          : 'cancelled',
+      );
+    });
+    record.unsubscribe = unsubscribe;
+    if (record.state === 'terminal') unsubscribe();
+    try {
+      await this.options.client.createAndDeliver({
+        templateId: QUESTION_CARD_TEMPLATE_ID,
+        outTrackId: record.outTrackId,
+        target,
+        cardParamMap: this.cardData(context),
+      });
+      record.delivered = true;
+    } catch (error) {
+      this.options.onError?.('question card creation', error);
+      if (record.state === 'terminal') {
         return { kind: 'presented' };
+      }
+      await this.finalize(record, 'cancelled');
+      try {
+        await this.options.sendFallback(
+          context.target.chatId,
+          this.fallbackText(context),
+        );
+      } catch (fallbackError) {
+        this.options.onError?.('question fallback delivery', fallbackError);
+      }
+      await context.respond({ outcome: { outcome: 'cancelled' } });
+      return { kind: 'handled' };
     }
-    claim(callback) {
-        const record = this.byOutTrack.get(callback.outTrackId);
-        if (!record || record.state !== 'pending') {
-            return { kind: 'ignored', actorId: callback.actorId };
-        }
-        if (record.context.owner.id !== callback.actorId) {
-            if (record.forbiddenActors.has(callback.actorId)) {
-                return { kind: 'ignored' };
-            }
-            record.forbiddenActors.add(callback.actorId);
-            return {
-                kind: 'forbidden',
-                actorId: callback.actorId,
-                target: record.target,
-            };
-        }
-        if (callback.hasBusinessPayload === false) {
-            return { kind: 'ignored', actorId: callback.actorId };
-        }
-        if (callback.isCancel || callback.actionId === 'cancel') {
-            this.reserveTerminalProjection(record);
-            record.state = 'claimed';
-            return {
-                kind: 'accepted',
-                execute: () => this.respond(record, 'cancelled'),
-            };
-        }
-        if (callback.actionId !== 'submit' &&
-            callback.actionId !== record.context.requestId) {
-            return { kind: 'ignored', actorId: callback.actorId };
-        }
-        const answers = this.parseAnswers(record, callback.formData);
-        if (!answers)
-            return { kind: 'ignored', actorId: callback.actorId };
+    if (record.state !== 'reserved') {
+      await this.projectTerminal(record);
+      return { kind: 'presented' };
+    }
+    const latest = this.activeByScope.get(record.scopeKey);
+    if (latest && latest.sequence > record.sequence) {
+      await this.finalize(
+        record,
+        'expired',
+        'A newer question is available. Answer the latest card.',
+      );
+      return { kind: 'presented' };
+    }
+    record.state = 'pending';
+    this.activeByScope.set(record.scopeKey, record);
+    const pending = this.pendingByRun.get(context.runId) ?? new Set();
+    pending.add(context.requestId);
+    this.pendingByRun.set(context.runId, pending);
+    record.timer = setTimeout(() => {
+      void this.expire(record);
+    }, this.options.timeoutMs);
+    record.timer.unref?.();
+    return { kind: 'presented' };
+  }
+  claim(callback) {
+    const record = this.byOutTrack.get(callback.outTrackId);
+    if (!record || record.state !== 'pending') {
+      return { kind: 'ignored', actorId: callback.actorId };
+    }
+    if (record.context.owner.id !== callback.actorId) {
+      if (record.forbiddenActors.has(callback.actorId)) {
+        return { kind: 'ignored' };
+      }
+      record.forbiddenActors.add(callback.actorId);
+      return {
+        kind: 'forbidden',
+        actorId: callback.actorId,
+        target: record.target,
+      };
+    }
+    if (callback.hasBusinessPayload === false) {
+      return { kind: 'ignored', actorId: callback.actorId };
+    }
+    if (callback.isCancel || callback.actionId === 'cancel') {
+      this.reserveTerminalProjection(record);
+      record.state = 'claimed';
+      return {
+        kind: 'accepted',
+        execute: () => this.respond(record, 'cancelled'),
+      };
+    }
+    if (
+      callback.actionId !== 'submit' &&
+      callback.actionId !== record.context.requestId
+    ) {
+      return { kind: 'ignored', actorId: callback.actorId };
+    }
+    const answers = this.parseAnswers(record, callback.formData);
+    if (!answers) return { kind: 'ignored', actorId: callback.actorId };
+    this.reserveTerminalProjection(record);
+    record.state = 'claimed';
+    return {
+      kind: 'accepted',
+      execute: () => this.respond(record, 'submitted', answers),
+    };
+  }
+  cancelRun(runId, terminalState = 'cancelled') {
+    const requestIds = [...(this.pendingByRun.get(runId) ?? [])];
+    for (const requestId of requestIds) {
+      const record = this.byRequest.get(requestId);
+      if (record) {
         this.reserveTerminalProjection(record);
-        record.state = 'claimed';
-        return {
-            kind: 'accepted',
-            execute: () => this.respond(record, 'submitted', answers),
-        };
+        void this.finalize(
+          record,
+          terminalState,
+          terminalState === 'expired'
+            ? 'This question is no longer available.'
+            : undefined,
+        );
+      }
     }
-    cancelRun(runId, terminalState = 'cancelled') {
-        const requestIds = [...(this.pendingByRun.get(runId) ?? [])];
-        for (const requestId of requestIds) {
-            const record = this.byRequest.get(requestId);
-            if (record) {
-                this.reserveTerminalProjection(record);
-                void this.finalize(record, terminalState, terminalState === 'expired'
-                    ? 'This question is no longer available.'
-                    : undefined);
+  }
+  async respond(record, terminalState, answers) {
+    try {
+      const accepted = await record.context.respond(
+        terminalState === 'submitted'
+          ? {
+              outcome: {
+                outcome: 'selected',
+                optionId: record.context.submitOptionId,
+              },
+              answers,
             }
-        }
+          : { outcome: { outcome: 'cancelled' } },
+      );
+      await this.finalize(
+        record,
+        accepted ? terminalState : 'expired',
+        accepted ? undefined : 'This question is no longer available.',
+      );
+    } catch (error) {
+      this.options.onError?.('question response', error);
+      await this.finalize(
+        record,
+        'expired',
+        'This question is no longer available.',
+      );
     }
-    async respond(record, terminalState, answers) {
-        try {
-            const accepted = await record.context.respond(terminalState === 'submitted'
-                ? {
-                    outcome: {
-                        outcome: 'selected',
-                        optionId: record.context.submitOptionId,
-                    },
-                    answers,
-                }
-                : { outcome: { outcome: 'cancelled' } });
-            await this.finalize(record, accepted ? terminalState : 'expired', accepted ? undefined : 'This question is no longer available.');
-        }
-        catch (error) {
-            this.options.onError?.('question response', error);
-            await this.finalize(record, 'expired', 'This question is no longer available.');
-        }
+  }
+  async expire(record) {
+    if (record.state !== 'pending') return;
+    this.reserveTerminalProjection(record);
+    await this.finalize(record, 'expired');
+    try {
+      await record.context.respond({ outcome: { outcome: 'cancelled' } });
+    } catch (error) {
+      this.options.onError?.('expired question cancellation', error);
     }
-    async expire(record) {
-        if (record.state !== 'pending')
-            return;
-        this.reserveTerminalProjection(record);
-        await this.finalize(record, 'expired');
-        try {
-            await record.context.respond({ outcome: { outcome: 'cancelled' } });
-        }
-        catch (error) {
-            this.options.onError?.('expired question cancellation', error);
-        }
+  }
+  async finalize(record, state, description) {
+    if (record.state === 'terminal') return;
+    record.state = 'terminal';
+    record.terminalState = state;
+    record.terminalDescription = description;
+    if (record.timer) clearTimeout(record.timer);
+    record.timer = undefined;
+    record.unsubscribe?.();
+    record.unsubscribe = undefined;
+    this.byRequest.delete(record.context.requestId);
+    this.byOutTrack.delete(record.outTrackId);
+    if (this.activeByScope.get(record.scopeKey) === record) {
+      this.activeByScope.delete(record.scopeKey);
     }
-    async finalize(record, state, description) {
-        if (record.state === 'terminal')
-            return;
-        record.state = 'terminal';
-        record.terminalState = state;
-        record.terminalDescription = description;
-        if (record.timer)
-            clearTimeout(record.timer);
-        record.timer = undefined;
-        record.unsubscribe?.();
-        record.unsubscribe = undefined;
-        this.byRequest.delete(record.context.requestId);
-        this.byOutTrack.delete(record.outTrackId);
-        if (this.activeByScope.get(record.scopeKey) === record) {
-            this.activeByScope.delete(record.scopeKey);
-        }
-        const pending = this.pendingByRun.get(record.context.runId);
-        pending?.delete(record.context.requestId);
-        if (pending?.size === 0)
-            this.pendingByRun.delete(record.context.runId);
-        if (record.delivered) {
-            const finishTerminalProjection = record.finishTerminalProjection;
-            record.finishTerminalProjection = undefined;
-            if (finishTerminalProjection) {
-                await finishTerminalProjection(() => this.projectTerminal(record));
-            }
-            else {
-                await this.projectTerminal(record);
-            }
-        }
+    const pending = this.pendingByRun.get(record.context.runId);
+    pending?.delete(record.context.requestId);
+    if (pending?.size === 0) this.pendingByRun.delete(record.context.runId);
+    if (record.delivered) {
+      const finishTerminalProjection = record.finishTerminalProjection;
+      record.finishTerminalProjection = undefined;
+      if (finishTerminalProjection) {
+        await finishTerminalProjection(() => this.projectTerminal(record));
+      } else {
+        await this.projectTerminal(record);
+      }
     }
-    reserveTerminalProjection(record) {
-        record.finishTerminalProjection ??= this.options.reserveRunProjection?.(record.context.runId);
+  }
+  reserveTerminalProjection(record) {
+    record.finishTerminalProjection ??= this.options.reserveRunProjection?.(
+      record.context.runId,
+    );
+  }
+  async projectTerminal(record) {
+    if (!record.terminalState) return;
+    const cardParamMap = {
+      submitted: {
+        card_status: 'submitted',
+        question_desc: 'Submitted.',
+        form_btn_text: 'Submitted',
+      },
+      expired: {
+        card_status: 'expired',
+        question_desc: 'This question expired. Please retry.',
+        form_btn_text: 'Expired',
+      },
+      resolved_outside_presenter: {
+        card_status: 'expired',
+        question_desc: 'Resolved outside this card.',
+        form_btn_text: 'Expired',
+      },
+      cancelled: {
+        card_status: 'cancelled',
+        question_desc: 'Cancelled.',
+        form_btn_text: 'Cancelled',
+      },
+    };
+    try {
+      await this.options.client.updateInstance({
+        outTrackId: record.outTrackId,
+        cardParamMap: {
+          ...cardParamMap[record.terminalState],
+          ...(record.terminalDescription
+            ? { question_desc: record.terminalDescription }
+            : {}),
+        },
+      });
+    } catch (error) {
+      this.options.onError?.('question card finalization', error);
     }
-    async projectTerminal(record) {
-        if (!record.terminalState)
-            return;
-        const cardParamMap = {
-            submitted: {
-                card_status: 'submitted',
-                question_desc: 'Submitted.',
-                form_btn_text: 'Submitted',
-            },
-            expired: {
-                card_status: 'expired',
-                question_desc: 'This question expired. Please retry.',
-                form_btn_text: 'Expired',
-            },
-            resolved_outside_presenter: {
-                card_status: 'expired',
-                question_desc: 'Resolved outside this card.',
-                form_btn_text: 'Expired',
-            },
-            cancelled: {
-                card_status: 'cancelled',
-                question_desc: 'Cancelled.',
-                form_btn_text: 'Cancelled',
-            },
-        };
-        try {
-            await this.options.client.updateInstance({
-                outTrackId: record.outTrackId,
-                cardParamMap: {
-                    ...cardParamMap[record.terminalState],
-                    ...(record.terminalDescription
-                        ? { question_desc: record.terminalDescription }
-                        : {}),
-                },
-            });
+  }
+  parseAnswers(record, formData) {
+    const allowed = new Set(
+      record.context.questions.flatMap((question) => [
+        question.answerKey,
+        this.otherAnswerKey(question.answerKey),
+      ]),
+    );
+    if (Object.keys(formData).some((key) => !allowed.has(key))) {
+      return undefined;
+    }
+    const answers = {};
+    for (const question of record.context.questions) {
+      const values = this.readAnswerValues(formData[question.answerKey]);
+      if (values.length === 0 || (!question.multiSelect && values.length !== 1))
+        return undefined;
+      const optionLabels = new Set(
+        question.options.map((option) => option.label),
+      );
+      const customValue = this.readAnswerValues(
+        formData[this.otherAnswerKey(question.answerKey)],
+      )[0]?.trim();
+      const normalized = [];
+      for (const value of values) {
+        if (value === OTHER_OPTION_VALUE) {
+          if (!customValue) return undefined;
+          normalized.push(customValue);
+        } else if (optionLabels.has(value)) {
+          normalized.push(value);
+        } else {
+          return undefined;
         }
-        catch (error) {
-            this.options.onError?.('question card finalization', error);
-        }
+      }
+      answers[question.answerKey] = normalized.join(', ');
     }
-    parseAnswers(record, formData) {
-        const allowed = new Set(record.context.questions.flatMap((question) => [
-            question.answerKey,
-            this.otherAnswerKey(question.answerKey),
-        ]));
-        if (Object.keys(formData).some((key) => !allowed.has(key))) {
-            return undefined;
-        }
-        const answers = {};
-        for (const question of record.context.questions) {
-            const values = this.readAnswerValues(formData[question.answerKey]);
-            if (values.length === 0 || (!question.multiSelect && values.length !== 1))
-                return undefined;
-            const optionLabels = new Set(question.options.map((option) => option.label));
-            const customValue = this.readAnswerValues(formData[this.otherAnswerKey(question.answerKey)])[0]?.trim();
-            const normalized = [];
-            for (const value of values) {
-                if (value === OTHER_OPTION_VALUE) {
-                    if (!customValue)
-                        return undefined;
-                    normalized.push(customValue);
-                }
-                else if (optionLabels.has(value)) {
-                    normalized.push(value);
-                }
-                else {
-                    return undefined;
-                }
-            }
-            answers[question.answerKey] = normalized.join(', ');
-        }
-        return answers;
+    return answers;
+  }
+  readAnswerValues(value) {
+    if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
+    if (Array.isArray(value)) {
+      return value
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
-    readAnswerValues(value) {
-        if (typeof value === 'string')
-            return value.trim() ? [value.trim()] : [];
-        if (Array.isArray(value)) {
-            return value
-                .filter((item) => typeof item === 'string')
-                .map((item) => item.trim())
-                .filter(Boolean);
-        }
-        if (value !== null && typeof value === 'object') {
-            return this.readAnswerValues(value['value']);
-        }
-        return [];
+    if (value !== null && typeof value === 'object') {
+      return this.readAnswerValues(value['value']);
     }
-    otherAnswerKey(answerKey) {
-        return `${answerKey}_other`;
-    }
-    scopeKey(context) {
-        return `${context.sessionId}\0${context.owner.id}`;
-    }
-    cardData(context) {
-        const first = context.questions[0];
-        return {
-            question_id: context.requestId,
-            question_title: first.header,
-            question_desc: first.question,
-            card_status: 'pending',
-            form_btn_text: 'Submit',
-            selected_text: '',
-            selected_values: '[]',
-            form: {
-                fields: context.questions.flatMap((question) => [
-                    {
-                        name: question.answerKey,
-                        label: question.question,
-                        type: question.multiSelect
-                            ? 'MULTI_CHECKBOX_GROUP'
-                            : 'CHECKBOX_GROUP',
-                        required: true,
-                        options: [
-                            ...question.options.map((option) => ({
-                                value: option.label,
-                                text: option.label,
-                            })),
-                            { value: OTHER_OPTION_VALUE, text: 'Other' },
-                        ],
-                    },
-                    {
-                        name: this.otherAnswerKey(question.answerKey),
-                        label: `${question.header}: Other`,
-                        type: 'TEXT',
-                        required: false,
-                        placeholder: 'Enter a custom answer when Other is selected',
-                    },
-                ]),
-            },
-        };
-    }
-    fallbackText(context) {
-        const questions = context.questions
-            .map((question) => `- ${question.question}: ${question.options
+    return [];
+  }
+  otherAnswerKey(answerKey) {
+    return `${answerKey}_other`;
+  }
+  scopeKey(context) {
+    return `${context.sessionId}\0${context.owner.id}`;
+  }
+  cardData(context) {
+    const first = context.questions[0];
+    return {
+      question_id: context.requestId,
+      question_title: first.header,
+      question_desc: first.question,
+      card_status: 'pending',
+      form_btn_text: 'Submit',
+      selected_text: '',
+      selected_values: '[]',
+      form: {
+        fields: context.questions.flatMap((question) => [
+          {
+            name: question.answerKey,
+            label: question.question,
+            type: question.multiSelect
+              ? 'MULTI_CHECKBOX_GROUP'
+              : 'CHECKBOX_GROUP',
+            required: true,
+            options: [
+              ...question.options.map((option) => ({
+                value: option.label,
+                text: option.label,
+              })),
+              { value: OTHER_OPTION_VALUE, text: 'Other' },
+            ],
+          },
+          {
+            name: this.otherAnswerKey(question.answerKey),
+            label: `${question.header}: Other`,
+            type: 'TEXT',
+            required: false,
+            placeholder: 'Enter a custom answer when Other is selected',
+          },
+        ]),
+      },
+    };
+  }
+  fallbackText(context) {
+    const questions = context.questions
+      .map(
+        (question) =>
+          `- ${question.question}: ${question.options
             .map((option) => option.label)
-            .join(', ')}`)
-            .join('\n');
-        return `The interactive question could not be delivered, so this request was cancelled. Please retry.\n${questions}`;
-    }
+            .join(', ')}`,
+      )
+      .join('\n');
+    return `The interactive question could not be delivered, so this request was cancelled. Please retry.\n${questions}`;
+  }
 }
 //# sourceMappingURL=question-card-controller.js.map

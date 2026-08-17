@@ -8,12 +8,19 @@ import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
 import { type Config } from '@qwen-code/qwen-code-core';
 interface SettingsDialogProps {
-    settings: LoadedSettings;
-    onSelect: (settingName: string | undefined, scope: SettingScope) => void;
-    onRestartRequest?: () => void;
-    availableTerminalHeight?: number;
-    width?: number;
-    config?: Config;
+  settings: LoadedSettings;
+  onSelect: (settingName: string | undefined, scope: SettingScope) => void;
+  onRestartRequest?: () => void;
+  availableTerminalHeight?: number;
+  width?: number;
+  config?: Config;
 }
-export declare function SettingsDialog({ settings, onSelect, onRestartRequest, availableTerminalHeight, width, config, }: SettingsDialogProps): React.JSX.Element;
+export declare function SettingsDialog({
+  settings,
+  onSelect,
+  onRestartRequest,
+  availableTerminalHeight,
+  width,
+  config,
+}: SettingsDialogProps): React.JSX.Element;
 export {};

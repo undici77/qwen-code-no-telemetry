@@ -7,15 +7,15 @@ import React from 'react';
 import type { Config, TerminalImageDisplay } from '@qwen-code/qwen-code-core';
 import type { InlineImageData } from '../types.js';
 interface SharedTerminalImageProps {
-    contentWidth: number;
-    availableTerminalHeight?: number;
+  contentWidth: number;
+  availableTerminalHeight?: number;
 }
 interface FileTerminalImageProps extends SharedTerminalImageProps {
-    data: TerminalImageDisplay;
-    config: Config;
+  data: TerminalImageDisplay;
+  config: Config;
 }
 interface InlineTerminalImageProps extends SharedTerminalImageProps {
-    image: InlineImageData;
+  image: InlineImageData;
 }
 type TerminalImageProps = FileTerminalImageProps | InlineTerminalImageProps;
 export declare const TerminalImage: React.FC<TerminalImageProps>;

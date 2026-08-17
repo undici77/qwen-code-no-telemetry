@@ -50,21 +50,23 @@ export declare function detectRuntime(): Runtime;
 /**
  * Runtime fetch options for OpenAI SDK
  */
-export type OpenAIRuntimeFetchOptions = {
-    fetchOptions?: {
+export type OpenAIRuntimeFetchOptions =
+  | {
+      fetchOptions?: {
         dispatcher?: Dispatcher;
         timeout?: false;
-    };
-    fetch?: any;
-} | undefined;
+      };
+      fetch?: any;
+    }
+  | undefined;
 /**
  * Runtime fetch options for Anthropic SDK
  */
 export type AnthropicRuntimeFetchOptions = {
-    fetchOptions?: {
-        dispatcher?: Dispatcher;
-    };
-    fetch?: any;
+  fetchOptions?: {
+    dispatcher?: Dispatcher;
+  };
+  fetch?: any;
 };
 /**
  * SDK type identifier
@@ -73,11 +75,17 @@ export type SDKType = 'openai' | 'anthropic';
 /**
  * Build runtime-specific fetch options for OpenAI SDK
  */
-export declare function buildRuntimeFetchOptions(sdkType: 'openai', proxyUrl?: string): OpenAIRuntimeFetchOptions;
+export declare function buildRuntimeFetchOptions(
+  sdkType: 'openai',
+  proxyUrl?: string,
+): OpenAIRuntimeFetchOptions;
 /**
  * Build runtime-specific fetch options for Anthropic SDK
  */
-export declare function buildRuntimeFetchOptions(sdkType: 'anthropic', proxyUrl?: string): AnthropicRuntimeFetchOptions;
+export declare function buildRuntimeFetchOptions(
+  sdkType: 'anthropic',
+  proxyUrl?: string,
+): AnthropicRuntimeFetchOptions;
 /**
  * Get or create a shared undici dispatcher for the given proxy configuration.
  * The dispatcher is cached so that preconnect and subsequent SDK requests
@@ -86,7 +94,10 @@ export declare function buildRuntimeFetchOptions(sdkType: 'anthropic', proxyUrl?
  * @param proxyUrl - Proxy URL used to create a cached proxy dispatcher
  * @returns A cached undici dispatcher that honors NO_PROXY
  */
-export declare function getOrCreateSharedDispatcher(proxyUrl: string, insecure?: boolean): Dispatcher;
+export declare function getOrCreateSharedDispatcher(
+  proxyUrl: string,
+  insecure?: boolean,
+): Dispatcher;
 /**
  * Records the explicit proxy URL (`--proxy` / `settings.proxy`, resolved by
  * `Config.getProxy()`) at the moment the config installs the process-wide
@@ -94,7 +105,9 @@ export declare function getOrCreateSharedDispatcher(proxyUrl: string, insecure?:
  * fetch below — read it back so an explicitly configured proxy is honored
  * even off the global dispatcher.
  */
-export declare function setResolvedProxyUrlForRuntimeFetch(proxyUrl: string | undefined): void;
+export declare function setResolvedProxyUrlForRuntimeFetch(
+  proxyUrl: string | undefined,
+): void;
 /**
  * Cached dispatcher for the MCP streamable HTTP fetch (#7147/#7195): the MCP
  * transport pins undici's own fetch with a dedicated dispatcher (Node's
@@ -111,7 +124,9 @@ export declare function setResolvedProxyUrlForRuntimeFetch(proxyUrl: string | un
  *   header/body timeouts (a standalone SSE stream legitimately idles past
  *   undici's 300s defaults).
  */
-export declare function getOrCreateMcpDispatcher(insecure?: boolean): Dispatcher;
+export declare function getOrCreateMcpDispatcher(
+  insecure?: boolean,
+): Dispatcher;
 /**
  * Reset the dispatcher cache (for testing only)
  * @internal

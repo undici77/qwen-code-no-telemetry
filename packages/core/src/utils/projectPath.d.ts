@@ -18,7 +18,11 @@ import * as path from 'node:path';
  * Shared by `ConditionalRulesRegistry` and `SkillActivationRegistry`
  * so the two registries cannot drift on path validation.
  */
-export declare function resolveProjectRelativePath(filePath: string, projectRoot: string, pathModule?: typeof path): string | null;
+export declare function resolveProjectRelativePath(
+  filePath: string,
+  projectRoot: string,
+  pathModule?: typeof path,
+): string | null;
 /**
  * Resolve project-relative paths with symlink awareness.
  *
@@ -36,4 +40,9 @@ export declare function resolveProjectRelativePath(filePath: string, projectRoot
  * @param pathModule - Path module (defaults to `path`, parameterized for testing).
  * @returns Array of unique project-relative paths (1 or 2 elements).
  */
-export declare function resolveSymlinkAwareRelativePaths(filePath: string, projectRoot: string, realpath?: (path: string) => Promise<string>, pathModule?: typeof path): Promise<string[]>;
+export declare function resolveSymlinkAwareRelativePaths(
+  filePath: string,
+  projectRoot: string,
+  realpath?: (path: string) => Promise<string>,
+  pathModule?: typeof path,
+): Promise<string[]>;

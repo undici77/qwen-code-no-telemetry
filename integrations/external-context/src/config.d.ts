@@ -5,6 +5,8 @@
  */
 import type { ExternalContextConfig } from './types.js';
 export declare class ConfigurationError extends Error {
-    constructor(message: string);
+  constructor(message: string);
 }
-export declare function loadConfig(env?: NodeJS.ProcessEnv): Promise<ExternalContextConfig>;
+export declare function loadConfig(
+  env?: NodeJS.ProcessEnv,
+): Promise<ExternalContextConfig>;

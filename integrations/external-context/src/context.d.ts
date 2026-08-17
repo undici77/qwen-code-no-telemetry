@@ -6,4 +6,6 @@
 import type { ExternalContextItem } from './types.js';
 export declare const MAX_SEARCH_QUERY_CHARACTERS = 2000;
 export declare function normalizeSearchQuery(query: string): string;
-export declare function renderExternalContext(sourceItems: readonly ExternalContextItem[]): string;
+export declare function renderExternalContext(
+  sourceItems: readonly ExternalContextItem[],
+): string;
