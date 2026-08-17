@@ -82,6 +82,9 @@ function makeClient(): DaemonClient {
 
 const { I18nProvider } = await import('../../i18n');
 const { WorkspaceSection } = await import('./WorkspaceSection');
+const { readWorkspaceExpanded, writeWorkspaceExpanded } = await import(
+  './workspaceExpansion'
+);
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 if (!globalThis.PointerEvent) {
@@ -145,7 +148,6 @@ function renderSection(
           sourceType={overrides.sourceType}
           channelGroupingEnabled={overrides.channelGroupingEnabled}
           ungroupedLabel="Ungrouped"
-          formatTime={() => ''}
           renderSession={(session: DaemonSessionSummary): ReactNode => (
             <div key={session.sessionId}>{session.displayName}</div>
           )}
@@ -167,6 +169,7 @@ function gitChip(): HTMLElement | null {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -190,6 +193,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -206,7 +210,7 @@ describe('WorkspaceSection label', () => {
     expect(container.textContent).not.toContain('project');
   });
 
-  it('shows the complete read-only session name in a native tooltip', async () => {
+  it('shows read-only session details from row hover', async () => {
     const listWorkspaceSessionsPage = vi.fn().mockResolvedValue({
       sessions: [
         {
@@ -233,7 +237,33 @@ describe('WorkspaceSection label', () => {
 
     expect(
       container.querySelector('[title="A very long session name"]'),
-    ).not.toBeNull();
+    ).toBeNull();
+    const row = container.querySelector<HTMLElement>('[role="note"]');
+    if (!row) throw new Error('read-only row was not rendered');
+    expect(row.tabIndex).toBe(-1);
+    vi.useFakeTimers();
+    act(() => {
+      row.dispatchEvent(new Event('pointerover', { bubbles: true }));
+      vi.advanceTimersByTime(300);
+    });
+    const tooltip = document.querySelector('[role="dialog"]');
+    expect(tooltip?.textContent).toContain('A very long session name');
+    expect(tooltip?.textContent).toContain('danger');
+    expect(tooltip?.querySelector('[title="/tmp/danger"]')).not.toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('restores and writes the workspace expansion preference', () => {
+    writeWorkspaceExpanded(trustedWorkspace.id, false);
+    renderSection();
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-expanded]',
+    );
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(readWorkspaceExpanded(trustedWorkspace.id)).toBe(true);
   });
 
   it('does not render sessions loaded for the previous source', async () => {
@@ -671,73 +701,13 @@ describe('WorkspaceSection label', () => {
 });
 
 describe('WorkspaceSection session loading', () => {
-  it('refreshes the catalog when an expanded workspace loses trust', async () => {
-    const listWorkspaceSessionsPage = vi
-      .fn()
-      .mockResolvedValueOnce({
-        sessions: [
-          {
-            sessionId: 'session-1',
-            displayName: 'Trusted session',
-          } as DaemonSessionSummary,
-        ],
-      })
-      .mockResolvedValueOnce({
-        sessions: [
-          {
-            sessionId: 'session-2',
-            displayName: 'Read-only session',
-          } as DaemonSessionSummary,
-        ],
-      });
-    const client = {
-      workspaceByCwd: vi.fn(() => ({
-        workspaceGit,
-        listWorkspaceSessionsPage,
-        listSessionGroups: vi.fn().mockResolvedValue({ groups: [] }),
-      })),
-    } as unknown as DaemonClient;
-    const trustedSecondary = { ...untrustedWorkspace, trusted: true };
-
-    renderSection({
-      workspace: trustedSecondary,
-      client,
-      expanded: true,
-    });
-    await flush();
-    expect(listWorkspaceSessionsPage).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain('Trusted session');
-
-    renderSection({
-      workspace: untrustedWorkspace,
-      client,
-      expanded: true,
-    });
-    await flush();
-
-    expect(listWorkspaceSessionsPage).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('Read-only session');
-  });
-
-  it('refreshes a retained read-only catalog when the section reopens', async () => {
-    const listWorkspaceSessionsPage = vi
-      .fn()
-      .mockResolvedValueOnce({
-        sessions: [
-          {
-            sessionId: 'session-1',
-            displayName: 'Initial session',
-          } as DaemonSessionSummary,
-        ],
-      })
-      .mockResolvedValueOnce({
-        sessions: [
-          {
-            sessionId: 'session-2',
-            displayName: 'Updated session',
-          } as DaemonSessionSummary,
-        ],
-      });
+  it('shows five sessions and resets Show all after the workspace closes', async () => {
+    const sessions = Array.from({ length: 6 }, (_, index) => ({
+      sessionId: `session-${index + 1}`,
+      displayName: `Session ${index + 1}`,
+      workspaceCwd: trustedWorkspace.cwd,
+    }));
+    const listWorkspaceSessionsPage = vi.fn().mockResolvedValue({ sessions });
     const client = {
       workspaceByCwd: vi.fn(() => ({
         workspaceGit,
@@ -746,34 +716,24 @@ describe('WorkspaceSection session loading', () => {
       })),
     } as unknown as DaemonClient;
 
-    renderSection({
-      workspace: untrustedWorkspace,
-      client,
-      expanded: true,
-    });
+    renderSection({ client, expanded: true });
     await flush();
-    expect(listWorkspaceSessionsPage).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain('Initial session');
+    expect(container.textContent).toContain('Session 5');
+    expect(container.textContent).not.toContain('Session 6');
 
-    renderSection({
-      workspace: untrustedWorkspace,
-      client,
-      expanded: false,
-    });
-    await flush();
-    renderSection({
-      workspace: untrustedWorkspace,
-      client,
-      expanded: true,
-    });
-    await flush();
+    const showAll = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Show all',
+    );
+    act(() => showAll?.click());
+    expect(container.textContent).toContain('Session 6');
 
-    expect(listWorkspaceSessionsPage).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('Updated session');
+    renderSection({ client, expanded: false });
+    await flush();
+    renderSection({ client, expanded: true });
+    await flush();
+    expect(container.textContent).not.toContain('Session 6');
   });
-});
 
-describe('WorkspaceSection session loading', () => {
   it('refreshes the catalog when an expanded workspace loses trust', async () => {
     const listWorkspaceSessionsPage = vi
       .fn()

@@ -380,6 +380,15 @@ export class LoggingContentGenerator implements ContentGenerator {
 
     const startTime = Date.now();
     const session = this.startCaptureSession();
+    let responseCompleted = false;
+    let abortedBeforeResponseCompletion =
+      req.config?.abortSignal?.aborted ?? false;
+    const markResponseAborted = () => {
+      if (!responseCompleted) abortedBeforeResponseCompletion = true;
+    };
+    req.config?.abortSignal?.addEventListener('abort', markResponseAborted, {
+      once: true,
+    });
     try {
       runtimeDiagnostics.recordGenerateContentRequest(req, {
         stream: false,
@@ -397,34 +406,39 @@ export class LoggingContentGenerator implements ContentGenerator {
         const result = await session.wrap(() =>
           this.wrapped.generateContent(req, userPromptId),
         );
+        responseCompleted = true;
         const durationMs = Date.now() - startTime;
         const responseText = isInternal
           ? undefined
           : this.extractResponseText(result, MAX_RESPONSE_TEXT_LENGTH);
-        this.safelyLogApiResponse(
-          result.responseId ?? '',
-          durationMs,
-          result.modelVersion || req.model,
-          userPromptId,
-          requestSessionId,
-          result.usageMetadata,
-          responseText,
-        );
-        try {
-          await this.safelyLogOpenAIInteraction(
-            await session.resolve(req),
-            result,
-            undefined,
+        if (!abortedBeforeResponseCompletion) {
+          this.safelyLogApiResponse(
+            result.responseId ?? '',
+            durationMs,
+            result.modelVersion || req.model,
             userPromptId,
+            requestSessionId,
+            result.usageMetadata,
+            responseText,
           );
-        } catch (loggingError) {
-          debugLogger.warn('Failed to log OpenAI interaction:', loggingError);
+          try {
+            await this.safelyLogOpenAIInteraction(
+              await session.resolve(req),
+              result,
+              undefined,
+              userPromptId,
+            );
+          } catch (loggingError) {
+            debugLogger.warn('Failed to log OpenAI interaction:', loggingError);
+          }
         }
         return result;
       });
-      const observedFinishReasons = exchange.controller.finalize(true);
+      const cancelled = abortedBeforeResponseCompletion;
+      const observedFinishReasons = exchange.controller.finalize(!cancelled);
       endLLMRequestSpan(llmSpan, {
-        success: true,
+        success: !cancelled,
+        cancelled,
         ...usageSpanMetadata(response.usageMetadata),
         durationMs: Date.now() - startTime,
         responseId: response.responseId || undefined,
@@ -432,6 +446,7 @@ export class LoggingContentGenerator implements ContentGenerator {
         finishReasons: observedFinishReasons ?? orderedFinishReasons(response),
         thoughtsTokenCount: response.usageMetadata?.thoughtsTokenCount,
         subagentName: subagentNameContext.getStore() || undefined,
+        error: cancelled ? API_CALL_ABORTED_SPAN_STATUS_MESSAGE : undefined,
         ...retrySnapshot,
         config: this.config,
       });
@@ -481,6 +496,11 @@ export class LoggingContentGenerator implements ContentGenerator {
         }
       });
       throw error;
+    } finally {
+      req.config?.abortSignal?.removeEventListener(
+        'abort',
+        markResponseAborted,
+      );
     }
   }
 
@@ -724,6 +744,9 @@ export class LoggingContentGenerator implements ContentGenerator {
           if (spanEndTimeout !== undefined) clearTimeout(spanEndTimeout);
           spanEndTimeout = setTimeout(() => {
             refreshLateUsageMetadata();
+            const cancelled =
+              abortedBeforeStreamCompletion &&
+              (lastError === undefined || isAbortError(lastError));
             try {
               span.setAttribute('stream.timed_out', true);
             } catch {
@@ -732,9 +755,22 @@ export class LoggingContentGenerator implements ContentGenerator {
             const observedFinishReasons = exchangeController?.finalize(false);
             endLLMRequestSpan(span, {
               success: false,
+              cancelled,
               ...usageSpanMetadata(lastUsageMetadata),
               durationMs: Date.now() - startTime,
-              error: 'Stream span timed out (idle)',
+              error: cancelled
+                ? API_CALL_ABORTED_SPAN_STATUS_MESSAGE
+                : lastError !== undefined
+                  ? API_CALL_FAILED_SPAN_STATUS_MESSAGE
+                  : 'Stream span timed out (idle)',
+              errorType:
+                lastError !== undefined && !cancelled
+                  ? getErrorType(lastError)
+                  : undefined,
+              errorStatusCode:
+                lastError !== undefined && !cancelled
+                  ? getErrorStatus(lastError)
+                  : undefined,
               responseId: firstResponseId || undefined,
               responseModel: firstModelVersion || undefined,
               finishReasons:
@@ -749,6 +785,7 @@ export class LoggingContentGenerator implements ContentGenerator {
               config: this.config,
             });
             spanEndedByTimeout = true;
+            abortSignal?.removeEventListener('abort', markStreamAborted);
           }, STREAM_IDLE_TIMEOUT_MS);
           spanEndTimeout.unref();
         }
@@ -843,7 +880,7 @@ export class LoggingContentGenerator implements ContentGenerator {
       // The OpenAI interaction log is also skipped — telemetry already carries
       // the timeout signal and a parallel "success" record would be confusing
       // during incident response.
-      if (!spanEndedByTimeout) {
+      if (!spanEndedByTimeout && !abortedBeforeStreamCompletion) {
         this.safelyLogApiResponse(
           firstResponseId,
           durationMs,
