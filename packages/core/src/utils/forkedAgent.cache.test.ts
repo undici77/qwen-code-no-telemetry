@@ -312,6 +312,44 @@ describe('runForkedAgent (cache path)', () => {
     expect(result.usage.outputTokens).toBe(5);
   });
 
+  it('disables model fallbacks without changing the requested route', async () => {
+    saveCacheSafeParams({}, [], 'test-model');
+
+    const mockSendMessageStream = vi.fn(() => {
+      async function* generate() {
+        yield {
+          type: StreamEventType.CHUNK,
+          value: {
+            candidates: [
+              { content: { role: 'model', parts: [{ text: 'review' }] } },
+            ],
+          },
+        };
+      }
+      return Promise.resolve(generate());
+    });
+    vi.mocked(GeminiChat).mockImplementation(
+      () =>
+        ({ sendMessageStream: mockSendMessageStream }) as unknown as GeminiChat,
+    );
+
+    const result = await runForkedAgent({
+      config: {} as Config,
+      userMessage: 'review this',
+      cacheSafeParams: getCacheSafeParams()!,
+      disableModelFallbacks: true,
+    });
+
+    expect(mockSendMessageStream).toHaveBeenCalledWith(
+      'test-model',
+      expect.any(Object),
+      'forked_query',
+      undefined,
+      { disableModelFallbacks: true },
+    );
+    expect(result.model).toBe('test-model');
+  });
+
   it('preserves tools: [] even when jsonSchema is provided', async () => {
     saveCacheSafeParams(
       {
@@ -455,6 +493,7 @@ describe('runForkedAgent (cache path)', () => {
     });
 
     expect(result.text).toBe('commit this');
+    expect(result.model).toBe(fastModel);
     expect(createRuntimeContentGeneratorView).toHaveBeenCalledWith(
       mockConfig,
       mockConfig,
@@ -546,6 +585,7 @@ describe('runForkedAgent (cache path)', () => {
     });
 
     expect(result.text).toBe('commit this');
+    expect(result.model).toBe(fastModel);
     expect(createRuntimeContentGeneratorView).toHaveBeenCalledWith(
       mockConfig,
       mockConfig,
@@ -612,7 +652,7 @@ describe('runForkedAgent (cache path)', () => {
       getAllConfiguredModels: vi.fn(() => []),
     } as unknown as Config;
 
-    await runForkedAgent({
+    const result = await runForkedAgent({
       config: mockConfig,
       userMessage: 'suggest something',
       cacheSafeParams: getCacheSafeParams()!,
@@ -620,6 +660,7 @@ describe('runForkedAgent (cache path)', () => {
     });
 
     expect(capturedModel).toBe('parent-model');
+    expect(result.model).toBe('parent-model');
     expect(createRuntimeContentGeneratorView).not.toHaveBeenCalled();
   });
 
