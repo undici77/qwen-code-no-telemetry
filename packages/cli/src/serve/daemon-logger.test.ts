@@ -22,7 +22,11 @@ import {
   utimesSync,
 } from 'node:fs';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { trace, TraceFlags, type Span } from '@opentelemetry/api';
+import {
+  trace,
+  TraceFlags,
+  type Span,
+} from '../../../../packages/core/src/telemetry/dummy-otel.js';
 import {
   buildDaemonLogLine,
   initDaemonLogger,

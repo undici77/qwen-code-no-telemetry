@@ -5,7 +5,10 @@
  */
 
 import { performance } from 'node:perf_hooks';
-import { context, ROOT_CONTEXT } from '@opentelemetry/api';
+import {
+  context,
+  ROOT_CONTEXT,
+} from '../../../../../packages/core/src/telemetry/dummy-otel.js';
 import type { Application } from 'express';
 import type { DaemonLogContext, DaemonLogger } from '../daemon-logger.js';
 

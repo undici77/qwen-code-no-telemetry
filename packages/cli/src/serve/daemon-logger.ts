@@ -8,7 +8,11 @@ import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import * as crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { isSpanContextValid, trace, TraceFlags } from '@opentelemetry/api';
+import {
+  isSpanContextValid,
+  trace,
+  TraceFlags,
+} from '../../../../packages/core/src/telemetry/dummy-otel.js';
 import lockfile from 'proper-lockfile';
 import {
   getGlobalQwenDirLite,

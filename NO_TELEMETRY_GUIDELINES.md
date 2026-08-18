@@ -163,6 +163,21 @@ Every successful merge REQUIRES:
 
     **Golden rule:** If a command times out, kill it. Never let a test run beyond 2× its expected duration. The full `npm run test` from root is a trap — it launches every package including slow integration tests.
 
+    **Timeout reference (use these values in `run_shell_command` `timeout` parameter):**
+
+    | Command                                            | Expected duration | Safe timeout                                |
+    | -------------------------------------------------- | ----------------- | ------------------------------------------- |
+    | `npm run build:packages`                           | ~30s              | 60s                                         |
+    | `npm run build` (full, incl. web-shell)            | ~90–120s          | **180s**                                    |
+    | `npm run typecheck`                                | ~30s              | 60s                                         |
+    | `npm run lint`                                     | ~90s              | **180s**                                    |
+    | `npm run lint:fix`                                 | ~120s+            | **180s** (may still timeout on large diffs) |
+    | `npm run test --workspace=packages/sdk-typescript` | ~25s              | 60s                                         |
+    | `npm run test --workspace=packages/acp-bridge`     | ~20s              | 60s                                         |
+    | `npm run test --workspace=packages/webui`          | ~10s              | 60s                                         |
+    | `npm run test --workspace=packages/core`           | ~75s              | **180s**                                    |
+    | `npm install`                                      | ~60–100s          | **180s**                                    |
+
 ---
 
 ## 4. Versioning Strategy: Two-Layer Approach

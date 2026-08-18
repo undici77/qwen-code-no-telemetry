@@ -1,1 +1,0 @@
-import '../styles/standalone.css';

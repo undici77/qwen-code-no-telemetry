@@ -148,6 +148,23 @@ The `-no-telemetry` suffix is always the same — never change it.
     If a test command times out, check whether it's a known slow test (e.g. `packages/cli` has mutation-testing harnesses that take 3+ minutes). Use `--reporter=verbose` to see progress. Never let a test run in the background without a timeout guard — if it exceeds 2× the expected duration, kill it and investigate.
 5.  **Pre-existing Failure Baseline**: Before investigating any test failure, run the same command on the clean `dev` branch (`git stash && npm run test --workspace=... && git stash pop`) to confirm it's a regression, not a pre-existing failure. The core package has ~22 known pre-existing failures (root-permission tests, LSP config loader, bundled-skill integration). Do not waste cycles debugging these.
 6.  **Vitest Version Drift**: `packages/sdk-typescript` must keep its vitest version in sync with the workspace root (^3.2.4). A mismatch creates an isolated `node_modules` with missing build artifacts, causing `tsc` to fail with "ExpectStatic has no call signatures". If `npm run typecheck` fails in sdk-typescript after an `npm install`, check `cat packages/sdk-typescript/node_modules/vitest/package.json | grep version` — it must match the root.
+7.  **Timeout Discipline**: Always set `timeout` on long-running commands. Use the reference table below. Never rely on the default 120s timeout — it is too short for builds and installs, and too long for tests that should have already failed.
+
+    **Timeout reference table (for `run_shell_command` `timeout` parameter in milliseconds):**
+
+    | Command                                                       | Expected | Safe timeout                                |
+    | ------------------------------------------------------------- | -------- | ------------------------------------------- |
+    | `npm run build:packages`                                      | ~30s     | 60s                                         |
+    | `npm run build` (full, incl. web-shell)                       | ~90–120s | **180s**                                    |
+    | `npm run typecheck`                                           | ~30s     | 60s                                         |
+    | `npm run lint`                                                | ~90s     | **180s**                                    |
+    | `npm run lint:fix`                                            | ~120s+   | **180s** (may still timeout on large diffs) |
+    | `npm run test --workspace=packages/sdk-typescript`            | ~25s     | 60s                                         |
+    | `npm run test --workspace=packages/acp-bridge`                | ~20s     | 60s                                         |
+    | `npm run test --workspace=packages/webui`                     | ~10s     | 60s                                         |
+    | `npm run test --workspace=packages/core`                      | ~75s     | **180s**                                    |
+    | `npm install`                                                 | ~60–100s | **180s**                                    |
+    | `git stash && npm run test && git stash pop` (baseline check) | ~90s     | **180s**                                    |
 
 ---
 

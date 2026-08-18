@@ -5,7 +5,10 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { context, ROOT_CONTEXT } from '@opentelemetry/api';
+import {
+  context,
+  ROOT_CONTEXT,
+} from '../../../../../packages/core/src/telemetry/dummy-otel.js';
 import type { Application, RequestHandler } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DaemonLogContext, DaemonLogger } from '../daemon-logger.js';

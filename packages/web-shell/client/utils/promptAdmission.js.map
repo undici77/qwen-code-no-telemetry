@@ -1,1 +1,0 @@
-{"version":3,"file":"promptAdmission.js","sourceRoot":"","sources":["promptAdmission.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,MAAM,uBAAuB,CAAC;AAExD,MAAM,UAAU,mCAAmC,CAAC,KAAc;IAChE,OAAO,CACL,KAAK,YAAY,eAAe;QAChC,CAAC,KAAK,CAAC,MAAM,KAAK,GAAG,IAAI,KAAK,CAAC,MAAM,KAAK,GAAG,CAAC,CAC/C,CAAC;AACJ,CAAC"}
