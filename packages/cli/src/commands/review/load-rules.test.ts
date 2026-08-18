@@ -51,11 +51,11 @@ describe('extractCodeReviewSection', () => {
     expect(got).not.toContain('## End');
   });
 
-  // The whole point of #3: this repo's own AGENTS.md must carry a section the
+  // The whole point of #3: this repo's own QWEN.md must carry a section the
   // loader can find, or every /review in the repo runs with zero project rules.
-  it('AGENTS.md has a Code Review section the loader extracts non-empty', () => {
-    const agentsMd = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8');
-    const section = extractCodeReviewSection(agentsMd);
+  it('QWEN.md has a Code Review section the loader extracts non-empty', () => {
+    const qwenMd = readFileSync(join(repoRoot, 'QWEN.md'), 'utf8');
+    const section = extractCodeReviewSection(qwenMd);
     expect(section).not.toBeNull();
     expect(section!.length).toBeGreaterThan(200);
     expect(section).toContain('## Code Review');

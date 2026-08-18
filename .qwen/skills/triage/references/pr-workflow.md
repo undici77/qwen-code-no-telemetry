@@ -338,7 +338,7 @@ one-liners, different semantics, or speculative extraction.
 Keep it tight — only flag two kinds of issues:
 
 - **Critical blockers** — correctness bugs, security holes, regressions.
-- **Clear AGENTS.md violations** — over-abstraction, unnecessary duplication, code in the wrong package, structural patterns that directly contradict the project's conventions.
+- **Clear QWEN.md violations** — over-abstraction, unnecessary duplication, code in the wrong package, structural patterns that directly contradict the project's conventions.
 
 Don't nitpick style, naming preferences, or "could be done differently." If it's not a blocker, leave it.
 

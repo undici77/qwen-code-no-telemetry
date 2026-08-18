@@ -130,7 +130,7 @@ Every successful merge REQUIRES:
     ```bash
     npm run typecheck 2>&1 | tail -10
     # If sdk-typescript fails with "ExpectStatic has no call signatures",
-    # check vitest version drift (see AGENTS.md §Efficiency & Troubleshooting #6).
+    # check vitest version drift (see QWEN.md §Efficiency & Troubleshooting #6).
     ```
 
     **Step 3 — Targeted package tests ONLY (never root `npm run test`):**
@@ -420,3 +420,52 @@ grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" \
 ```
 
 esbuild (`npm run bundle`) correctly resolves `@opentelemetry/api` via root `tsconfig.json` paths during bundling, so the _bundle_ works even without this fix. But `npm start` (non-bundled mode) and any direct `node packages/core/dist/...` invocation will crash without it.
+
+---
+
+## 13. Telemetry Commits Can Change Control-Flow Timing — Verify TUI Behavior After Every Merge
+
+Upstream telemetry fixes frequently change **control flow** (adding `await`, wrapping calls in `try/finally`, deferring callbacks) in order to keep trace spans open. These changes are invisible to the no-telemetry dummy layer — the spans are no-ops — but the **timing change itself survives the merge** and can break unrelated behavior. This is the most subtle post-merge failure mode after the `loggers.ts` rule (§11).
+
+### The incident (v0.21.12 regression)
+
+Upstream commit `43b0779bc fix(telemetry): Address main agent tracing edge cases (#9121)` changed the tool-result submission in `packages/cli/src/ui/hooks/useGeminiStream.ts` from fire-and-forget to awaited:
+
+```ts
+// before (v0.21.11): submission returns immediately
+void submitQuery(responsesToSend, SendMessageType.ToolResult, promptId, {...});
+// after (v0.21.13): submission blocks until the whole continuation stream ends
+await submitQuery(responsesToSend, SendMessageType.ToolResult, promptId, {...});
+```
+
+The change was made so the main-agent trace span covers the full continuation stream. **Side effect**: `handleCompletedTools` (and therefore `CoreToolScheduler.onAllToolCallsComplete`) now stays pending for the entire continuation, so the scheduler's `notifyToolCallsUpdate([])` — which clears the completed tool calls from the live pending region — only fires **after** the stream ends. Meanwhile `addItem(toolGroupDisplay)` had already committed the tool group to Static history. Result: the completed tool group renders in **both** the Static scrollback and the live pending region for the whole stream → the TUI visibly duplicates the last tool block during RUN.
+
+### The rule
+
+When merging upstream telemetry commits, audit them for **control-flow changes**, not just telemetry calls:
+
+- `void foo(...)` → `await foo(...)` (or any new `await` around an existing call)
+- calls moved inside `try/finally` or `useEffect`/ref indirections
+- callback resolution order changes (e.g., a notify/emit moved after an awaited callback)
+
+Any of these can delay a state update that other code depends on, even with all telemetry no-op'd.
+
+### The fix pattern (already applied — keep it on every merge)
+
+The display-clear notification must fire **at the commit point**, not after the (potentially long) completion callback. In `packages/core/src/core/coreToolScheduler.ts`, `checkAndNotifyCompletion()` must call `notifyToolCallsUpdate()` right after `this.toolCalls = []` and **before** `await this.onAllToolCallsComplete(...)` (the `finally` block re-notifies afterwards to report any calls the continuation scheduled). If a merge removes or reorders this early notify, restore it.
+
+### Verification checklist after every merge
+
+```bash
+# 1. The tool-result submission must not block the scheduler's display-clear.
+#    (An `await` here is fine ONLY while the early notify in #2 is present.)
+grep -n "submitQuery(responsesToSend, SendMessageType.ToolResult" packages/cli/src/ui/hooks/useGeminiStream.ts
+# 2. The early display-clear notify must exist in the core scheduler:
+grep -n "notifyToolCallsUpdate()" packages/core/src/core/coreToolScheduler.ts
+#    It must appear BOTH right after `this.toolCalls = [];` in
+#    checkAndNotifyCompletion AND in the finally block (2+ occurrences).
+# 3. Regression test must exist:
+grep -n "clears the live tool-call view before a slow completion callback" packages/core/src/core/coreToolScheduler.test.ts
+```
+
+**Manual smoke test** (interactive TUI): run a turn where a tool batch completes and the model continues streaming (e.g., a shell command with long output, then a follow-up reply). The completed tool block must appear **exactly once** — if it appears twice (once committed, once in the live region below the streaming answer), the early notify was lost in the merge.

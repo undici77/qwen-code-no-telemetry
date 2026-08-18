@@ -10,7 +10,7 @@ https://openai.com/zh-Hans-CN/index/harness-engineering/
 
 ## Principles
 
-- Give the agent a map, not a giant manual. Keep `AGENTS.md` and skills concise
+- Give the agent a map, not a giant manual. Keep `QWEN.md` and skills concise
   entry points that route to focused docs, tests, and logs.
 - Make the application readable to agents. UI snapshots, logs, metrics, traces,
   and runtime state should be directly inspectable without asking a human to

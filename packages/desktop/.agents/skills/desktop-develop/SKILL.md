@@ -103,7 +103,7 @@ cd packages/desktop/apps/electron && bun run lint
 cd packages/desktop/packages/shared && bun test path/to/file.test.ts
 ```
 
-For root CLI/core changes, use the root repository commands from `AGENTS.md`
+For root CLI/core changes, use the root repository commands from `QWEN.md`
 instead. For desktop-only changes, prefer desktop package commands first.
 
 ## Agent-Readable Changes

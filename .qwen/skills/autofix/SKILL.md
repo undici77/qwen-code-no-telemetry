@@ -267,7 +267,7 @@ Implement the selected issue in the checked-out repository:
    - `<workdir>/pr-title.txt`
    - `<workdir>/pr-body.md` using `.qwen/skills/prepare-pr/SKILL.md`
 
-Follow `AGENTS.md`, `.qwen/skills/bugfix/SKILL.md`, and
+Follow `QWEN.md`, `.qwen/skills/bugfix/SKILL.md`, and
 `.qwen/skills/e2e-testing/SKILL.md`, but this skill's surrogate-verification and
 objective stop rules override the bugfix skill's `NOT_REPRODUCED` and
 `VERIFIED_FIXED` gates only when the issue is CI-, Docker-, platform-, timing-,
@@ -285,7 +285,7 @@ Read `git diff origin/<base>...HEAD` first, then `<workdir>/feedback.md`.
 
 Classify every feedback point:
 
-Address each the way AGENTS.md's Simplicity First and Comments rules demand:
+Address each the way QWEN.md's Simplicity First and Comments rules demand:
 the smallest change that resolves the point, no error handling for a condition
 that cannot occur, no comment that restates the code. Review rounds ratchet
 code UP — every round tends to add — so on each one also ask what the change
@@ -321,7 +321,7 @@ silently overriding or silently complying.
   unfalsifiable claim is handled as Optional or escalated for
   clarification, whoever wrote it.
 - Optional: suggestion, nit, or hardening — including `**[Suggestion]**`
-  findings from the automated reviewer. Per AGENTS.md's review policy these ARE
+  findings from the automated reviewer. Per QWEN.md's review policy these ARE
   addressed during a PR's early review rounds: implement each one that is
   valuable, codebase-consistent, and in scope. Decline only with a recorded
   reason per finding (out of scope, conflicts with the PR's direction, or not
@@ -465,7 +465,7 @@ Finish with exactly one outcome:
   feedback point is actually addressed, that the change introduces no new
   defect, AND that it added no bloat: no defense for an impossible case, no
   comment that is not a non-obvious "why", nothing a senior engineer would call
-  overcomplicated (AGENTS.md Simplicity First). Cut it before you commit. Then
+  overcomplicated (QWEN.md Simplicity First). Cut it before you commit. Then
   ACTUALLY RUN `npm run build`, `npm run typecheck`,
   `npm run lint`, focused Vitest tests for the package(s) you touched, and
   integration tests after `npm run bundle` when the touched behavior is only

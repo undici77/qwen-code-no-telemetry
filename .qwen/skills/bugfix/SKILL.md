@@ -87,7 +87,7 @@ add focused regression coverage for the failure scenario.
 
 ## Step 6: Self-Audit and Code Review
 
-First self-audit the full diff per the self-audit step in AGENTS.md's General
+First self-audit the full diff per the self-audit step in QWEN.md's General
 workflow (open-ended passes plus presume-wrong verification, until two
 consecutive clean passes; one clean pass suffices for a trivial fix). If the
 audit changes source, re-run Step 4 before resuming it. Skip the review below

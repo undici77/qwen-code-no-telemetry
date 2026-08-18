@@ -116,7 +116,7 @@ Output: E2E results appended to the test plan.
 
 ## Phase 7: Self-Audit and Code Review
 
-First self-audit the full diff per the self-audit step in AGENTS.md's General
+First self-audit the full diff per the self-audit step in QWEN.md's General
 workflow (open-ended passes plus presume-wrong verification, until two
 consecutive clean passes). If the audit changes source, return through
 Phases 5-6 before resuming it. Then run `/review` with a review task listing
