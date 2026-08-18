@@ -116,6 +116,52 @@ Every successful merge REQUIRES:
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
     # Must return zero lines
     ```
+12. **TEST STRATEGY — AVOID TIME WASTE** ⚠️ Every merge verification must follow this ordered checklist. Do NOT skip steps or run blind full suites:
+
+    **Step 1 — Build (fast, 30s):**
+
+    ```bash
+    npm run build:packages 2>&1 | tail -5
+    # Must exit 0. If it fails, fix before testing.
+    ```
+
+    **Step 2 — Typecheck (fast, 30s):**
+
+    ```bash
+    npm run typecheck 2>&1 | tail -10
+    # If sdk-typescript fails with "ExpectStatic has no call signatures",
+    # check vitest version drift (see AGENTS.md §Efficiency & Troubleshooting #6).
+    ```
+
+    **Step 3 — Targeted package tests ONLY (never root `npm run test`):**
+
+    ```bash
+    # Run these in parallel; each should complete in <60s:
+    npm run test --workspace=packages/sdk-typescript 2>&1 | tail -5
+    npm run test --workspace=packages/acp-bridge 2>&1 | tail -5
+    npm run test --workspace=packages/webui 2>&1 | tail -5
+    ```
+
+    **Step 4 — Core tests (slow, ~75s — only if core files changed):**
+
+    ```bash
+    # Capture FAIL count immediately; do not wait for full output:
+    npm run test --workspace=packages/core 2>&1 | grep "Test Files"
+    # Expected: ~22 pre-existing failures. If NEW failures appear, investigate.
+    ```
+
+    **Step 5 — No-telemetry grep checks (instant):**
+
+    ```bash
+    # All must return zero lines:
+    grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
+    grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
+    grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
+    # loggers.ts must reference uiTelemetryService (4+ lines):
+    grep -c "uiTelemetryService" packages/core/src/telemetry/loggers.ts
+    ```
+
+    **Golden rule:** If a command times out, kill it. Never let a test run beyond 2× its expected duration. The full `npm run test` from root is a trap — it launches every package including slow integration tests.
 
 ---
 
