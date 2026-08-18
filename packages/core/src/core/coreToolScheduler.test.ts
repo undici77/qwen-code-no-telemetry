@@ -5428,6 +5428,64 @@ describe('CoreToolScheduler', () => {
     expect(toolSpan?.ended).toBe(true);
   });
 
+  it('clears the live tool-call view before a slow completion callback resolves', async () => {
+    let resolveComplete!: () => void;
+    const completionGate = new Promise<void>((resolve) => {
+      resolveComplete = resolve;
+    });
+    const execute = vi.fn().mockResolvedValue({
+      llmContent: 'alpha output',
+      returnDisplay: 'alpha output',
+    });
+    const toolsByName = new Map<string, MockTool>([
+      [
+        'alpha',
+        new MockTool({
+          name: 'alpha',
+          kind: Kind.Read,
+          execute,
+        }),
+      ],
+    ]);
+    const onAllToolCallsComplete = vi.fn(async () => {
+      // Simulate a long completion handler (the CLI streams the whole
+      // continuation turn inside it).
+      await completionGate;
+    });
+    const onToolCallsUpdate = vi.fn();
+    const { scheduler } = createSchedulerForLegacyToolTests({
+      toolsByName,
+      onAllToolCallsComplete,
+      onToolCallsUpdate,
+    });
+
+    await scheduler.schedule(
+      [
+        {
+          callId: 'call-alpha',
+          name: 'alpha',
+          args: { value: 'a' },
+          isClientInitiated: false,
+          prompt_id: 'prompt-slow-completion',
+        },
+      ],
+      new AbortController().signal,
+    );
+
+    // The completion callback is still pending, but the live tool-call view
+    // must already be cleared so the completed group is not duplicated in
+    // the UI while the continuation streams.
+    await vi.waitFor(() => {
+      expect(onAllToolCallsComplete).toHaveBeenCalled();
+    });
+    expect(onToolCallsUpdate.mock.calls.at(-1)?.[0]).toEqual([]);
+
+    resolveComplete();
+    await vi.waitFor(() => {
+      expect(onToolCallsUpdate.mock.calls.at(-1)?.[0]).toEqual([]);
+    });
+  });
+
   it('applies PostToolBatch stop decisions and preserves additional context', async () => {
     let resolveAlpha!: (result: {
       llmContent: string;

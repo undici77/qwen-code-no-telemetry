@@ -5922,6 +5922,16 @@ export class CoreToolScheduler {
       let completedCalls = [...this.toolCalls] as CompletedToolCall[];
       this.toolCalls = [];
       this.isFinalizingToolCalls = true;
+      // Reflect the cleared tool list immediately. `onAllToolCallsComplete`
+      // below is awaited and can take arbitrarily long (the CLI's handler
+      // submits the results and streams the whole continuation turn), so
+      // deferring this update until the finally block would keep the
+      // completed calls visible in live UI state for the entire
+      // continuation — duplicating the group that was already committed to
+      // history by the completion handler. The finally block still
+      // re-notifies afterwards to report any calls the continuation
+      // scheduled.
+      this.notifyToolCallsUpdate();
       const batchSignal = completedCalls
         .map((call) =>
           this.callIdToPostToolBatchSignal.get(call.request.callId),
