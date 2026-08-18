@@ -141,6 +141,13 @@ The `-no-telemetry` suffix is always the same — never change it.
     ```
 2.  **Node Version**: Ensure Node.js >= 22.0.0.
 3.  **Express Params**: Cast `req.params['id'] as string` to avoid union type errors.
+4.  **Test Timeout Avoidance**: Never run `npm run test` from the project root — it launches every package's test suite and will timeout. Always target a single package:
+    ```bash
+    npm run test --workspace=packages/core   # or cli, sdk-typescript, etc.
+    ```
+    If a test command times out, check whether it's a known slow test (e.g. `packages/cli` has mutation-testing harnesses that take 3+ minutes). Use `--reporter=verbose` to see progress. Never let a test run in the background without a timeout guard — if it exceeds 2× the expected duration, kill it and investigate.
+5.  **Pre-existing Failure Baseline**: Before investigating any test failure, run the same command on the clean `dev` branch (`git stash && npm run test --workspace=... && git stash pop`) to confirm it's a regression, not a pre-existing failure. The core package has ~22 known pre-existing failures (root-permission tests, LSP config loader, bundled-skill integration). Do not waste cycles debugging these.
+6.  **Vitest Version Drift**: `packages/sdk-typescript` must keep its vitest version in sync with the workspace root (^3.2.4). A mismatch creates an isolated `node_modules` with missing build artifacts, causing `tsc` to fail with "ExpectStatic has no call signatures". If `npm run typecheck` fails in sdk-typescript after an `npm install`, check `cat packages/sdk-typescript/node_modules/vitest/package.json | grep version` — it must match the root.
 
 ---
 

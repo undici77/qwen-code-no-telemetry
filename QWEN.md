@@ -15,6 +15,8 @@
 
 - **WebUI Build Pattern**: We use a custom `tsconfig.dts.json` and a manual `tsc` step in `packages/webui/package.json` because `vite-plugin-dts` is unreliable with CSS/SVG imports.
 
+- **Test Strategy — Avoid Time Waste**: Never run `npm run test` from the project root — it launches every package's suite and will timeout. Always target a single workspace: `npm run test --workspace=packages/core`. If any test command exceeds 2× its expected duration, kill it and investigate. See AGENTS.md §Efficiency & Troubleshooting #4-6 for the full verification checklist.
+
 - When running tests in this no-telemetry fork, be aware of these pre-existing test failures that are NOT related to our changes:
 
 **Environment-specific failures (running as root):**
