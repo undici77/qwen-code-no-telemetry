@@ -98,7 +98,7 @@ describe('<HistoryItemDisplay />', () => {
 
     const output = lastFrame() ?? '';
     expect(output.startsWith('\n')).toBe(true);
-    expect(output).toContain('◆\uFE0E Hello');
+    expect(output).toContain('◆ Hello');
   });
 
   it.each(['gemini', 'gemini_content'] as const)(

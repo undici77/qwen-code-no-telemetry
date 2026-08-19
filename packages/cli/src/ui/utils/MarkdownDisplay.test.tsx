@@ -1097,7 +1097,7 @@ Another paragraph.
       );
       const output = lastFrame();
       expect(output).toContain('✓ Done');
-      expect(output).toContain('○\uFE0E Todo');
+      expect(output).toContain('○ Todo');
     });
 
     it('keeps pipes inside markdown table code spans in the same cell', () => {

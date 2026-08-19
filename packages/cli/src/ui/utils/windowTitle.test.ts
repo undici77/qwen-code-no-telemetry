@@ -221,8 +221,8 @@ describe('formatSessionWindowTitle', () => {
   });
 
   it('should prepend status prefix to the fallback title too', () => {
-    expect(formatSessionWindowTitle(null, 'my-project', '✳\uFE0E ')).toBe(
-      '✳\uFE0E Qwen - my-project',
+    expect(formatSessionWindowTitle(null, 'my-project', '✳ ')).toBe(
+      '✳ Qwen - my-project',
     );
   });
 
@@ -239,12 +239,12 @@ describe('formatSessionWindowTitle', () => {
 
 describe('titleStatusPrefix', () => {
   it('should return the working symbol while responding', () => {
-    expect(titleStatusPrefix(StreamingState.Responding)).toBe('◐\uFE0E ');
+    expect(titleStatusPrefix(StreamingState.Responding)).toBe('◐ ');
   });
 
   it('should return the awaiting-confirmation symbol while waiting', () => {
     expect(titleStatusPrefix(StreamingState.WaitingForConfirmation)).toBe(
-      '✳\uFE0E ',
+      '✳ ',
     );
   });
 

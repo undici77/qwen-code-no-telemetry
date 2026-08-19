@@ -68,12 +68,12 @@ describe('AgentSelectionStep', () => {
       />,
     );
 
-    expect(lastFrame()).toContain('●\uFE0E first');
+    expect(lastFrame()).toContain('● first');
 
     pressKey({ name: 'n', sequence: '\u000E', ctrl: true });
-    expect(lastFrame()).toContain('●\uFE0E second');
+    expect(lastFrame()).toContain('● second');
 
     pressKey({ name: 'p', sequence: '\u0010', ctrl: true });
-    expect(lastFrame()).toContain('●\uFE0E first');
+    expect(lastFrame()).toContain('● first');
   });
 });
