@@ -20,7 +20,7 @@
     "test:ci": "vitest run"
   },
   "dependencies": {
-    "@qwen-code/channel-base": "0.21.13",
+    "@qwen-code/channel-base": "0.21.14",
     "@larksuiteoapi/node-sdk": "^1.45.0"
   },
   "devDependencies": {

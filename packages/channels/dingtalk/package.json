@@ -20,7 +20,7 @@
     "test:ci": "vitest run"
   },
   "dependencies": {
-    "@qwen-code/channel-base": "0.21.13",
+    "@qwen-code/channel-base": "0.21.14",
     "dingtalk-stream-sdk-nodejs": "^2.0.4"
   },
   "devDependencies": {
