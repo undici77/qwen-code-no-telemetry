@@ -184,7 +184,7 @@ Or, after running `/review 123`, type `post comments` to publish findings withou
 - Where the fix is a single localized edit, a ` ```suggestion ` block you can apply in one click
 - For Approve/Request changes verdicts: a review summary with the verdict
 - For Comment verdict with all inline comments posted: no separate summary (inline comments are sufficient)
-- Model and CLI version attribution footer on each comment (e.g., _— qwen3-coder via Qwen Code /review (v0.21.2)_); set `review.attribution` to `false` in your user or system `settings.json` (the workspace `.qwen/settings.json` is ignored for `review.*` settings) to post without it — note this also withholds the model from the review's machine-ledger marker, so in fresh environments (no review cache) the recovered incremental anchor fails the same-model check and the re-review falls back to full-range
+- Model and CLI version attribution footer on each comment (e.g., _— qwen3-coder via Qwen Code /review (v0.21.2)_); set `review.attribution` to `false` in your user or system `settings.json` (the workspace `.qwen/settings.json` is ignored for `review.*` settings) to post without it — comments and body lists then also lose the `**[Critical]**`/`**[Suggestion]**` severity markers, and the model is withheld from the review's machine-ledger marker, so in fresh environments (no review cache) the recovered incremental anchor fails the same-model check and the re-review falls back to full-range
 
 **What stays terminal-only:**
 
@@ -266,7 +266,8 @@ You can customize review criteria per project. `/review` reads rules from these 
 
 1. `.qwen/review-rules.md` (Qwen Code native)
 2. `.github/copilot-instructions.md` (preferred) or `copilot-instructions.md` (fallback — only one is loaded, not both)
-3. `QWEN.md` — `## Code Review` section
+3. `AGENTS.md` — `## Code Review` section
+4. `QWEN.md` — `## Code Review` section
 
 Rules are injected into the LLM review agents (0-6) as additional criteria. For PR reviews, rules are read from the **base branch** to prevent a malicious PR from injecting bypass rules.
 

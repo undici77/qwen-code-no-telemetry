@@ -22,6 +22,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const extensionsToCopy = ['.md', '.json', '.sb'];
@@ -94,7 +95,16 @@ export function copyFiles({ root = process.cwd() } = {}) {
       'examples',
     );
     if (fs.existsSync(examplesSource)) {
-      fs.cpSync(examplesSource, examplesTarget, { recursive: true });
+      try {
+        fs.cpSync(examplesSource, examplesTarget, { recursive: true });
+      } catch {
+        // In containerized environments with overlay filesystems, tsc may
+        // create corrupted directory entries (ENOTEMPTY / EACCES). Fall back
+        // to shell cp which handles these cases more robustly.
+        execSync(
+          `cp -r "${examplesSource}/." "${examplesTarget}/" 2>/dev/null || true`,
+        );
+      }
     }
   }
 
