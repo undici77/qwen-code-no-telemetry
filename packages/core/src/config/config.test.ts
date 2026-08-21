@@ -188,6 +188,7 @@ vi.mock('../utils/memoryDiscovery.js', () => ({
   loadServerHierarchicalMemory: vi.fn().mockResolvedValue({
     memoryContent: '',
     fileCount: 0,
+    contextFilePaths: [],
     ruleCount: 0,
     conditionalRules: [],
     projectRoot: '/tmp',
@@ -5663,6 +5664,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -5713,6 +5715,7 @@ describe('Server Config (config.ts)', () => {
       vi.mocked(loadServerHierarchicalMemory).mockResolvedValueOnce({
         memoryContent: '--- Context from: QWEN.md ---\nProject rules',
         fileCount: 1,
+        contextFilePaths: [],
         ruleCount: 0,
         conditionalRules: [],
         projectRoot,
@@ -5782,6 +5785,7 @@ describe('Server Config (config.ts)', () => {
       vi.mocked(loadServerHierarchicalMemory).mockResolvedValueOnce({
         memoryContent: '--- Context from: QWEN.md ---\nProject rules',
         fileCount: 1,
+        contextFilePaths: [],
         ruleCount: 0,
         conditionalRules: [],
         projectRoot,
@@ -5820,6 +5824,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -5853,6 +5858,7 @@ describe('Server Config (config.ts)', () => {
       vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
         memoryContent: '--- Context from: QWEN.md ---\nProject rules',
         fileCount: 1,
+        contextFilePaths: [],
         ruleCount: 0,
         conditionalRules: [],
         projectRoot: '/tmp',
@@ -5898,6 +5904,7 @@ describe('Server Config (config.ts)', () => {
       vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
         memoryContent: '--- Context from: QWEN.md ---\nProject rules',
         fileCount: 1,
+        contextFilePaths: [],
         ruleCount: 0,
         conditionalRules: [],
         projectRoot: '/tmp',
@@ -5943,6 +5950,7 @@ describe('Server Config (config.ts)', () => {
       vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
         memoryContent: '--- Context from: QWEN.md ---\nProject rules',
         fileCount: 1,
+        contextFilePaths: [],
         ruleCount: 0,
         conditionalRules: [],
         projectRoot: '/tmp',
@@ -5970,6 +5978,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -5988,6 +5997,34 @@ describe('Server Config (config.ts)', () => {
     );
   });
 
+  it('refreshHierarchicalMemory should expose loaded context file paths', async () => {
+    const config = new Config(baseParams);
+
+    vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
+      memoryContent: '--- Context from: QWEN.md ---\nProject rules',
+      fileCount: 1,
+      contextFilePaths: ['QWEN.md'],
+      ruleCount: 0,
+      conditionalRules: [],
+      projectRoot: '/tmp',
+    });
+
+    await config.refreshHierarchicalMemory();
+    expect(config.getContextFilePaths()).toEqual(['QWEN.md']);
+
+    vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
+      memoryContent: '',
+      fileCount: 0,
+      contextFilePaths: [],
+      ruleCount: 0,
+      conditionalRules: [],
+      projectRoot: '/tmp',
+    });
+
+    await config.refreshHierarchicalMemory();
+    expect(config.getContextFilePaths()).toEqual([]);
+  });
+
   it('refreshHierarchicalMemory should include appended auto-memory in the context warning estimate', async () => {
     const config = new Config({
       ...baseParams,
@@ -5997,6 +6034,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: 'short project rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6025,6 +6063,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValueOnce({
       memoryContent: 'a'.repeat(800),
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6084,6 +6123,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValueOnce({
       memoryContent: 'short project context',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6864,6 +6904,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6889,6 +6930,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6912,6 +6954,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6960,6 +7003,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',
@@ -6982,6 +7026,7 @@ describe('Server Config (config.ts)', () => {
     vi.mocked(loadServerHierarchicalMemory).mockResolvedValue({
       memoryContent: '--- Context from: QWEN.md ---\nProject rules',
       fileCount: 1,
+      contextFilePaths: [],
       ruleCount: 0,
       conditionalRules: [],
       projectRoot: '/tmp',

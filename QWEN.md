@@ -85,6 +85,8 @@ Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,
 
 ## Testing
 
+- **Fresh clone/worktree**: `packages/cli` unit tests and `packages/core` tests resolve workspace packages through built `dist/`; a worktree sharing the main checkout's `node_modules` (or a deep-cleaned copy) may lack them — build once from the repository root (`npm run build`) if a vitest `globalSetup` guard reports a missing prerequisite.
+
 **Run individual test files** (always preferred): `cd packages/core && npx vitest run src/path/to/file.test.ts` (same for `packages/cli`).
 
 - **OTel test exclusions**: `packages/core/vitest.config.ts` excludes `src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`, which tests local-only stats) — they can't compile without the removed `@opentelemetry` deps.

@@ -170,6 +170,16 @@ export const noopMeter: Meter = {
   removeBatchObservableCallback: (_callback: any, _observables: any[]) => {},
 };
 
+export type TextMapPropagator = any;
+
+export const defaultTextMapGetter = {
+  get: (carrier: any, key: string) => carrier?.[key],
+  set: (carrier: any, key: string, value: string) => {
+    if (carrier) carrier[key] = value;
+  },
+  keys: (carrier: any) => Object.keys(carrier ?? {}),
+};
+
 export const propagation = {
   inject: (_ctx: any, _carrier: any) => {},
   extract: (_ctx: any, _carrier: any): any => ROOT_CONTEXT,

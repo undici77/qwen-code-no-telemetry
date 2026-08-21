@@ -138,6 +138,16 @@ dispositions, changed files, checks actually run, and remaining blocker.
   just moves the rejection later and wastes the round. Record the exact
   commands you ran and their results in your summary (see the per-mode
   outcomes); a bare "verified" without them is not acceptable.
+- Every guard, branch, or behavior a round's commits add needs its OWN witness
+  in the tests the round commits. Verify with a mutation probe before
+  committing: temporarily remove or negate the new guard or branch, re-run the
+  focused tests that should catch it, and confirm they FAIL; then restore it
+  and re-run to green. If the suite stays green with your guard deleted, the
+  guard has no coverage — write a test that pins it (or drop the guard)
+  instead of shipping it: the deterministic gate re-runs only the tests that
+  exist, so an unwitnessed guard passes every gate and its hole resurfaces as
+  a new finding in a later round. Record each probe and its result in your
+  summary alongside the verification commands.
 - Regenerate committed generated artifacts when you change their source. If you
   edit `packages/cli/src/config/settingsSchema.ts` (or `settings.ts`), run
   `npm run generate:settings-schema` and commit the regenerated
@@ -279,7 +289,7 @@ Implement the selected issue in the checked-out repository:
    - `<workdir>/pr-title.txt`
    - `<workdir>/pr-body.md` using `.qwen/skills/prepare-pr/SKILL.md`
 
-Follow `QWEN.md`, `.qwen/skills/bugfix/SKILL.md`, and
+Follow `AGENTS.md`, `.qwen/skills/bugfix/SKILL.md`, and
 `.qwen/skills/e2e-testing/SKILL.md`, but this skill's surrogate-verification and
 objective stop rules override the bugfix skill's `NOT_REPRODUCED` and
 `VERIFIED_FIXED` gates only when the issue is CI-, Docker-, platform-, timing-,
@@ -297,7 +307,7 @@ Read `git diff origin/<base>...HEAD` first, then `<workdir>/feedback.md`.
 
 Classify every feedback point:
 
-Address each the way QWEN.md's Simplicity First and Comments rules demand:
+Address each the way AGENTS.md's Simplicity First and Comments rules demand:
 the smallest change that resolves the point, no error handling for a condition
 that cannot occur, no comment that restates the code. Review rounds ratchet
 code UP — every round tends to add — so on each one also ask what the change
@@ -333,7 +343,7 @@ silently overriding or silently complying.
   unfalsifiable claim is handled as Optional or escalated for
   clarification, whoever wrote it.
 - Optional: suggestion, nit, or hardening — including `**[Suggestion]**`
-  findings from the automated reviewer. Per QWEN.md's review policy these ARE
+  findings from the automated reviewer. Per AGENTS.md's review policy these ARE
   addressed during a PR's early review rounds: implement each one that is
   valuable, codebase-consistent, and in scope. Decline only with a recorded
   reason per finding (out of scope, conflicts with the PR's direction, or not
@@ -371,17 +381,18 @@ silently overriding or silently complying.
   section, the growth brake has been over budget across rounds and the diff is
   still not shrinking — the findings themselves are driving the growth, so
   Critical-only cannot help (the Criticals ARE the growth). Do NOT apply more
-  code fixes this round. This is a `defer-to-human` item: STOP `BLOCKED` and
-  write the handoff into `<workdir>/failure.md` — name the decision, lay out
-  the options (split the PR: land the core and track the remaining findings
-  as follow-up issues; redesign; or accept the current state with the tail
-  deferred) and give your recommendation. `failure.md` is the one stop file
-  the round's output contract accepts; run-agent.mjs wraps it into the
-  workflow's handoff comment. Do not write `handoff.md` yourself — that file
-  belongs to run-agent.mjs, and a bare handoff.md satisfies no output
-  contract, so a correct defer-to-human would still be reported as a round
-  that produced nothing. Continuing to patch, or deciding the split yourself,
-  is exactly the wrong move; the call is the maintainer's.
+  code fixes this round. This is a `defer-to-human` item: STOP `BLOCKED` with a
+  handoff that names the decision and lays out the options — split the PR (land
+  the core, track the remaining findings as follow-up issues), redesign, or
+  accept the current state with the tail deferred — plus your recommendation.
+  Write that handoff to `<workdir>/handoff.md` — English-only, no details
+  block — naming the decision, the options, your recommendation, and what was
+  tried; then stop without writing anything else: no commit, no
+  `address-summary.md`, no `no-action.md`, no `failure.md`. The harness
+  recognizes a handoff with no fix verdict as a deliberate deferral: the round
+  ends cleanly, the note is posted to the PR, and the item waits for the
+  maintainer instead of being re-run. Continuing to patch, or deciding the
+  split yourself, is exactly the wrong move; the call is the maintainer's.
 - Needs a maintainer's decision: a finding that turns on a judgment that is
   NOT yours to make — a product or scope tradeoff (is this acceptable for v1?
   should the PR be split?), two reviewers asking for opposite things, or whether
@@ -477,7 +488,7 @@ Finish with exactly one outcome:
   feedback point is actually addressed, that the change introduces no new
   defect, AND that it added no bloat: no defense for an impossible case, no
   comment that is not a non-obvious "why", nothing a senior engineer would call
-  overcomplicated (QWEN.md Simplicity First). Cut it before you commit. Then
+  overcomplicated (AGENTS.md Simplicity First). Cut it before you commit. Then
   ACTUALLY RUN `npm run build`, `npm run typecheck`,
   `npm run lint`, focused Vitest tests for the package(s) you touched, and
   integration tests after `npm run bundle` when the touched behavior is only
@@ -527,5 +538,7 @@ Finish with exactly one outcome:
   answered when you escalated. Each body is bilingual per GitHub Actions Rules.
   Omit the file when every inline finding was resolved.
 - No change: write `<workdir>/no-action.md` (bilingual per GitHub Actions Rules).
+- Stopped by the growth brake: write `<workdir>/handoff.md` per the
+  not-converging rule (English-only, no details block) — and commit nothing.
 - The GitHub Actions Rules' objective stop condition applies: write
   `<workdir>/failure.md` and do not commit.

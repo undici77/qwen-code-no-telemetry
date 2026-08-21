@@ -40,6 +40,15 @@ export function startSpanWithContext(
   };
 }
 
+export function shouldForceSampled(): boolean {
+  return false;
+}
+
+/**
+ * @deprecated No longer used for span parenting — each interaction is now a
+ * trace root with its own traceId. Retained for backward compatibility
+ * and existing tests.
+ */
 export function createSessionRootContext(_sessionId: string): Context {
   return {};
 }
