@@ -186,8 +186,28 @@ export const propagation = {
 };
 
 export const INVALID_TRACEID = '00000000000000000000000000000000';
-export function isSpanContextValid(_ctx?: any): boolean {
-  return false;
+export const INVALID_SPANID = '0000000000000000';
+
+// Mirrors @opentelemetry/api's isSpanContextValid: pure local hex validation.
+// The dummy layer never creates or exports spans, so this only validates
+// contexts supplied by callers (e.g. test mocks) and cannot enable telemetry.
+function isHexadecimalDigitString(value: unknown, length: number): boolean {
+  return (
+    typeof value === 'string' &&
+    value.length === length &&
+    /^[0-9a-f]+$/i.test(value)
+  );
+}
+
+export function isSpanContextValid(ctx?: any): boolean {
+  if (!ctx || typeof ctx !== 'object') return false;
+  const { traceId, spanId, traceFlags } = ctx;
+  if (typeof traceFlags !== 'number') return false;
+  if (!isHexadecimalDigitString(traceId, 32)) return false;
+  if (traceId === INVALID_TRACEID) return false;
+  if (!isHexadecimalDigitString(spanId, 16)) return false;
+  if (spanId === INVALID_SPANID) return false;
+  return true;
 }
 
 // Log record types

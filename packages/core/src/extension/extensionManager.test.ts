@@ -103,6 +103,9 @@ vi.mock('../telemetry/loggers.js', async (importOriginal) => {
   return {
     ...actual,
     logExtensionEnable: mockLogExtensionEnable,
+    logExtensionInstallEvent: mockLogExtensionInstallEvent,
+    logExtensionUninstall: mockLogExtensionUninstall,
+    logExtensionDisable: mockLogExtensionDisable,
     logExtensionUpdateEvent: mockLogExtensionUpdateEvent,
   };
 });

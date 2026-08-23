@@ -36,6 +36,10 @@ export class FileLogExporter extends FileExporter {
   ): void {
     resultCallback({ code: 0 }); // SUCCESS
   }
+
+  async forceFlush(): Promise<void> {
+    // Writes go through the stream callback above; nothing extra to flush.
+  }
 }
 
 export class FileMetricExporter extends FileExporter {
