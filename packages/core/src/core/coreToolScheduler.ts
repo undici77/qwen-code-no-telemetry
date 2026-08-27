@@ -43,11 +43,11 @@ import {
   truncateLlmContent,
   truncateToolOutput,
   TOOL_OUTPUT_TRUNCATED_PREFIX,
-} from '../utils/truncation.js';
+} from '../tools/truncation.js';
 import {
   finalizeToolResponses,
   toolResponseTextLength,
-} from '../utils/tool-response-finalizer.js';
+} from '../tools/tool-response-finalizer.js';
 import { ToolConfirmationOutcome, Kind } from '../tools/tools.js';
 import { ApprovalMode } from '../config/approval-mode.js';
 import { logToolCall } from '../telemetry/loggers.js';
@@ -83,7 +83,7 @@ import {
   toolResultBoundaryArtifact,
   toolResultPartDiagnosticValues,
   type ToolResultBoundaryValue,
-} from '../utils/tool-result-boundary-diagnostics.js';
+} from '../tools/tool-result-boundary-diagnostics.js';
 import { unescapePath, PATH_ARG_KEYS } from '../utils/paths.js';
 import type { MemoryPressureMonitor } from '../services/memoryPressureMonitor.js';
 import { CONCURRENCY_SAFE_KINDS, isShellProgressData } from '../tools/tools.js';
@@ -92,7 +92,7 @@ import { parsePositiveIntegerEnv } from '../utils/env.js';
 import {
   isAlreadyTruncated,
   persistAndTruncateToolResult,
-} from '../utils/truncation.js';
+} from '../tools/truncation.js';
 import {
   injectPermissionRulesIfMissing,
   persistPermissionOutcome,
@@ -205,6 +205,7 @@ import {
 } from '../utils/invocation-context.js';
 import { evaluateToolInvocationGuard } from './tool-invocation-guard.js';
 import { goalTurnContext } from '../goals/goal-turn-context.js';
+import { goalToolResultProvenance } from '../goals/goal-tool-result-provenance.js';
 
 const debugLogger = createDebugLogger('TOOL_SCHEDULER');
 
@@ -1217,6 +1218,29 @@ interface CoreToolSchedulerOptions {
   onToolResultFullTurnModel?: (model: string) => boolean;
   /** Lets an outer owner suppress a scheduler result it already emitted. */
   shouldObserveProducer?: (callId: string) => boolean;
+  /**
+   * Whether the model this scheduler serves was DECLARED the Skill tool.
+   *
+   * The skill-activation reminder must not announce a skill to a model that
+   * cannot invoke one, and the registry cannot answer that: `SKILL` is
+   * registered unconditionally, including for subagents, while a subagent
+   * running an explicit `tools` list may never have it declared — nor is
+   * being declared sufficient, since a fork can keep a declaration it is
+   * forbidden to execute. An owner that filters either passes its own
+   * predicate here.
+   *
+   * It is NOT the predicate behind the startup `<available_skills>` snapshot,
+   * and the two are independent rather than ordered. The snapshot is decided
+   * before any declarations exist, so it answers from configuration; this
+   * answers from the declarations that were sent. Either can say yes where
+   * the other says no — `tools: ['*'], disallowedTools: ['skill']` announces
+   * at startup and is refused here, while a string list carrying an inline
+   * `skill` declaration is the reverse. Do not reason from one to the other.
+   *
+   * Omitted, the scheduler falls back to the registry, which is correct for
+   * an owner that declares whatever it registers.
+   */
+  hasSkillTool?: () => boolean;
 }
 
 // ─── Tool Concurrency Helpers ────────────────────────────────
@@ -1391,6 +1415,7 @@ export class CoreToolScheduler {
   private chatRecordingService?: ChatRecordingService;
   private onToolResultFullTurnModel?: (model: string) => boolean;
   private shouldObserveProducer: (callId: string) => boolean;
+  private hasSkillToolOverride?: () => boolean;
   private isFinalizingToolCalls = false;
   private postToolBatchEnabledForBatch = false;
   private postToolBatchSpanCallId: string | undefined;
@@ -1461,6 +1486,7 @@ export class CoreToolScheduler {
     this.chatRecordingService = options.chatRecordingService;
     this.onToolResultFullTurnModel = options.onToolResultFullTurnModel;
     this.shouldObserveProducer = options.shouldObserveProducer ?? (() => true);
+    this.hasSkillToolOverride = options.hasSkillTool;
   }
 
   private get memoryMonitor(): MemoryPressureMonitor | undefined {
@@ -2103,7 +2129,7 @@ export class CoreToolScheduler {
 
     // MCP tool whose server is gone / unconfigured: explain in MCP terms
     // instead of falling through to a Levenshtein suggestion that would surface
-    // unrelated tools (e.g. "did you mean computer_use__click?").
+    // unrelated tools (e.g. "did you mean read_file?").
     const mcpMessage = this.getMcpToolUnavailableMessage(unknownToolName);
     if (mcpMessage) {
       return mcpMessage;
@@ -2445,10 +2471,52 @@ export class CoreToolScheduler {
             const matchingRule = pm.findMatchingDenyRule({
               toolName: canonicalName,
             });
-            const ruleInfo = matchingRule
-              ? ` Matching deny rule: "${matchingRule}".`
-              : '';
-            const permissionErrorMessage = `Qwen Code requires permission to use "${reqInfo.name}", but that permission was declined.${ruleInfo}`;
+            let permissionErrorMessage: string;
+            if (matchingRule) {
+              permissionErrorMessage = `Qwen Code requires permission to use "${reqInfo.name}", but that permission was declined. Matching deny rule: "${matchingRule}".`;
+            } else if (
+              // The legacy `coreTools` allowlist (`--core-tools` / settings
+              // `tools.core`) keeps its hard-disable semantic: an unlisted
+              // core tool is never registered (#9827). Attribute the miss
+              // to the real knob — since #10075 an uncovered
+              // `permissions.allow` tool is deferred (still registered),
+              // never rejected here, so a rejection without a deny rule
+              // points at the coreTools list. The optional call keeps
+              // scoped PermissionManager shims (installed via `as unknown
+              // as PermissionManager`, e.g. memory-scoped-agent-config.ts)
+              // from throwing until they grow the delegation.
+              typeof pm.isToolDisabledByCoreToolsAllowList === 'function' &&
+              pm.isToolDisabledByCoreToolsAllowList(canonicalName)
+            ) {
+              permissionErrorMessage = `"${reqInfo.name}" is not listed in the active core tools allowlist (--core-tools or settings tools.core), so the tool is not available. Add it to the core tools list to re-enable it.`;
+            } else if (
+              pm.isPermissionsAllowListActive() &&
+              // Only attribute the miss to `permissions.allow` when the tool
+              // is genuinely uncovered. While the allowlist is active a
+              // COVERED tool can still be rejected by a different gate —
+              // e.g. the legacy `coreTools` (`--core-tools` / `tools.core`)
+              // allowlist — and there the "add a permissions.allow rule"
+              // advice is factually wrong and a no-op (#9827). The optional
+              // call keeps scoped PermissionManager shims (installed via
+              // `as unknown as PermissionManager`, e.g.
+              // memory-scoped-agent-config.ts) from throwing until they grow
+              // the delegation; when coverage is unknown the fallback stays
+              // on the pre-#9827 message rather than risk the wrong
+              // attribution (#9827). Since #10075 uncovered tools are
+              // deferred rather than rejected, so this branch only fires
+              // for scoped-shim rejections under an active allowlist.
+              (typeof pm.isCoveredByAllowOrAskRule === 'function'
+                ? !pm.isCoveredByAllowOrAskRule(canonicalName)
+                : false)
+            ) {
+              // The tool was rejected while the `permissions.allow` registry
+              // allowlist is active and no deny rule matched. Point at the
+              // real config knob instead of a denial that never happened
+              // (nothing was ever asked or declined on this path).
+              permissionErrorMessage = `"${reqInfo.name}" is not covered by any permissions.allow rule in the active registry allowlist, so the tool is not available. Add a rule covering it to settings permissions.allow (or permissions.ask) and restart to re-enable it.`;
+            } else {
+              permissionErrorMessage = `Qwen Code requires permission to use "${reqInfo.name}", but that permission was declined.`;
+            }
             newToolCalls.push({
               status: 'error',
               request: reqInfo,
@@ -5239,11 +5307,12 @@ export class CoreToolScheduler {
           const activatedSkills =
             await skillManager?.matchAndActivateByPaths(candidatePaths);
           if (activatedSkills && activatedSkills.length > 0 && skillManager) {
-            // Subagents share the parent's SkillManager but may run with a
-            // restricted toolsList that excludes SkillTool. Announcing a skill
-            // such a context can't invoke wastes a turn, so gate on whether the
-            // active registry actually exposes SkillTool to the model.
-            const hasSkillTool = !!this.toolRegistry.getTool(ToolNames.SKILL);
+            // Gate on whether SkillTool was DECLARED to the model — the
+            // registry cannot answer that. See `hasSkillTool` in
+            // `CoreToolSchedulerOptions` for the mechanism and the reason.
+            const hasSkillTool = this.hasSkillToolOverride
+              ? this.hasSkillToolOverride()
+              : !!this.toolRegistry.getTool(ToolNames.SKILL);
             if (hasSkillTool) {
               // Render the just-activated skills with their description/whenToUse
               // (the full listing is no longer in the tool description, so the
@@ -6086,6 +6155,15 @@ export class CoreToolScheduler {
 
         this.recordToolResults(completedCalls);
 
+        // Notify observers that the display list is empty before awaiting the
+        // completion callback: the TUI commits the finalized tool_group to
+        // history inside that callback, which may await the entire next model
+        // turn (#9121). Deferring this notify to the finally block pinned the
+        // completed group at the bottom of the virtualized list until the
+        // next tool call arrived (#9420). Placed immediately before the
+        // callback (no await in between) so the clear and the history commit
+        // land in the same React render.
+        this.notifyToolCallsUpdate();
         if (this.onAllToolCallsComplete) {
           await this.onAllToolCallsComplete(completedCalls);
         }
@@ -6217,28 +6295,14 @@ export class CoreToolScheduler {
         error: call.response.error,
         errorType: call.response.errorType,
       };
-      const goalContext = call.request.goalContext;
-      if (!goalContext) {
-        this.chatRecordingService.recordToolResult(
-          call.response.responseParts,
-          result,
-        );
-      } else if (
-        call.request.name === ToolNames.GET_GOAL ||
-        call.request.name === ToolNames.UPDATE_GOAL
-      ) {
-        this.chatRecordingService.recordToolResult(
-          call.response.responseParts,
-          result,
-          { goalContext: { ...goalContext }, provenance: 'goal_runtime' },
-        );
-      } else {
-        this.chatRecordingService.recordToolResult(
-          call.response.responseParts,
-          result,
-          { goalContext: { ...goalContext } },
-        );
-      }
+      const goalProvenance = goalToolResultProvenance(call.request);
+      this.chatRecordingService.recordToolResult(
+        call.response.responseParts,
+        result,
+        // Passed only inside a Goal turn, so recording outside one keeps its
+        // two-argument shape.
+        ...(goalProvenance ? ([goalProvenance] as const) : ([] as const)),
+      );
     }
   }
 

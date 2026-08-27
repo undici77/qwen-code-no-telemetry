@@ -5,7 +5,7 @@
  */
 
 import type { Config } from '../config/config.js';
-import { AuthType } from '../core/authTypes.js';
+import { AuthType } from './auth-type.js';
 
 export interface ResolvedModelId {
   authType?: AuthType;

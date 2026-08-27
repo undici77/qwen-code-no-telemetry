@@ -17,6 +17,7 @@ import {
   CirclePlusIcon,
   Code2Icon,
   EyeIcon,
+  GaugeIcon,
   ImageIcon,
   Maximize2Icon,
   MessageCirclePlusIcon,
@@ -38,6 +39,7 @@ import {
 } from 'react';
 import { useI18n } from '../../i18n';
 import { extractErrorDetail } from '../../utils/errorDetail';
+import { DiffView } from '../messages/tools/DiffView';
 import { useExternalLinkOpener } from '../../hooks/useExternalLinkOpener';
 import { formatRelativeTime } from '../../utils/formatRelativeTime';
 import { normalizeTextMediaType } from '../../utils/imageIngestion';
@@ -68,6 +70,7 @@ import {
   getImageMimeTypeFromPath,
   getReviewDownloadMimeType,
   isDownloadOnlyWorkspaceArtifact,
+  normalizeArtifactMimeType,
   normalizePath,
   readWorkspaceFileAsBlob,
   withArtifactPreviewCsp,
@@ -86,6 +89,7 @@ import styles from './ArtifactPanel.module.css';
 import { CodeReviewArtifactDetail } from './CodeReviewArtifactDetail';
 import { SubagentDetail } from './SubagentDetail';
 import { SideTaskPanel } from './SideTaskPanel';
+import { TokenUsagePanel } from './TokenUsagePanel';
 import {
   useArtifactWorkspaceTarget,
   type ArtifactWorkspaceActions,
@@ -195,6 +199,14 @@ export type ArtifactPanelTab =
       workspaceCwd?: string;
       nameFromFirstPrompt?: boolean;
       initialPrompt?: string;
+    }
+  | {
+      id: string;
+      kind: 'token_usage';
+      title: string;
+      sessionId?: string;
+      sessionActions?: DaemonSessionActions;
+      closeWithPane?: boolean;
     };
 
 type WorkspaceScopedArtifactPanelTab = Extract<
@@ -445,6 +457,11 @@ export function ArtifactPanel({
                       />
                     ) : tab.kind === 'image' ? (
                       <ImageIcon
+                        className={styles.tabIconSvg}
+                        strokeWidth={1.6}
+                      />
+                    ) : tab.kind === 'token_usage' ? (
+                      <GaugeIcon
                         className={styles.tabIconSvg}
                         strokeWidth={1.6}
                       />
@@ -824,6 +841,12 @@ export function ArtifactPanel({
               <DownloadIcon size={16} strokeWidth={1.8} />
             </a>
           </div>
+        ) : activeTab.kind === 'token_usage' ? (
+          <TokenUsagePanel
+            key={activeTab.id}
+            sessionActions={activeTab.sessionActions}
+            sessionId={activeTab.sessionId}
+          />
         ) : (
           <ScheduledTaskDetail
             key={activeTab.id}
@@ -1949,13 +1972,17 @@ function DiffPreview({ change }: { change: TurnOutputFileChange }) {
   const diffs = getDisplayDiffs(change.diffs);
   return (
     <div className={styles.diffPreview}>
-      {diffs.map((diff, index) => (
-        <CodeMirrorDiff
-          key={index}
-          oldText={diff.oldText}
-          newText={diff.newText}
-        />
-      ))}
+      {diffs.map((diff, index) =>
+        diff.fileDiff && !diff.fullContent ? (
+          <DiffView key={index} diff={diff.fileDiff} />
+        ) : (
+          <CodeMirrorDiff
+            key={index}
+            oldText={diff.oldText}
+            newText={diff.newText}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -2556,7 +2583,7 @@ function CodeReviewWorkspaceRequired() {
 
 function isHtmlArtifact(artifact: DaemonSessionArtifact) {
   const path = artifact.workspacePath?.toLowerCase() ?? '';
-  const mimeType = artifact.mimeType?.toLowerCase() ?? '';
+  const mimeType = normalizeArtifactMimeType(artifact.mimeType);
   return (
     artifact.kind === 'html' ||
     path.endsWith('.html') ||
@@ -2567,10 +2594,11 @@ function isHtmlArtifact(artifact: DaemonSessionArtifact) {
 
 function isMarkdownArtifact(artifact: DaemonSessionArtifact) {
   const path = artifact.workspacePath?.toLowerCase() ?? '';
+  const mimeType = normalizeArtifactMimeType(artifact.mimeType);
   return (
     path.endsWith('.md') ||
     path.endsWith('.markdown') ||
-    artifact.mimeType?.toLowerCase() === 'text/markdown'
+    mimeType === 'text/markdown'
   );
 }
 

@@ -34,6 +34,7 @@ import type {
   DaemonSessionTasksStatus,
   DaemonSessionStatsStatus,
   DaemonSessionArtifactsEnvelope,
+  DaemonSkillToggleMutation,
   DaemonShellCommandResult,
   DaemonTranscriptBlock,
   DaemonTranscriptStore,
@@ -117,6 +118,8 @@ export interface DaemonReasoningControls {
   enabled: boolean;
   effort: string;
   efforts: string[];
+  /** Defaults to true. False means effort is mutable but thinking is required. */
+  canDisable?: boolean;
 }
 
 export interface DaemonTokenUsage {
@@ -281,6 +284,7 @@ export interface DaemonModelInfo {
   baseUrl?: string;
   envKey?: string;
   isRuntime?: boolean;
+  reasoningPreview?: DaemonReasoningControls;
 }
 
 export interface DaemonCommandInfo {
@@ -553,6 +557,9 @@ export interface DaemonWorkspaceEventSignals {
   agentsVersion: number;
   toolsVersion: number;
   settingsVersion: number;
+  skillsVersion: number;
+  lastSkillMutation?: DaemonSkillToggleMutation;
+  skillMutationsByCwd?: Record<string, DaemonSkillToggleMutation[]>;
   mcpVersion: number;
   extensionsVersion: number;
   artifactsVersion: number;

@@ -74,6 +74,7 @@ import {
 import {
   recordedSeverityFloor,
   reviewWriteAuthorization,
+  type ReviewWriteRefusalClass,
 } from './lib/authorization.js';
 import {
   hostsEquivalent,
@@ -331,6 +332,7 @@ function authorization(
 ): {
   ok: boolean;
   why: string;
+  cls?: ReviewWriteRefusalClass;
   recordedHost?: string;
   recordedUnbound?: boolean;
   viaSkillArgsOverride?: boolean;
@@ -376,18 +378,6 @@ function compose(
   cliVersion: string,
   attribution: boolean,
   runtimeModelId: string | undefined,
-  /**
-   * The Aone write path FORCES context-unavailable, whatever the
-   * model-written state claims: this phase has no Aone backing for
-   * pr-context/comment-status (presubmit is backed only for self-PR
-   * detection and head drift), so no Aone run can have read the MR's
-   * existing discussion. Letting the state's `contextUnavailable`
-   * decide would let a forged or omitted field compose an APPROVE that the
-   * a1 path then turns into a REAL platform approval — the exact forgery
-   * class this command exists to defeat. The cap lives HERE, where
-   * `aoneWrite` is a fact, not in the state.
-   */
-  aoneWrite: boolean,
 ): {
   event: string;
   body: string;
@@ -427,13 +417,15 @@ function compose(
   const r = composeReview(
     {
       ...rest,
-      // Forced for the Aone write path — see the parameter comment. For
-      // GitHub the state's own claim stands (the reads are backed there)
-      // and is handed through RAW: compose-review's boundary deliberately
-      // refuses a malformed non-boolean here, and coercing the claim to a
-      // boolean first would silently drop the context-unavailable cap a
-      // stringified "true" was asking for.
-      contextUnavailable: aoneWrite ? true : rest.contextUnavailable,
+      // The state's own claim stands on BOTH platforms and is handed
+      // through RAW: compose-review's boundary deliberately refuses a
+      // malformed non-boolean here, and coercing the claim to a boolean
+      // first would silently drop the context-unavailable cap a
+      // stringified "true" was asking for. The Aone write path forced this
+      // true while its context reads were unbacked; pr-context is backed
+      // now, so an Aone run's claim carries the same meaning as GitHub's —
+      // "I did (or did not) read the target's existing discussion" — and
+      // the same forgery posture GitHub accepts.
       criticalsInline,
       suggestionsInline,
       draftedComments: comments,
@@ -741,28 +733,48 @@ function submit(
     // Not an error the caller can retry around — a refusal it must accept. The
     // findings are not lost: they are in the terminal output and the saved
     // report, and the user can ask for them to be posted.
-    // The advice must match the refusal class, or it misdirects the retry:
-    // the gate refuses either because comment was never requested (its `why`
-    // carries `` `--comment` was ``) or because nothing recorded authorises
-    // this target — a binding miss, or no recorded arguments at all. The
-    // second arm's preamble stays neutral ("Nothing recorded…") because a
-    // setting-driven missing-args refusal lands here too, and "The recorded
-    // arguments do not bind" would contradict its `why` ("no review
-    // arguments were recorded"). `--comment` cannot fix the second class —
-    // the flag stands in for nothing a target binding needs, and the
-    // `review.comment` setting already stood in for the flag on exactly
-    // those refusals — so advising it there buys the futile retry loop
-    // authorization.ts's refusal wording exists to prevent.
-    const advice = auth.why.includes('`--comment` was')
-      ? `This is the correct outcome of a review the user did not ask to ` +
-        `publish — report the findings in the terminal and stop. Re-run with ` +
-        `\`--comment\`, or pass --user-authorized only after the user has ` +
-        `asked, in a message they typed, for this review to be published.`
-      : `Nothing recorded authorises binding this target — report the ` +
-        `findings in the terminal and stop. Posting to this pull request ` +
-        `needs a review invoked naming it, or --user-authorized after the ` +
-        `user has asked, in a message they typed, for this review to be ` +
-        `published.`;
+    // The advice must match the refusal class, or it misdirects the retry —
+    // and it branches on the gate's structural `cls`, never on the refusal
+    // text: `why` embeds the operator's verbatim recorded arguments, and any
+    // marker string can itself appear inside that quoted record. A
+    // `--topology minimal` refusal is its own class: the record bound this
+    // target on every axis, so the binding arm's "Nothing recorded…"
+    // preamble and "a review invoked naming it" remedy are both wrong on it
+    // — the remedy re-refuses while the topology stands — and its other
+    // remedy, `--user-authorized`, mechanically posts what the topology
+    // bars. The topology arm restates the refusal's own remedy and names the
+    // comment source a re-run still needs — the canonical minimal record
+    // carries none, and the bare re-run re-refuses without it. The gate
+    // otherwise refuses either because comment was never requested, or
+    // because nothing recorded authorises this target — a binding miss, or
+    // no recorded arguments at all. The last arm's preamble stays neutral
+    // ("Nothing recorded…") because a setting-driven missing-args refusal
+    // lands here too, and "The recorded arguments do not bind" would
+    // contradict its `why` ("no review arguments were recorded").
+    // `--comment` cannot fix that class — the flag stands in for nothing a
+    // target binding needs, and the `review.comment` setting already stood
+    // in for the flag on exactly those refusals — so advising it there buys
+    // the futile retry loop authorization.ts's refusal wording exists to
+    // prevent.
+    const advice =
+      auth.cls === 'topology'
+        ? `This is the correct outcome of a review run under ` +
+          `\`--topology minimal\` — the arm posts nothing at any effort. ` +
+          `Report the findings in the terminal and stop. Re-run the review ` +
+          `without \`--topology minimal\` — with posting requested ` +
+          `(\`--comment\` or the \`review.comment\` setting) — to make ` +
+          `posting available.`
+        : auth.cls === 'comment-not-requested'
+          ? `This is the correct outcome of a review the user did not ask ` +
+            `to publish — report the findings in the terminal and stop. ` +
+            `Re-run with \`--comment\`, or pass --user-authorized only ` +
+            `after the user has asked, in a message they typed, for this ` +
+            `review to be published.`
+          : `Nothing recorded authorises binding this target — report the ` +
+            `findings in the terminal and stop. Posting to this pull ` +
+            `request needs a review invoked naming it, or --user-authorized ` +
+            `after the user has asked, in a message they typed, for this ` +
+            `review to be published.`;
     refuse(
       `REFUSED to post to ${args.repo}#${args.pr}: ${auth.why}.\n` +
         `Posting is a public, irreversible write, and this run has no ` +
@@ -1255,7 +1267,6 @@ function submit(
       // forgeable posture DESIGN.md records for the cache path.
       // The identity this round runs under — see lib/round-model.ts.
       roundModelIdFrom(process.env),
-      aoneWrite,
     ));
   } catch (err) {
     throw new Error(

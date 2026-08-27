@@ -1801,6 +1801,61 @@ describe('ArtifactPanel add menu', () => {
 });
 
 describe('ArtifactPanel review downloads', () => {
+  it('renders a saved unified patch without full file bodies', () => {
+    const fileDiff =
+      '--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1 +1 @@\n-old\n+new';
+    const changes = [
+      {
+        path: 'src/app.ts',
+        status: 'modified' as const,
+        toolCallId: 'tool-app',
+        isArtifact: false,
+        diffs: [{ oldText: '', newText: '', fileDiff }],
+      },
+    ];
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ root, container });
+
+    act(() => {
+      root.render(
+        <I18nProvider language="en">
+          <ArtifactPanel
+            artifacts={[]}
+            tabs={[
+              {
+                id: 'review',
+                kind: 'review',
+                title: 'Review',
+                changes,
+                workspaceCwd: '/primary',
+                workspaceId: 'primary-id',
+              },
+            ]}
+            activeTabId="review"
+            reviewChanges={changes}
+            selectedReviewPath={null}
+            onSelectTab={() => {}}
+            onCloseTab={() => {}}
+            onOpenFilePreview={() => {}}
+            onClose={() => {}}
+          />
+        </I18nProvider>,
+      );
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="src/app.ts"]')
+        ?.click();
+    });
+
+    expect(container.textContent).toContain('old');
+    expect(container.textContent).toContain('new');
+    expect(container.textContent).not.toContain('No diff available.');
+  });
+
   it('shows the requested actions and reports download failures through toast', async () => {
     const changes = ['report.html', 'notes.md', 'image.png'].map((path) => ({
       path,
@@ -2538,7 +2593,67 @@ describe('ArtifactPanel image preview tabs', () => {
   });
 });
 
-describe('ArtifactPanel download-only workspace artifacts', () => {
+describe('ArtifactPanel workspace artifact previews', () => {
+  it.each([
+    {
+      label: 'Markdown',
+      mimeType: 'text/markdown; charset=utf-8',
+      content: '# Charset Markdown',
+    },
+    {
+      label: 'HTML',
+      mimeType: 'text/html; charset=utf-8',
+      content: '<h1>Charset HTML</h1>',
+    },
+  ])('previews document-classified $label MIME types', async (testCase) => {
+    mockWorkspaceActions.stat.mockResolvedValue({
+      type: 'file',
+      sizeBytes: testCase.content.length,
+      modifiedMs: 1,
+    });
+    mockWorkspaceActions.readWorkspaceFile.mockResolvedValue({
+      content: testCase.content,
+      truncated: false,
+    });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ root, container });
+
+    act(() =>
+      root.render(
+        artifactPanel({
+          id: 'review-artifact',
+          kind: 'document',
+          storage: 'workspace',
+          source: 'tool',
+          status: 'available',
+          title: `${testCase.label} preview`,
+          workspacePath: 'reports/preview',
+          mimeType: testCase.mimeType,
+          retention: 'ephemeral',
+          clientRetained: false,
+          createdAt: '2026-08-23T00:00:00.000Z',
+          updatedAt: '2026-08-23T00:00:00.000Z',
+        }),
+      ),
+    );
+    await flush();
+
+    expect(mockWorkspaceActions.readWorkspaceFile).toHaveBeenCalledWith(
+      'reports/preview',
+    );
+    if (testCase.label === 'Markdown') {
+      expect(container.querySelector('h1')?.textContent).toBe(
+        'Charset Markdown',
+      );
+    } else {
+      expect(
+        container.querySelector('iframe')?.getAttribute('srcdoc'),
+      ).toContain(testCase.content);
+    }
+  });
+
   it('renders a document artifact as download-only and does not preview it', async () => {
     mockWorkspaceActions.stat.mockResolvedValue({
       type: 'file',
