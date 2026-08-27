@@ -6362,7 +6362,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 
 ============================================================
-fdir@6.4.6
+fdir@6.5.0
 (git+https://github.com/thecodrr/fdir.git)
 
 Copyright 2023 Abdullah Atta

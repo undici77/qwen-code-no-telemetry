@@ -8,7 +8,7 @@ import process from 'node:process';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import type { CommandContext } from './commands/types.js';
-import { getCliVersion } from '../utils/version.js';
+import { getCliVersion, getCliVersionDisplay } from '../utils/version.js';
 import {
   IdeClient,
   AuthType,

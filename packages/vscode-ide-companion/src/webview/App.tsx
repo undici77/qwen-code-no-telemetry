@@ -827,7 +827,7 @@ export const App: React.FC = () => {
 
   // Handle toggle edit mode (Default -> Auto-edit -> YOLO -> Default)
   const handleToggleEditMode = useCallback(() => {
-    setEditMode((prev) => {
+    setEditMode((prev: ApprovalModeValue) => {
       const next: ApprovalModeValue = NEXT_APPROVAL_MODE[prev];
 
       try {
