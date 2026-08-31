@@ -320,6 +320,27 @@ describe('defaultModalities', () => {
     });
   });
 
+  describe('KAT-Coder', () => {
+    it('returns image+video for VL (vision-language) variants', () => {
+      expect(defaultModalities('KAT-Coder-V2.5-Dev-VL-oQ8e-mtp')).toEqual({
+        image: true,
+        video: true,
+      });
+    });
+
+    it('returns text-only for non-VL variants', () => {
+      expect(defaultModalities('KAT-Coder-V2.5-Dev-oQ8e')).toEqual({});
+    });
+
+    it('matches case-insensitively', () => {
+      expect(defaultModalities('kat-coder-v2.5-dev-vl-oq8e')).toEqual({
+        image: true,
+        video: true,
+      });
+      expect(defaultModalities('KAT-CODER-V2.5-DEV-OQ8E')).toEqual({});
+    });
+  });
+
   describe('unknown models', () => {
     it('returns text-only for unrecognized models', () => {
       expect(defaultModalities('some-random-model-xyz')).toEqual({});

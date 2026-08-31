@@ -105,6 +105,13 @@ const MODALITY_PATTERNS: Array<[RegExp, InputModalities]> = [
   // image input; the name carries no VL/visual token so we match the family.
   // -------------------
   [/^ornith/i, { image: true }],
+
+  // -------------------
+  // KAT-Coder — VL (vision-language) variants accept image + video;
+  // non-VL variants are text-only. The VL token is the discriminator.
+  // -------------------
+  [/^kat-coder-.+vl/i, { image: true, video: true }],
+  [/^kat-coder-/i, {}],
 ];
 
 /**
