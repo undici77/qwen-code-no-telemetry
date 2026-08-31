@@ -6,7 +6,7 @@
 
 import fs from 'node:fs/promises';
 import type { Metadata } from 'sharp';
-export type SharpConstructor = any;
+export type SharpConstructor = (typeof import('sharp'))['default'];
 
 const IMAGE_VIEW_MAX_EDGE = 1568;
 const IMAGE_VIEW_MAX_PATCHES = 1568;
@@ -119,11 +119,14 @@ async function prepareImage(
   signal.throwIfAborted();
   let sharp: SharpConstructor;
   try {
-    sharp = (await import('sharp')).default;
-  } catch {
+    const sharpModule = await import('sharp');
+    sharp = (sharpModule.default ?? sharpModule) as SharpConstructor;
+  } catch (err) {
+    const detail =
+      err instanceof Error && err.message ? `: ${err.message}` : '';
     throw new ImageViewError(
       'renderer_unavailable',
-      'Image rendering is unavailable because the "sharp" image module could not be loaded.',
+      `Image rendering is unavailable because the "sharp" image module could not be loaded${detail}`,
     );
   }
 

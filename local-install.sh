@@ -204,6 +204,10 @@ install_qwen_code() {
     ( cd "${work_dir}" && npm install --no-audit --no-fund ) \
         || { echo "✗ npm install failed in ${work_dir}"; exit 1; }
 
+    echo "Building bundle..."
+    ( cd "${work_dir}" && npm run bundle ) \
+        || { echo "✗ Bundle build failed in ${work_dir}"; exit 1; }
+
     local pack_output tgz
     # tee /dev/stderr shows the build output; tail -1 captures the tgz filename
     # Pass build info via environment variables
@@ -350,6 +354,12 @@ main() {
         echo "✓ qwen is ready. Run: qwen"
     else
         echo "⚠ Open a new terminal (or: source ~/.bashrc) then run: qwen"
+    fi
+
+    if ! command_exists chafa; then
+        echo ""
+        echo "ℹ Note: 'chafa' was not found on PATH. For terminal image previews in standard"
+        echo "  terminals, consider installing chafa (e.g., 'sudo apt install chafa' or 'brew install chafa')."
     fi
 }
 

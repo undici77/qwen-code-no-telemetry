@@ -16,7 +16,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
 const sharpRoot = join(root, 'node_modules', 'sharp');
-const imgRoot = join(root, 'node_modules', '@img');
+const imgRoot =
+  [
+    join(root, 'node_modules', '@img'),
+    join(sharpRoot, 'node_modules', '@img'),
+    join(root, '..', '@img'),
+    join(root, '..', '..', '@img'),
+  ].find((dir) => existsSync(dir)) ?? join(root, 'node_modules', '@img');
 
 if (!existsSync(sharpRoot)) {
   console.log('sharp not installed, skipping sharp prepare');
