@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.22.0](https://github.com/QwenLM/qwen-code/blob/v0.22.2/README.md).
+> [original README at v0.23.0](https://github.com/QwenLM/qwen-code/blob/v0.23.0/README.md).
 
 ---
 
@@ -52,8 +52,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.22.2-no-telemetry/install.sh \
-    | bash -s v0.22.2-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.23.0-no-telemetry/install.sh \
+    | bash -s v0.23.0-no-telemetry
 ```
 
 ### Option 2 — Windows (PowerShell, no admin required)
@@ -63,8 +63,8 @@ rights needed. Requires [Git for Windows](https://git-scm.com/download/win)
 (npm needs `git.exe` on PATH to fetch the package from GitHub).
 
 ```powershell
-iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.22.2-no-telemetry/install.ps1 -OutFile install.ps1
-.\install.ps1 v0.22.2-no-telemetry
+iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.23.0-no-telemetry/install.ps1 -OutFile install.ps1
+.\install.ps1 v0.23.0-no-telemetry
 ```
 
 ### Option 3 — Docker
@@ -88,4 +88,129 @@ docker run -it \
 
 ---
 
-For full documentation on features, configuration, and usage, please refer to the [original README at v0.22.0](https://github.com/QwenLM/qwen-code/blob/v0.22.2/README.md).
+## Quick Start
+
+```bash
+qwen          # Launch interactive terminal UI
+# Inside the session:
+/auth         # Configure your provider and API key
+```
+
+See the [Authentication Guide](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/) and [Settings Reference](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/) for detailed setup.
+
+![Qwen Code](https://img.alicdn.com/imgextra/i2/O1CN01K0nwj41RM1Il8kB0t_!!6000000002096-2-tps-1544-1060.png)
+
+## How to Use Qwen Code
+
+| Mode            | Command         | Use Case                                                                                                                                                                                                                                        |
+| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Interactive** | `qwen`          | Terminal UI with rich rendering, `@file` references, slash commands                                                                                                                                                                             |
+| **Headless**    | `qwen -p "..."` | Scripts, CI/CD, batch processing — no UI                                                                                                                                                                                                        |
+| **IDE**         | —               | [VS Code](https://qwenlm.github.io/qwen-code-docs/en/users/integration-vscode/), [Zed](https://qwenlm.github.io/qwen-code-docs/en/users/integration-zed/), [JetBrains](https://qwenlm.github.io/qwen-code-docs/en/users/integration-jetbrains/) |
+| **Desktop**     | —               | [Qwen Code Desktop](https://github.com/QwenLM/qwen-code/releases/tag/desktop-latest) — GUI for macOS, Windows, Linux                                                                                                                            |
+| **Daemon**      | `qwen serve`    | Shared agent session over HTTP+SSE (ACP). Multiple clients, one agent. _(experimental)_ [Docs](https://qwenlm.github.io/qwen-code-docs/en/users/qwen-serve)                                                                                     |
+| **SDK**         | —               | [TypeScript](./packages/sdk-typescript/README.md), [Python](./packages/sdk-python/README.md), [Java](./packages/sdk-java/qwencode/README.md)                                                                                                    |
+| **IM Bot**      | `qwen channel`  | Connect to Telegram, DingTalk, WeChat, or Feishu                                                                                                                                                                                                |
+
+<details>
+<summary>SDK example (Python)</summary>
+
+```python
+import asyncio
+
+from qwen_code_sdk import is_sdk_result_message, query
+
+
+async def main() -> None:
+    result = query(
+        "Summarize the repository layout.",
+        {
+            "cwd": "/path/to/project",
+            "path_to_qwen_executable": "qwen",
+        },
+    )
+
+    async for message in result:
+        if is_sdk_result_message(message):
+            print(message["result"])
+
+
+asyncio.run(main())
+```
+
+</details>
+
+## Capabilities
+
+If you know Claude Code, you already know Qwen Code — and then some. We've put significant effort into [bringing Qwen Code to feature parity with Claude Code](https://github.com/wenshao/codeagents/blob/main/docs/comparison/qwen-code-improvement-report.md), improving both breadth and reliability across the board.
+
+| Feature                                                            | Qwen Code | Claude Code |
+| ------------------------------------------------------------------ | :-------: | :---------: |
+| SubAgents, Agent Teams, Dynamic Workflows                          |     ✓     |      ✓      |
+| Auto-Memory, Auto-Skills, Hooks                                    |     ✓     |      ✓      |
+| Built-in Skills (/review, /batch, /loop, /bugfix…)                 |     ✓     |      ✓      |
+| MCP, Plan Mode, LSP Integration                                    |     ✓     |      ✓      |
+| Auto Mode, Sandbox, Git Worktrees                                  |     ✓     |      ✓      |
+| Computer Use (desktop automation)                                  |     ✓     |      ✓      |
+| IDE Plugins (VS Code / JetBrains / Zed)                            |     ✓     |      ✓      |
+| SDK                                                                |     ✓     |      ✓      |
+| Headless Mode, Session Management                                  |     ✓     |      ✓      |
+| Open-source — model and framework                                  |     ✓     |      —      |
+| Multi-protocol (OpenAI / Anthropic / Gemini / Qwen + any provider) |     ✓     |      —      |
+| Agent Arena (multi-model head-to-head on same task)                |     ✓     |      —      |
+| Daemon Mode — `qwen serve` (multi-client shared agent)             |     ✓     |      —      |
+| IM Channels (Telegram / DingTalk / WeChat / Feishu)                |     ✓     |      —      |
+
+## Qwen Code Evaluation
+
+### Evaluation Configuration
+
+| Configuration           | Value                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| Dataset                 | `princeton-nlp/SWE-bench_Verified`, 500 cases                                                       |
+| Runs                    | 3 trials per version, 1,500 jobs per version; 7 Qwen Code versions                                  |
+| Model                   | `Qwen 3.7 Max`                                                                                      |
+| Sampling                | `temperature=1`, `top_p=0.95`                                                                       |
+| Thinking / Reasoning    | `interleaved_thinking=true`, `thinking_type=adaptive`, `reasoning_effort=high`                      |
+| Context / Output Limits | `context_1m=true`, `model_context_length=1,000,000`, `max_tokens=64,000`, `model_max_tokens=65,535` |
+| Harness Limits          | `max_iterations=500`, `runtime_timeout_sec=7,200`, `agent_timeout_multiplier=3.0`                   |
+
+### Scores by Qwen Code Version
+
+| Version |  Avg Score | Pass Rate | pass@3 | pass^3 |
+| ------- | ---------: | --------: | -----: | -----: |
+| 0.0.14  | **77.80%** |     84.6% |  84.6% |  69.2% |
+| 0.1.0   | **76.73%** |     84.6% |  84.6% |  68.0% |
+| 0.5.0   | **76.60%** |     83.0% |  83.0% |  68.4% |
+| 0.10.0  | **76.47%** |     84.4% |  84.4% |  67.4% |
+| 0.15.0  | **77.67%** |     84.6% |  84.6% |  68.6% |
+| 0.19.0  | **76.40%** |     85.0% |  85.0% |  65.8% |
+| 0.22.0  | **77.33%** |     84.4% |  84.4% |  68.0% |
+
+### Avg Score Trend
+
+![Qwen Code version Avg Score trend](./.github/assets/qwen-code-avg-score-trend.svg)
+
+## Ecosystem
+
+- [**Qwen Code Desktop**](https://github.com/QwenLM/qwen-code/releases/tag/desktop-latest) — Official desktop app for macOS, Windows, and Linux
+- [**AionUi**](https://github.com/iOfficeAI/AionUi) — A modern GUI for command-line AI tools including Qwen Code
+- [**Gemini CLI Desktop**](https://github.com/Piebald-AI/gemini-cli-desktop) — A cross-platform desktop/web/mobile UI for Qwen Code
+
+- [**🦞 Qwen Code Claw**](https://github.com/openclaw/acpx) — Let other agents (Claude, Codex, etc.) delegate coding tasks to Qwen Code via ACP. Paste this prompt into your agent:
+
+```text
+Use Qwen Code as a coding agent. First, fetch and read this skill reference:
+https://raw.githubusercontent.com/QwenLM/qwen-code/refs/heads/main/.qwen/skills/qwen-code-claw/SKILL.md
+Then follow the instructions inside to install, authenticate, and use Qwen Code via acpx for all coding tasks.
+```
+
+- [**Aliyun Model Studio CLI**](https://github.com/modelstudioai/cli) — Official CLI for Aliyun's AI platform (`bailian-cli`). Extends Qwen Code with image/video generation, knowledge retrieval, app orchestration, and model deployment
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+
+## Acknowledgments
+
+This project was originally based on [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) v0.8.2. We gratefully acknowledge the Gemini CLI team's excellent work. Starting from Qwen Code v0.1, we stopped syncing with upstream and began independent development as a multi-protocol, multi-platform agent framework with deep integrations for Qwen models and beyond.

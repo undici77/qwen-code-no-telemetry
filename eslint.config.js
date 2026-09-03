@@ -19,6 +19,7 @@ import noCoreRootBarrelImport from './eslint-rules/no-core-root-barrel-import.js
 import noUtilsUpwardImport from './eslint-rules/no-utils-upward-import.js';
 import noCoreUtilsUpwardImport from './eslint-rules/no-core-utils-upward-import.js';
 import { legacyFilenames } from './eslint.legacy-filenames.mjs';
+import noConfigObjectCreate from './eslint-rules/no-config-object-create.js';
 
 // General syntax restrictions applied to every TS/TSX source file. Hoisted so
 // surface-specific overrides (flat config keeps only the last
@@ -51,6 +52,7 @@ export default tseslint.config(
       'docs-site/.next/**',
       'docs-site/out/**',
       '.qwen/**',
+      'scripts/codemod/fixtures/**', // codemod test data; intentionally non-idiomatic ink input/output
       'packages/desktop-shell/runtime/**',
       'packages/desktop-shell/src-tauri/target/**',
       'packages/live-host/**', // standalone Electron app with its own Node test conventions
@@ -116,6 +118,12 @@ export default tseslint.config(
     // exempt: they are erased at compile time and cannot create a runtime
     // cycle. See #9146.
     files: ['packages/cli/src/utils/**/*.{ts,tsx}'],
+    ignores: [
+      // The fork's version display (adds the `-no-telemetry` suffix) reads
+      // the build-time stamp emitted into `src/generated/`, which is generated
+      // data rather than a domain directory, so it cannot form a runtime cycle.
+      'packages/cli/src/utils/version.ts',
+    ],
     plugins: {
       architecture: {
         rules: {
@@ -301,6 +309,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/web-shell/client/daemon/**/*.{ts,tsx}'],
+    rules: {
+      'no-console': ['error', { allow: ['debug', 'warn', 'error'] }],
+    },
+  },
+  {
     files: [
       'packages/web-shell/client/**/*.test.{ts,tsx}',
       'packages/web-shell/client/test/**/*.{ts,tsx}',
@@ -333,6 +347,27 @@ export default tseslint.config(
     },
     rules: {
       'no-console': 'off',
+    },
+  },
+  {
+    files: ['packages/core/src/**/*.ts'],
+    ignores: [
+      'packages/core/src/config/config.ts',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '**/__tests__/**',
+      '**/generated/**',
+      '**/*.generated.ts',
+    ],
+    plugins: {
+      'qwen-code': {
+        rules: {
+          'no-config-object-create': noConfigObjectCreate,
+        },
+      },
+    },
+    rules: {
+      'qwen-code/no-config-object-create': 'error',
     },
   },
   {
@@ -395,6 +430,8 @@ export default tseslint.config(
       'docs/**/*.mjs',
       // Plan C CDP-tunnel acceptance harness (issue #5626) runs with `node`.
       'packages/cli/src/serve/cdp-tunnel/acceptance/**/*.mjs',
+      // Desktop-shell skill helper scripts also run with `node`.
+      'packages/desktop-shell/.agents/skills/**/scripts/**/*.mjs',
     ],
     languageOptions: {
       globals: {
@@ -444,6 +481,26 @@ export default tseslint.config(
       globals: {
         ...globals.browser,
       },
+    },
+  },
+
+  // The VS Code companion renders through @qwen-code/web-shell; the legacy
+  // @qwen-code/webui surface must not re-enter the extension bundle.
+  {
+    files: ['packages/vscode-ide-companion/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@qwen-code/webui', '@qwen-code/webui/*'],
+              message:
+                'vscode-ide-companion must render through @qwen-code/web-shell; do not re-introduce @qwen-code/webui.',
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -523,6 +580,9 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         ...globals.node,
+        // Browser-hosted harnesses (web-shell/webui session tests) mount React
+        // into a real DOM, so they legitimately reference `document`.
+        ...globals.browser,
         process: 'readonly',
         console: 'readonly',
       },

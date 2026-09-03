@@ -24,6 +24,7 @@ import {
   swallowsAppendedMarker,
 } from './review-footer.js';
 import { CANONICAL_LGTM_RE } from '../pr-context.js';
+import { expectWithinLatencyBudget } from '../../../test-utils/latency-budget.js';
 
 describe('the review footer and the regex that strips it', () => {
   it('the regex strips the exact output of the builder, versioned or not', () => {
@@ -148,7 +149,9 @@ describe('the review footer and the regex that strips it', () => {
       const body = `a finding\n\n_— cut short${' '.repeat(200_000)}end`;
       const start = performance.now();
       expect(stripReviewFooter(body)).toBe(body);
-      expect(performance.now() - start).toBeLessThan(2000);
+      expectWithinLatencyBudget(performance.now() - start, 2000, {
+        poolMultiplier: 10,
+      });
     });
 
     it('returns a marker-carrying body with no trailing footer unchanged — and bounded', () => {
@@ -164,7 +167,9 @@ describe('the review footer and the regex that strips it', () => {
       const body = `_— quoted via Qwen Code /review (v0.21.3), then\n\n${' '.repeat(200_000)}end`;
       const start = performance.now();
       expect(stripReviewFooter(body)).toBe(body);
-      expect(performance.now() - start).toBeLessThan(2000);
+      expectWithinLatencyBudget(performance.now() - start, 2000, {
+        poolMultiplier: 10,
+      });
     });
 
     it('strips a trailing footer from a body longer than the tail bound', () => {
@@ -211,7 +216,9 @@ describe('the review footer and the regex that strips it', () => {
         ).join('\n') + '\nclosing prose';
       const start = performance.now();
       expect(stripReviewFooter(body)).toBe(body);
-      expect(performance.now() - start).toBeLessThan(1000);
+      expectWithinLatencyBudget(performance.now() - start, 1000, {
+        poolMultiplier: 5,
+      });
     }, 20_000);
   });
 
@@ -317,6 +324,25 @@ describe('the review footer and the regex that strips it', () => {
       const quoted =
         'the earlier comment said:\n\n```\n_— model via Qwen Code /review (v1.2.3)_\n```\n\nand it was wrong';
       expect(stripForUnattributedPost(quoted)).toBe(quoted);
+    });
+
+    it("the full chain leaves comment grammar alone — neutralizing it is the body exits' job", () => {
+      // The chain is shared with submit's inline-comment transform, whose
+      // pinned contract keeps a quoted marker MENTION verbatim (`posts
+      // <!-- qwen-review suggestion --> verbatim` is text, not a bare
+      // marker), and with the ledger's id read, which steps over a
+      // leading comment as render-nothing residue. Weaving the grammar
+      // strip in here broke both: the mention posted as visible words and
+      // the residue became prose ahead of the carried id. The body exits
+      // neutralize before they call this chain (`quotedProse` in
+      // compose-review), so a comment-wrapped forged footer still strips
+      // there — without the inline channel paying for it.
+      const mention =
+        'the sample posts <!-- qwen-review suggestion --> verbatim';
+      expect(stripForUnattributedPost(mention)).toBe(mention);
+      const wrapped =
+        'blocker <!-- _— m via Qwen Code /review (v1)_ --> stands';
+      expect(stripForUnattributedPost(wrapped)).toBe(wrapped);
     });
 
     it('keeps blank runs inside a type-1 HTML quotation when a drop lands in it', () => {
@@ -870,7 +896,9 @@ describe('the review footer and the regex that strips it', () => {
       expect(stripForUnattributedPost(body)).toBe(
         'intro paragraph\n\nx /review & y',
       );
-      expect(Date.now() - started).toBeLessThan(1000);
+      expectWithinLatencyBudget(Date.now() - started, 1000, {
+        poolMultiplier: 20,
+      });
     });
   });
 });

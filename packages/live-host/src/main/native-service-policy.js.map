@@ -1,1 +1,0 @@
-{"version":3,"file":"native-service-policy.js","sourceRoot":"","sources":["native-service-policy.ts"],"names":[],"mappings":"AAEA,MAAM,UAAU,4BAA4B,CAC1C,KAAsB;IAEtB,OAAO,KAAK,KAAK,OAAO,CAAC;AAC3B,CAAC;AAED,MAAM,UAAU,8BAA8B,CAC5C,KAAsB;IAEtB,OAAO,CACL,KAAK,KAAK,cAAc;QACxB,KAAK,KAAK,cAAc;QACxB,KAAK,KAAK,OAAO,CAClB,CAAC;AACJ,CAAC"}

@@ -15,7 +15,7 @@ import {
 } from './dummy-otel.js';
 import {
   extractAnthropicContent,
-  extractGeminiContent,
+  extractLlmContent,
   extractOpenAiContent,
   GenAiOutputAccumulator,
   stringifyGenAiJson,
@@ -161,7 +161,7 @@ export function extractAnthropicRequestAttributes(request: object): Attributes {
   return attributes;
 }
 
-export function extractGeminiRequestAttributes(request: object): Attributes {
+export function extractLlmRequestAttributes(request: object): Attributes {
   const record = request as RequestRecord;
   const config = ownValue(record, 'config');
   if (typeof config !== 'object' || config === null) return {};
@@ -504,14 +504,14 @@ export function reportAnthropicFollowingRequest(
   );
 }
 
-export function reportGeminiRequest(
+export function reportLlmRequest(
   request: object,
   requestContext?: Context,
 ): GenAiAttemptHandle | undefined {
   return reportRequest(
     request,
-    extractGeminiRequestAttributes,
-    extractGeminiContent,
+    extractLlmRequestAttributes,
+    extractLlmContent,
     requestContext,
   );
 }
@@ -552,20 +552,18 @@ export function reportAnthropicEvent(
   );
 }
 
-export function reportGeminiResponse(
+export function reportLlmResponse(
   handle: GenAiAttemptHandle | undefined,
   response: object,
 ): void {
   handle?.controller.record(handle, (output) =>
-    output.recordGeminiResponse(response),
+    output.recordLlmResponse(response),
   );
 }
 
-export function reportGeminiChunk(
+export function reportLlmChunk(
   handle: GenAiAttemptHandle | undefined,
   chunk: object,
 ): void {
-  handle?.controller.record(handle, (output) =>
-    output.recordGeminiChunk(chunk),
-  );
+  handle?.controller.record(handle, (output) => output.recordLlmChunk(chunk));
 }

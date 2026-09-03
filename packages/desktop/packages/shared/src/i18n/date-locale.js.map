@@ -1,1 +1,0 @@
-{"version":3,"file":"date-locale.js","sourceRoot":"","sources":["date-locale.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,uBAAuB,CAAC;AAC7C,OAAO,EAAE,eAAe,EAAqB,MAAM,YAAY,CAAC;AAEhE,uEAAuE;AACvE,MAAM,UAAU,aAAa,CAAC,IAAY;IACxC,MAAM,KAAK,GAAG,eAAe,CAAC,IAAoB,CAAC,CAAC;IACpD,OAAO,KAAK,EAAE,UAAU,IAAI,IAAI,CAAC;AACnC,CAAC"}

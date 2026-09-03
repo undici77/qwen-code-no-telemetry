@@ -64,6 +64,14 @@ interface MaxSizedBoxProps {
     kind: 'soft' | 'hard';
     joiner: string;
   }>;
+  /**
+   * Whether hidden lines in this box count toward the global overflow state
+   * that drives the `Press ctrl-s to show more lines` hint. Set to `false`
+   * for truncation that ctrl+s does not lift (e.g. the `ui.shellOutputMaxLines`
+   * cap): the `... N lines hidden ...` marker still renders, but the box no
+   * longer advertises lines that ctrl+s cannot reveal (#10640).
+   */
+  registerOverflow?: boolean;
 }
 
 /**
@@ -112,6 +120,7 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   overflowDirection = 'top',
   additionalHiddenLinesCount = 0,
   sourceBoundaries,
+  registerOverflow = true,
 }) => {
   const id = useId();
   const { addOverflowingId, removeOverflowingId } = useOverflowActions() || {};
@@ -171,7 +180,7 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   const totalHiddenLines = hiddenLinesCount + additionalHiddenLinesCount;
 
   useEffect(() => {
-    if (totalHiddenLines > 0) {
+    if (registerOverflow && totalHiddenLines > 0) {
       addOverflowingId?.(id);
     } else {
       removeOverflowingId?.(id);
@@ -180,7 +189,13 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
     return () => {
       removeOverflowingId?.(id);
     };
-  }, [id, totalHiddenLines, addOverflowingId, removeOverflowingId]);
+  }, [
+    id,
+    registerOverflow,
+    totalHiddenLines,
+    addOverflowingId,
+    removeOverflowingId,
+  ]);
 
   const visibleStyledText =
     hiddenLinesCount > 0
@@ -194,19 +209,35 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   // region maxHeight backstop) Yoga compresses the rows and stacks several at
   // the same Y, leaving only every Nth line visible (#6809). flexShrink={0}
   // keeps rows full-height and sequential under a clamped ancestor.
-  const visibleLines = visibleStyledText.map((line, index) => (
-    <Box key={index} flexShrink={0}>
-      {line.length > 0 ? (
-        line.map((segment, segIndex) => (
-          <Text key={segIndex} {...segment.props}>
-            {segment.text}
+  const visibleLines = visibleStyledText.map((line, index) => {
+    const metadata = lineMetadata.get(line)!;
+    return (
+      <Box key={index} flexShrink={0}>
+        {line.length > 0 ? (
+          line.map((segment, segIndex) => (
+            <Text
+              key={segIndex}
+              {...segment.props}
+              selectionFlow={metadata.flowKey}
+              selectionBreakAfter={metadata.breakAfter}
+              selectionJoiner={metadata.joiner}
+            >
+              {segment.text}
+            </Text>
+          ))
+        ) : (
+          <Text
+            selectable={false}
+            selectionFlow={metadata.flowKey}
+            selectionBreakAfter={metadata.breakAfter}
+            selectionJoiner={metadata.joiner}
+          >
+            {' '}
           </Text>
-        ))
-      ) : (
-        <Text key={0}> </Text>
-      )}
-    </Box>
-  ));
+        )}
+      </Box>
+    );
+  });
 
   return (
     <Box flexDirection="column" width={maxWidth} flexShrink={0}>

@@ -473,23 +473,23 @@ describe('ProviderSetupSteps', () => {
     expect(frame).toContain('MiniMax-M4');
     // The snapshot has no row for the previously selected MiniMax-M2.7, so it
     // stays visible and selectable through the free-form input instead.
-    expect(frame).not.toMatch(/[◉○]\uFE0E\s+MiniMax-M2\.7/);
+    expect(frame).not.toMatch(/[◉○]\s+MiniMax-M2\.7/);
     const inputLine = frame
       .split('\n')
       .find((line) => line.includes('custom-model'));
     expect(inputLine).toContain('custom-model, MiniMax-M2.7');
-    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M3/);
-    expect(frame).toMatch(/○\uFE0E\s+MiniMax-M4/);
-    expect(frame).toMatch(/○\uFE0E\s+custom-model/);
+    expect(frame).toMatch(/◉\s+MiniMax-M3/);
+    expect(frame).toMatch(/○\s+MiniMax-M4/);
+    expect(frame).toMatch(/○\s+custom-model/);
     const lines = frame.split('\n');
     const otherHeadingLine = lines.findIndex((line) =>
       line.includes('Other models from the provider'),
     );
     expect(otherHeadingLine).toBeGreaterThan(
-      lines.findIndex((line) => /◉\uFE0E\s+MiniMax-M3/.test(line)),
+      lines.findIndex((line) => /◉\s+MiniMax-M3/.test(line)),
     );
     expect(otherHeadingLine).toBeLessThan(
-      lines.findIndex((line) => /○\uFE0E\s+MiniMax-M4/.test(line)),
+      lines.findIndex((line) => /○\s+MiniMax-M4/.test(line)),
     );
     await act(async () => {
       pressLatestKey('x', 'x');
@@ -519,8 +519,8 @@ describe('ProviderSetupSteps', () => {
     const frame = lastFrame() ?? '';
     expect(frame).not.toContain('Recommended models · from the provider');
     expect(frame).toContain('Other models from the provider');
-    expect(frame).toMatch(/○\uFE0E\s+served-unknown-a/);
-    expect(frame).toMatch(/○\uFE0E\s+served-unknown-b/);
+    expect(frame).toMatch(/○\s+served-unknown-a/);
+    expect(frame).toMatch(/○\s+served-unknown-b/);
     unmount();
   });
 
@@ -561,7 +561,7 @@ describe('ProviderSetupSteps', () => {
       pressLatestKey('space', ' ');
     });
 
-    expect(lastFrame()).toMatch(/◉\uFE0E\s+MiniMax-M4/);
+    expect(lastFrame()).toMatch(/◉\s+MiniMax-M4/);
 
     pressKey('return', '\r');
     expect(submitModelIds).toHaveBeenCalledWith({

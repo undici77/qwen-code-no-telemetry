@@ -45,6 +45,9 @@ function registerEventLoopLagGauge(
       unit: 'ms',
       valueType: ValueType.DOUBLE,
     })
+    // The dummy meter is untyped (`any`), so the callback parameter carries no
+    // contextual type and must be annotated explicitly to satisfy noImplicitAny.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .addCallback((result: any) => {
       try {
         const snapshot = read();

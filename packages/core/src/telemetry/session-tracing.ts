@@ -1709,7 +1709,7 @@ export interface StartSubagentSpanOptions {
    * new-traceId root can be navigated back to the invoker. Ignored for
    * `foreground` (inherits via context.active()).
    */
-  invokerSpanContext?: import('@opentelemetry/api').SpanContext;
+  invokerSpanContext?: import('./dummy-otel.js').SpanContext;
 }
 
 export interface SubagentSpanMetadata {

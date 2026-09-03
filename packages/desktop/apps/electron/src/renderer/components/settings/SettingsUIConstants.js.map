@@ -1,1 +1,0 @@
-{"version":3,"file":"SettingsUIConstants.js","sourceRoot":"","sources":["SettingsUIConstants.ts"],"names":[],"mappings":"AAAA;;;;GAIG;AAEH,MAAM,CAAC,MAAM,UAAU,GAAG;IACxB,qCAAqC;IACrC,KAAK,EAAE,qBAAqB;IAE5B,8CAA8C;IAC9C,WAAW,EAAE,+BAA+B;IAE5C,oEAAoE;IACpE,gBAAgB,EAAE,+BAA+B;IAEjD,+EAA+E;IAC/E,mBAAmB,EAAE,MAAM;IAE3B,0DAA0D;IAC1D,UAAU,EAAE,WAAW;CACxB,CAAA"}

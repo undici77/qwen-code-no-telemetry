@@ -1,1 +1,0 @@
-{"version":3,"file":"StoplightContext.js","sourceRoot":"","sources":["StoplightContext.tsx"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,EAAE,aAAa,EAAE,UAAU,EAAE,MAAM,OAAO,CAAA;AAEjD,MAAM,gBAAgB,GAAG,aAAa,CAAC,KAAK,CAAC,CAAA;AAE7C,MAAM,CAAC,MAAM,iBAAiB,GAAG,gBAAgB,CAAC,QAAQ,CAAA;AAE1D;;;;GAIG;AACH,MAAM,UAAU,yBAAyB;IACvC,OAAO,UAAU,CAAC,gBAAgB,CAAC,CAAA;AACrC,CAAC"}

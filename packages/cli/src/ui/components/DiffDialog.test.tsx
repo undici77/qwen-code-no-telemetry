@@ -3,13 +3,13 @@
  * Copyright 2025 Qwen
  * SPDX-License-Identifier: Apache-2.0
  */
+// @vitest-environment jsdom
 
 import { render as inkRender } from 'ink';
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
-import type { GitDiffHunk } from '@qwen-code/qwen-code-core';
-import type { GitDiffResult } from '@qwen-code/qwen-code-core';
+import type { GitDiffHunk, GitDiffResult } from '@qwen-code/qwen-code-core';
 import { DiffDialog } from './DiffDialog.js';
 import { KeypressProvider } from '../contexts/KeypressContext.js';
 import { ShellFocusContext } from '../contexts/ShellFocusContext.js';
