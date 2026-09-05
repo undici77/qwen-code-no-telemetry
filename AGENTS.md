@@ -47,6 +47,90 @@ PRs are exempt):
 **When in doubt, escalate. Better to wrongly escalate than to wrongly
 approve.**
 
+## Fork Patches — MUST Survive Every Merge
+
+This is a **no-telemetry fork**. A set of patches is mandatory and
+non-negotiable: every merge from upstream `main` must re-apply them on top of
+whatever upstream changed. Never resolve a conflict by dropping one.
+`NO_TELEMETRY_GUIDELINES.md` is authoritative; the summary below exists so a
+merge never starts without knowing they are there.
+
+| Patch                          | Section | One-line rule                                                                   |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------- |
+| Telemetry dummy layer          | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`. |
+| WebSearch / SerpApi            | §1.5    | `web_search` stays SerpApi-backed, never DashScope/Google/GLM/Tavily.           |
+| Vision-bridge concurrency      | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.        |
+| Control-flow timing audit      | §13     | Telemetry commits that add `await` can break TUI state updates.                 |
+| **Append-only auto-memory**    | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**   |
+| **Context/cache status items** | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**  |
+
+### Append-only auto-memory (prompt-cache preservation)
+
+Upstream carries the managed memory index in the **system prompt**, which is
+serialized ahead of the entire conversation. `refreshMemoryInstruction()` — run
+by the background extraction agent **once per user turn** — rewrites that tail,
+which moves the first differing token in front of the whole transcript and
+forces a full re-prefill on any server that reuses a KV cache by
+longest-common-prefix (oMLX and other vLLM-style paged caches, DeepSeek/Qwen
+implicit prefix caching, Anthropic `cache_control`). One added index line costs
+a re-read of the entire history.
+
+`QWEN_MEMORY_APPEND_ONLY=1` moves the index into the conversation instead: the
+full index rides in the startup prelude, later saves append a small delta at the
+END of history. Appending never changes an already-cached byte. Off by default.
+
+All logic lives in the fork-owned
+`packages/core/src/memory/append-only-prompt-cache.ts`. Upstream files carry
+only additive hooks tagged `// [no-telemetry fork]` in `memory/refresh.ts`,
+`core/client.ts` and `core/environmentContext.ts` — **grep that tag after every
+merge to find them all**.
+
+Invariants a merge must preserve:
+
+1. `refreshMemoryInstruction()` stays the single chokepoint for memory-driven
+   prompt refreshes.
+2. `includeAutoMemoryReminder` defaults to `false`; only the three main-session
+   call sites opt in. Subagents never do.
+3. The custom-instruction branch of `client.ts` stays untouched.
+4. Flag off ⇒ byte-identical upstream behavior.
+
+```bash
+grep -rn "no-telemetry fork" packages/core/src/core/client.ts \
+  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
+# Must return 7+ lines. See NO_TELEMETRY_GUIDELINES.md §14 for the full checklist.
+```
+
+### Context & prompt-cache status items
+
+Makes the §14 patch observable: four opt-in status-line items — `context-tokens`
+(`54.1k/128.0k`), `cache-live` (share of the last request served from cache),
+`cache-hit` (session rate for the main model) and `compact-in` (headroom before
+auto-compaction wipes the prefix).
+
+All logic lives in the fork-owned `packages/cli/src/ui/status-line-fork-items.ts`.
+Upstream `statusLinePresets.ts` and `hooks/useStatusLine.ts` carry only additive
+one-liners tagged `// [no-telemetry fork]`.
+
+Four traps a merge must not walk into:
+
+1. **Never import upstream values into the fork module.** `statusLinePresets.ts`
+   imports it to build the catalogue, so importing back forms a module cycle that
+   throws at startup. `formatTokenCount` is injected as a parameter instead.
+2. Cache figures stay scoped to the **main model's main-source traffic** — never
+   summed across `metrics.models`, or a fast/title-generation model pollutes the rate.
+3. Cache items stay hidden until a cache read is observed, because "provider never
+   reports cache" is indistinguishable from a real 0%.
+4. **Never read the window or model id from `getContentGeneratorConfig()` /
+   `getModel()`** — both resolve through an AsyncLocalStorage view that fast-model
+   runs push, so the footer flickers to the _fast_ model's window (#7156 class).
+   Use `resolveMainModelContext()`, which reads the ALS-immune `ModelsConfig`.
+
+```bash
+grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts \
+  packages/cli/src/ui/hooks/useStatusLine.ts
+# Must return 7+ lines. See NO_TELEMETRY_GUIDELINES.md §15 for the full checklist.
+```
+
 ## Common Commands
 
 ### Building

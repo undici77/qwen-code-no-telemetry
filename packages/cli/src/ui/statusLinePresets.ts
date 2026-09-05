@@ -7,6 +7,14 @@
 import nodePath from 'node:path';
 import type { ReasoningEffort } from '@qwen-code/qwen-code-core';
 import { StreamingState } from './types.js';
+// [no-telemetry fork] Context/prompt-cache status items — NO_TELEMETRY_GUIDELINES.md §15
+import {
+  FORK_STATUS_LINE_ITEM_IDS,
+  FORK_STATUS_LINE_ITEMS,
+  formatForkStatusLineItem,
+  type ForkStatusLineData,
+  type ForkStatusLineItemId,
+} from './status-line-fork-items.js';
 
 export const STATUS_LINE_PRESET_ITEM_IDS = [
   'project-name',
@@ -25,6 +33,8 @@ export const STATUS_LINE_PRESET_ITEM_IDS = [
   'context-window-size',
   'used-tokens',
   'session-id',
+  // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+  ...FORK_STATUS_LINE_ITEM_IDS,
 ] as const;
 
 export type StatusLinePresetItemId =
@@ -69,6 +79,9 @@ export interface StatusLinePresetData {
   totalLinesAdded: number;
   totalLinesRemoved: number;
   streamingState: StreamingState;
+  // [no-telemetry fork] Inputs for the context/cache items owned by
+  // status-line-fork-items.ts. See NO_TELEMETRY_GUIDELINES.md §15.
+  fork?: ForkStatusLineData;
 }
 
 export function aggregateModelTokens(metrics: {
@@ -168,6 +181,8 @@ export const STATUS_LINE_PRESET_ITEMS: readonly StatusLinePresetItem[] = [
     label: 'session-id',
     description: 'Current session identifier',
   },
+  // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+  ...FORK_STATUS_LINE_ITEMS,
 ];
 
 const STATUS_LINE_PRESET_ITEM_ID_SET = new Set<string>(
@@ -307,6 +322,8 @@ export function buildStatusLinePresetData(params: {
   totalLinesAdded: number;
   totalLinesRemoved: number;
   streamingState: StreamingState;
+  // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+  fork?: ForkStatusLineData;
 }): StatusLinePresetData {
   const usedPercentage =
     params.contextWindowSize > 0
@@ -339,6 +356,8 @@ export function buildStatusLinePresetData(params: {
     totalLinesAdded: params.totalLinesAdded,
     totalLinesRemoved: params.totalLinesRemoved,
     streamingState: params.streamingState,
+    // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+    fork: params.fork,
   };
 }
 
@@ -406,10 +425,15 @@ function formatPresetItem(
       return `${formatTokenCount(data.totalOutputTokens)} total out`;
     case 'session-id':
       return data.sessionId || undefined;
-    default: {
-      item satisfies never;
-      return undefined;
-    }
+    default:
+      // [no-telemetry fork] Fork-owned context/cache items. The exhaustiveness
+      // check moved into formatForkStatusLineItem, which switches over the
+      // fork ids. See NO_TELEMETRY_GUIDELINES.md §15.
+      return formatForkStatusLineItem(
+        item as ForkStatusLineItemId,
+        data.fork,
+        formatTokenCount,
+      );
   }
 }
 

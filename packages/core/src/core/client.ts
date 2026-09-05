@@ -180,6 +180,8 @@ import { MessageDisplayDispatcher } from './message-display-dispatcher.js';
 import { ideContextStore } from '../ide/ideContext.js';
 import { type File, type IdeContext } from '../ide/types.js';
 import { PermissionMode, type StopHookOutput } from '../hooks/types.js';
+// [no-telemetry fork] Append-only memory mode — NO_TELEMETRY_GUIDELINES.md §14
+import { isAppendOnlyMemoryEnabled } from '../memory/append-only-prompt-cache.js';
 
 const MAX_TURNS = 100;
 const MAX_RECENT_TOOL_NAMES_FOR_MEMORY = 20;
@@ -1557,7 +1559,12 @@ export class LlmClient {
     return assembleSystemPrompt({
       ...stableLayers,
       gitStatus: this.getCachedGitStatus(),
-      autoMemory: this.config.getAutoMemoryPrompt(),
+      // [no-telemetry fork] Append-only memory mode moves this layer into the
+      // conversation so a memory save never rewrites the prompt prefix.
+      // See NO_TELEMETRY_GUIDELINES.md §14.
+      autoMemory: isAppendOnlyMemoryEnabled()
+        ? undefined
+        : this.config.getAutoMemoryPrompt(),
     });
   }
 
@@ -1579,6 +1586,9 @@ export class LlmClient {
     const remaining = currentHistory.slice(startupLength);
     const [[startupContext], snapshotEntries] = await getInitialChatHistory(
       this.config,
+      undefined,
+      // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §14
+      { includeAutoMemoryReminder: true },
     );
     this.seedSkillReminderDedupFromSnapshot(snapshotEntries);
     await this.seedAgentReminderDedupFromCurrent();
@@ -1614,6 +1624,9 @@ export class LlmClient {
 
     const [[startupContext], snapshotEntries] = await getInitialChatHistory(
       this.config,
+      undefined,
+      // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §14
+      { includeAutoMemoryReminder: true },
     );
     this.seedSkillReminderDedupFromSnapshot(snapshotEntries);
     await this.seedAgentReminderDedupFromCurrent();
@@ -2227,7 +2240,11 @@ export class LlmClient {
       deferredReminderCount = deferredTools?.length ?? 0;
       [history, snapshotEntries] = await profiler.time(
         'initial_chat_history',
-        () => getInitialChatHistory(this.config, extraHistory),
+        () =>
+          getInitialChatHistory(this.config, extraHistory, {
+            // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §14
+            includeAutoMemoryReminder: true,
+          }),
       );
       profiler.timeSync('skill_reminder_seed', () => {
         this.seedSkillReminderDedupFromSnapshot(snapshotEntries);

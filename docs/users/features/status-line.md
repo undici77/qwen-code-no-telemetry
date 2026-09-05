@@ -82,26 +82,40 @@ Add a `statusLine` object under the `ui` key in `~/.qwen/settings.json`:
 
 ### Available preset items
 
-| Item ID                | Default | Description                                                        |
-| ---------------------- | ------- | ------------------------------------------------------------------ |
-| `model-with-reasoning` | Yes     | Current model name with reasoning level (e.g. `qwen-3-235b high`)  |
-| `model`                |         | Current model name without reasoning level                         |
-| `git-branch`           | Yes     | Current Git branch name (hidden when not in a git repo)            |
-| `context-remaining`    |         | Percentage of context window remaining (e.g. `Context 65.7% left`) |
-| `total-input-tokens`   |         | Cumulative input tokens used in session (e.g. `30.0k total in`)    |
-| `total-output-tokens`  |         | Cumulative output tokens used in session (e.g. `5.0k total out`)   |
-| `current-dir`          |         | Current working directory                                          |
-| `project-name`         | Yes     | Project name (basename of working directory)                       |
-| `pull-request-number`  |         | Open PR number for the current branch (requires `gh` CLI)          |
-| `branch-changes`       |         | Session file change stats (e.g. `+120 -30`)                        |
-| `context-used`         | Yes     | Percentage of context window used (e.g. `Context 34.3% used`)      |
-| `run-state`            |         | Compact session state (`Ready`, `Working`, or `Confirm`)           |
-| `qwen-version`         |         | Qwen Code version (e.g. `v0.14.1`)                                 |
-| `context-window-size`  |         | Total context window size (e.g. `131.1k window`)                   |
-| `used-tokens`          |         | Current prompt token count (e.g. `45.0k used`)                     |
-| `session-id`           |         | Current session identifier                                         |
+| Item ID                | Default | Description                                                                   |
+| ---------------------- | ------- | ----------------------------------------------------------------------------- |
+| `model-with-reasoning` | Yes     | Current model name with reasoning level (e.g. `qwen-3-235b high`)             |
+| `model`                |         | Current model name without reasoning level                                    |
+| `git-branch`           | Yes     | Current Git branch name (hidden when not in a git repo)                       |
+| `context-remaining`    |         | Percentage of context window remaining (e.g. `Context 65.7% left`)            |
+| `total-input-tokens`   |         | Cumulative input tokens used in session (e.g. `30.0k total in`)               |
+| `total-output-tokens`  |         | Cumulative output tokens used in session (e.g. `5.0k total out`)              |
+| `current-dir`          |         | Current working directory                                                     |
+| `project-name`         | Yes     | Project name (basename of working directory)                                  |
+| `pull-request-number`  |         | Open PR number for the current branch (requires `gh` CLI)                     |
+| `branch-changes`       |         | Session file change stats (e.g. `+120 -30`)                                   |
+| `context-used`         | Yes     | Percentage of context window used (e.g. `Context 34.3% used`)                 |
+| `run-state`            |         | Compact session state (`Ready`, `Working`, or `Confirm`)                      |
+| `qwen-version`         |         | Qwen Code version (e.g. `v0.14.1`)                                            |
+| `context-window-size`  |         | Total context window size (e.g. `131.1k window`)                              |
+| `used-tokens`          |         | Current prompt token count (e.g. `45.0k used`)                                |
+| `session-id`           |         | Current session identifier                                                    |
+| `context-tokens`       |         | Exact context tokens used over the window (e.g. `54.1k/128.0k`)               |
+| `cache-live`           |         | Share of the last request served from the prompt cache (e.g. `Cache 92% now`) |
+| `cache-hit`            |         | Session prompt cache hit rate for the main model (e.g. `Cache 88% avg`)       |
+| `compact-in`           |         | Tokens left before auto-compaction (e.g. `Compact in 18.2k`)                  |
 
 Items marked **Default** are pre-selected when you first open the `/statusline` dialog.
+
+#### Prompt cache and compaction items
+
+`cache-live`, `cache-hit` and `compact-in` exist to make prompt-cache behavior visible while you work:
+
+- **`cache-live`** answers "did my prompt prefix survive this turn?" — the share of the most recent request the provider served from its cache. A sudden drop means something rewrote the prefix (a memory write, a tool-set change, a model switch).
+- **`cache-hit`** is the session average for the **main conversation's model only**. Auxiliary models (title generation, summarization, a cheaper fast model) and subagent traffic are excluded, so the number is not diluted by a cache the main conversation never uses. It matches what `/stats` reports for that model.
+- **`compact-in`** counts down to auto-compaction, which rewrites history and discards the cached prefix. It uses the same thresholds `/context` displays, including any `autoCompactThreshold` override.
+
+The two cache items stay hidden until the session observes at least one cache read. Not every provider reports cache usage, and a provider that stays silent is indistinguishable from a genuine 0% hit rate — hiding avoids pinning a misleading `Cache 0%` to your footer. Once a cache read is seen, both render normally, including a real 0% on a later cold turn.
 
 `total-input-tokens` and `total-output-tokens` are session totals. They add up token usage across turns, so input tokens can grow quickly because each new model request includes the current conversation context again. Use `used-tokens` when you want the current prompt size instead of cumulative session spend.
 

@@ -116,7 +116,27 @@ Every successful merge REQUIRES:
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
     # Must return zero lines
     ```
-12. **TEST STRATEGY — AVOID TIME WASTE** ⚠️ Every merge verification must follow this ordered checklist. Do NOT skip steps or run blind full suites:
+12. **APPEND-ONLY AUTO-MEMORY CHECK** ⚠️ See Section 14: Verify the prompt-cache patch survived. All five upstream hooks must still be tagged, and the memory layer must no longer be hardcoded into the main system prompt:
+
+    ```bash
+    grep -rn "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
+    # Must return 7+ lines
+    grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts
+    # Must return exactly 1 (the custom-instruction branch, intentionally untouched)
+    grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
+    # Must return zero lines (subagents never opt in)
+    ```
+
+13. **CONTEXT & PROMPT-CACHE STATUS ITEMS CHECK** ⚠️ See Section 15: Verify the status-line patch survived. All logic must still live in the fork-owned module, and the fork module must not import upstream values back (module cycle):
+
+    ```bash
+    grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
+    # Must return 7+ lines
+    grep -n "from './statusLinePresets" packages/cli/src/ui/status-line-fork-items.ts
+    # Must return zero lines (importing upstream back forms a startup-breaking cycle)
+    ```
+
+14. **TEST STRATEGY — AVOID TIME WASTE** ⚠️ Every merge verification must follow this ordered checklist. Do NOT skip steps or run blind full suites:
 
     **Step 1 — Build (fast, 30s):**
 
@@ -157,8 +177,13 @@ Every successful merge REQUIRES:
     grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
     grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
+    grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
     # loggers.ts must reference uiTelemetryService (4+ lines):
     grep -c "uiTelemetryService" packages/core/src/telemetry/loggers.ts
+    # append-only memory hooks must survive the merge (7+ lines):
+    grep -rc "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
+    # status-line context/cache hooks must survive the merge (7+ lines):
+    grep -rc "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
     ```
 
     **Golden rule:** If a command times out, kill it. Never let a test run beyond 2× its expected duration. The full `npm run test` from root is a trap — it launches every package including slow integration tests.
@@ -217,16 +242,17 @@ The `-no-telemetry` suffix is always the same — never change it.
 
 When merging from `main`, conflicts may arise. Use this priority order:
 
-| Conflict Type                         | Priority    | Action                                                                                        |
-| ------------------------------------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                             |
-| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                      |
-| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                     |
-| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily.        |
-| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count. |
-| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                             |
-| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                      |
-| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                       |
+| Conflict Type                         | Priority    | Action                                                                                                                       |
+| ------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                                                            |
+| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                                                     |
+| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                                                    |
+| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily.                                       |
+| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.                                |
+| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the five `[no-telemetry fork]` hooks on top of upstream's new shape. Never resolve by dropping the flag. |
+| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                                                            |
+| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                                                     |
+| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                                                      |
 
 ### Golden Rule:
 
@@ -469,3 +495,99 @@ grep -n "clears the live tool-call view before a slow completion callback" packa
 ```
 
 **Manual smoke test** (interactive TUI): run a turn where a tool batch completes and the model continues streaming (e.g., a shell command with long output, then a follow-up reply). The completed tool block must appear **exactly once** — if it appears twice (once committed, once in the live region below the streaming answer), the early notify was lost in the merge.
+
+---
+
+## 14. MANDATORY: Append-Only Auto-Memory Patch (Non-Negotiable)
+
+The managed auto-memory index **MUST** be deliverable through the conversation instead of the system prompt tail, gated by the `QWEN_MEMORY_APPEND_ONLY` environment variable. This is a **mandatory, non-removable patch** that applies to every merge.
+
+**Why**: upstream keeps the memory index in the **system prompt**, which is serialized ahead of the whole conversation. `refreshMemoryInstruction()` rewrites it on every memory write, and the background extractor runs once per user turn — so one added index line invalidates every KV block behind it. On a prefix-caching server (oMLX, DeepSeek/Qwen, Anthropic `cache_control`) that is a full re-prefill of the transcript. With the flag on, the index rides in the startup prelude and later saves append a small delta at the end of history.
+
+**Usage**: `QWEN_MEMORY_APPEND_ONLY=1` (also `true` / `on`). Unset = upstream behavior, byte for byte.
+
+**Hooks** — all logic is in the fork-owned module; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
+
+| File                                                                  | Ownership | Must contain                                                                                                                               |
+| --------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/core/src/memory/append-only-prompt-cache.ts` (+ `.test.ts`) | **Fork**  | `isAppendOnlyMemoryEnabled`, `buildAutoMemoryReminder`, `appendAutoMemoryDelta`. Restore verbatim if a merge deletes it.                   |
+| `packages/core/src/memory/refresh.ts`                                 | Upstream  | Early return at the top of `refreshMemoryInstruction()`.                                                                                   |
+| `packages/core/src/core/client.ts`                                    | Upstream  | `autoMemory:` ternary in `getMainSessionSystemInstruction()` + `includeAutoMemoryReminder: true` at the **three** main-session call sites. |
+| `packages/core/src/core/environmentContext.ts`                        | Upstream  | `includeAutoMemoryReminder?` option + the `reminderParts` entry.                                                                           |
+
+**Invariants**:
+
+1. `refreshMemoryInstruction()` is the single chokepoint — route any new memory-driven refresh through it.
+2. `includeAutoMemoryReminder` defaults to `false`; only the three main-session sites opt in. Subagents never do.
+3. The custom-instruction branch of `client.ts` stays untouched.
+4. Flag off ⇒ upstream behavior unchanged.
+
+**Verify after every merge**:
+
+```bash
+grep -rn "no-telemetry fork" packages/core/src/core/client.ts \
+  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts   # 7+ lines
+grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts  # exactly 1
+grep -c "includeAutoMemoryReminder" packages/core/src/core/client.ts                      # 3
+grep -c "isAppendOnlyMemoryEnabled()" packages/core/src/memory/refresh.ts                 # 1
+grep -rn "includeAutoMemoryReminder" packages/core/src/agents/                            # zero lines
+cd packages/core && npx vitest run src/memory/append-only-prompt-cache.test.ts
+```
+
+**Conflict resolution**: keep upstream's refactor, re-apply the hooks on top. Never resolve by dropping the patch.
+
+---
+
+## 15. MANDATORY: Context & Prompt-Cache Status Items (Non-Negotiable)
+
+The status line **MUST** be able to report live prompt-cache state and precise context size. This is a **mandatory, non-removable patch** that applies to every merge.
+
+**Why**: §14 optimizes prompt-cache preservation, but that work is otherwise invisible at runtime — nothing tells you whether the prefix actually survived a turn, or how close the session is to an auto-compaction that will destroy it. Upstream ships 16 preset items, none cache-related, and `aggregateModelTokens` sums only `prompt`/`candidates`. These four items make §14 observable.
+
+**Items** (all opt-in — absent from `DEFAULT_STATUS_LINE_PRESET_CONFIG`):
+
+| Id               | Renders            | Source                                                              |
+| ---------------- | ------------------ | ------------------------------------------------------------------- |
+| `context-tokens` | `54.1k/128.0k`     | `lastPromptTokenCount` / `contextWindowSize`                        |
+| `cache-live`     | `Cache 92% now`    | `uiTelemetryService.getLastCachedContentTokenCount()` ÷ last prompt |
+| `cache-hit`      | `Cache 88% avg`    | main model's `bySource[MAIN_SOURCE]` cached ÷ prompt                |
+| `compact-in`     | `Compact in 18.2k` | `computeThresholds(window, pct).auto` − current usage               |
+
+**Hooks** — all logic is in the fork-owned module; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
+
+| File                                                           | Ownership | Must contain                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/cli/src/ui/status-line-fork-items.ts` (+ `.test.ts`) | **Fork**  | `FORK_STATUS_LINE_ITEM_IDS`, `FORK_STATUS_LINE_ITEMS`, `FORK_CONTEXT_ITEM_IDS`, `resolveMainModelContext`, `buildForkStatusLineData`, `formatForkStatusLineItem`. Restore verbatim if a merge deletes it.                                                                                                                 |
+| `packages/cli/src/ui/statusLinePresets.ts`                     | Upstream  | Import + 2 array spreads + `fork?` field on `StatusLinePresetData` and the builder params + `default:` branch delegating to `formatForkStatusLineItem`.                                                                                                                                                                   |
+| `packages/cli/src/ui/hooks/useStatusLine.ts`                   | Upstream  | Import + `...FORK_CONTEXT_ITEM_IDS` in `CONTEXT_PRESET_ITEM_IDS` + `resolveMainModelContext(cfg, ui.currentModel)` replacing the `contextWindowSize` read in `doUpdate` + the `fork: buildForkStatusLineData({...})` argument + `resolveMainModelContext` in the over-limit check of the returned `hideContextIndicator`. |
+| `packages/cli/src/ui/hooks/useStatusLine.test.ts`              | Upstream  | `getAutoCompactThreshold` on `mockConfig` (the real `Config` has it; the literal mock does not).                                                                                                                                                                                                                          |
+
+**Invariants**:
+
+1. All logic stays in `status-line-fork-items.ts`. Upstream hunks stay additive one-liners.
+2. **Never import upstream values into the fork module** — `statusLinePresets.ts` imports it to build the catalogue, so importing back forms a module cycle that throws `FORK_STATUS_LINE_ITEM_IDS is not iterable` at startup. `formatTokenCount` is injected as a parameter for exactly this reason.
+3. **Never read the context window (or the model id) from `Config.getContentGeneratorConfig()` / `Config.getModel()` in UI code.** Both resolve through an AsyncLocalStorage runtime view that forked and fast-model runs push (`config.ts:4833`), and ALS propagates into React continuations — so the footer transiently renders the _fast_ model's window and then flips back (the documented #7156 leak class; `runOutsideAgentContext` wraps only four call sites, none of them UI readers). Go through `resolveMainModelContext()`, which prefers the ALS-immune `getModelsConfig().getGenerationConfig()`.
+4. `resolveMainModelContext()` returns **0 for an unknown window** and must never fall back to `tokenLimit(modelId)`. A provider-declared window (any custom `modelProviders` entry) never appears in `tokenLimits.ts`, so that fallback fabricates a plausible-but-wrong size; 0 correctly hides the item.
+5. Cache figures are scoped to the **main model's main-source traffic**. Never sum across `metrics.models` — auxiliary models (title generation, summarization, a fast model with its own window) and subagents would report a hit rate for a cache the main conversation never uses.
+6. `cache-live` / `cache-hit` stay hidden while `sessionCachedTokens === 0`. The `cachedInputTokensReported` provenance flag is dropped before it reaches `SessionMetrics`, so a provider that never reports cache is indistinguishable from a real 0% — without this guard the footer pins a misleading `0% cached`.
+7. Items return plain strings. The footer colors the whole line at once (`Footer.tsx`), so state is conveyed with wording, never per-item color.
+8. Not listing an item ⇒ byte-identical upstream behavior.
+
+**Verify after every merge**:
+
+```bash
+grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts \
+  packages/cli/src/ui/hooks/useStatusLine.ts                                    # 7+ lines
+grep -c "FORK_STATUS_LINE_ITEM_IDS\|FORK_STATUS_LINE_ITEMS" packages/cli/src/ui/statusLinePresets.ts  # 4
+grep -c "FORK_CONTEXT_ITEM_IDS\|buildForkStatusLineData" packages/cli/src/ui/hooks/useStatusLine.ts   # 4
+grep -n "from './statusLinePresets" packages/cli/src/ui/status-line-fork-items.ts  # zero lines (invariant 2)
+grep -n "getContentGeneratorConfig()?.contextWindowSize" packages/cli/src/ui/hooks/useStatusLine.ts  # zero lines (invariant 3)
+grep -c "resolveMainModelContext" packages/cli/src/ui/hooks/useStatusLine.ts                         # 3 (import + 2 call sites)
+cd packages/cli && npx vitest run src/ui/status-line-fork-items.test.ts \
+  src/ui/statusLinePresets.test.ts src/ui/hooks/useStatusLine.test.ts \
+  src/ui/components/StatusLineDialog.test.tsx src/ui/components/Footer.test.tsx
+```
+
+**Manual smoke test** (interactive TUI): add `context-tokens`, `cache-live`, `cache-hit`, `compact-in` to `ui.statusLine.items` and run two turns. `cache-hit` must match `/stats`, and `compact-in` must agree with `/context`'s threshold ladder. The four items must also appear in the `/statusline` dialog with a live preview.
+
+**Conflict resolution**: keep upstream's refactor, re-apply the hooks on top. Never resolve by dropping the patch.

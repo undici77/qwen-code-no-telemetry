@@ -19,6 +19,8 @@ import {
   renderAvailableSkillsBlock,
   type AvailableSkillEntry,
 } from '../tools/skill-utils.js';
+// [no-telemetry fork] Append-only memory mode — NO_TELEMETRY_GUIDELINES.md §14
+import { buildAutoMemoryReminder } from '../memory/append-only-prompt-cache.js';
 
 const debugLogger = createDebugLogger('ENVIRONMENT_CONTEXT');
 
@@ -490,6 +492,11 @@ export interface InitialChatHistoryOptions {
   // that excludes the Skill tool, so announcing skills they can't invoke wastes
   // turns — mirrors includeDeferredToolsReminder).
   includeAvailableSkillsReminder?: boolean;
+  // [no-telemetry fork] Whether to carry the managed auto-memory index in the
+  // prelude instead of the system prompt tail. Defaults to false; only the
+  // main session opts in, and only append-only memory mode acts on it.
+  // See NO_TELEMETRY_GUIDELINES.md §14.
+  includeAutoMemoryReminder?: boolean;
 }
 
 /**
@@ -522,6 +529,10 @@ export async function getInitialChatHistory(
   // because tool_search revelations change it — only the tail recomputes.
   const reminderParts = [
     buildMcpServerInstructionsReminder(toolRegistry),
+    // [no-telemetry fork] Append-only memory mode: the auto-memory index is
+    // delivered here instead of in the system prompt tail. Returns null when
+    // the mode is off. See NO_TELEMETRY_GUIDELINES.md §14.
+    options.includeAutoMemoryReminder ? buildAutoMemoryReminder(config) : null,
     skillsResult?.reminder ?? null,
     startupReminder,
     includeDeferredToolsReminder

@@ -77,6 +77,9 @@ const mockConfig = {
   })),
   getCliVersion: vi.fn(() => '1.0.0'),
   getContentGeneratorConfig: vi.fn(getMockContentGeneratorConfig),
+  // [no-telemetry fork] Read by the context/cache status items —
+  // NO_TELEMETRY_GUIDELINES.md §15. undefined = use the default threshold.
+  getAutoCompactThreshold: vi.fn(() => undefined),
 };
 vi.mock('../contexts/ConfigContext.js', () => ({
   useConfig: () => mockConfig,

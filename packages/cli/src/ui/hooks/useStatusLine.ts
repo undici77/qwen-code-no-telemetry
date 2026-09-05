@@ -24,6 +24,12 @@ import {
   type StatusLinePresetConfig,
   type StatusLinePresetItemId,
 } from '../statusLinePresets.js';
+// [no-telemetry fork] Context/prompt-cache status items — NO_TELEMETRY_GUIDELINES.md §15
+import {
+  buildForkStatusLineData,
+  FORK_CONTEXT_ITEM_IDS,
+  resolveMainModelContext,
+} from '../status-line-fork-items.js';
 
 /**
  * Structured JSON input passed to the status line command via stdin.
@@ -110,6 +116,8 @@ interface StatusLineCommandConfig {
 const CONTEXT_PRESET_ITEM_IDS = new Set<StatusLinePresetItemId>([
   'context-used',
   'context-remaining',
+  // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+  ...FORK_CONTEXT_ITEM_IDS,
 ]);
 
 /**
@@ -441,7 +449,14 @@ export function useStatusLine(
     const stats = ui.sessionStats;
     const m = stats.metrics;
     const contentGeneratorConfig = cfg.getContentGeneratorConfig();
-    const contextWindowSize = contentGeneratorConfig?.contextWindowSize || 0;
+    // [no-telemetry fork] Never take the window straight from the live content
+    // generator config: it resolves through an AsyncLocalStorage view that
+    // forked/fast-model runs push, so it transiently reports an auxiliary
+    // model's window. See NO_TELEMETRY_GUIDELINES.md §15.
+    const { modelId: mainModelId, contextWindowSize } = resolveMainModelContext(
+      cfg,
+      ui.currentModel,
+    );
     const modelDisplayName = ui.currentModel
       ? cfg.getModelsConfig().getModelDisplayName(ui.currentModel)
       : cfg.getModelDisplayName();
@@ -472,6 +487,17 @@ export function useStatusLine(
         totalLinesAdded: m.files.totalLinesAdded,
         totalLinesRemoved: m.files.totalLinesRemoved,
         streamingState: ui.streamingState,
+        // [no-telemetry fork] NO_TELEMETRY_GUIDELINES.md §15
+        fork: buildForkStatusLineData({
+          metrics: m,
+          // Cache figures describe the main conversation's model only.
+          // `cfg.getModel()` is NOT usable here — it reads through the same
+          // AsyncLocalStorage view and can return the fast model.
+          modelId: mainModelId,
+          contextWindowSize,
+          currentUsage: stats.lastPromptTokenCount,
+          autoCompactThreshold: cfg.getAutoCompactThreshold(),
+        }),
       });
       setOutput(buildStatusLinePresetLines(preset, data));
       return;
@@ -774,8 +800,12 @@ export function useStatusLine(
       statusLineConfig.respectUserColors === true,
     hideContextIndicator: resolveHideContextIndicator(
       statusLineConfig,
+      // [no-telemetry fork] Main model's window, not the ALS-leaked one, so a
+      // fast-model turn cannot spuriously trip the over-limit branch.
+      // See NO_TELEMETRY_GUIDELINES.md §15.
       uiState.sessionStats.lastPromptTokenCount >
-        (config.getContentGeneratorConfig()?.contextWindowSize ?? Infinity),
+        (resolveMainModelContext(config, uiState.currentModel)
+          .contextWindowSize || Infinity),
       keepAutomaticContextIndicator ||
         output.some(
           (line) =>

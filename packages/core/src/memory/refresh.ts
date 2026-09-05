@@ -14,6 +14,11 @@ import {
   rebuildManagedAutoMemoryIndex,
   rebuildUserAutoMemoryIndex,
 } from './indexer.js';
+// [no-telemetry fork] Append-only memory mode — NO_TELEMETRY_GUIDELINES.md §14
+import {
+  appendAutoMemoryDelta,
+  isAppendOnlyMemoryEnabled,
+} from './append-only-prompt-cache.js';
 
 const debugLogger = createDebugLogger('AUTO_MEMORY_REFRESH');
 
@@ -148,6 +153,15 @@ export async function refreshMemoryInstruction(
   config: Config,
   options?: Pick<RefreshMemoryAfterWriteOptions, 'logContext'>,
 ): Promise<void> {
+  // [no-telemetry fork] Append-only memory mode: deliver the change as an
+  // appended reminder instead of rewriting the system prompt, which would
+  // invalidate every cached KV block in front of the conversation.
+  // See NO_TELEMETRY_GUIDELINES.md §14.
+  if (isAppendOnlyMemoryEnabled()) {
+    await appendAutoMemoryDelta(config, options?.logContext);
+    return;
+  }
+
   try {
     await config.refreshHierarchicalMemory();
   } catch (err) {
