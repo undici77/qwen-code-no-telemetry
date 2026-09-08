@@ -340,6 +340,91 @@ describe('getInitialChatHistory', () => {
     expect(lastText).toContain('web_fetch');
     expect(parts[0]?.text).not.toContain('reachable via `tool_search`');
   });
+
+  // [no-telemetry fork] Resume prelude reuse — NO_TELEMETRY_GUIDELINES.md
+  // §16. Automatic and always-on: the full rebuild always runs (nothing is
+  // ever skipped or guessed), and the freshly rebuilt prelude is reused only
+  // when it is byte-for-byte identical to the one already delivered — so a
+  // real change (memory edit, new MCP server, renamed skill, folder change,
+  // date rollover) always falls through to the normal rebuild-and-prepend.
+  // Full coverage of the comparison itself lives in resume-opt-cache.test.ts;
+  // this is an integration check that getInitialChatHistory wires it up.
+  describe('resume prelude reuse (automatic, safe-only)', () => {
+    it('reuses the existing prelude verbatim when nothing changed since it was delivered', async () => {
+      const [baseline] = await getInitialChatHistory(mockConfig as Config);
+      const extraHistory: Content[] = [
+        baseline[0],
+        { role: 'model', parts: [{ text: 'hi' }] },
+      ];
+
+      const [history] = await getInitialChatHistory(
+        mockConfig as Config,
+        extraHistory,
+      );
+
+      expect(history).toBe(extraHistory);
+      // The full rebuild still runs — reuse is a post-hoc equality check,
+      // never a skip.
+      expect(getFolderStructure).toHaveBeenCalled();
+    });
+
+    // Regression test: on the very first build (before any tool has ever
+    // been called), buildDeferredToolsReminder lists every deferred tool.
+    // On resume, LlmClient.revealDeferredToolsReferencedInHistory has
+    // already marked tools called earlier in the transcript as revealed, so
+    // isDeferredToolRevealed(...) now returns true for them — shrinking
+    // the deferred-tools reminder relative to that first build even though
+    // nothing else about the workspace/MCP/skills/memory changed. Reuse
+    // must still fire.
+    it('reuses the existing prelude when only the deferred-tools tail shrank from tool reveals since session start', async () => {
+      mockToolRegistry.getDeferredToolSummary.mockReturnValue([
+        { name: 'web_fetch', description: 'Fetches web pages' },
+      ]);
+      // First build: nothing revealed yet (true session start).
+      mockToolRegistry.isDeferredToolRevealed.mockReturnValue(false);
+      const [baseline] = await getInitialChatHistory(mockConfig as Config);
+      const extraHistory: Content[] = [
+        baseline[0],
+        {
+          role: 'model',
+          parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+        },
+        { role: 'user', parts: [{ text: 'ok, keep going' }] },
+      ];
+
+      // Resume: the tool referenced in history is now revealed, so this
+      // rebuild's deferred-tools reminder is shorter/absent compared to the
+      // baseline's.
+      mockToolRegistry.isDeferredToolRevealed.mockReturnValue(true);
+      const [history] = await getInitialChatHistory(
+        mockConfig as Config,
+        extraHistory,
+      );
+
+      expect(history).toBe(extraHistory);
+    });
+
+    it('rebuilds and re-prepends a fresh prelude when something changed since it was delivered', async () => {
+      const existingPrelude: Content = {
+        role: 'user',
+        parts: [
+          {
+            text: `${SYSTEM_REMINDER_OPEN}\nsomething different from what would be rebuilt now\n${SYSTEM_REMINDER_CLOSE}`,
+          },
+        ],
+      };
+      const extraHistory: Content[] = [existingPrelude];
+
+      const [history] = await getInitialChatHistory(
+        mockConfig as Config,
+        extraHistory,
+      );
+
+      expect(history).toHaveLength(2);
+      expect(history[0]).not.toBe(existingPrelude);
+      expect(history[1]).toBe(existingPrelude);
+    });
+  });
 });
 
 describe('stripStartupContext', () => {

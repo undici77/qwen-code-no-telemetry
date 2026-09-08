@@ -55,14 +55,15 @@ whatever upstream changed. Never resolve a conflict by dropping one.
 `NO_TELEMETRY_GUIDELINES.md` is authoritative; the summary below exists so a
 merge never starts without knowing they are there.
 
-| Patch                          | Section | One-line rule                                                                   |
-| ------------------------------ | ------- | ------------------------------------------------------------------------------- |
-| Telemetry dummy layer          | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`. |
-| WebSearch / SerpApi            | §1.5    | `web_search` stays SerpApi-backed, never DashScope/Google/GLM/Tavily.           |
-| Vision-bridge concurrency      | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.        |
-| Control-flow timing audit      | §13     | Telemetry commits that add `await` can break TUI state updates.                 |
-| **Append-only auto-memory**    | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**   |
-| **Context/cache status items** | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**  |
+| Patch                            | Section | One-line rule                                                                             |
+| -------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| Telemetry dummy layer            | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.           |
+| WebSearch / SerpApi              | §1.5    | `web_search` stays SerpApi-backed, never DashScope/Google/GLM/Tavily.                     |
+| Vision-bridge concurrency        | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.                  |
+| Control-flow timing audit        | §13     | Telemetry commits that add `await` can break TUI state updates.                           |
+| **Append-only auto-memory**      | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**             |
+| **Context/cache status items**   | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**            |
+| Resume prelude reuse (automatic) | §16     | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged. |
 
 ### Append-only auto-memory (prompt-cache preservation)
 
@@ -129,6 +130,60 @@ Four traps a merge must not walk into:
 grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts \
   packages/cli/src/ui/hooks/useStatusLine.ts
 # Must return 7+ lines. See NO_TELEMETRY_GUIDELINES.md §15 for the full checklist.
+```
+
+### Resume prelude reuse (automatic, safe-only)
+
+Not mandatory in the sense of §14/§15's blocking checklist, but still a fork
+behavior change to an upstream-owned function, so it needs the same
+merge-survival care. No flag, no command — always on.
+
+`getInitialChatHistory()` always rebuilds the startup prelude (folder
+structure, MCP instructions, skills, deferred-tools) and prepends it fresh,
+including on `--continue`/`--resume`, where the replayed transcript already
+starts with the _original_ prelude from the session's first-ever start.
+Upstream never strips that old entry, so every resume produced
+`[newPrelude, oldPrelude, ...conversation]` — new content in front of an
+otherwise-unchanged transcript, which busts a prefix-caching backend's
+(oMLX, other vLLM-style paged caches) entire cached prefix on every reopen.
+
+The fix never skips the rebuild — the full build (workspace scan, MCP
+instructions, skills, memory, deferred tools) always runs, so nothing is
+ever guessed or assumed unchanged. Only _afterward_ does it compare the
+freshly rebuilt **stable** texts (MCP instructions, skills, memory,
+workspace/date) against the ones already in the resumed transcript,
+byte-for-byte; if they're identical, the existing entry is reused instead of
+prepending the redundant rebuilt copy. Any real change to a stable part
+(memory edit, new MCP server, renamed skill, folder change, date rollover)
+makes the comparison fail, and the exact unmodified upstream
+rebuild-and-prepend path runs.
+
+The deferred-tools tail is deliberately EXCLUDED from the comparison — this
+was the bug in the first cut of this patch. `buildDeferredToolsReminder`
+lists deferred tools not yet revealed, and
+`LlmClient.revealDeferredToolsReferencedInHistory` re-reveals every
+deferred tool ever called anywhere in the transcript before every resume
+rebuild. So the very first build (before any tool call) always lists the
+full deferred set, while any resume after the session called even one
+deferred tool — almost any real session — reveals it first, shrinking the
+tail. Comparing that tail made reuse fail on nearly every real resume for a
+reason that has nothing to do with anything needing re-announcement (the
+model already knows about a tool it called). The tail is safe to leave
+uncompared: it only ever shrinks, and a genuinely new deferred tool is
+announced through the existing mid-conversation delta reminders, never
+through the prelude.
+
+All logic lives in the fork-owned `packages/core/src/core/resume-opt-cache.ts`
+(`reuseResumedPreludeIfUnchanged`); `core/environmentContext.ts` carries
+only an additive import + the `stableTexts`/`deferredToolsText` split +
+a post-build comparison call site tagged `// [no-telemetry fork]`. The fork
+module never imports back from `environmentContext.ts` —
+`getStartupContextLength` is injected as a param, same reasoning as §15's
+`formatTokenCount` injection.
+
+```bash
+grep -n "reuseResumedPreludeIfUnchanged" packages/core/src/core/environmentContext.ts
+# Must return 2 lines (import + call site). See NO_TELEMETRY_GUIDELINES.md §16.
 ```
 
 ## Common Commands

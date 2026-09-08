@@ -21,6 +21,8 @@ import {
 } from '../tools/skill-utils.js';
 // [no-telemetry fork] Append-only memory mode — NO_TELEMETRY_GUIDELINES.md §14
 import { buildAutoMemoryReminder } from '../memory/append-only-prompt-cache.js';
+// [no-telemetry fork] Resume prelude reuse — NO_TELEMETRY_GUIDELINES.md §16
+import { reuseResumedPreludeIfUnchanged } from './resume-opt-cache.js';
 
 const debugLogger = createDebugLogger('ENVIRONMENT_CONTEXT');
 
@@ -527,7 +529,16 @@ export async function getInitialChatHistory(
   // Stable parts first (MCP, skills, startup) so prefix-caching servers
   // retain the KV-cache for the shared prefix. Deferred-tools is last
   // because tool_search revelations change it — only the tail recomputes.
-  const reminderParts = [
+  //
+  // Split for the [no-telemetry fork] resume-reuse check below: `stableTexts`
+  // excludes the deferred-tools text on purpose. That reminder shrinks
+  // monotonically as tools get revealed over a session's life —
+  // `revealDeferredToolsReferencedInHistory` (client.ts) marks every
+  // deferred tool ever called in the transcript as revealed BEFORE this
+  // function runs, on every resume — so it almost never matches the
+  // original session-start build even when nothing else changed. See
+  // NO_TELEMETRY_GUIDELINES.md §16.
+  const stableTexts = [
     buildMcpServerInstructionsReminder(toolRegistry),
     // [no-telemetry fork] Append-only memory mode: the auto-memory index is
     // delivered here instead of in the system prompt tail. Returns null when
@@ -535,12 +546,15 @@ export async function getInitialChatHistory(
     options.includeAutoMemoryReminder ? buildAutoMemoryReminder(config) : null,
     skillsResult?.reminder ?? null,
     startupReminder,
-    includeDeferredToolsReminder
-      ? buildDeferredToolsReminder(toolRegistry)
-      : null,
-  ]
-    .filter((text): text is string => text !== null)
-    .map((text) => ({ text }));
+  ].filter((text): text is string => text !== null);
+  const deferredToolsText = includeDeferredToolsReminder
+    ? buildDeferredToolsReminder(toolRegistry)
+    : null;
+
+  const reminderParts = [
+    ...stableTexts,
+    ...(deferredToolsText !== null ? [deferredToolsText] : []),
+  ].map((text) => ({ text }));
 
   const prelude =
     reminderParts.length === 0
@@ -551,6 +565,21 @@ export async function getInitialChatHistory(
             parts: reminderParts,
           },
         ];
+
+  // [no-telemetry fork] Resume prelude reuse — NO_TELEMETRY_GUIDELINES.md §16.
+  // Only the stable texts are compared for byte-for-byte equality; only when
+  // they are provably identical do we reuse the existing entry (dropping the
+  // redundant rebuilt copy) instead of prepending a new one ahead of it. The
+  // deferred-tools tail is deliberately never compared (see comment above).
+  const deduped = reuseResumedPreludeIfUnchanged(
+    extraHistory,
+    stableTexts,
+    { toleratesTrailingDeferredToolsPart: includeDeferredToolsReminder },
+    { getStartupContextLength },
+  );
+  if (deduped) {
+    return [deduped, skillsResult?.renderedEntries ?? []];
+  }
 
   return [
     [...prelude, ...(extraHistory ?? [])],
