@@ -142,7 +142,7 @@ export const DAEMON_KNOWN_EVENT_TYPE_VALUES = [
   // Daemon assist push events. `followup_suggestion`: server-side
   // ghost-text "what you might want to ask next" suggestion, generated
   // after each end_turn by the ACP child and forwarded through the per-
-  // session SSE bus so the webui (and other future daemon adapters)
+  // session SSE bus so Web Shell (and other future daemon adapters)
   // can render the suggestion in their input placeholder. The wire
   // carries only post-filter suggestions (`getFilterReason()===null`);
   // generator-side suppression telemetry stays on the daemon. Old SDK
@@ -928,6 +928,9 @@ export type DaemonMcpServerChangedEvent = DaemonEventEnvelope<
 export interface DaemonExtensionsChangedData {
   readonly refreshed: number;
   readonly failed: number;
+  // Daemons advertising `extension_activation_explicit_refresh` commit
+  // activation without broadcasting it; `enabled`/`disabled` statuses arrive
+  // only from older daemons, newer ones converge via a status-less broadcast.
   readonly status?:
     | 'installed'
     | 'enabled'
@@ -3046,6 +3049,7 @@ function isDaemonSkillToggleMutation(
     ) &&
     (activation === 'applied' ||
       activation === 'deferred' ||
+      activation === 'reconciling' ||
       activation === 'partial') &&
     isFiniteNumber(value['sessionsRefreshed']) &&
     isFiniteNumber(value['sessionsFailed'])

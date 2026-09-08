@@ -5,13 +5,13 @@
  */
 
 import { useEffect, useState } from 'react';
+import { createDebugLogger } from '@qwen-code/qwen-code-core/utils/debugLogger.js';
 import {
-  createDebugLogger,
   fetchGitDiff,
   fetchGitDiffHunks,
   type GitDiffHunk,
   type GitDiffResult,
-} from '@qwen-code/qwen-code-core';
+} from '@qwen-code/qwen-code-core/utils/gitDiff.js';
 
 const debugLogger = createDebugLogger('DiffDialog');
 

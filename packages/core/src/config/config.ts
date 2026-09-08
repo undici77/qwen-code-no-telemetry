@@ -185,8 +185,12 @@ import {
 import type { PendingGoalProposal } from '../goals/goal-tools.js';
 import type { GoalRecoveryRecord } from '../goals/goal-persistence.js';
 import { GOAL_DEFAULT_TOKEN_BUDGET } from '../goals/goal-protocol.js';
-import { createGoalCheckpointVerifier } from '../goals/goal-checkpoint-verifier.js';
+import {
+  createGoalCheckpointVerifier,
+  GOAL_CHECKPOINT_VERIFIER_DEFAULT_TIMEOUT_MS,
+} from '../goals/goal-checkpoint-verifier.js';
 import { createGoalVerifier } from '../goals/goal-verifier.js';
+import { DEFAULT_STREAM_MAX_LIFETIME_MS } from '../core/openaiContentGenerator/constants.js';
 import type { ToolInvocationGuard } from '../core/tool-invocation-guard.js';
 
 // Utils
@@ -648,6 +652,19 @@ export interface OutboundCorrelationSettings {
    * Tracing + DashScope — for cross-process trace stitching.
    */
   propagateTraceContext?: boolean;
+  /**
+   * Allow `modelProviders[].generationConfig.customHeaders` values to
+   * carry runtime placeholders such as `${session_id}`, expanded per
+   * request. Default: disabled — a value with a placeholder is dropped
+   * rather than sent.
+   *
+   * This is the consent decision, and it is the only part of the feature
+   * that is global: *which* hosts may receive the value, and *what* the
+   * header is called, are already answered by the provider entry the
+   * header is attached to. It controls only `${session_id}` expansion and
+   * cannot recover a header's provenance after settings are merged.
+   */
+  allowDynamicHeaderValues?: boolean;
 }
 
 export interface OutputSettings {
@@ -1063,6 +1080,13 @@ export interface ConfigParameters {
    */
   goalTokenBudget?: number;
   /**
+   * Ceiling on one Goal evidence-checkpoint verifier call, in seconds.
+   * Absent or invalid falls back to
+   * `GOAL_CHECKPOINT_VERIFIER_DEFAULT_TIMEOUT_MS`. See
+   * `normalizeGoalCheckpointTimeoutSeconds`.
+   */
+  goalCheckpointTimeoutSeconds?: number;
+  /**
    * Maximum number of nested sub-agent levels (1-based). `1` reproduces the
    * pre-nesting behavior — level-1 sub-agents exist but cannot themselves
    * spawn sub-agents. The default `5` lets a sub-agent spawn sub-agents up to
@@ -1106,6 +1130,8 @@ export interface ConfigParameters {
    * listing the tool in the `coreTools` allowlist also re-enables it.
    */
   lsToolEnabled?: boolean;
+  /** Opt-in flag for the built-in `todo_write` tool. */
+  todoWriteEnabled?: boolean;
   agentTeamEnabled?: boolean;
   workflowsEnabled?: boolean;
   /** Enable the opt-in ACP/Web Shell Session Workflow gate. */
@@ -1524,6 +1550,56 @@ export function isValidGoalTokenBudget(value: unknown): value is number {
     Number.isInteger(value) &&
     (value === -1 || (value >= 0 && value <= GOAL_TOKEN_BUDGET_CAP))
   );
+}
+
+/**
+ * Largest accepted `model.goalCheckpointTimeoutSeconds`, in seconds.
+ *
+ * Derived from the stream lifetime cap rather than picked as a round number,
+ * because the checkpoint call is streamed: past that cap the guard throws
+ * `StreamLifetimeExceededError` and the verifier's own timer never fires, so
+ * a larger ceiling is a timer that cannot go off. Accepting one would let the
+ * setting promise a wait the default wire does not honour -- an operator who
+ * raised it to survive a slow model would wait the lifetime cap, get no
+ * checkpoint, and see exactly the behaviour they had before touching it.
+ *
+ * The bound is the shipped default, resolved once here rather than per
+ * request, so raising `QWEN_STREAM_MAX_LIFETIME_MS` (or an embedder's
+ * `ContentGeneratorConfig.streamMaxLifetimeMs`) does not raise it: a
+ * deployment that has lifted the lifetime guard still cannot set a longer
+ * ceiling through this setting. That is deliberate -- the accepted range
+ * stays the one every deployment can honour, instead of validating against
+ * a wire bound the process cannot know at construction time. This also keeps
+ * the typo-guard role `GOAL_TOKEN_BUDGET_CAP` plays for its sibling.
+ */
+export const GOAL_CHECKPOINT_TIMEOUT_SECONDS_CAP =
+  DEFAULT_STREAM_MAX_LIFETIME_MS / 1000;
+
+/**
+ * True for the values `normalizeGoalCheckpointTimeoutSeconds` honours: a
+ * positive integer number of seconds up to the cap.
+ */
+export function isValidGoalCheckpointTimeoutSeconds(
+  value: unknown,
+): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= GOAL_CHECKPOINT_TIMEOUT_SECONDS_CAP
+  );
+}
+
+/**
+ * The checkpoint verifier timeout to arm, in milliseconds: the setting when
+ * it is valid, else the built-in default.
+ */
+export function normalizeGoalCheckpointTimeoutSeconds(
+  value: number | undefined,
+): number {
+  return isValidGoalCheckpointTimeoutSeconds(value)
+    ? value * 1000
+    : GOAL_CHECKPOINT_VERIFIER_DEFAULT_TIMEOUT_MS;
 }
 
 function validateMaxToolCallsPerTurn(value: number | undefined): number {
@@ -2355,6 +2431,7 @@ export class Config {
 
   private readonly maxSessionTurns: number;
   private readonly goalTokenBudgetGrant: number;
+  private readonly goalCheckpointTimeoutMs: number;
   private readonly maxSubagentDepth: number;
   private readonly maxWallTimeSeconds: number;
   private readonly maxToolCalls: number;
@@ -2381,6 +2458,7 @@ export class Config {
    * (the setting declares `requiresRestart`); `Infinity` = no expiry. */
   private readonly cronRecurringMaxAgeDays: number;
   private readonly lsToolEnabled: boolean = false;
+  private readonly todoWriteEnabled: boolean = false;
   private readonly agentTeamEnabled: boolean = false;
   private readonly artifactEnabled: boolean = true;
   private readonly artifactAutoOpen: boolean = true;
@@ -2635,6 +2713,8 @@ export class Config {
     this.outboundCorrelationSettings = {
       propagateTraceContext:
         params.outboundCorrelation?.propagateTraceContext ?? false,
+      allowDynamicHeaderValues:
+        params.outboundCorrelation?.allowDynamicHeaderValues === true,
     };
     this.gitCoAuthor = {
       ...normalizeGitCoAuthor(params.gitCoAuthor),
@@ -2674,6 +2754,17 @@ export class Config {
         `Ignoring invalid goalTokenBudget ${String(params.goalTokenBudget)}: expected a non-negative integer or -1 (no budget); using the default of ${GOAL_DEFAULT_TOKEN_BUDGET}.`,
       );
     }
+    this.goalCheckpointTimeoutMs = normalizeGoalCheckpointTimeoutSeconds(
+      params.goalCheckpointTimeoutSeconds,
+    );
+    if (
+      params.goalCheckpointTimeoutSeconds !== undefined &&
+      !isValidGoalCheckpointTimeoutSeconds(params.goalCheckpointTimeoutSeconds)
+    ) {
+      this.debugLogger.warn(
+        `Ignoring invalid goalCheckpointTimeoutSeconds ${String(params.goalCheckpointTimeoutSeconds)}: expected an integer between 1 and ${GOAL_CHECKPOINT_TIMEOUT_SECONDS_CAP}; using the default of ${GOAL_CHECKPOINT_VERIFIER_DEFAULT_TIMEOUT_MS / 1000}.`,
+      );
+    }
     this.maxSubagentDepth = normalizeMaxSubagentDepth(params.maxSubagentDepth);
     this.maxWallTimeSeconds = params.maxWallTimeSeconds ?? -1;
     this.maxToolCalls = params.maxToolCalls ?? -1;
@@ -2702,6 +2793,7 @@ export class Config {
       params.cronRecurringMaxAgeDays,
     );
     this.lsToolEnabled = params.lsToolEnabled ?? false;
+    this.todoWriteEnabled = params.todoWriteEnabled ?? false;
     this.agentTeamEnabled = params.agentTeamEnabled ?? false;
     this.artifactEnabled = params.artifactEnabled ?? true;
     this.artifactAutoOpen = params.artifactAutoOpen ?? true;
@@ -3012,7 +3104,10 @@ export class Config {
   }
 
   /**
-   * Must only be called once, throws if called again.
+   * Must only be called once, throws if called again after the first call
+   * settled. Callers arriving while the first call is still in flight join
+   * that flight instead of throwing; a joining caller's options are ignored
+   * — the first caller's options win.
    * @param options Optional initialization options including sendSdkMcpMessage callback
    */
   async initialize(options?: ConfigInitializeOptions): Promise<void> {
@@ -3020,6 +3115,20 @@ export class Config {
       throw new Error('Derived Configs cannot be initialized');
     }
     if (this.initialized) {
+      // Joining the in-flight run matters: callers that swallow the old
+      // throw (the OpenTUI submit path, slash-command loading) proceeded on
+      // a config whose chat had not started yet, and the first prompt died
+      // with "Chat not initialized" (#11002).
+      if (!this.initializationSettled) {
+        // A joining caller's options cannot be honored, so an already-aborted
+        // signal must fail fast instead of blocking on the foreign flight.
+        options?.signal?.throwIfAborted();
+        this.debugLogger.debug(
+          'Config.initialize() called while initialization is in flight; joining the existing run',
+        );
+        await this.initializationPromise;
+        return;
+      }
       throw Error('Config was already initialized');
     }
     if (this.shutdownRequested) {
@@ -5604,6 +5713,15 @@ export class Config {
     return this.goalTokenBudgetGrant;
   }
 
+  /**
+   * Ceiling on one Goal evidence-checkpoint verifier call, in milliseconds:
+   * `goalCheckpointTimeoutSeconds` when it was valid, else the built-in
+   * default.
+   */
+  getGoalCheckpointTimeoutMs(): number {
+    return this.goalCheckpointTimeoutMs;
+  }
+
   getMaxSubagentDepth(): number {
     return this.maxSubagentDepth;
   }
@@ -7521,6 +7639,15 @@ export class Config {
     return this.outboundCorrelationSettings.propagateTraceContext ?? false;
   }
 
+  /**
+   * Whether `customHeaders` values may carry runtime placeholders. See
+   * {@link OutboundCorrelationSettings.allowDynamicHeaderValues}; consumed by
+   * `core/outbound-dynamic-headers.ts`.
+   */
+  getOutboundAllowDynamicHeaderValues(): boolean {
+    return this.outboundCorrelationSettings.allowDynamicHeaderValues ?? false;
+  }
+
   getTelemetryOutfile(): string | undefined {
     return this.telemetrySettings.outfile;
   }
@@ -7765,6 +7892,10 @@ export class Config {
       this.getPermissionsAllow().some(coveredByPermissionRule) ||
       this.getPermissionsAsk().some(coveredByPermissionRule)
     );
+  }
+
+  isTodoWriteEnabled(): boolean {
+    return this.todoWriteEnabled;
   }
 
   isAgentTeamEnabled(): boolean {
@@ -8728,15 +8859,15 @@ export class Config {
     return this.goalRuntime;
   }
 
-  getGoalRuntimeReady(): Promise<GoalRuntime> {
+  async getGoalRuntimeReady(): Promise<GoalRuntime> {
     const runtime = this.getGoalRuntime();
     if (!Object.hasOwn(this, 'goalRuntimeReady') || !this.goalRuntimeReady) {
-      return Promise.reject(new GoalPersistenceUnavailableError());
+      throw new GoalPersistenceUnavailableError();
     }
     return this.goalRuntimeReady.then(() => runtime);
   }
 
-  getGoalRuntimePrepared(): Promise<GoalRuntime> {
+  async getGoalRuntimePrepared(): Promise<GoalRuntime> {
     const runtime = this.getGoalRuntime();
     if (!this.sessionRestoreRuntime) return this.getGoalRuntimeReady();
     return runtime.getPreparedRestore().then(() => runtime);
@@ -8826,12 +8957,15 @@ export class Config {
     const runtime = createGoalRuntime({
       journal: recorder,
       evidenceSource: recorder,
-      // The recorder already sees every assistant turn's usage stamped with
-      // the Goal permit that produced it, so the spend is Goal-scoped at the
-      // point it is recorded rather than reconstructed from session totals.
-      tokenLedger: recorder,
+      // The recorder already sees every assistant turn's usage and every
+      // tool result stamped with the Goal permit that produced it, so both
+      // the spend and the turn's output are Goal-scoped at the point they
+      // are recorded rather than reconstructed from session totals.
+      ledger: recorder,
       verifier: createGoalVerifier(this),
-      checkpointVerifier: createGoalCheckpointVerifier(this),
+      checkpointVerifier: createGoalCheckpointVerifier(this, {
+        timeoutMs: this.goalCheckpointTimeoutMs,
+      }),
       tokenBudgetGrant: this.goalTokenBudgetGrant,
     });
     this.goalRuntime = runtime;
@@ -9632,10 +9766,12 @@ export class Config {
       const { ShellTool } = await import('../tools/shell.js');
       return new ShellTool(this);
     });
-    await registerLazy(ToolNames.TODO_WRITE, async () => {
-      const { TodoWriteTool } = await import('../tools/todoWrite.js');
-      return new TodoWriteTool(this);
-    });
+    if (this.isTodoWriteEnabled()) {
+      await registerLazy(ToolNames.TODO_WRITE, async () => {
+        const { TodoWriteTool } = await import('../tools/todoWrite.js');
+        return new TodoWriteTool(this);
+      });
+    }
     await registerLazy(ToolNames.REPORT_FINDINGS, async () => {
       const { ReportFindingsTool } = await import(
         '../tools/report-findings.js'
