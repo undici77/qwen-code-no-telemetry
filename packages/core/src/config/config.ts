@@ -1307,12 +1307,13 @@ export interface ConfigParameters {
    */
   fastModel?: string;
   /**
-   * Built-in WebSearch tool settings (`tools.webSearch` / ENABLE_WEB_SEARCH
-   * env override), backed by SerpApi. Opt-in: the tool registers only when
-   * `enabled` is true and a SerpApi API key resolves — from
-   * `tools.webSearch.apiKey` or the SERPAPI_API_KEY environment variable.
-   * `engine`, `hl` and `gl` select the engine and its locale parameters.
+   * Built-in WebSearch settings. `enabled: false` disables the tool; when the
+   * setting is omitted, the tool may derive a backend from the active provider
+   * at startup. An explicit model or env-declared backend takes precedence.
    */
+  // [no-telemetry fork] the only backend is SerpApi, so "derive a backend"
+  // here means resolve a SerpApi API key (`tools.webSearch.apiKey` or
+  // SERPAPI_API_KEY); upstream's DashScope model/endpoint keys are inert.
   webSearch?: WebSearchSettings;
   /**
    * Safe mode: disables all user customizations (context files, hooks,
@@ -9844,14 +9845,21 @@ export class Config {
         return new DisplayImageTool(this);
       });
     }
-    // WebSearch is opt-in: it registers only when explicitly enabled AND a
-    // SerpApi API key resolves. A failed gate surfaces a one-time startup
-    // notice instead of a silently missing tool. Nothing is imported unless
-    // the feature is enabled.
+    // WebSearch is opt-out: it registers whenever the gate can resolve a
+    // usable backend — either configured explicitly, or derived from the
+    // provider the main model runs on. `enabled: false` turns it off without
+    // importing anything. A gate failure surfaces a one-time startup notice
+    // only when the tool was actually asked for; a provider with no search
+    // backend fails silently (`gate.silent`), since warning about a feature
+    // the user never configured is noise.
+    const hasExplicitWebSearchBackend =
+      !!this.webSearchSettings?.model?.trim() ||
+      !!this.webSearchSettings?.baseUrl;
     if (
       !this.getBareMode() &&
       !this.isSafeMode() &&
-      this.webSearchSettings?.enabled
+      this.webSearchSettings?.enabled !== false &&
+      (this.webSearchSettings?.enabled === true || !hasExplicitWebSearchBackend)
     ) {
       const { evaluateWebSearchGate } = await import('../tools/web-search.js');
       const gate = evaluateWebSearchGate(this);
@@ -9860,7 +9868,11 @@ export class Config {
           const { WebSearchTool } = await import('../tools/web-search.js');
           return new WebSearchTool(this);
         });
-      } else if (!this.webSearchNoticeEmitted && !options?.forSubAgent) {
+      } else if (
+        !gate.silent &&
+        !this.webSearchNoticeEmitted &&
+        !options?.forSubAgent
+      ) {
         this.webSearchNoticeEmitted = true;
         this.warnings.push(gate.notice);
       }

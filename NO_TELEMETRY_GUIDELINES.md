@@ -21,19 +21,56 @@ The built-in `web_search` tool **MUST** remain backed by [SerpApi](https://serpa
 
 **Why**: The upstream WebSearch tool historically used DashScope Responses API, which routes through external servers and violates the no-telemetry policy. SerpApi is a neutral, privacy-respecting search aggregator with a free tier (250 queries/month) and no identity leakage.
 
-**Rule**: On every merge from `main`, if upstream modifies, replaces, or removes the SerpApi-backed `web_search` implementation, **the SerpApi patch MUST be restored**. The implementation lives in `packages/core/src/tools/web-search.ts`. The configuration schema is in `packages/core/src/config/settingsSchema.ts`. The docs are in `docs/developers/tools/web-search.md`.
+### How the patch is structured (read this before a merge)
 
-**Verification checklist after every merge**:
+Upstream's `web-search.ts` is a large, actively-changed DashScope implementation (1400+ lines; 4 commits in the two months before v0.23.2). The fork used to carry its SerpApi backend as a whole-file replacement of that file, so **every** upstream change opened an ~800-line semantic conflict. The patch is split so that conflict is structurally impossible:
+
+| File                                                             | Owner    | Merge rule          | Role                                                                                                |
+| ---------------------------------------------------------------- | -------- | ------------------- | --------------------------------------------------------------------------------------------------- |
+| `packages/core/src/tools/serpapi-web-search.ts`                  | **fork** | new file            | The whole SerpApi backend: gate, fetch, Markdown conversion, tool class. Upstream never creates it. |
+| `packages/core/src/tools/serpapi-web-search.test.ts`             | **fork** | new file            | The executable §1.5 guarantee (below).                                                              |
+| `packages/core/src/tools/web-search.ts`                          | **fork** | `merge=ours`        | ~5-line re-export of the module above, under the names upstream's consumers import.                 |
+| `packages/core/src/tools/web-search.test.ts`                     | **fork** | `merge=ours`        | Shim guard — fails if the seam is ever resolved toward upstream.                                    |
+| `docs/developers/tools/web-search.md`                            | **fork** | `merge=ours`        | Fork documentation.                                                                                 |
+| `packages/core/src/config/config.ts` (registration block)        | upstream | clean               | Byte-identical to upstream; the fork's gate answers through the shim.                               |
+| `packages/cli/src/config/config.ts` (`resolveWebSearchSettings`) | mixed    | small additive hunk | Upstream body preserved; four SerpApi keys appended, tagged.                                        |
+| `packages/cli/src/config/settingsSchema.ts` (`webSearch` block)  | mixed    | small additive hunk | Upstream keys kept so the block stays upstream-shaped; descriptions are fork-owned.                 |
+
+**Upstream's DashScope keys are accepted and inert.** `model`, `webExtractor`, `baseUrl` and `apiKeyEnv` stay in the schema and the resolver because deleting them would re-open a conflict in three files for no privacy gain — the fork has no DashScope backend, so no code path can turn those values into a request. They are documented as ignored in `settingsSchema.ts`, `settings.schema.json` and the tool docs.
+
+**Enablement follows upstream's opt-out shape.** The tool registers whenever `evaluateWebSearchGate` resolves a SerpApi API key (`tools.webSearch.apiKey` or `SERPAPI_API_KEY`) and `enabled !== false`. With nothing configured the gate returns `silent: true`, so the tool stays off with no startup notice. That is what lets `config.ts`'s registration block stay byte-identical to upstream.
+
+`merge=ours` is **not** a built-in git merge driver — it must be registered in `.git/config`, which git does not clone. `npm install` registers it (`postinstall` → `node scripts/check-merge-drivers.js --fix`); `npm run check:merge-drivers` fails if the `.gitattributes` declaration and the registration drift apart.
+
+### Verification checklist after every merge
+
+The guarantee is now enforced by tests, not by grep. `src/tools/web-search.test.ts` is **no longer excluded** in `packages/core/vitest.config.ts` — it used to be, which left the mandatory patch with zero coverage while upstream's DashScope suite sat against a SerpApi implementation.
 
 ```bash
-# Must reference SerpApi, NOT DashScope/Google/GLM/Tavily as the backend
-grep -n "SerpApi\|serpapi\|SERPAPI" packages/core/src/tools/web-search.ts | head -5
-# Must NOT contain upstream DashScope Responses API references
-grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
-# Must return zero lines (no DashScope in web-search.ts)
+# 1. Executable guarantee: intercepts every outbound request and asserts the
+#    host is serpapi.com — including when the config carries upstream's
+#    DashScope model / baseUrl / apiKeyEnv values.
+cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
+
+# 2. No other provider may be named as the backend anywhere in the tools dir.
+grep -rn "dashscope\|DashScope" packages/core/src/tools/
+# Must return zero lines.
+
+# 3. The seam must still point at the fork backend.
+grep -n "serpapi-web-search" packages/core/src/tools/web-search.ts
+# Must return the re-export line.
+
+# 4. Merge drivers declared in .gitattributes must be registered.
+npm run check:merge-drivers
 ```
 
-**Conflict resolution priority**: If upstream WebSearch code conflicts with the SerpApi patch, **always resolve in favor of SerpApi**. Document the resolution in the commit message.
+**Conflict resolution priority**: if upstream WebSearch code ever conflicts with the SerpApi patch, **always resolve in favor of SerpApi** and document the resolution in the commit message. Because the seams are `merge=ours`, a conflict here means the driver was never registered — fix the driver (`git config --local merge.ours.driver true`) rather than hand-porting code.
+
+**Merge reporting**: `merge=ours` discards upstream's changes silently, so list what was discarded after every merge and decide whether any of it is a generic fix worth porting:
+
+```bash
+git log --oneline <previous-upstream>..<new-upstream> -- packages/core/src/tools/web-search.ts
+```
 
 ---
 
@@ -105,11 +142,16 @@ Every successful merge REQUIRES:
     # Must return zero lines
     ```
 9.  **TEST SUITE ALIGNMENT**: Ensure that obsolete OpenTelemetry test suites (`packages/core/src/telemetry/*.test.ts` except `uiTelemetry.test.ts`) are excluded in `packages/core/vitest.config.ts`, as they cannot compile/resolve without the removed `@opentelemetry` dependencies.
-10. **WEBSEARCH/SERPAPI CHECK** ⚠️ See Section 1.5: Verify the built-in `web_search` tool still uses SerpApi backend and NOT DashScope/Google/GLM/Tavily:
+10. **WEBSEARCH/SERPAPI CHECK** ⚠️ See Section 1.5: Verify the built-in `web_search` tool still uses SerpApi backend and NOT DashScope/Google/GLM/Tavily. The guarantee is a test, not a grep:
     ```bash
-    grep -n "SerpApi\|serpapi\|SERPAPI" packages/core/src/tools/web-search.ts | head -5
-    grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
-    # Second command must return zero lines
+    cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
+    # The suite intercepts every outbound request and asserts host === serpapi.com.
+    grep -rn "dashscope\|DashScope" packages/core/src/tools/
+    # Must return zero lines.
+    grep -n "serpapi-web-search" packages/core/src/tools/web-search.ts
+    # The shim must still re-export the fork backend.
+    npm run check:merge-drivers
+    # .gitattributes declares merge=ours for the fork seams; it must be registered.
     ```
 11. **VISION-BRIDGE CONCURRENCY CHECK** ⚠️ See Section 1.6: Verify the vision bridge throttles concurrency instead of rejecting images past a per-turn count:
     ```bash
@@ -175,7 +217,7 @@ Every successful merge REQUIRES:
     ```bash
     # All must return zero lines:
     grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
-    grep -n "dashscope\|DashScope" packages/core/src/tools/web-search.ts
+    grep -rn "dashscope\|DashScope" packages/core/src/tools/
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
     grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
     # loggers.ts must reference uiTelemetryService (4+ lines):
@@ -242,17 +284,17 @@ The `-no-telemetry` suffix is always the same — never change it.
 
 When merging from `main`, conflicts may arise. Use this priority order:
 
-| Conflict Type                         | Priority    | Action                                                                                                                       |
-| ------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                                                            |
-| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                                                     |
-| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                                                    |
-| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** restore SerpApi backend. Never accept upstream DashScope/Google/GLM/Tavily.                                       |
-| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.                                |
-| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the five `[no-telemetry fork]` hooks on top of upstream's new shape. Never resolve by dropping the flag. |
-| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                                                            |
-| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                                                     |
-| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                                                      |
+| Conflict Type                         | Priority    | Action                                                                                                                                                                                                                                       |
+| ------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                                                                                                                                                                            |
+| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                                                                                                                                                                     |
+| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                                                                                                                                                                    |
+| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily. |
+| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.                                                                                                                                                |
+| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the five `[no-telemetry fork]` hooks on top of upstream's new shape. Never resolve by dropping the flag.                                                                                                                 |
+| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                                                                                                                                                                            |
+| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                                                                                                                                                                     |
+| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                                                                                                                                                                      |
 
 ### Golden Rule:
 

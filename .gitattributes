@@ -26,3 +26,18 @@ scripts/installation/install-qwen-standalone.bat text eol=crlf
 *.eot binary
 *.ttf binary
 *.otf binary
+
+# ── No-telemetry fork: files whose fork content always wins on merge ───────
+# These are fork-owned seams. Upstream rewrites of them are discarded
+# automatically instead of producing a whole-file conflict, because the fork
+# replaces the behaviour they implement (NO_TELEMETRY_GUIDELINES.md §1.5).
+# Everything the fork actually implements lives in fork-owned files that
+# upstream never creates, so those never appear here.
+#
+# `ours` is NOT a built-in merge driver — it must be registered in
+# .git/config (`git config merge.ours.driver true`). scripts/postinstall.js
+# does this on every `npm install`; scripts/check-merge-drivers.js fails if
+# the declaration and the registration ever drift apart.
+packages/core/src/tools/web-search.ts merge=ours
+packages/core/src/tools/web-search.test.ts merge=ours
+docs/developers/tools/web-search.md merge=ours

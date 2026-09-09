@@ -2650,8 +2650,12 @@ const SETTINGS_SCHEMA = {
         category: 'Tools',
         requiresRestart: true,
         default: {},
+        // [no-telemetry fork] descriptions below are fork-owned: the backend
+        // is SerpApi, not DashScope. Keys upstream declares but this fork
+        // ignores stay listed so the block stays upstream-shaped.
+        // See NO_TELEMETRY_GUIDELINES.md §1.5.
         description:
-          'Settings for the built-in WebSearch tool (SerpApi backend). Opt-in: requires enabled=true and a SerpApi API key. The key comes from tools.webSearch.apiKey or the SERPAPI_API_KEY environment variable — get one at https://serpapi.com/manage-api-key (free tier: 250 queries/month). Env override for the flag: ENABLE_WEB_SEARCH.',
+          'Settings for the built-in WebSearch tool (SerpApi backend). Registers whenever it can resolve a SerpApi API key; set enabled=false to turn it off. The key comes from tools.webSearch.apiKey or the SERPAPI_API_KEY environment variable — get one at https://serpapi.com/manage-api-key (free tier: 250 queries/month). Env override for the flag: ENABLE_WEB_SEARCH. Queries are sent only to serpapi.com.',
         showInDialog: false,
         properties: {
           enabled: {
@@ -2661,7 +2665,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as boolean | undefined,
             description:
-              'Enable the built-in web_search tool. Opt-in: unset or false keeps the tool off. Enabling also requires a SerpApi API key (tools.webSearch.apiKey or SERPAPI_API_KEY). Env override: ENABLE_WEB_SEARCH.',
+              'Set false to disable the built-in web_search tool. Left unset, the tool registers as soon as a SerpApi API key resolves (tools.webSearch.apiKey or SERPAPI_API_KEY) and stays off without one. Env override: ENABLE_WEB_SEARCH.',
             showInDialog: true,
           },
           model: {
@@ -2671,7 +2675,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Model selector for the explicit search path ("modelId" or "authType:modelId"). With WEB_SEARCH_BASE_URL it is the plain model id for that endpoint; otherwise it must match a DashScope-compatible modelProviders entry with an envKey. The automatic path uses qwen3.6-plus. Env override: WEB_SEARCH_MODEL.',
+              'Ignored in this fork — the SerpApi backend selects its engine via `engine`, not a model id. Accepted so settings written for upstream load without error.',
             showInDialog: true,
           },
           webExtractor: {
@@ -2681,7 +2685,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: true,
             description:
-              'Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.',
+              'Ignored in this fork — search results are returned as links and are never fetched on your behalf. Accepted so settings written for upstream load without error.',
             showInDialog: true,
           },
           apiKey: {
@@ -2691,7 +2695,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'API key for the search backend. Env override: WEB_SEARCH_API_KEY.',
+              'SerpApi API key. Env override: SERPAPI_API_KEY. https://serpapi.com/manage-api-key',
             showInDialog: false,
           },
           engine: {
@@ -2701,7 +2705,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Search engine to use. Env override: WEB_SEARCH_ENGINE.',
+              'SerpApi engine to query. Default: "google". Others: bing, baidu, yahoo, duckduckgo, yandex.',
             showInDialog: false,
           },
           hl: {
@@ -2711,7 +2715,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Highlight parameter for search. Env override: WEB_SEARCH_HL.',
+              'Interface language (SerpApi `hl` parameter). Default: "en".',
             showInDialog: false,
           },
           gl: {
@@ -2720,8 +2724,7 @@ const SETTINGS_SCHEMA = {
             category: 'Tools',
             requiresRestart: true,
             default: undefined as string | undefined,
-            description:
-              'Geo location parameter for search. Env override: WEB_SEARCH_GL.',
+            description: 'Country (SerpApi `gl` parameter). Default: "us".',
             showInDialog: false,
           },
         },

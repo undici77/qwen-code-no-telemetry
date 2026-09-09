@@ -93,7 +93,9 @@ export default defineConfig({
       'src/telemetry/trace-context.test.ts',
       'src/telemetry/qwen-logger/qwen-logger.test.ts',
       'src/telemetry/event-loop-lag-metrics.test.ts',
-      'src/tools/web-search.test.ts',
+      // src/tools/web-search.test.ts used to be excluded here: the fork kept
+      // upstream's DashScope suite against a SerpApi implementation, so it
+      // could not compile. It is now the fork's shim guard and runs.
       'src/telemetry/session-events.test.ts',
       // Relies on real OpenTelemetry context propagation (`context.with`
       // carrying a session-bearing context). The dummy layer discards the

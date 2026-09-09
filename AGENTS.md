@@ -55,15 +55,67 @@ whatever upstream changed. Never resolve a conflict by dropping one.
 `NO_TELEMETRY_GUIDELINES.md` is authoritative; the summary below exists so a
 merge never starts without knowing they are there.
 
-| Patch                            | Section | One-line rule                                                                             |
-| -------------------------------- | ------- | ----------------------------------------------------------------------------------------- |
-| Telemetry dummy layer            | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.           |
-| WebSearch / SerpApi              | §1.5    | `web_search` stays SerpApi-backed, never DashScope/Google/GLM/Tavily.                     |
-| Vision-bridge concurrency        | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.                  |
-| Control-flow timing audit        | §13     | Telemetry commits that add `await` can break TUI state updates.                           |
-| **Append-only auto-memory**      | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**             |
-| **Context/cache status items**   | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**            |
-| Resume prelude reuse (automatic) | §16     | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged. |
+| Patch                            | Section | One-line rule                                                                                       |
+| -------------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| Telemetry dummy layer            | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.                     |
+| WebSearch / SerpApi              | §1.5    | `web_search` stays SerpApi-backed; the seams are `merge=ours`, so upstream rewrites never conflict. |
+| Vision-bridge concurrency        | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.                            |
+| Control-flow timing audit        | §13     | Telemetry commits that add `await` can break TUI state updates.                                     |
+| **Append-only auto-memory**      | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**                       |
+| **Context/cache status items**   | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**                      |
+| Resume prelude reuse (automatic) | §16     | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.           |
+
+### WebSearch / SerpApi (merge cost removed from a mandatory patch)
+
+Upstream's `web-search.ts` is a large, actively-changed DashScope/ModelStudio
+implementation. The fork used to carry its SerpApi backend as a whole-file
+replacement of that same file, so every upstream change opened an ~800-line
+semantic conflict that had to be hand-resolved in favour of SerpApi — the same
+resolution every time, doing the work of discarding by hand.
+
+The patch is now split so that discarding is automatic:
+
+- `packages/core/src/tools/serpapi-web-search.ts` is **fork-owned** and holds
+  the entire backend (gate, fetch, Markdown conversion, tool class). Upstream
+  never creates this path, so it can never conflict.
+- `packages/core/src/tools/web-search.ts` is a ~5-line re-export of that
+  module under the names upstream's consumers already import, so upstream's own
+  registration block in `config/config.ts` runs against the SerpApi backend
+  with **zero fork edits**. That file, its test, and
+  `docs/developers/tools/web-search.md` are `merge=ours` in `.gitattributes`.
+- Upstream's DashScope settings keys (`model`, `webExtractor`, `baseUrl`,
+  `apiKeyEnv`) stay in the schema and the resolver, accepted and **inert** —
+  there is no DashScope backend, so no code path can turn them into a request.
+  Deleting them would re-open a conflict in three files for no privacy gain.
+- Enablement follows upstream's **opt-out** shape. The fork's gate returns
+  `ok: false, silent: true` when no SerpApi key resolves, so the tool stays
+  off with no startup notice and `config.ts` needs no fork delta.
+
+Two traps:
+
+1. **`merge=ours` is not a built-in git merge driver.** It must be registered
+   in `.git/config`, which git does not clone. `npm install` registers it via
+   `scripts/check-merge-drivers.js --fix`; `npm run check:merge-drivers` fails
+   if the `.gitattributes` declaration and the registration drift apart. If a
+   web-search file ever conflicts, that is the cause — fix the driver, do not
+   hand-port code.
+2. **`merge=ours` discards upstream silently.** After every merge, run
+   `git log --oneline <prev>..<new> -- packages/core/src/tools/web-search.ts`
+   and decide whether anything upstream added is a generic fix worth porting.
+
+The guarantee is a test now, not a grep: `serpapi-web-search.test.ts`
+intercepts every outbound request and asserts the host is `serpapi.com`,
+including when the config is loaded with upstream's DashScope values.
+`src/tools/web-search.test.ts` is no longer excluded in
+`packages/core/vitest.config.ts` — it used to be, which left this mandatory
+patch with zero coverage.
+
+```bash
+cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
+grep -rn "dashscope\|DashScope" packages/core/src/tools/
+# Must return zero lines.
+npm run check:merge-drivers
+```
 
 ### Append-only auto-memory (prompt-cache preservation)
 

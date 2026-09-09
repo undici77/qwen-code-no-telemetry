@@ -83,8 +83,9 @@
     "smoke:sdk:python": "python3 packages/sdk-python/scripts/smoke_real.py",
     "build:sdk:python": "python3 -m build packages/sdk-python",
     "check-i18n": "npm run check-i18n --workspace=packages/cli",
+    "check:merge-drivers": "node scripts/check-merge-drivers.js",
     "preflight": "npm run clean && npm ci && npm run format && npm run lint:ci && npm run build && npm run typecheck && npm run test:ci && npm run check:serve-fast-path-bundle",
-    "postinstall": "patch-package && node scripts/prepare-sharp.js",
+    "postinstall": "node scripts/check-merge-drivers.js --fix && patch-package && node scripts/prepare-sharp.js",
     "prepare": "node scripts/prepare.js",
     "prepare:package": "node scripts/prepare-package.js",
     "package:hosted-installation": "node scripts/build-hosted-installation-assets.js",
@@ -124,6 +125,7 @@
     "scripts/cli-entry.js",
     "README.md",
     "LICENSE",
+    "scripts/check-merge-drivers.js",
     "scripts/prepare-sharp.js"
   ],
   "devDependencies": {

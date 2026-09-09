@@ -1249,36 +1249,36 @@
           "type": "string"
         },
         "webSearch": {
-          "description": "Settings for the built-in WebSearch tool (SerpApi backend). Opt-in: requires enabled=true and a SerpApi API key. The key comes from tools.webSearch.apiKey or the SERPAPI_API_KEY environment variable — get one at https://serpapi.com/manage-api-key (free tier: 250 queries/month). Env override for the flag: ENABLE_WEB_SEARCH.",
+          "description": "Settings for the built-in WebSearch tool (SerpApi backend). Registers whenever it can resolve a SerpApi API key; set enabled=false to turn it off. The key comes from tools.webSearch.apiKey or the SERPAPI_API_KEY environment variable — get one at https://serpapi.com/manage-api-key (free tier: 250 queries/month). Env override for the flag: ENABLE_WEB_SEARCH. Queries are sent only to serpapi.com.",
           "type": "object",
           "properties": {
             "enabled": {
-              "description": "Enable the built-in web_search tool. Opt-in: unset or false keeps the tool off. Enabling also requires a SerpApi API key (tools.webSearch.apiKey or SERPAPI_API_KEY). Env override: ENABLE_WEB_SEARCH.",
+              "description": "Set false to disable the built-in web_search tool. Left unset, the tool registers as soon as a SerpApi API key resolves (tools.webSearch.apiKey or SERPAPI_API_KEY) and stays off without one. Env override: ENABLE_WEB_SEARCH.",
               "type": "boolean"
             },
             "model": {
-              "description": "Model selector for the explicit search path (\"modelId\" or \"authType:modelId\"). With WEB_SEARCH_BASE_URL it is the plain model id for that endpoint; otherwise it must match a DashScope-compatible modelProviders entry with an envKey. The automatic path uses qwen3.6-plus. Env override: WEB_SEARCH_MODEL.",
+              "description": "Ignored in this fork — the SerpApi backend selects its engine via `engine`, not a model id. Accepted so settings written for upstream load without error.",
               "type": "string"
             },
             "webExtractor": {
-              "description": "Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.",
+              "description": "Ignored in this fork — search results are returned as links and are never fetched on your behalf. Accepted so settings written for upstream load without error.",
               "type": "boolean",
               "default": true
             },
             "apiKey": {
-              "description": "API key for the search backend. Env override: WEB_SEARCH_API_KEY.",
+              "description": "SerpApi API key. Env override: SERPAPI_API_KEY. https://serpapi.com/manage-api-key",
               "type": "string"
             },
             "engine": {
-              "description": "Search engine to use. Env override: WEB_SEARCH_ENGINE.",
+              "description": "SerpApi engine to query. Default: \"google\". Others: bing, baidu, yahoo, duckduckgo, yandex.",
               "type": "string"
             },
             "hl": {
-              "description": "Highlight parameter for search. Env override: WEB_SEARCH_HL.",
+              "description": "Interface language (SerpApi `hl` parameter). Default: \"en\".",
               "type": "string"
             },
             "gl": {
-              "description": "Geo location parameter for search. Env override: WEB_SEARCH_GL.",
+              "description": "Country (SerpApi `gl` parameter). Default: \"us\".",
               "type": "string"
             }
           }

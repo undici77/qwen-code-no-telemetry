@@ -1020,10 +1020,15 @@ function resolveModelFallbacks(
 }
 
 /**
- * Resolve the built-in WebSearch tool settings (SerpApi backend), with env
- * overrides taking precedence over `tools.webSearch`: ENABLE_WEB_SEARCH for
- * the flag, SERPAPI_API_KEY for the API key. The API key can also be set
- * directly in settings.json as `tools.webSearch.apiKey`.
+ * Resolve the built-in WebSearch tool settings, with env overrides taking
+ * precedence over `tools.webSearch` (mirroring the QWEN_SANDBOX_IMAGE
+ * pattern): ENABLE_WEB_SEARCH for the flag, WEB_SEARCH_MODEL for the model
+ * selector, WEB_SEARCH_EXTRACTOR for page reading.
+ *
+ * Env-only backend: WEB_SEARCH_BASE_URL mirrors a modelProviders entry's
+ * baseUrl for environments that cannot write settings.json; the API key
+ * comes from WEB_SEARCH_API_KEY, falling back to DASHSCOPE_API_KEY. When
+ * set, it takes precedence over modelProviders resolution in the gate.
  */
 function resolveWebSearchSettings(
   settings: Settings,
@@ -1031,24 +1036,52 @@ function resolveWebSearchSettings(
   const webSearch = settings.tools?.webSearch;
   // A set-but-empty env var is "unset", not an override: dotenv templates and
   // CI wrappers export empty values, which must not clobber a valid
-  // settings.json config.
+  // settings.json config (same rule as WEB_SEARCH_BASE_URL below).
   const envEnabled = process.env['ENABLE_WEB_SEARCH']?.trim() || undefined;
   const enabled =
     envEnabled !== undefined ? isTruthy(envEnabled) : webSearch?.enabled;
-  const apiKey = webSearch?.apiKey;
+  const model = process.env['WEB_SEARCH_MODEL']?.trim() || webSearch?.model;
+  const envExtractor = process.env['WEB_SEARCH_EXTRACTOR']?.trim() || undefined;
+  const webExtractor =
+    envExtractor !== undefined
+      ? isTruthy(envExtractor)
+      : webSearch?.webExtractor;
+  const baseUrl = process.env['WEB_SEARCH_BASE_URL']?.trim() || undefined;
+  const apiKeyEnv = baseUrl
+    ? process.env['WEB_SEARCH_API_KEY']?.trim()
+      ? 'WEB_SEARCH_API_KEY'
+      : 'DASHSCOPE_API_KEY'
+    : undefined;
+  // [no-telemetry fork] the model/baseUrl/apiKeyEnv values resolved above
+  // are inert — the fork's backend is SerpApi and it reads only these keys.
+  // See NO_TELEMETRY_GUIDELINES.md §1.5.
+  const serpApiApiKey = webSearch?.apiKey;
   const engine = webSearch?.engine;
   const hl = webSearch?.hl;
   const gl = webSearch?.gl;
   if (
     enabled === undefined &&
-    apiKey === undefined &&
+    model === undefined &&
+    webExtractor === undefined &&
+    baseUrl === undefined &&
+    serpApiApiKey === undefined &&
     engine === undefined &&
     hl === undefined &&
     gl === undefined
   ) {
     return undefined;
   }
-  return { enabled, apiKey, engine, hl, gl };
+  return {
+    enabled,
+    model,
+    webExtractor,
+    baseUrl,
+    apiKeyEnv,
+    apiKey: serpApiApiKey,
+    engine,
+    hl,
+    gl,
+  };
 }
 
 /**

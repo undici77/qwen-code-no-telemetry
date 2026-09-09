@@ -2,19 +2,28 @@
 
 Qwen Code provides web search two ways:
 
-1. **Built-in `web_search` tool** (opt-in) — backed by [SerpApi](https://serpapi.com), a universal search engine API. Works with a SerpApi API key (free tier: 250 queries/month). No extra provider or MCP setup needed.
+1. **Built-in `web_search` tool** (opt-out) — backed by [SerpApi](https://serpapi.com), a universal search engine API. Works with a SerpApi API key (free tier: 250 queries/month). No extra provider or MCP setup needed.
 2. **MCP (Model Context Protocol) integrations** — connect any external search service (Tavily, GLM, and others). Use this when you need a different provider or exceed SerpApi's free quota.
 
 ## Built-in `web_search`
 
-The built-in tool fetches structured results from SerpApi and returns them as Markdown with sections for organic results, knowledge graph, answer box, related questions, top stories, shopping, jobs, local results, recipes, sports, images, videos, and Twitter/X. It never activates implicitly — two settings are required:
+The built-in tool fetches structured results from SerpApi and returns them as Markdown with sections for organic results, knowledge graph, answer box, related questions, top stories, shopping, jobs, local results, recipes, sports, images, videos, and Twitter/X.
+
+Queries are sent only to `https://serpapi.com/search`. Nothing in the configuration can point the tool at another host.
+
+The tool registers as soon as it can resolve a SerpApi API key, and stays off — silently, with no startup warning — when it cannot. Setting a key is therefore the whole setup:
+
+```bash
+export SERPAPI_API_KEY=YOUR_KEY_HERE
+```
+
+To turn it off explicitly:
 
 ```json
 {
   "tools": {
     "webSearch": {
-      "enabled": true,
-      "apiKey": "YOUR_SERPAPI_KEY"
+      "enabled": false
     }
   }
 }
@@ -22,7 +31,7 @@ The built-in tool fetches structured results from SerpApi and returns them as Ma
 
 | Setting                   | Env override        | Meaning                                                                                                              |
 | ------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `tools.webSearch.enabled` | `ENABLE_WEB_SEARCH` | Opt-in flag. Required.                                                                                               |
+| `tools.webSearch.enabled` | `ENABLE_WEB_SEARCH` | Set `false` to disable. Left unset, the tool registers whenever a SerpApi key resolves.                              |
 | `tools.webSearch.apiKey`  | `SERPAPI_API_KEY`   | SerpApi API key. Get one at https://serpapi.com/manage-api-key. Free tier: 250 queries/month.                        |
 | `tools.webSearch.engine`  | —                   | Search engine to use. Supported: `google`, `bing`, `baidu`, `yahoo`, `duckduckgo`, `yandex`, etc. Default: `google`. |
 | `tools.webSearch.hl`      | —                   | Language parameter (hl). Default: `en`. Examples: `zh`, `ja`, `de`, `fr`, `es`.                                      |
@@ -39,14 +48,13 @@ export ENABLE_WEB_SEARCH=true
 export SERPAPI_API_KEY=YOUR_KEY_HERE
 ```
 
-Misconfiguration still surfaces as a startup notice.
-
 Notes:
 
 - The tool asks for confirmation by default; approving with "always allow" persists a standard `WebSearch` permission rule, like other tools.
-- If enabled but misconfigured (no API key), the tool stays off and a startup notice explains the failure.
+- `enabled: true` with no API key keeps the tool off and surfaces a one-time startup notice naming both places the key can be set. An unset flag with no key produces no notice — a machine that never asked for web search should not be warned about it.
 - SerpApi's free tier includes 250 queries per month — sufficient for personal use. For higher volumes, see [SerpApi pricing](https://serpapi.com/pricing).
 - The `engine`, `hl`, and `gl` parameters are optional and default to `google`, `en`, `us` respectively.
+- `tools.webSearch.model`, `webExtractor`, `baseUrl` and `apiKeyEnv` are accepted so settings written for upstream load without error, and are **ignored**: this fork has no DashScope backend, so those values can never select an endpoint or bill anything.
 
 ## MCP alternatives
 
@@ -56,7 +64,7 @@ If you don't have a SerpApi key, or need a different provider, web search is ava
 
 ### Original built-in `web_search` removed (V0.0.7+)
 
-The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provider) and its configuration were **removed**. The new opt-in built-in tool above is a different implementation with different configuration. If you were using any of the following, migrate either to the new built-in tool (SerpApi) or to MCP:
+The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provider) and its configuration were **removed**. The built-in tool above is a different implementation with different configuration. If you were using any of the following, migrate either to the new built-in tool (SerpApi) or to MCP:
 
 | Removed                                                                | What to do                                                      |
 | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -71,16 +79,17 @@ The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provi
 
 The built-in `web_search` tool was migrated from the DashScope Responses API backend to [SerpApi](https://serpapi.com). The configuration schema changed:
 
-| Old setting                    | New setting               | Notes                                                 |
-| ------------------------------ | ------------------------- | ----------------------------------------------------- |
-| `tools.webSearch.enabled`      | `tools.webSearch.enabled` | Same                                                  |
-| `tools.webSearch.model`        | `tools.webSearch.apiKey`  | Now requires a SerpApi API key                        |
-| `tools.webSearch.webExtractor` | —                         | Removed — SerpApi returns structured results directly |
-| `tools.webSearch.baseUrl`      | —                         | Removed — no longer needed                            |
-| `tools.webSearch.apiKeyEnv`    | —                         | Removed                                               |
-| —                              | `tools.webSearch.engine`  | New — search engine (google, bing, baidu, etc.)       |
-| —                              | `tools.webSearch.hl`      | New — language parameter                              |
-| —                              | `tools.webSearch.gl`      | New — country parameter                               |
+| Old setting                    | New setting               | Notes                                               |
+| ------------------------------ | ------------------------- | --------------------------------------------------- |
+| `tools.webSearch.enabled`      | `tools.webSearch.enabled` | Same                                                |
+| `tools.webSearch.model`        | —                         | Accepted, ignored — no search model is selected     |
+| `tools.webSearch.webExtractor` | —                         | Accepted, ignored — result pages are never fetched  |
+| `tools.webSearch.baseUrl`      | —                         | Accepted, ignored — no request leaves `serpapi.com` |
+| `tools.webSearch.apiKeyEnv`    | —                         | Accepted, ignored — see `apiKey`                    |
+| —                              | `tools.webSearch.apiKey`  | New — requires a SerpApi API key                    |
+| —                              | `tools.webSearch.engine`  | New — search engine (google, bing, baidu, etc.)     |
+| —                              | `tools.webSearch.hl`      | New — language parameter                            |
+| —                              | `tools.webSearch.gl`      | New — country parameter                             |
 
 **Migration:** Replace your old `webSearch` config with the new schema:
 

@@ -47,7 +47,7 @@ Qwen Code's built-in tools can be broadly categorized as follows:
 - **[Shell Tool](./shell.md) (`run_shell_command`):** For executing shell commands.
 - **[Monitor Tool](./monitor.md) (`monitor`):** For running long-lived shell commands that stream output back as background task notifications.
 - **[Web Fetch Tool](./web-fetch.md) (`web_fetch`):** For retrieving content from URLs.
-- **[Web Search Tool](./web-search.md) (`web_search`):** An opt-in tool for searching the web via [SerpApi](https://serpapi.com). Requires `tools.webSearch.enabled` and a SerpApi API key (`tools.webSearch.apiKey` or `SERPAPI_API_KEY`).
+- **[Web Search Tool](./web-search.md) (`web_search`):** An opt-out tool for searching the web via [SerpApi](https://serpapi.com). It registers as soon as a SerpApi API key resolves (`tools.webSearch.apiKey` or `SERPAPI_API_KEY`) and stays off without one; set `tools.webSearch.enabled` to `false` to disable it explicitly.
 - **[Todo Write Tool](./todo-write.md) (`todo_write`):** An opt-in tool for creating and managing structured task lists during coding sessions.
 - **[Agent Tool](./task.md) (`agent`):** For delegating complex tasks to specialized subagents.
 - **[Exit Plan Mode Tool](./exit-plan-mode.md) (`exit_plan_mode`):** For exiting plan mode and proceeding with implementation.
