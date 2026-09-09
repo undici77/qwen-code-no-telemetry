@@ -2852,6 +2852,8 @@ describe('loadCliConfig', () => {
     };
 
     it('returns undefined when neither settings nor env configure web search', async () => {
+      // `undefined` means "derive the backend from the active provider" —
+      // it must not be confused with an explicit opt-out.
       const config = await loadWithSettings({});
       expect(config.getWebSearchSettings()).toBeUndefined();
     });
@@ -2910,7 +2912,14 @@ describe('loadCliConfig', () => {
         { tools: { webSearch: { enabled: true, apiKey: 'sk-test' } } },
         argv,
       );
-      expect(config.getWebSearchSettings()).toBeUndefined();
+      expect(config.getWebSearchSettings()).toEqual({ enabled: false });
+    });
+
+    it('disables web search in safe mode even when nothing is configured', async () => {
+      process.argv = ['node', 'script.js', '--safe-mode'];
+      const argv = await parseArguments();
+      const config = await loadCliConfig({}, argv);
+      expect(config.getWebSearchSettings()).toEqual({ enabled: false });
     });
 
     it('disables web search in bare mode', async () => {
@@ -2920,7 +2929,14 @@ describe('loadCliConfig', () => {
         { tools: { webSearch: { enabled: true, apiKey: 'sk-test' } } },
         argv,
       );
-      expect(config.getWebSearchSettings()).toBeUndefined();
+      expect(config.getWebSearchSettings()).toEqual({ enabled: false });
+    });
+
+    it('disables web search in bare mode even when nothing is configured', async () => {
+      process.argv = ['node', 'script.js', '--bare'];
+      const argv = await parseArguments();
+      const config = await loadCliConfig({}, argv);
+      expect(config.getWebSearchSettings()).toEqual({ enabled: false });
     });
   });
 });

@@ -5,7 +5,7 @@ Qwen Code provides web search two ways:
 1. **Built-in `web_search` tool** (opt-in) — backed by [SerpApi](https://serpapi.com), a universal search engine API. Works with a SerpApi API key (free tier: 250 queries/month). No extra provider or MCP setup needed.
 2. **MCP (Model Context Protocol) integrations** — connect any external search service (Tavily, GLM, and others). Use this when you need a different provider or exceed SerpApi's free quota.
 
-## Built-in `web_search` (opt-in)
+## Built-in `web_search`
 
 The built-in tool fetches structured results from SerpApi and returns them as Markdown with sections for organic results, knowledge graph, answer box, related questions, top stories, shopping, jobs, local results, recipes, sports, images, videos, and Twitter/X. It never activates implicitly — two settings are required:
 
@@ -58,14 +58,14 @@ If you don't have a SerpApi key, or need a different provider, web search is ava
 
 The original built-in `web_search` tool (Tavily/Google/GLM/DashScope multi-provider) and its configuration were **removed**. The new opt-in built-in tool above is a different implementation with different configuration. If you were using any of the following, migrate either to the new built-in tool (SerpApi) or to MCP:
 
-| Removed                                                                | What to do                                                        |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `webSearch` block in `settings.json`                                   | Configure an MCP server in `mcpServers` instead (see below)       |
-| `advanced.tavilyApiKey` in `settings.json`                             | Use the [Tavily MCP server](#tavily-websearch)                    |
-| `TAVILY_API_KEY` environment variable                                  | Use the [Tavily MCP server](#tavily-websearch)                    |
-| `DASHSCOPE_API_KEY` for web search                                     | Use the [built-in `web_search` tool](#built-in-web_search-opt-in) |
-| `GLM_API_KEY` for web search                                           | Use the [GLM WebSearch Prime MCP](#glm-websearch-prime-zhipuai)   |
-| `--tavily-api-key` / `--glm-api-key` / `--dashscope-api-key` CLI flags | Configure via `mcpServers` in `settings.json`                     |
+| Removed                                                                | What to do                                                      |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `webSearch` block in `settings.json`                                   | Configure an MCP server in `mcpServers` instead (see below)     |
+| `advanced.tavilyApiKey` in `settings.json`                             | Use the [Tavily MCP server](#tavily-websearch)                  |
+| `TAVILY_API_KEY` environment variable                                  | Use the [Tavily MCP server](#tavily-websearch)                  |
+| `DASHSCOPE_API_KEY` for web search                                     | Use the [built-in `web_search` tool](#built-in-web_search)      |
+| `GLM_API_KEY` for web search                                           | Use the [GLM WebSearch Prime MCP](#glm-websearch-prime-zhipuai) |
+| `--tavily-api-key` / `--glm-api-key` / `--dashscope-api-key` CLI flags | Configure via `mcpServers` in `settings.json`                   |
 
 ### Built-in `web_search` backend changed from DashScope to SerpApi (V0.20.0+)
 
