@@ -25,20 +25,20 @@ The built-in `web_search` tool **MUST** remain backed by [SerpApi](https://serpa
 
 Upstream's `web-search.ts` is a large, actively-changed DashScope implementation (1400+ lines; 4 commits in the two months before v0.23.2). The fork used to carry its SerpApi backend as a whole-file replacement of that file, so **every** upstream change opened an ~800-line semantic conflict. The patch is split so that conflict is structurally impossible:
 
-| File                                                             | Owner    | Merge rule          | Role                                                                                                |
-| ---------------------------------------------------------------- | -------- | ------------------- | --------------------------------------------------------------------------------------------------- |
-| `packages/core/src/tools/serpapi-web-search.ts`                  | **fork** | new file            | The whole SerpApi backend: gate, fetch, Markdown conversion, tool class. Upstream never creates it. |
-| `packages/core/src/tools/serpapi-web-search.test.ts`             | **fork** | new file            | The executable §1.5 guarantee (below).                                                              |
-| `packages/core/src/tools/web-search.ts`                          | **fork** | `merge=ours`        | ~5-line re-export of the module above, under the names upstream's consumers import.                 |
-| `packages/core/src/tools/web-search.test.ts`                     | **fork** | `merge=ours`        | Shim guard — fails if the seam is ever resolved toward upstream.                                    |
-| `docs/developers/tools/web-search.md`                            | **fork** | `merge=ours`        | Fork documentation.                                                                                 |
-| `packages/core/src/config/config.ts` (registration block)        | upstream | clean               | Byte-identical to upstream; the fork's gate answers through the shim.                               |
-| `packages/cli/src/config/config.ts` (`resolveWebSearchSettings`) | mixed    | small additive hunk | Upstream body preserved; four SerpApi keys appended, tagged.                                        |
-| `packages/cli/src/config/settingsSchema.ts` (`webSearch` block)  | mixed    | small additive hunk | Upstream keys kept so the block stays upstream-shaped; descriptions are fork-owned.                 |
+| File                                                               | Owner    | Merge rule          | Role                                                                                                                                           |
+| ------------------------------------------------------------------ | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/tools/serpapi-web-search.ts`                    | **fork** | new file            | The whole SerpApi backend: gate, fetch, Markdown conversion, tool class. Upstream never creates it.                                            |
+| `packages/core/src/tools/serpapi-web-search.test.ts`               | **fork** | new file            | The executable §1.5 guarantee (below).                                                                                                         |
+| `packages/core/src/tools/web-search.ts`                            | **fork** | `merge=ours`        | ~5-line re-export of the module above, under the names upstream's consumers import.                                                            |
+| `packages/core/src/tools/web-search.test.ts`                       | **fork** | `merge=ours`        | Shim guard — fails if the seam is ever resolved toward upstream.                                                                               |
+| `docs/developers/tools/web-search.md`                              | **fork** | `merge=ours`        | Fork documentation.                                                                                                                            |
+| `packages/core/src/config/config.ts` (`webSearch` field docstring) | mixed    | small additive hunk | Fork comment marks SerpApi the only backend and upstream's keys inert. Comment only — no behaviour change, but NOT byte-identical to upstream. |
+| `packages/cli/src/config/config.ts` (`resolveWebSearchSettings`)   | mixed    | small additive hunk | Upstream body preserved; four SerpApi keys appended, tagged.                                                                                   |
+| `packages/cli/src/config/settingsSchema.ts` (`webSearch` block)    | mixed    | small additive hunk | Upstream keys kept so the block stays upstream-shaped; descriptions are fork-owned.                                                            |
 
 **Upstream's DashScope keys are accepted and inert.** `model`, `webExtractor`, `baseUrl` and `apiKeyEnv` stay in the schema and the resolver because deleting them would re-open a conflict in three files for no privacy gain — the fork has no DashScope backend, so no code path can turn those values into a request. They are documented as ignored in `settingsSchema.ts`, `settings.schema.json` and the tool docs.
 
-**Enablement follows upstream's opt-out shape.** The tool registers whenever `evaluateWebSearchGate` resolves a SerpApi API key (`tools.webSearch.apiKey` or `SERPAPI_API_KEY`) and `enabled !== false`. With nothing configured the gate returns `silent: true`, so the tool stays off with no startup notice. That is what lets `config.ts`'s registration block stay byte-identical to upstream.
+**Enablement follows upstream's opt-out shape.** The tool registers whenever `evaluateWebSearchGate` resolves a SerpApi API key (`tools.webSearch.apiKey` or `SERPAPI_API_KEY`) and `enabled !== false`. With nothing configured the gate returns `silent: true`, so the tool stays off with no startup notice. That is what lets upstream's registration _call sites_ survive untouched — the fork adds tagged keys inside the resolver and a tagged comment on the `webSearch` field, but never rewrites the registration itself. No `config.ts` is byte-identical to upstream; the hunks are additive and tagged, which is what makes them cheap to re-apply and easy to spot.
 
 `merge=ours` is **not** a built-in git merge driver — it must be registered in `.git/config`, which git does not clone. `npm install` registers it (`postinstall` → `node scripts/check-merge-drivers.js --fix`); `npm run check:merge-drivers` fails if the `.gitattributes` declaration and the registration drift apart.
 
@@ -52,9 +52,16 @@ The guarantee is now enforced by tests, not by grep. `src/tools/web-search.test.
 #    DashScope model / baseUrl / apiKeyEnv values.
 cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
 
-# 2. No other provider may be named as the backend anywhere in the tools dir.
-grep -rn "dashscope\|DashScope" packages/core/src/tools/
-# Must return zero lines.
+# 2. SerpApi must be the only host the search path can contact. The word
+#    "DashScope" stays in the tree ON PURPOSE — inert settings keys, the seam
+#    comment, and the tests that prove those keys cannot produce a request all
+#    name it. Grepping for the word matches the conflict-reduction strategy
+#    itself, and "fixing" a hit means deleting inert upstream code, which
+#    re-opens the ~800-line conflict the seam exists to prevent.
+grep -n "https://" packages/core/src/tools/serpapi-web-search.ts
+# Only the request template `https://serpapi.com/search` (a hardcoded URL whose
+# only parameters are q/engine/hl/gl/api_key, so no setting can supply a host)
+# and the `example.com` attribution text in the tool description may appear.
 
 # 3. The seam must still point at the fork backend.
 grep -n "serpapi-web-search" packages/core/src/tools/web-search.ts
@@ -130,26 +137,47 @@ Every successful merge REQUIRES:
 2.  **VERSION SYNC**: Update version in ALL `package.json` files to match upstream. **DO NOT** append `-no-telemetry` to the version string.
 3.  **DOCKER/SANDBOX SYNC**: Update `sandboxImageUri` in root `package.json` and `Dockerfile` to match the new version.
 4.  **CLEAN BUILD ARTIFACTS**: If seeing "No matching export" errors in `esbuild`, run a selective cleanup:
+
     ```bash
     find packages/*/src -name "*.ts" -o -name "*.tsx" | sed 's/\.ts$//; s/\.tsx$//' | while read -r base; do rm -f "${base}.js" "${base}.js.map"; done
     ```
+
+    **Then check for tracked survivors.** A `rm` on a _tracked_ `.js`/`.d.ts` that sits beside a `.ts` only dirties the tree — the file returns on the next checkout, so the resolution hijack (`.js` wins over `.ts`) is still there and the cleanup has silently done nothing. Untrack instead of deleting, and add an explicit `.gitignore` line for that exact path:
+
+    ```bash
+    git ls-files 'packages/*/src/**/*.js' 'packages/*/src/**/*.d.ts'
+    # Anything listed here that has a .ts/.tsx sibling is committed build
+    # output. Untrack it (git rm --cached) and ignore the explicit path.
+    ```
+
+    Do **not** fix this with a blanket `packages/*/src/**/*.js` ignore — `packages/cli/src/i18n/locales/*.js` and the bundled `dataviz` scripts are hand-written tracked sources and would be silently swallowed.
+
 5.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
 6.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
 7.  **STATS DISPLAY CHECK** ⚠️ See Section 11: Verify `logApiResponse`, `logApiError`, `logToolCall` in `packages/core/src/telemetry/loggers.ts` forward to `uiTelemetryService` — they must NOT be no-ops.
 8.  **RUNTIME IMPORT CHECK** ⚠️ See Section 12: Verify no `.ts` source files import directly from `@opentelemetry/api` (or other removed packages) using the bare package name:
     ```bash
     grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\." | grep -v "node_modules"
-    # Must return zero lines
+    grep -rn "import('@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\." | grep -v "node_modules"
+    # BOTH must return zero lines — the second catches inline type references
+    # like import('@opentelemetry/api').SpanContext, invisible to the first.
     ```
 9.  **TEST SUITE ALIGNMENT**: Ensure that obsolete OpenTelemetry test suites (`packages/core/src/telemetry/*.test.ts` except `uiTelemetry.test.ts`) are excluded in `packages/core/vitest.config.ts`, as they cannot compile/resolve without the removed `@opentelemetry` dependencies.
 10. **WEBSEARCH/SERPAPI CHECK** ⚠️ See Section 1.5: Verify the built-in `web_search` tool still uses SerpApi backend and NOT DashScope/Google/GLM/Tavily. The guarantee is a test, not a grep:
     ```bash
     cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
     # The suite intercepts every outbound request and asserts host === serpapi.com.
-    grep -rn "dashscope\|DashScope" packages/core/src/tools/
-    # Must return zero lines.
+    grep -n "https://" packages/core/src/tools/serpapi-web-search.ts
+    # Only `https://serpapi.com/search` and the `example.com` attribution text
+    # may appear. Do NOT grep for the word "DashScope" — it is kept in the
+    # tree on purpose (inert keys + the tests that prove they stay inert).
     grep -n "serpapi-web-search" packages/core/src/tools/web-search.ts
     # The shim must still re-export the fork backend.
+    grep -c "\[no-telemetry fork\]" packages/core/src/config/config.ts packages/cli/src/config/config.ts packages/cli/src/config/settingsSchema.ts
+    # Each must report >=1. These three carry the §1.5 guards stating that
+    # upstream's model/baseUrl/apiKeyEnv values are inert. They were the files
+    # no documented checklist looked at: a merge can strip them and every other
+    # gate still reports clean.
     npm run check:merge-drivers
     # .gitattributes declares merge=ours for the fork seams; it must be registered.
     ```
@@ -157,12 +185,18 @@ Every successful merge REQUIRES:
     ```bash
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
     # Must return zero lines
+    grep -c "tryAcquireBridgeSlotSync\|waitForBridgeSlot\|releaseBridgeSlot" packages/core/src/services/visionBridge/vision-bridge-service.ts
+    # Must report 7+. The negative grep above only catches a VERBATIM
+    # reintroduction of the names this fork deleted; an upstream cap under a new
+    # name slips past it. These positive greps are the load-bearing check.
+    grep -n "bridgeSlotsAvailable = VISION_BRIDGE_MAX_IMAGES" packages/core/src/services/visionBridge/vision-bridge-service.ts
+    # The bound must be a concurrency limit, not a per-turn count.
     ```
-12. **APPEND-ONLY AUTO-MEMORY CHECK** ⚠️ See Section 14: Verify the prompt-cache patch survived. All five upstream hooks must still be tagged, and the memory layer must no longer be hardcoded into the main system prompt:
+12. **APPEND-ONLY AUTO-MEMORY CHECK** ⚠️ See Section 14: Verify the prompt-cache patch survived. All **13** tagged hook lines must still be present across the three files (`core/client.ts` 5, `core/environmentContext.ts` 6, `memory/refresh.ts` 2), and the memory layer must no longer be hardcoded into the main system prompt:
 
     ```bash
     grep -rn "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
-    # Must return 7+ lines
+    # Must return 13 lines
     grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts
     # Must return exactly 1 (the custom-instruction branch, intentionally untouched)
     grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
@@ -173,7 +207,7 @@ Every successful merge REQUIRES:
 
     ```bash
     grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
-    # Must return 7+ lines
+    # Must return 12 lines (statusLinePresets.ts 7, useStatusLine.ts 5)
     grep -n "from './statusLinePresets" packages/cli/src/ui/status-line-fork-items.ts
     # Must return zero lines (importing upstream back forms a startup-breaking cycle)
     ```
@@ -217,15 +251,22 @@ Every successful merge REQUIRES:
     ```bash
     # All must return zero lines:
     grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
-    grep -rn "dashscope\|DashScope" packages/core/src/tools/
+    grep -rn "import('@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
     grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
     grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
+    # Search path may contact only serpapi.com. Never grep for the word
+    # "DashScope" here — the inert keys and the tests that prove them inert
+    # name it deliberately, so a word-grep reports the strategy as a violation.
+    grep -n "https://" packages/core/src/tools/serpapi-web-search.ts
     # loggers.ts must reference uiTelemetryService (4+ lines):
     grep -c "uiTelemetryService" packages/core/src/telemetry/loggers.ts
-    # append-only memory hooks must survive the merge (7+ lines):
-    grep -rc "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
-    # status-line context/cache hooks must survive the merge (7+ lines):
-    grep -rc "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
+    # append-only memory hooks must survive the merge — grep -c prints one
+    # "path:count" per file, so read the numbers, not a line count:
+    grep -c "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
+    # expect client.ts 5, environmentContext.ts 6, refresh.ts 2  (13 total)
+    # status-line context/cache hooks must survive the merge:
+    grep -c "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
+    # expect statusLinePresets.ts 7, useStatusLine.ts 5  (12 total)
     ```
 
     **Golden rule:** If a command times out, kill it. Never let a test run beyond 2× its expected duration. The full `npm run test` from root is a trap — it launches every package including slow integration tests.
@@ -251,10 +292,10 @@ Every successful merge REQUIRES:
 
 The version system has two distinct layers that serve different purposes:
 
-| Layer                | Purpose                                      | Conflict Resolution                   |
-| -------------------- | -------------------------------------------- | ------------------------------------- |
-| **Upstream version** | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
-| **No-telemetry标识** | UI identification, user awareness            | Always present in display strings     |
+| Layer                     | Purpose                                      | Conflict Resolution                   |
+| ------------------------- | -------------------------------------------- | ------------------------------------- |
+| **Upstream version**      | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
+| **No-telemetry identity** | UI identification, user awareness            | Always present in display strings     |
 
 ### Critical Rules:
 
@@ -291,8 +332,8 @@ When merging from `main`, conflicts may arise. Use this priority order:
 | Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                                                                                                                                                                    |
 | WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily. |
 | Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.                                                                                                                                                |
-| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the five `[no-telemetry fork]` hooks on top of upstream's new shape. Never resolve by dropping the flag.                                                                                                                 |
-| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs.                                                                                                                                                                                            |
+| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the 13 `[no-telemetry fork]` hook lines (client.ts 5, environmentContext.ts 6, refresh.ts 2) on top of upstream's new shape. Never resolve by dropping the flag.                                                         |
+| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs — now declared `merge=ours` in `.gitattributes`, so git discards upstream's version instead of leaving this to memory. List what was discarded per §1.5 merge reporting.                    |
 | Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                                                                                                                                                                     |
 | UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                                                                                                                                                                      |
 
@@ -484,7 +525,12 @@ grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
 ```bash
 grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" \
   | grep -v "\.test\." | grep -v "node_modules"
-# Must return zero lines
+grep -rn "import('@opentelemetry" packages/core/src/ --include="*.ts" \
+  | grep -v "\.test\." | grep -v "node_modules"
+# BOTH must return zero lines. The first matches only `from '…'`; inline type
+# references such as import('@opentelemetry/api').SpanContext are invisible to
+# it and caused TS2307 in telemetry/session-tracing.ts for months before
+# v0.23.0. Run both or the check is not a check.
 ```
 
 esbuild (`npm run bundle`) correctly resolves `@opentelemetry/api` via root `tsconfig.json` paths during bundling, so the _bundle_ works even without this fix. But `npm start` (non-bundled mode) and any direct `node packages/core/dist/...` invocation will crash without it.
@@ -568,7 +614,7 @@ The managed auto-memory index **MUST** be deliverable through the conversation i
 
 ```bash
 grep -rn "no-telemetry fork" packages/core/src/core/client.ts \
-  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts   # 7+ lines
+  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts   # 13 lines (client 5, envContext 6, refresh 2)
 grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts  # exactly 1
 grep -c "includeAutoMemoryReminder" packages/core/src/core/client.ts                      # 3
 grep -c "isAppendOnlyMemoryEnabled()" packages/core/src/memory/refresh.ts                 # 1
@@ -608,7 +654,7 @@ The status line **MUST** be able to report live prompt-cache state and precise c
 
 1. All logic stays in `status-line-fork-items.ts`. Upstream hunks stay additive one-liners.
 2. **Never import upstream values into the fork module** — `statusLinePresets.ts` imports it to build the catalogue, so importing back forms a module cycle that throws `FORK_STATUS_LINE_ITEM_IDS is not iterable` at startup. `formatTokenCount` is injected as a parameter for exactly this reason.
-3. **Never read the context window (or the model id) from `Config.getContentGeneratorConfig()` / `Config.getModel()` in UI code.** Both resolve through an AsyncLocalStorage runtime view that forked and fast-model runs push (`config.ts:4833`), and ALS propagates into React continuations — so the footer transiently renders the _fast_ model's window and then flips back (the documented #7156 leak class; `runOutsideAgentContext` wraps only four call sites, none of them UI readers). Go through `resolveMainModelContext()`, which prefers the ALS-immune `getModelsConfig().getGenerationConfig()`.
+3. **Never read the context window (or the model id) from `Config.getContentGeneratorConfig()` / `Config.getModel()` in UI code.** Both resolve through an AsyncLocalStorage runtime view that forked and fast-model runs push (`getRuntimeContentGenerator()`, read by `Config.getContentGeneratorConfig()`), and ALS propagates into React continuations — so the footer transiently renders the _fast_ model's window and then flips back (the documented #7156 leak class; `runOutsideAgentContext` wraps only four call sites, none of them UI readers). Go through `resolveMainModelContext()`, which prefers the ALS-immune `getModelsConfig().getGenerationConfig()`.
 4. `resolveMainModelContext()` returns **0 for an unknown window** and must never fall back to `tokenLimit(modelId)`. A provider-declared window (any custom `modelProviders` entry) never appears in `tokenLimits.ts`, so that fallback fabricates a plausible-but-wrong size; 0 correctly hides the item.
 5. Cache figures are scoped to the **main model's main-source traffic**. Never sum across `metrics.models` — auxiliary models (title generation, summarization, a fast model with its own window) and subagents would report a hit rate for a cache the main conversation never uses.
 6. `cache-live` / `cache-hit` stay hidden while `sessionCachedTokens === 0`. The `cachedInputTokensReported` provenance flag is dropped before it reaches `SessionMetrics`, so a provider that never reports cache is indistinguishable from a real 0% — without this guard the footer pins a misleading `0% cached`.
@@ -619,7 +665,7 @@ The status line **MUST** be able to report live prompt-cache state and precise c
 
 ```bash
 grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts \
-  packages/cli/src/ui/hooks/useStatusLine.ts                                    # 7+ lines
+  packages/cli/src/ui/hooks/useStatusLine.ts                                    # 12 lines (presets 7, useStatusLine 5)
 grep -c "FORK_STATUS_LINE_ITEM_IDS\|FORK_STATUS_LINE_ITEMS" packages/cli/src/ui/statusLinePresets.ts  # 4
 grep -c "FORK_CONTEXT_ITEM_IDS\|buildForkStatusLineData" packages/cli/src/ui/hooks/useStatusLine.ts   # 4
 grep -n "from './statusLinePresets" packages/cli/src/ui/status-line-fork-items.ts  # zero lines (invariant 2)

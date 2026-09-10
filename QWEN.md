@@ -2,23 +2,7 @@
 
 This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code): maximum privacy, zero external data leakage, while staying aligned with upstream `main`.
 
-## Working Principles
-
-### Simplicity First (most important)
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked; no abstractions for single-use code; no "flexibility" that wasn't requested; no error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it. Ask: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-### Core Infrastructure Is Maintainer-Only (triage gate)
-
-Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,config,tools,services}/**`, cross-package changes — are the architectural backbone. External PRs touching them face a two-tier gate (maintainer-authored PRs exempt):
-
-1. **Large `refactor` (500+ production logic lines in core, excluding `*.test.*`, `*.spec.*`, `**tests**/**`, `_.schema._`, `**/generated/**`) → hard block.** Must be maintainer-initiated. Non-`refactor` PRs are not size-blocked but escalate for awareness (advisory at 1000+ lines). Breadth alone is not size: a low-risk sweep touching 10+ files with 1-2 lines each is judged under Tier 2.
-2. **Small-scope changes → gate may evaluate but must be 100% confident.** Any doubt → escalate. The gate must name every downstream consumer; if it cannot, escalate.
-
-**When in doubt, escalate. Better to wrongly escalate than to wrongly approve.**
+This file holds the **fork-specific** rules and the single copy of the fork-patch detail. Generic working principles, commands, code conventions, Web Shell rules, development workflow, review rules, GitHub operations, PR workflow and project-directory layout live in **`AGENTS.md`** — that file is upstream-owned and is loaded into context alongside this one; do not restate its rules here.
 
 ## No-Telemetry Policy (MANDATORY)
 
@@ -31,25 +15,146 @@ Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,
 
 **Conflict resolution priority:** when merging from `main`, telemetry conflicts are resolved by REMOVAL — never keep `@opentelemetry/*` packages or tracking code "just to match versions". Version strings must match upstream, but the no-telemetry policy overrides any telemetry-related code.
 
-### ⚠️ MANDATORY RULES (verify after every merge)
+## Fork Patches — MUST Survive Every Merge
 
-- **`loggers.ts` partial no-op rule** — `logApiResponse`, `logApiError`, `logToolCall` (and `recordSkillInvocation`) in `packages/core/src/telemetry/loggers.ts` MUST NOT be no-ops. They MUST forward to `uiTelemetryService.addEvent()` (a local-only in-process `EventEmitter` — zero network, zero disk) and `config.getChatRecordingService()?.recordUiTelemetryEvent()` (local file only, for `--resume`). Making them full no-ops blanks the "Agent powering down. Goodbye!" quit stats (Model Usage / tokens / tool counts) — a correctness bug, not a privacy fix. All other ~30 log functions remain empty no-ops. See `NO_TELEMETRY_GUIDELINES.md §11`.
+Every merge from upstream `main` must re-apply these on top of whatever upstream changed. Never resolve a conflict by dropping one. `NO_TELEMETRY_GUIDELINES.md` is the deep reference and **is not loaded into context** — open it before a merge; this section is the always-on copy so a merge never starts without knowing the patches are there. `AGENTS.md` holds the index table.
 
-- **`@opentelemetry/api` runtime import rule** — `tsconfig.json` `paths` only affect type-checking and esbuild bundling; they do NOT rewrite `.js` output. Any `.ts` importing from `@opentelemetry/api` must use a **relative import to `dummy-otel.js`** (e.g. `from '../telemetry/dummy-otel.js'`), or `npm start` crashes with `ERR_MODULE_NOT_FOUND`. Verify: `grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."` — must return zero lines. See `NO_TELEMETRY_GUIDELINES.md §12`.
+`npm run check:context` re-verifies every command in this section mechanically and fails on drift, including the two documentation traps that greps alone cannot catch: a word-gate that matches inert upstream code, and a `file.ts:NNNN` line citation that has silently moved.
 
-- **WebSearch/SerpApi patch** — the built-in `web_search` tool MUST remain backed by SerpApi, NOT DashScope/Google/GLM/Tavily. The backend lives in the fork-owned `packages/core/src/tools/serpapi-web-search.ts`; `packages/core/src/tools/web-search.ts` is a re-export shim onto it, and both it and `web-search.test.ts` plus `docs/developers/tools/web-search.md` are `merge=ours` in `.gitattributes`, so upstream rewrites no longer open a conflict. `merge=ours` needs `git config merge.ours.driver true`, which `npm install` registers. Upstream's DashScope settings keys are accepted and inert. Verify: `grep -rn "dashscope\|DashScope" packages/core/src/tools/` — zero lines; `npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts` from `packages/core` — green; `npm run check:merge-drivers` — green. See `NO_TELEMETRY_GUIDELINES.md §1.5`.
+### `loggers.ts` partial no-op rule (§11)
 
-- **Vision-bridge image concurrency patch** — the vision bridge (`packages/core/src/services/visionBridge/vision-bridge-service.ts`) MUST NEVER reject an image on a per-turn count. It throttles concurrent bridge calls to `VISION_BRIDGE_MAX_IMAGES` (4) and queues the rest — every valid image is eventually converted. If upstream reintroduces a per-turn rejection cap (a `WeakMap`/counter failing images past N), replace it with the concurrency gate (`tryAcquireBridgeSlotSync` / `waitForBridgeSlot` / `releaseBridgeSlot`). Verify: `grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts` — zero lines. See `NO_TELEMETRY_GUIDELINES.md §1.6`.
+`logApiResponse`, `logApiError`, `logToolCall` (and `recordSkillInvocation`) in `packages/core/src/telemetry/loggers.ts` MUST NOT be no-ops. They MUST forward to `uiTelemetryService.addEvent()` (a local-only in-process `EventEmitter` — zero network, zero disk) and `config.getChatRecordingService()?.recordUiTelemetryEvent()` (local file only, for `--resume`). Making them full no-ops blanks the "Agent powering down. Goodbye!" quit stats (Model Usage / tokens / tool counts) — a correctness bug, not a privacy fix. All other ~30 log functions remain empty no-ops.
 
-- **Append-only auto-memory patch** — the managed memory index MUST stay deliverable through the conversation instead of the system prompt tail, gated by `QWEN_MEMORY_APPEND_ONLY` (off by default = upstream behavior). Upstream puts the index in the system prompt, which is serialized ahead of the whole history, so `refreshMemoryInstruction()` — which the background extraction agent triggers **once per user turn** — moves the first differing token in front of the entire transcript and forces a full re-prefill on any prefix-caching server (oMLX, vLLM-style paged caches, DeepSeek/Qwen implicit caching, Anthropic `cache_control`). All logic lives in the fork-owned `packages/core/src/memory/append-only-prompt-cache.ts`; upstream files carry only additive hooks tagged `// [no-telemetry fork]` in `memory/refresh.ts`, `core/client.ts` and `core/environmentContext.ts`. **Invariants**: `refreshMemoryInstruction()` is the single chokepoint; `includeAutoMemoryReminder` defaults to false and only the three main-session call sites opt in (never subagents); the custom-instruction branch of `client.ts` stays untouched; flag off ⇒ byte-identical upstream behavior. Verify: `grep -rn "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts` — 7+ lines. See `NO_TELEMETRY_GUIDELINES.md §14`.
+### `@opentelemetry/api` runtime import rule (§12)
 
-- **Context/prompt-cache status items** — the status line MUST keep offering the four opt-in items that make the §14 prompt-cache work observable: `context-tokens` (exact used/window tokens), `cache-live` (share of the last request served from the prompt cache), `cache-hit` (session rate for the main model) and `compact-in` (headroom before auto-compaction destroys the cached prefix). All logic lives in the fork-owned `packages/cli/src/ui/status-line-fork-items.ts`; upstream `statusLinePresets.ts` and `hooks/useStatusLine.ts` carry only additive hooks tagged `// [no-telemetry fork]`. **Invariants**: the fork module never imports upstream values back (`statusLinePresets.ts` imports it, so a back-import forms a startup-breaking module cycle — `formatTokenCount` is injected as a parameter); **UI code never reads the context window or model id from `getContentGeneratorConfig()` / `getModel()`** — both resolve through an AsyncLocalStorage runtime view that forked/fast-model runs push (`config.ts:4833`), and ALS propagates into React continuations, so the footer transiently renders the _fast_ model's window before flipping back (the documented #7156 leak class) — go through `resolveMainModelContext()`, which prefers the ALS-immune `getModelsConfig().getGenerationConfig()`; that resolver returns **0 for an unknown window** and must never fall back to `tokenLimit(modelId)`, because a provider-declared window (any custom `modelProviders` entry) never appears in `tokenLimits.ts` and the fallback would fabricate a plausible-but-wrong size; cache figures stay scoped to the main model's `bySource[MAIN_SOURCE]` traffic and are never summed across `metrics.models` (a fast/title-generation model would pollute the rate); cache items stay hidden until a cache read is observed, since a provider that never reports cache is indistinguishable from a real 0%; items return plain strings because the footer colors the whole line at once; not listing an item ⇒ byte-identical upstream behavior. Verify: `grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts` — 7+ lines. See `NO_TELEMETRY_GUIDELINES.md §15`.
+`tsconfig.json` `paths` only affect type-checking and esbuild bundling; they do NOT rewrite `.js` output. Any `.ts` importing from `@opentelemetry/api` must use a **relative import to `dummy-otel.js`** (e.g. `from '../telemetry/dummy-otel.js'`), or `npm start` crashes with `ERR_MODULE_NOT_FOUND`.
 
-- **Telemetry commits can change control-flow timing** — upstream telemetry fixes often add `await`/`try-finally` just to keep a trace span open; the span is a no-op here, but the **timing change survives the merge**. Incident (v0.21.12): upstream `#9121` changed the tool-result submission in `useGeminiStream.ts` from `void submitQuery(...)` to `await submitQuery(...)`, delaying `CoreToolScheduler`'s `notifyToolCallsUpdate([])` until the whole continuation stream ended → the completed tool group rendered in both Static and the live region (TUI duplication of the last tool block during RUN). **On every merge**: audit telemetry commits for `void` → `await` / callback-ordering changes; verify `checkAndNotifyCompletion` in `packages/core/src/core/coreToolScheduler.ts` calls `notifyToolCallsUpdate()` right after `this.toolCalls = []` (before the awaited `onAllToolCallsComplete`), and the regression test "clears the live tool-call view before a slow completion callback resolves" still exists. See `NO_TELEMETRY_GUIDELINES.md §13`.
+```bash
+grep -rn "from '@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
+grep -rn "import('@opentelemetry" packages/core/src/ --include="*.ts" | grep -v "\.test\."
+# BOTH must return zero lines.
+```
 
-### Optional Fork Patches (not mandatory, but verify the hook survives merges)
+The second grep is not optional: the first matches only the `from '…'` form and is **blind to inline type references** like `import('@opentelemetry/api').SpanContext` — and that inline form is exactly what produced `TS2307` in `telemetry/session-tracing.ts` for months before v0.23.0. A merge can restore a real upstream reference and the single-grep checklist would still report clean.
 
-- **Resume prelude reuse (automatic, safe-only)** — no flag, no command; always on. `getInitialChatHistory()` normally rebuilds the startup prelude (folder structure, MCP instructions, skills, deferred-tools) and prepends it fresh on every call, including `--continue`/`--resume`, where the replayed transcript already starts with the _original_ prelude — producing `[newPrelude, oldPrelude, ...conversation]` and busting a prefix-caching backend's (oMLX, other vLLM-style paged caches) entire cached prefix on every reopen, even with nothing on disk changed. The fix never skips the rebuild — it always runs in full — but afterward compares the freshly rebuilt **stable** texts (MCP instructions, skills, memory, workspace/date) against the existing entry's, byte-for-byte; only when they're provably identical does it reuse the existing entry instead of prepending the redundant rebuilt copy. The deferred-tools tail is deliberately EXCLUDED from that comparison: `LlmClient.revealDeferredToolsReferencedInHistory` re-reveals every deferred tool ever called in the transcript before every resume rebuild, so that reminder shrinks the moment a session has called even one deferred tool — comparing it made reuse fail on almost every real session (the bug in the first cut of this patch). Any real change to a stable part still falls straight through to the unmodified upstream rebuild-and-prepend path. All logic lives in the fork-owned `packages/core/src/core/resume-opt-cache.ts` (`reuseResumedPreludeIfUnchanged`); `core/environmentContext.ts` carries only an additive import + the stable/deferred split + a post-build comparison call site tagged `// [no-telemetry fork]` (the fork module never imports back from `environmentContext.ts` — `getStartupContextLength` is injected as a param to avoid a module cycle, mirroring §15's `formatTokenCount` pattern). See `NO_TELEMETRY_GUIDELINES.md §16`.
+### WebSearch / SerpApi (§1.5) — merge cost removed from a mandatory patch
+
+The built-in `web_search` tool MUST remain backed by SerpApi, NOT DashScope/Google/GLM/Tavily.
+
+Upstream's `web-search.ts` is a large, actively-changed DashScope/ModelStudio implementation. The fork used to carry its SerpApi backend as a whole-file replacement of that same file, so every upstream change opened an ~800-line semantic conflict that had to be hand-resolved in favour of SerpApi — the same resolution every time, doing the work of discarding by hand. The patch is now split so that discarding is automatic:
+
+- `packages/core/src/tools/serpapi-web-search.ts` is **fork-owned** and holds the entire backend (gate, fetch, Markdown conversion, tool class). Upstream never creates this path, so it can never conflict.
+- `packages/core/src/tools/web-search.ts` is a ~5-line re-export of that module under the names upstream's consumers already import, so upstream's own registration block in `config/config.ts` runs against the SerpApi backend with **zero fork edits**. That file, its test, and `docs/developers/tools/web-search.md` are `merge=ours` in `.gitattributes`.
+- Upstream's DashScope settings keys (`model`, `webExtractor`, `baseUrl`, `apiKeyEnv`) stay in the schema and the resolver, accepted and **inert** — there is no DashScope backend, so no code path can turn them into a request. Deleting them would re-open a conflict in three files for no privacy gain.
+- Enablement follows upstream's **opt-out** shape. The fork's gate returns `ok: false, silent: true` when no SerpApi key resolves, so the tool stays off with no startup notice and `config.ts` needs no fork delta.
+
+Two traps:
+
+1. **`merge=ours` is not a built-in git merge driver.** It must be registered in `.git/config` (`git config merge.ours.driver true`), which git does not clone. `npm install` registers it via `scripts/check-merge-drivers.js --fix`; `npm run check:merge-drivers` fails if the `.gitattributes` declaration and the registration drift apart. If a web-search file ever conflicts, that is the cause — fix the driver, do not hand-port code.
+2. **`merge=ours` discards upstream silently.** After every merge, run `git log --oneline <prev>..<new> -- packages/core/src/tools/web-search.ts` and decide whether anything upstream added is a generic fix worth porting.
+
+The guarantee is a test now, not a grep: `serpapi-web-search.test.ts` intercepts every outbound request and asserts the host is `serpapi.com`, including when the config is loaded with upstream's DashScope values. `src/tools/web-search.test.ts` is no longer excluded in `packages/core/vitest.config.ts` — it used to be, which left this mandatory patch with zero coverage.
+
+**There is deliberately no `grep "dashscope"` gate.** The word stays in the tree on purpose, because that _is_ the conflict-reduction strategy: upstream's settings keys are kept accepted-and-inert so `settingsSchema.ts` and the resolver stay conflict-free, the seam comment explains the replacement, and `serpapi-web-search.test.ts` / `web-search.test.ts` name DashScope values precisely to prove they cannot produce a request. Grepping the tools dir for the word matches the very code that implements the strategy, and "fixing" a hit means deleting inert upstream code — which re-opens the ~800-line conflict the split exists to prevent. A directory-wide _host_ grep is wrong for the same reason: `packages/core/src/tools/artifact/oss-publisher.ts` legitimately names `*.aliyuncs.com` for artifact uploads, an unrelated feature. The real invariant is **host selection inside the search path**, so gate on that — the request URL in `serpapi-web-search.ts` is a hardcoded `https://serpapi.com/search` template whose only parameters are `q`/`engine`/`hl`/`gl`/`api_key`, so no setting can supply a host.
+
+```bash
+# 1. Executable guarantee: intercepts every outbound request and asserts the
+#    host is serpapi.com — including when the config carries upstream's
+#    DashScope model / baseUrl / apiKeyEnv values.
+cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
+
+# 2. The seam must still point at the fork backend.
+grep -n "export \* from './serpapi-web-search.js'" packages/core/src/tools/web-search.ts
+# Must return the re-export line.
+
+# 3. SerpApi must be the only host the search path can contact.
+grep -n "https://" packages/core/src/tools/serpapi-web-search.ts
+# Only the request template `https://serpapi.com/search` and the
+# `example.com` attribution text in the tool description may appear.
+
+# 4. Merge drivers declared in .gitattributes must be registered.
+npm run check:merge-drivers
+```
+
+### Vision-bridge image concurrency (§1.6)
+
+The vision bridge (`packages/core/src/services/visionBridge/vision-bridge-service.ts`) MUST NEVER reject an image on a per-turn count. It throttles concurrent bridge calls to `VISION_BRIDGE_MAX_IMAGES` (4) and queues the rest — every valid image is eventually converted. If upstream reintroduces a per-turn rejection cap (a `WeakMap`/counter failing images past N), replace it with the concurrency gate (`tryAcquireBridgeSlotSync` / `waitForBridgeSlot` / `releaseBridgeSlot`).
+
+```bash
+# Positive: the concurrency gate must be present (7+ references today).
+grep -c "tryAcquireBridgeSlotSync\|waitForBridgeSlot\|releaseBridgeSlot" packages/core/src/services/visionBridge/vision-bridge-service.ts
+# Positive: the cap must be a concurrency bound, not a per-turn count.
+grep -n "bridgeSlotsAvailable = VISION_BRIDGE_MAX_IMAGES" packages/core/src/services/visionBridge/vision-bridge-service.ts
+# Negative: no per-turn rejection cap under the names this fork removed.
+grep -n "turnImageCounts\|budget was exhausted" packages/core/src/services/visionBridge/vision-bridge-service.ts
+# Must return zero lines.
+```
+
+The negative grep is scoped to the _names_ this fork deleted, so on its own it only catches a verbatim reintroduction — an upstream cap under a new name would slip past it. That is why the two positive greps are load-bearing: if the concurrency gate disappears or stops being the mechanism, they fail even when the negative grep stays clean.
+
+### Append-only auto-memory (§14) — prompt-cache preservation
+
+Upstream carries the managed memory index in the **system prompt**, which is serialized ahead of the entire conversation. `refreshMemoryInstruction()` — run by the background extraction agent **once per user turn** — rewrites that tail, which moves the first differing token in front of the whole transcript and forces a full re-prefill on any server that reuses a KV cache by longest-common-prefix (oMLX and other vLLM-style paged caches, DeepSeek/Qwen implicit prefix caching, Anthropic `cache_control`). One added index line costs a re-read of the entire history.
+
+`QWEN_MEMORY_APPEND_ONLY=1` moves the index into the conversation instead: the full index rides in the startup prelude, later saves append a small delta at the END of history. Appending never changes an already-cached byte. Off by default = upstream behavior.
+
+All logic lives in the fork-owned `packages/core/src/memory/append-only-prompt-cache.ts`. Upstream files carry only additive hooks tagged `// [no-telemetry fork]` in `memory/refresh.ts`, `core/client.ts` and `core/environmentContext.ts` — **grep that tag after every merge to find them all**.
+
+Invariants a merge must preserve:
+
+1. `refreshMemoryInstruction()` stays the single chokepoint for memory-driven prompt refreshes.
+2. `includeAutoMemoryReminder` defaults to `false`; only the three main-session call sites opt in. Subagents never do.
+3. The custom-instruction branch of `client.ts` stays untouched.
+4. Flag off ⇒ byte-identical upstream behavior.
+
+```bash
+grep -rn "no-telemetry fork" packages/core/src/core/client.ts \
+  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
+# Must return 7+ lines. See NO_TELEMETRY_GUIDELINES.md §14 for the full checklist.
+```
+
+### Context & prompt-cache status items (§15)
+
+Makes the §14 patch observable: four opt-in status-line items — `context-tokens` (`54.1k/128.0k`), `cache-live` (share of the last request served from cache), `cache-hit` (session rate for the main model) and `compact-in` (headroom before auto-compaction wipes the prefix).
+
+All logic lives in the fork-owned `packages/cli/src/ui/status-line-fork-items.ts`. Upstream `statusLinePresets.ts` and `hooks/useStatusLine.ts` carry only additive one-liners tagged `// [no-telemetry fork]`.
+
+Traps a merge must not walk into:
+
+1. **Never import upstream values into the fork module.** `statusLinePresets.ts` imports it to build the catalogue, so importing back forms a module cycle that throws at startup. `formatTokenCount` is injected as a parameter instead.
+2. Cache figures stay scoped to the **main model's main-source traffic** (`bySource[MAIN_SOURCE]`) — never summed across `metrics.models`, or a fast/title-generation model pollutes the rate.
+3. Cache items stay hidden until a cache read is observed, because "provider never reports cache" is indistinguishable from a real 0%.
+4. **UI code never reads the context window or model id from `getContentGeneratorConfig()` / `getModel()`** — both resolve through an AsyncLocalStorage runtime view (`getRuntimeContentGenerator()`, read at `config.ts` `getContentGeneratorConfig()`) that forked/fast-model runs push, and ALS propagates into React continuations, so the footer transiently renders the _fast_ model's window before flipping back (the documented #7156 leak class). Go through `resolveMainModelContext()`, which prefers the ALS-immune `getModelsConfig().getGenerationConfig()`. That resolver returns **0 for an unknown window** and must never fall back to `tokenLimit(modelId)` — a provider-declared window (any custom `modelProviders` entry) never appears in `tokenLimits.ts`, and the fallback would fabricate a plausible-but-wrong size.
+5. Items return plain strings because the footer colors the whole line at once; not listing an item ⇒ byte-identical upstream behavior.
+
+```bash
+grep -rn "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts \
+  packages/cli/src/ui/hooks/useStatusLine.ts
+# Must return 7+ lines. See NO_TELEMETRY_GUIDELINES.md §15 for the full checklist.
+```
+
+### Telemetry commits can change control-flow timing (§13)
+
+Upstream telemetry fixes often add `await`/`try-finally` just to keep a trace span open; the span is a no-op here, but the **timing change survives the merge**. Incident (v0.21.12): upstream `#9121` changed the tool-result submission in `useGeminiStream.ts` from `void submitQuery(...)` to `await submitQuery(...)`, delaying `CoreToolScheduler`'s `notifyToolCallsUpdate([])` until the whole continuation stream ended → the completed tool group rendered in both Static and the live region (TUI duplication of the last tool block during RUN).
+
+**On every merge**: audit telemetry commits for `void` → `await` / callback-ordering changes; verify `checkAndNotifyCompletion` in `packages/core/src/core/coreToolScheduler.ts` calls `notifyToolCallsUpdate()` right after `this.toolCalls = []` (before the awaited `onAllToolCallsComplete`), and the regression test "clears the live tool-call view before a slow completion callback resolves" still exists.
+
+### Resume prelude reuse (§16) — automatic, safe-only
+
+Not mandatory in the sense of §14/§15's blocking checklist, but still a fork behavior change to an upstream-owned function, so it needs the same merge-survival care. No flag, no command — always on.
+
+`getInitialChatHistory()` always rebuilds the startup prelude (folder structure, MCP instructions, skills, deferred-tools) and prepends it fresh, including on `--continue`/`--resume`, where the replayed transcript already starts with the _original_ prelude from the session's first-ever start. Upstream never strips that old entry, so every resume produced `[newPrelude, oldPrelude, ...conversation]` — new content in front of an otherwise-unchanged transcript, which busts a prefix-caching backend's (oMLX, other vLLM-style paged caches) entire cached prefix on every reopen, even with nothing on disk changed.
+
+The fix never skips the rebuild — the full build (workspace scan, MCP instructions, skills, memory, deferred tools) always runs, so nothing is ever guessed or assumed unchanged. Only _afterward_ does it compare the freshly rebuilt **stable** texts (MCP instructions, skills, memory, workspace/date) against the ones already in the resumed transcript, byte-for-byte; if they're identical, the existing entry is reused instead of prepending the redundant rebuilt copy. Any real change to a stable part (memory edit, new MCP server, renamed skill, folder change, date rollover) makes the comparison fail, and the exact unmodified upstream rebuild-and-prepend path runs.
+
+The deferred-tools tail is deliberately EXCLUDED from the comparison — this was the bug in the first cut of this patch. `buildDeferredToolsReminder` lists deferred tools not yet revealed, and `LlmClient.revealDeferredToolsReferencedInHistory` re-reveals every deferred tool ever called anywhere in the transcript before every resume rebuild. So the very first build (before any tool call) always lists the full deferred set, while any resume after the session called even one deferred tool — almost any real session — reveals it first, shrinking the tail. Comparing that tail made reuse fail on nearly every real resume for a reason that has nothing to do with anything needing re-announcement (the model already knows about a tool it called). The tail is safe to leave uncompared: it only ever shrinks, and a genuinely new deferred tool is announced through the existing mid-conversation delta reminders, never through the prelude.
+
+All logic lives in the fork-owned `packages/core/src/core/resume-opt-cache.ts` (`reuseResumedPreludeIfUnchanged`); `core/environmentContext.ts` carries only an additive import + the `stableTexts`/`deferredToolsText` split + a post-build comparison call site tagged `// [no-telemetry fork]`. The fork module never imports back from `environmentContext.ts` — `getStartupContextLength` is injected as a param, same reasoning as §15's `formatTokenCount` injection.
+
+```bash
+grep -n "reuseResumedPreludeIfUnchanged" packages/core/src/core/environmentContext.ts
+# Must return 2 lines (import + call site). See NO_TELEMETRY_GUIDELINES.md §16.
+```
 
 ## Versioning & Release
 
@@ -60,10 +165,6 @@ Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,
   2. `git merge --no-ff main -m "feat: release [VERSION]"`
   3. Resolve/neutralize and `git commit --amend`
      _Avoid `reset --soft` after merge — it breaks the history link to `main`._
-
-## Common Commands
-
-`npm install` · `npm run build` (all packages) · `npm run build:all` (incl. sandbox container) · `npm run bundle` (dist/cli.js via esbuild; requires build first) · `npm start` (CLI from source) · `npm run dev` (watch) · `npm run preflight` (clean → install → format → lint → build → typecheck → test) · `bash local-install.sh` (build + install globally into `$HOME/.npm-global`; timeout 600s)
 
 ## Efficiency & Troubleshooting
 
@@ -91,17 +192,10 @@ Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,
 | `npm install`                                                         | ~60–100s     | **180s**     |
 | `git stash && npm run test && git stash pop` (baseline)               | ~90s         | **180s**     |
 
-## Testing
-
-- **Fresh clone/worktree**: `packages/cli` unit tests and `packages/core` tests resolve workspace packages through built `dist/`; a worktree sharing the main checkout's `node_modules` (or a deep-cleaned copy) may lack them — build once from the repository root (`npm run build`) if a vitest `globalSetup` guard reports a missing prerequisite.
-
-**Run individual test files** (always preferred): `cd packages/core && npx vitest run src/path/to/file.test.ts` (same for `packages/cli`).
+## Fork Testing Notes
 
 - **OTel test exclusions**: `packages/core/vitest.config.ts` excludes `src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`, which tests local-only stats) — they can't compile without the removed `@opentelemetry` deps.
 - **Root-user skip**: `packages/cli`'s permission error-counting case in `cleanup.test.ts` auto-skips when `process.getuid?.() === 0` (root bypasses directory write restrictions).
-- **Update snapshots**: `cd packages/cli && npx vitest run src/path/to/file.test.ts --update`.
-- **Avoid**: `npm run test -- --filter=...` (does NOT filter — runs everything); `npx vitest` from the project root (fails — package-specific configs); full-suite runs unless necessary.
-- **Gotcha**: in CLI tests, use `vi.hoisted()` for mocks consumed by `vi.mock()` — the mock factory runs at module load time.
 
 **Pre-existing failures (running as root, NOT related to our changes):**
 
@@ -111,10 +205,6 @@ Core modules — `packages/core/src/**`, `packages/*/src/{auth,providers,models,
 
 **Tests we fixed for no-telemetry:** `installationManager.test.ts` (static UUID), `config.test.ts` (usage stats + gitCoAuthor disabled by default), `settingsSchema.test.ts` (gitCoAuthor default false), `gemini.test.tsx` (fixed `getCliVersionDisplay` mock), `mustTranslateKeys.test.ts` (restored deleted locale files + `git-commit.js`), `packages/core/src/telemetry/*.test.ts` excluded in `vitest.config.ts`.
 
-**Integration testing**: build first (`npm run build && npm run bundle`), then `npm run test:integration:cli:sandbox:none` / `npm run test:integration:interactive:sandbox:none`, or `cd integration-tests && cross-env QWEN_SANDBOX=false npx vitest run cli interactive`. Gotcha: always call `session.idle()` between sends — ANSI output streams asynchronously.
-
-**Linting & formatting**: `npm run lint` · `lint:fix` · `format` · `typecheck` · `preflight`.
-
 ## Project Structure
 
 ```
@@ -123,93 +213,3 @@ packages/{cli (main entry), core (backend + telemetry dummy layer), sdk-java, sd
 docs/ (source docs) · docs-site/ (Next.js site) · integration-tests/ · scripts/ · eslint-rules/
 build.sh / install.sh (install.ps1 = Windows counterpart) · Dockerfile · Makefile
 ```
-
-## Code Conventions
-
-- **Module system**: ESM throughout (`"type": "module"` in all packages)
-- **TypeScript**: strict mode (`noImplicitAny`, `strictNullChecks`, `noUnusedLocals`, `verbatimModuleSyntax`)
-- **Formatting**: Prettier — single quotes, semicolons, trailing commas, 2-space indent, 80-char width
-- **Linting**: no `any`, consistent type imports, no relative imports between packages
-- **Tests**: collocated (`file.test.ts` next to `file.ts`), vitest
-- **File naming**: `PascalCase.tsx` for React components; `kebab-case.ts` for `.ts` in `packages/core` and `packages/cli` (ESLint-enforced; camelCase files are allowlisted in `eslint.legacy-filenames.mjs` — rename opportunistically, updating imports in the same commit; renames lose `git blame`)
-- **Comments**: default to none; add only when the _why_ is non-obvious; don't delete existing ones as cleanup
-- **Commits**: Conventional Commits (e.g. `feat(cli): Add --json flag`)
-- **Node.js**: dev and prod both require `>=22`
-
-## Web Shell UI Development
-
-- Prefer the shared primitives in `packages/web-shell/client/components/ui`; don't duplicate an existing primitive or rewrite stable CSS Modules.
-- If a primitive is missing, run `npx shadcn@latest add <component>` from `packages/web-shell`, then review the diff. Don't let the CLI overwrite global CSS, semantic tokens, CSS scoping, or portal-root integration. Keep generated components internal unless a public API is required.
-- Web Shell supports React 18 and 19; generated shadcn components often assume React 19 ref semantics — wrappers accepting/receiving refs (including Radix `asChild`, `Slot`, `Presence`, portal children) must use `React.forwardRef` and pass the ref through. Add a regression test for any ref-sensitive path.
-- Use unprefixed Tailwind classes and shadcn semantic tokens (`background`, `primary`, `muted`). The package build scopes CSS to the Web Shell root and portal root and prefixes global animations — preserve that isolation from host-page styles.
-- Portal components (dialogs, popovers, dropdowns, tooltips) must use `useWebShellPortalRoot()` as the Radix portal container. Preserve existing `data-web-shell-*` attributes and public `--web-shell-*` CSS variables. See `packages/web-shell/README.md`.
-
-## Development Guidelines
-
-1. **Design doc for non-trivial work** — write one in `docs/design/` if the change touches multiple files or involves design decisions. Skip for small bugfixes.
-2. **Test plan for behavioral changes** — write an E2E test plan in `.qwen/e2e-tests/` when the change affects user-observable behavior. Dry-run against the global `qwen` CLI first to confirm the baseline.
-3. **Build, typecheck, and test before declaring done**: `npm run build && npm run typecheck`, plus unit tests for the files you changed.
-4. **Self-audit before declaring done** — read the full diff (including new untracked files) in open-ended passes. Verify each change and each green test you rely on, presuming it wrong. Stop after two consecutive clean passes; a fix re-runs step 3 and resets the count. If five passes bring no convergence, say so instead of declaring done. Scale to the diff: one clean pass suffices for a trivial change.
-
-**Feature development**: use the `/feat-dev` skill (investigate, design, test plan, dry-run, implement, verify, self-audit, review, iterate).
-**Bugfix**: use the `/bugfix` skill (reproduce-first workflow).
-
-## Code Review
-
-Project-specific rules for `/review`. The skill loads this section verbatim (by its `## Code Review` heading) and hands it to every review agent, so keep it to things a reviewer of _this_ codebase must check — not general advice.
-
-- **Verify a finding against the exact reviewed commit before reporting it.**
-  Read the lines you are about to cite. A Critical that quotes code not present at
-  the commit under review is worse than no finding — it blocks the author over
-  nothing. Do not report a defect you have only inferred from a symbol name or a
-  diff fragment.
-- **A `C=0` / APPROVE is a claim, not a default.** Before submitting one, take
-  each unresolved Critical already on the PR and check it against the code as it
-  stands: _still stands_ / _fixed by this diff_ / _cannot tell_. A GitHub thread
-  can read `isResolved: false, isOutdated: false` for a bug that a later commit
-  fixed on an adjacent line — the flag tracks the anchored line, not the fix.
-- **For every added field, option, or optional parameter, grep its read sites**,
-  including outside the diff. A `foo?: boolean` that is declared and read but never
-  set by any caller is a dead switch (`options.foo ?? true` always takes the
-  default). Decide severity at the read site; never explain an unpopulated field
-  with author intent you cannot observe.
-- **Classify every added or changed daemon route by ownership.** Name whether it
-  is process-global, legacy-primary, selected-runtime, live-session-owner, or
-  persisted-workspace scoped, and verify every downstream consumer matches that
-  scope.
-- **Verify workspace-scoped routes stay inside the resolved runtime.** Check the
-  environment, bridge, service, filesystem, trust boundary, and failure paths.
-  Each unknown, untrusted, ambiguous, bootstrapping, draining, or removed state
-  must follow its declared failure semantics and must never fall back to the
-  primary runtime.
-- **Match the house style when judging.** ESM only; no `any`; no relative imports
-  between packages; `kebab-case.ts` for `.ts` in `packages/core` and `packages/cli`,
-  `PascalCase.tsx` for React components; tests collocated as `file.test.ts`.
-  Comments default to none — flag a _missing_ comment only where the _why_ is
-  genuinely non-obvious, and never fault a diff for deleting a comment that no
-  longer applies.
-- **A missing test for changed behavior is a Suggestion, not a Critical**, unless
-  the untested path is itself the defect.
-
-## GitHub Operations
-
-Use the `gh` CLI for all GitHub-related operations — issues, pull requests, comments, CI checks, releases, and API calls. Prefer `gh issue view`, `gh pr view`, `gh pr checks`, `gh run view`, `gh api`, etc. over web fetches or manual REST calls.
-
-## Testing, Debugging, and Bug Fixes
-
-- **Bug reproduction & verification**: spawn the `test-engineer` agent. It reads code and docs, reproduces the bug via E2E testing (or a test-script fallback), and handles post-fix verification. It cannot edit source code.
-- **Hard bugs**: use the `structured-debugging` skill when debugging needs more than a quick glance — especially when the first fix attempt failed or the behavior seems impossible.
-- **E2E testing**: the `e2e-testing` skill covers headless mode, interactive (tmux) mode, MCP server testing, and API traffic inspection. The `test-engineer` agent invokes it internally.
-
-## Submitting PRs
-
-Follow the template at `.github/pull_request_template.md`; after submitting, post a separate comment with the E2E test report if applicable.
-
-- **PR description**: explain motivation and changes in prose; avoid referencing file or function names.
-- **Reviewer Test Plan**: describe behaviors a reviewer should verify and what to expect, not scripted test commands. Use **How to verify** for reproduction steps; Before/After for TUI evidence when applicable.
-- **Line wrapping**: do not hard-wrap the PR body at a fixed column width — GitHub renders single newlines as `<br>`. Write each paragraph or list item as one long line.
-- **Don't let review rounds balloon the PR.** After roughly **5 review rounds**, land only Critical fixes (correctness, security, data loss, regressions) and defer remaining Suggestions to a follow-up issue or PR. Record each deferral in the PR thread so nothing is silently dropped.
-
-## Project Directories
-
-Design docs and plans are committed under `docs/` (tracked in VCS): `docs/design/` (planned features), `docs/plans/` (implementation plans). Working artifacts live under `.qwen/` (git-ignored): `.qwen/e2e-tests/` (E2E plans + results), `.qwen/issues/` (issue drafts), `.qwen/pr-drafts/`, `.qwen/pr-reviews/` (review notes), `.qwen/investigations/` (debugging journals), `.qwen/scripts/` (utility scripts).

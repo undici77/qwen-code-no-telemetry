@@ -84,6 +84,7 @@
     "build:sdk:python": "python3 -m build packages/sdk-python",
     "check-i18n": "npm run check-i18n --workspace=packages/cli",
     "check:merge-drivers": "node scripts/check-merge-drivers.js",
+    "check:context": "node scripts/check-context-docs.js",
     "preflight": "npm run clean && npm ci && npm run format && npm run lint:ci && npm run build && npm run typecheck && npm run test:ci && npm run check:serve-fast-path-bundle",
     "postinstall": "node scripts/check-merge-drivers.js --fix && patch-package && node scripts/prepare-sharp.js",
     "prepare": "node scripts/prepare.js",

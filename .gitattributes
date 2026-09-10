@@ -41,3 +41,10 @@ scripts/installation/install-qwen-standalone.bat text eol=crlf
 packages/core/src/tools/web-search.ts merge=ours
 packages/core/src/tools/web-search.test.ts merge=ours
 docs/developers/tools/web-search.md merge=ours
+
+# The fork's README replaces upstream's and documents the fork specifically
+# (NO_TELEMETRY_GUIDELINES.md §2 "README MAINTENANCE", §6 "DO NOT merge
+# upstream README"). Declared here so the rule is enforced by git rather than
+# remembered by hand on every merge; the §1.5 merge-reporting duty covers what
+# this discards.
+README.md merge=ours

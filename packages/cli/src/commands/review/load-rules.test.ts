@@ -51,15 +51,22 @@ describe('extractCodeReviewSection', () => {
     expect(got).not.toContain('## End');
   });
 
-  // The whole point of #3: this repo's own QWEN.md must carry a section the
+  // The whole point of #3: this repo's own review rules must carry a section the
   // loader can find, or every /review in the repo runs with zero project rules.
-  it('QWEN.md has a Code Review section the loader extracts non-empty', () => {
-    const qwenMd = readFileSync(join(repoRoot, 'QWEN.md'), 'utf8');
-    const section = extractCodeReviewSection(qwenMd);
+  // They live in AGENTS.md; QWEN.md used to hold a subset copy, which the loader
+  // concatenated — every agent brief got the same rules twice.
+  it('AGENTS.md has a Code Review section the loader extracts non-empty', () => {
+    const agentsMd = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8');
+    const section = extractCodeReviewSection(agentsMd);
     expect(section).not.toBeNull();
     expect(section!.length).toBeGreaterThan(200);
     expect(section).toContain('## Code Review');
     // must stop at the next section, not bleed into it
     expect(section).not.toContain('## GitHub Operations');
+  });
+
+  it('QWEN.md carries no Code Review section, so the loader injects the rules once', () => {
+    const qwenMd = readFileSync(join(repoRoot, 'QWEN.md'), 'utf8');
+    expect(extractCodeReviewSection(qwenMd)).toBeNull();
   });
 });

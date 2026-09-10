@@ -120,6 +120,16 @@ integration-tests/terminal-capture/scenarios/screenshots/
 # Test-built worker artifact (fzfWorkerHandle.test.ts builds this on-the-fly)
 packages/core/src/utils/filesearch/fzfWorker.js
 
+# tsc output for the toml converter test. Upstream tracks only the .ts; these
+# were committed build output and shadow the .ts on Node's resolution order
+# (.js before .ts) — the same class that hijacked vite and masked typecheck
+# errors before the v0.23.0 purge. Listed explicitly, not by a src/**/*.js
+# glob, because packages/cli/src/i18n/locales/*.js and the bundled dataviz
+# scripts are hand-written tracked sources.
+packages/core/src/utils/toml-to-markdown-converter.test.js
+packages/core/src/utils/toml-to-markdown-converter.test.js.map
+packages/core/src/utils/toml-to-markdown-converter.test.d.ts
+
 # storybook
 *storybook.log
 storybook-static
