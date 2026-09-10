@@ -28,21 +28,27 @@ export const TOOL_STATUS = {
   ERROR: 'x',
 } as const;
 
+// Variation Selector 15 (U+FE0E) is zero-width in string-width but forces
+// the terminal to render the preceding glyph in narrow (1-column) text
+// presentation. This ensures CJK terminals (which would otherwise render
+// East-Asian-Width "Ambiguous" glyphs as 2 columns) agree with Ink's
+// layout engine (which always measures them as 1 column).
+const _VS15 = '\uFE0E';
 export const ICON = {
-  DIAMOND: '◆',
-  CIRCLE_FILLED: '●',
-  TRIANGLE: '△',
-  CIRCLE_EMPTY: '○',
-  BULLSEYE: '◎',
-  REFERENCE: '※',
-  THEREFORE: '∴',
-  BECAUSE: '∵',
-  STAR: '★',
-  SPARKLE: '✳',
-  RADIO_FILLED: '◉',
-  CIRCLE_LEFT_HALF: '◐',
-  CHECK: '✓',
-  CROSS: '✖',
+  DIAMOND: `◆${_VS15}`,
+  CIRCLE_FILLED: `●${_VS15}`,
+  TRIANGLE: `△${_VS15}`,
+  CIRCLE_EMPTY: `○${_VS15}`,
+  BULLSEYE: `◎${_VS15}`,
+  REFERENCE: `※${_VS15}`,
+  THEREFORE: `∴${_VS15}`,
+  BECAUSE: `∵${_VS15}`,
+  STAR: `★${_VS15}`,
+  SPARKLE: `✳${_VS15}`,
+  RADIO_FILLED: `◉${_VS15}`,
+  CIRCLE_LEFT_HALF: `◐${_VS15}`,
+  CHECK: `✓${_VS15}`,
+  CROSS: `✖${_VS15}`,
 } as const;
 
 // cli-spinners' `dots`, the frames ink's responding spinner animates. Shared so

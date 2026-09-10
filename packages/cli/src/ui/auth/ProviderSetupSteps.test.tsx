@@ -447,8 +447,8 @@ describe('ProviderSetupSteps', () => {
     expect(inputLine).toContain('custom-model');
     expect(inputLine).not.toContain('MiniMax-M3');
     expect(inputLine).not.toContain('MiniMax-M2.7');
-    expect(frame).toMatch(/◉\s+MiniMax-M3/);
-    expect(frame).toMatch(/◉\s+MiniMax-M2\.7/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M3/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M2\.7/);
     unmount();
   });
 
@@ -549,24 +549,24 @@ describe('ProviderSetupSteps', () => {
     expect(frame).toContain('MiniMax-M4');
     // The snapshot has no row for the previously selected MiniMax-M2.7, so it
     // stays visible and selectable through the free-form input instead.
-    expect(frame).not.toMatch(/[◉○]\s+MiniMax-M2\.7/);
+    expect(frame).not.toMatch(/[◉○]\uFE0E\s+MiniMax-M2\.7/);
     const inputLine = frame
       .split('\n')
       .find((line) => line.includes('custom-model'));
     expect(inputLine).toContain('custom-model, MiniMax-M2.7');
-    expect(frame).toMatch(/◉\s+MiniMax-M3/);
-    expect(frame).toMatch(/○\s+MiniMax-M4/);
-    expect(frame).toMatch(/○\s+custom-model/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M3/);
+    expect(frame).toMatch(/○\uFE0E\s+MiniMax-M4/);
+    expect(frame).toMatch(/○\uFE0E\s+custom-model/);
     const modelRows = frame.split('\n');
     expect(
-      modelRows.findIndex((line) => /◉\s+MiniMax-M3/.test(line)),
+      modelRows.findIndex((line) => /◉\uFE0E\s+MiniMax-M3/.test(line)),
     ).toBeLessThan(
-      modelRows.findIndex((line) => /○\s+MiniMax-M4/.test(line)),
+      modelRows.findIndex((line) => /○\uFE0E\s+MiniMax-M4/.test(line)),
     );
     expect(
-      modelRows.findIndex((line) => /○\s+MiniMax-M4/.test(line)),
+      modelRows.findIndex((line) => /○\uFE0E\s+MiniMax-M4/.test(line)),
     ).toBeLessThan(
-      modelRows.findIndex((line) => /○\s+custom-model/.test(line)),
+      modelRows.findIndex((line) => /○\uFE0E\s+custom-model/.test(line)),
     );
     expect(frame).toContain(
       'Checked models are applied on submit but not copied into the input.',
@@ -602,8 +602,8 @@ describe('ProviderSetupSteps', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Models · from the provider');
     expect(frame).not.toContain('Other models from the provider');
-    expect(frame).toMatch(/○\s+served-unknown-a/);
-    expect(frame).toMatch(/○\s+served-unknown-b/);
+    expect(frame).toMatch(/○\uFE0E\s+served-unknown-a/);
+    expect(frame).toMatch(/○\uFE0E\s+served-unknown-b/);
     unmount();
   });
 
@@ -627,8 +627,8 @@ describe('ProviderSetupSteps', () => {
 
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Models · from the provider · 2 checked');
-    expect(frame).toMatch(/◉\s+MiniMax-M2\.7/);
-    expect(frame).toMatch(/◉\s+MiniMax-M3/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M2\.7/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M3/);
     expect(frame.indexOf('MiniMax-M2.7')).toBeLessThan(
       frame.indexOf('MiniMax-M3'),
     );
@@ -656,8 +656,8 @@ describe('ProviderSetupSteps', () => {
     await act(async () => {});
 
     const frame = lastFrame() ?? '';
-    expect(frame).toMatch(/○\s+provider-only-new/);
-    expect(frame).toMatch(/◉\s+MiniMax-M2\.7/);
+    expect(frame).toMatch(/○\uFE0E\s+provider-only-new/);
+    expect(frame).toMatch(/◉\uFE0E\s+MiniMax-M2\.7/);
     expect(frame.indexOf('provider-only-new')).toBeLessThan(
       frame.indexOf('MiniMax-M2.7'),
     );
@@ -759,7 +759,7 @@ describe('ProviderSetupSteps', () => {
       pressLatestKey('space', ' ');
     });
 
-    expect(lastFrame()).toMatch(/◉\s+MiniMax-M4/);
+    expect(lastFrame()).toMatch(/◉\uFE0E\s+MiniMax-M4/);
     expect(lastFrame()).toContain('Models · from the provider · 2 checked');
 
     pressKey('return', '\r');
