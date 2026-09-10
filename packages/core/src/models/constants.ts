@@ -8,7 +8,7 @@ import { DEFAULT_QWEN_MODEL, MAINLINE_CODER_MODEL } from '../config/models.js';
 
 import type { ModelConfig } from './types.js';
 
-type AuthType = import('../core/authTypes.js').AuthType;
+type AuthType = import('../core/contentGenerator.js').AuthType;
 type ContentGeneratorConfig =
   import('../core/contentGenerator.js').ContentGeneratorConfig;
 
@@ -75,6 +75,11 @@ export const AUTH_ENV_MAPPINGS = {
     apiKey: ['OPENAI_API_KEY'],
     baseUrl: ['OPENAI_BASE_URL'],
     model: ['OPENAI_MODEL', 'QWEN_MODEL'],
+  },
+  'openai-responses': {
+    apiKey: ['OPENAI_API_KEY'],
+    baseUrl: ['OPENAI_BASE_URL'],
+    model: ['OPENAI_MODEL'],
   },
   anthropic: {
     apiKey: ['ANTHROPIC_API_KEY'],

@@ -20,7 +20,7 @@ import {
 import { determineProvider } from '../index.js';
 import type { Config } from '../../../config/config.js';
 import type { ContentGeneratorConfig } from '../../contentGenerator.js';
-import { AuthType } from '../../authTypes.js';
+import { AuthType } from '../../contentGenerator.js';
 import type { ChatCompletionToolWithCache } from './types.js';
 import {
   DEFAULT_TIMEOUT,

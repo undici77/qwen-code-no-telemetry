@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createLlmContentGenerator } from './index.js';
 import { LlmContentGenerator } from './llm-content-generator.js';
 import type { Config } from '../../config/config.js';
-import { AuthType } from '../authTypes.js';
+import { AuthType } from '../contentGenerator.js';
 
 vi.mock('./llm-content-generator.js', () => ({
   LlmContentGenerator: vi.fn().mockImplementation(() => ({})),

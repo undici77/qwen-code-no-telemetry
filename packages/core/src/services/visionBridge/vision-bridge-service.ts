@@ -6,7 +6,7 @@
 
 import type { Content, Part, PartListUnion } from '@google/genai';
 import type { Config } from '../../config/config.js';
-import type { AuthType } from '../../core/authTypes.js';
+import type { AuthType } from '../../core/contentGenerator.js';
 import type { InputModalities } from '../../core/contentGenerator.js';
 import { defaultModalities } from '../../core/modalityDefaults.js';
 import { createDebugLogger } from '../../utils/debugLogger.js';

@@ -23,7 +23,7 @@ import {
   type ContentGenerator,
   type ContentGeneratorConfig,
 } from '../../core/contentGenerator.js';
-import { AuthType } from '../../core/authTypes.js';
+import { AuthType } from '../../core/contentGenerator.js';
 
 function makeView(model: string): RuntimeContentGeneratorView {
   return {
