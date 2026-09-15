@@ -55,6 +55,7 @@ const SENSITIVE_ATTRIBUTE_KEYS = new Set([
   'error_message',
   'prompt',
   'function_args',
+  'request_text',
   'response_text',
 ]);
 

@@ -239,7 +239,9 @@ export class LoggingContentGenerator implements ContentGenerator {
     promptId: string,
     sessionId: string,
   ): void {
-    const requestText = JSON.stringify(contents);
+    const requestText = this.config.getTelemetryLogPromptsEnabled()
+      ? JSON.stringify(contents)
+      : undefined;
     logApiRequest(
       this.config,
       new ApiRequestEvent(
@@ -272,7 +274,7 @@ export class LoggingContentGenerator implements ContentGenerator {
         prompt_id,
         this.generatorAuthType,
         usageMetadata,
-        responseText,
+        this.config.getTelemetryLogPromptsEnabled() ? responseText : undefined,
         subagentNameContext.getStore(),
         ttftMs,
       ),

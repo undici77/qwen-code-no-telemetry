@@ -217,6 +217,12 @@ export type {
   WebSearchToolParams,
   WebSearchSettings,
 } from './tools/web-search.js';
+export {
+  DEFAULT_WEB_SEARCH_MAX_PER_SESSION,
+  DEFAULT_WEB_SEARCH_TIMEOUT_MS,
+  MAX_WEB_SEARCH_MAX_PER_SESSION,
+  MAX_WEB_SEARCH_TIMEOUT_MS,
+} from './tools/web-search.js';
 export type { WriteFileTool, WriteFileToolParams } from './tools/write-file.js';
 // Exported for the cross-package contract test in packages/cli (see the
 // function's own doc comment) — the daemon's file-read route must resolve the
@@ -243,6 +249,11 @@ export type {
   ArtifactTool,
   ArtifactToolParams,
 } from './tools/artifact/artifact-tool.js';
+export {
+  deleteArtifactSnapshot,
+  readArtifactSnapshot,
+  retainArtifactSnapshot,
+} from './tools/artifact/artifact-snapshots.js';
 export {
   RecordArtifactTool,
   isRecordableDerivedChild,
@@ -327,6 +338,7 @@ export type {
 } from './services/cronTasksFile.js';
 export {
   readCronTasks,
+  cronTaskSessionDeletionId,
   updateCronTasks,
   removeCronTasks,
   getCronFilePath,
@@ -335,6 +347,8 @@ export {
   annotateCronRunSession,
   taskHasLegacyCondition,
   MAX_TASK_RUNS,
+  MAX_CRON_TASK_ROUTING_ID_LENGTH,
+  isValidCronTaskRoutingId,
   MAX_CHANNEL_DELIVERY_NAME_LENGTH,
   MAX_CHANNEL_DELIVERY_TARGET_ID_LENGTH,
 } from './services/cronTasksFile.js';
@@ -545,9 +559,9 @@ export * from './lsp/configHash.js';
 export * from './lsp/LspConfigLoader.js';
 export * from './lsp/LspConnectionFactory.js';
 export * from './lsp/LspResponseNormalizer.js';
-export * from './lsp/LspServerManager.js';
+export * from './lsp/lsp-server-manager.js';
 export * from './lsp/NativeLspClient.js';
-export * from './lsp/NativeLspService.js';
+export * from './lsp/native-lsp-service.js';
 export * from './lsp/types.js';
 
 // ============================================================================
@@ -715,6 +729,7 @@ export * from './utils/runtimeStatus.js';
 export * from './utils/schemaValidator.js';
 export * from './utils/sessionIdContext.js';
 export * from './utils/secure-browser-launcher.js';
+export { initParser as initShellAstParser } from './utils/shellAstParser.js';
 export * from './utils/shell-utils.js';
 export * from './utils/subagentGenerator.js';
 export * from './utils/symlink.js';
@@ -754,6 +769,21 @@ export { MessageBus } from './confirmation-bus/message-bus.js';
 
 export { makeFakeConfig } from './test-utils/config.js';
 export * from './test-utils/index.js';
+export {
+  extractCodeModeImageContent,
+  getToolCallRuntime,
+  runWithoutToolCallRuntime,
+  runWithToolCallRuntime,
+  type CodeModeImageContent,
+  type CodeModeToolResult,
+  type ToolCallRuntimeContext,
+} from './code-mode/tool-call-runtime.js';
+export {
+  getToolExposure,
+  isCodeModeToolCallAllowed,
+  ToolMode,
+  type ToolExposure,
+} from './tools/code-mode.js';
 
 // ============================================================================
 // Hooks
@@ -774,7 +804,7 @@ export {
   resolveStopHookBlockingCap,
   formatStopHookBlockingCapWarning,
 } from './hooks/stopHookCap.js';
-export { type StopFailureErrorType } from './hooks/types.js';
+export type { StopFailureErrorType } from './hooks/types.js';
 export { buildContextUsage } from './hooks/context-usage.js';
 export {
   USER_PROMPT_SUBMIT_CONTEXT_OPEN_TAG,
