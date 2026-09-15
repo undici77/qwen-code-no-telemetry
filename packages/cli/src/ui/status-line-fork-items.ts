@@ -12,11 +12,9 @@
 // additive one-line hooks, so an upstream rewrite of either file can be taken
 // wholesale and the hooks re-applied on top.
 
-import {
-  computeThresholds,
-  MAIN_SOURCE,
-  uiTelemetryService,
-} from '@qwen-code/qwen-code-core';
+import { computeThresholds } from '@qwen-code/qwen-code-core/services/chatCompressionService.js';
+import { MAIN_SOURCE } from '@qwen-code/qwen-code-core/utils/subagentNameContext.js';
+import { uiTelemetryService } from '@qwen-code/qwen-code-core/telemetry/uiTelemetry.js';
 
 /**
  * Token formatter, injected by the caller rather than imported.

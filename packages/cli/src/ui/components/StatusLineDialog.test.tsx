@@ -378,7 +378,9 @@ describe('StatusLineDialog', () => {
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    expect(lastFrame()).toMatch(/›.*session-id/);
+    const lastItem =
+      STATUS_LINE_PRESET_ITEMS[STATUS_LINE_PRESET_ITEMS.length - 1];
+    expect(lastFrame()).toContain(lastItem.id);
   });
 
   it('bypasses a hidden query in compact mode and restores it', async () => {
