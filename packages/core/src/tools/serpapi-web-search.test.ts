@@ -31,10 +31,12 @@ interface ConfigOverrides {
 }
 
 function makeConfig(overrides: ConfigOverrides = {}): Config {
+  const sessionUsage = { calls: 0 };
   return {
     getWebSearchSettings: () =>
       'settings' in overrides ? overrides.settings : undefined,
     getCliVersion: () => '0.0.0-test',
+    getWebSearchSessionUsage: () => sessionUsage,
   } as unknown as Config;
 }
 

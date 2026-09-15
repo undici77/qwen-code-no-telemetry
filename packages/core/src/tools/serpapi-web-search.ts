@@ -30,8 +30,31 @@ import type { PermissionDecision } from '../permissions/types.js';
 import { BaseDeclarativeTool, BaseToolInvocation, Kind } from './tools.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
 
-/** Total budget for one tool invocation. */
-const SEARCH_TIMEOUT_MS = 30_000;
+export const DEFAULT_WEB_SEARCH_TIMEOUT_MS = 120_000;
+export const MAX_WEB_SEARCH_TIMEOUT_MS = 600_000;
+
+export function resolveWebSearchTimeoutMs(value: number | undefined): number {
+  return typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= MAX_WEB_SEARCH_TIMEOUT_MS
+    ? value
+    : DEFAULT_WEB_SEARCH_TIMEOUT_MS;
+}
+
+export const DEFAULT_WEB_SEARCH_MAX_PER_SESSION = 200;
+export const MAX_WEB_SEARCH_MAX_PER_SESSION = 10_000;
+
+export function resolveWebSearchMaxPerSession(
+  value: number | undefined,
+): number {
+  return typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= MAX_WEB_SEARCH_MAX_PER_SESSION
+    ? value
+    : DEFAULT_WEB_SEARCH_MAX_PER_SESSION;
+}
 
 /**
  * Max characters for the final LLM content payload. SerpApi JSON is compact
@@ -84,6 +107,16 @@ export interface WebSearchSettings {
   baseUrl?: string;
   /** Accepted and ignored — no request ever leaves the SerpApi host. */
   apiKeyEnv?: string;
+  /**
+   * Total budget for one search in ms (`tools.webSearch.timeoutMs` /
+   * WEB_SEARCH_TIMEOUT_MS); see {@link resolveWebSearchTimeoutMs}.
+   */
+  timeoutMs?: number;
+  /**
+   * Maximum web_search calls per session (`tools.webSearch.maxPerSession` /
+   * WEB_SEARCH_MAX_PER_SESSION); see {@link resolveWebSearchMaxPerSession}.
+   */
+  maxPerSession?: number;
 }
 
 /** Resolved backend configuration for the SerpApi side request. */
@@ -615,6 +648,13 @@ class WebSearchToolInvocation extends BaseToolInvocation<
     };
   }
 
+  private sessionBudgetExhaustedResult(calls: number, cap: number): ToolResult {
+    return {
+      llmContent: `Web search was not performed: this session has used its web search budget (${calls} of ${cap} web_search calls). Continue with the information already gathered instead of issuing more searches. If more searches are genuinely needed, ask the user to raise tools.webSearch.maxPerSession (or WEB_SEARCH_MAX_PER_SESSION).`,
+      returnDisplay: `Skipped: session web search budget used (${calls}/${cap})`,
+    };
+  }
+
   async execute(
     signal: AbortSignal,
     updateOutput?: (output: ToolResultDisplay) => void,
@@ -633,6 +673,22 @@ class WebSearchToolInvocation extends BaseToolInvocation<
     // #7264); web search runs outside the content-generator preload path.
     await preloadRuntimeFetchModule();
 
+    // Check and count in one synchronous block: web_search calls batched in
+    // the same turn run concurrently, and an await between the two would let
+    // every one of them pass the check. A search that later fails still
+    // counts, because the request was sent. Derived Configs share the counter.
+    const usage =
+      typeof this.config.getWebSearchSessionUsage === 'function'
+        ? this.config.getWebSearchSessionUsage()
+        : { calls: 0 };
+    const cap = resolveWebSearchMaxPerSession(
+      this.config.getWebSearchSettings()?.maxPerSession,
+    );
+    if (usage.calls >= cap) {
+      return this.sessionBudgetExhaustedResult(usage.calls, cap);
+    }
+    usage.calls++;
+
     const startedAt = Date.now();
     const query = this.params.query;
 
@@ -650,7 +706,10 @@ class WebSearchToolInvocation extends BaseToolInvocation<
     // ── 3. Fetch ──
     updateOutput?.(`Searching: "${query}"`);
 
-    const timeoutSignal = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
+    const effectiveTimeoutMs = resolveWebSearchTimeoutMs(
+      this.config.getWebSearchSettings()?.timeoutMs,
+    );
+    const timeoutSignal = AbortSignal.timeout(effectiveTimeoutMs);
     const combinedSignal = AbortSignal.any([signal, timeoutSignal]);
 
     let response: Response;
@@ -671,7 +730,7 @@ class WebSearchToolInvocation extends BaseToolInvocation<
           );
         }
         return this.errorResult(
-          `Web search timed out after ${SEARCH_TIMEOUT_MS / 1000}s.`,
+          `Web search timed out after ${effectiveTimeoutMs / 1000}s.`,
           ToolErrorType.WEB_SEARCH_BACKEND_FAILED,
         );
       }
