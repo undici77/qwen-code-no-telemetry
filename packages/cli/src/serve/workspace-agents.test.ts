@@ -490,10 +490,13 @@ describe('workspace agents routes', () => {
       systemPrompt: 'project prompt',
       scope: 'workspace',
     });
+    // 15 chars: this fork raises the system-prompt floor to 12
+    // (`SubagentValidator`), so upstream's 11-char fixture is rejected 422
+    // and the global-scope GET below would never find the agent.
     await request(app).post('/workspace/agents').send({
       name: 'shadowed-agent',
       description: 'user description',
-      systemPrompt: 'user prompt',
+      systemPrompt: 'the user prompt',
       scope: 'global',
     });
 
@@ -503,7 +506,7 @@ describe('workspace agents routes', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.level).toBe('user');
-    expect(res.body.systemPrompt).toBe('user prompt');
+    expect(res.body.systemPrompt).toBe('the user prompt');
   });
 
   it('returns 404 agent_not_found for unknown agent', async () => {

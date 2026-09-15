@@ -2994,6 +2994,36 @@ describe('DashScopeOpenAICompatibleProvider', () => {
       });
       expect(content?.[1]).not.toHaveProperty('cache_control');
     });
+
+    it('falls back to the last-block anchor when the walk-back finds no stable block', () => {
+      // No system message, and reattachBlockCount (5) exceeds every block the
+      // conversation actually has (2) — lastStableBlock() can't find an
+      // anchor. Without a fallback this would drop the breakpoint entirely.
+      const request: OpenAI.Chat.ChatCompletionCreateParams = {
+        model: 'qwen-max',
+        stream: true,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text' as const, text: 'Recent images reattached' },
+              reattachImageBlock,
+            ],
+          },
+        ],
+      };
+
+      const result = provider.buildRequest(request, 'test-prompt-id', 5);
+
+      const content = result.messages[0]?.content as
+        | OpenAI.Chat.ChatCompletionContentPart[]
+        | undefined;
+      expect(content?.[1]).toMatchObject({
+        type: 'image_url',
+        cache_control: { type: 'ephemeral' },
+      });
+      expect(content?.[0]).not.toHaveProperty('cache_control');
+    });
   });
 
   describe('output token limits', () => {

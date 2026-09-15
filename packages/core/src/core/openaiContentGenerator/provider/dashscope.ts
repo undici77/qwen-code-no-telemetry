@@ -795,10 +795,16 @@ export class DashScopeOpenAICompatibleProvider extends DefaultOpenAICompatiblePr
     // With a volatile reattach region trailing the conversation, the breakpoint
     // must sit on the last STABLE block — before the reattached images — or the
     // cached prefix shifts every turn (issue #11627). Otherwise keep the
-    // historical "last block of the last message" anchor.
+    // historical "last block of the last message" anchor. If the walk-back
+    // can't find a stable block (reattachBlockCount accounts for more blocks
+    // than the conversation has), fall back to that same historical anchor
+    // rather than dropping the conversation-level breakpoint entirely.
     const stableBlock =
       reattachBlockCount > 0 && lastIndex >= 0
-        ? this.lastStableBlock(messages, reattachBlockCount)
+        ? (this.lastStableBlock(messages, reattachBlockCount) ?? {
+            messageIndex: lastIndex,
+            excludeTail: 0,
+          })
         : { messageIndex: lastIndex, excludeTail: 0 };
 
     const updatedMessages =
