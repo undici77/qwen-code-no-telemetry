@@ -47,6 +47,7 @@ import {
   FolderInputIcon,
   GitBranchIcon,
   GitForkIcon,
+  GlobeIcon,
   PencilIcon,
   PinIcon,
   Trash2Icon,
@@ -100,7 +101,8 @@ import {
 } from './workspaceOverviewModel';
 import { writeClipboardText } from '../../utils/clipboard';
 import { isDesktopShell } from '../../utils/externalOpen';
-import { isLocalDaemon } from '../../config/daemon';
+import { isLocalDaemon, isPageOriginDaemon } from '../../config/daemon';
+import { formatOriginHost } from '../../config/remote-connections';
 import {
   mergeSessionContentHits,
   sessionMatchesGitQuery,
@@ -1957,6 +1959,7 @@ export function WebShellSidebar({
   );
   const canShowDeleteSession = useCallback(
     (session: DaemonSessionSummary) =>
+      session.sourceType !== 'qwen-live' &&
       sessionActionItems.has('delete') &&
       canUseWorkspaceQualifiedActions(resolveSessionWorkspaceScope(session)),
     [
@@ -2057,6 +2060,7 @@ export function WebShellSidebar({
   );
   const canArchiveSession = useCallback(
     (session: DaemonSessionSummary) =>
+      session.sourceType !== 'qwen-live' &&
       sessionActionItems.has('archive') &&
       !isCurrentSession(session) &&
       !session.hasActivePrompt &&
@@ -4421,7 +4425,9 @@ export function WebShellSidebar({
       const showPin = !standalone && canOrganizeSession(session, 'pin');
       const showArchive = standalone
         ? sessionActionItems.has('archive') && Boolean(standalone.onArchive)
-        : sessionActionItems.has('archive') && canMutateSessionArchive(session);
+        : session.sourceType !== 'qwen-live' &&
+          sessionActionItems.has('archive') &&
+          canMutateSessionArchive(session);
       const showRename = standalone
         ? sessionActionItems.has('rename')
         : canRenameSession(session);
@@ -5682,13 +5688,17 @@ export function WebShellSidebar({
                   className="w-full"
                   aria-label={t('sidebar.sessionSource')}
                 >
-                  <TabsTrigger value="default">
+                  <TabsTrigger value="default" className="min-w-0">
                     <ListTodoIcon />
-                    {t('sidebar.sessionSource.tasks')}
+                    <span className="min-w-0 truncate">
+                      {t('sidebar.sessionSource.tasks')}
+                    </span>
                   </TabsTrigger>
-                  <TabsTrigger value="channel">
+                  <TabsTrigger value="channel" className="min-w-0">
                     <MessageCircleIcon />
-                    {t('sidebar.sessionSource.channels')}
+                    <span className="min-w-0 truncate">
+                      {t('sidebar.sessionSource.channels')}
+                    </span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -5792,6 +5802,21 @@ export function WebShellSidebar({
                   }}
                 >
                   <span>{t('sidebar.project')}</span>
+                  {!isPageOriginDaemon(workspace.baseUrl) && (
+                    // One daemon serves every workspace below, so the machine
+                    // is named once here instead of badging each row with the
+                    // same fact.
+                    <span
+                      className={styles.projectsHeaderRemote}
+                      data-testid="remote-workspace-indicator"
+                      title={t('sidebar.workspacesOnHost', {
+                        host: formatOriginHost(workspace.baseUrl),
+                      })}
+                    >
+                      <GlobeIcon aria-hidden="true" />
+                      {formatOriginHost(workspace.baseUrl)}
+                    </span>
+                  )}
                   {workspaceOverviewEnabled && projectWorkspaces.length > 1 && (
                     <span
                       className={styles.projectsHeaderCount}
@@ -5918,6 +5943,7 @@ export function WebShellSidebar({
                     <Fragment key={ws.id}>
                       <WorkspaceSection
                         workspace={ws}
+                        remote={!isPageOriginDaemon(workspace.baseUrl)}
                         renderHeader={
                           lockedWorkspaceCwd && lockedWorkspaceOptions?.render
                             ? (expanded) =>
@@ -6395,12 +6421,15 @@ export function WebShellSidebar({
                   <ActivityIcon size={16} strokeWidth={1.2} />
                 </button>
               )}
-              {footerItems.has('localFiles') && (
-                <LocalFilesControl
-                  triggerClassName={styles.collapseButton}
-                  workspaces={workspaces}
-                />
-              )}
+              {footerItems.has('localFiles') &&
+                // The browser-local bridge is only offered when the connected
+                // daemon is the page's own origin (see isPageOriginDaemon).
+                isPageOriginDaemon(workspace.baseUrl) && (
+                  <LocalFilesControl
+                    triggerClassName={styles.collapseButton}
+                    workspaces={workspaces}
+                  />
+                )}
               {(mobileOpen || footerItems.has('collapse')) && (
                 <button
                   className={styles.collapseButton}

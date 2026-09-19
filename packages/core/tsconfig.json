@@ -24,6 +24,7 @@
     "node_modules",
     "dist",
     "src/**/*.test.ts",
-    "src/__mocks__/**/*.ts"
+    "src/__mocks__/**/*.ts",
+    "src/skills/bundled/browser-use/runtime"
   ]
 }
