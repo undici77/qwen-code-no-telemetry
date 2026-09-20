@@ -200,9 +200,18 @@ install_qwen_code() {
             rm -f "${base}.js" "${base}.js.map"
         done
 
-    echo "Installing dependencies in temporary directory..."
-    ( cd "${work_dir}" && npm install --no-audit --no-fund ) \
-        || { echo "✗ npm install failed in ${work_dir}"; exit 1; }
+    # Install with the package manager the tree declares in package.json
+    # "packageManager". Upstream moved its dependency overrides — notably
+    # typescript 5.8.3 — into pnpm-workspace.yaml, which npm does not read,
+    # and deleted package-lock.json when it moved to pnpm. An npm install here
+    # would therefore resolve packages/core's open "typescript": "^5.3.3" past
+    # 5.8.3, and tsc --build then fails in packages/core with
+    # "Buffer<ArrayBuffer> | undefined is not assignable to
+    # Uint8Array<ArrayBufferLike>". pnpm honors both the overrides and
+    # pnpm-lock.yaml, so the install matches upstream CI and is reproducible.
+    echo "Installing dependencies in temporary directory (pnpm)..."
+    ( cd "${work_dir}" && corepack enable --install-directory "${NPM_PREFIX}/bin" >/dev/null 2>&1; corepack pnpm install --frozen-lockfile ) \
+        || { echo "✗ pnpm install failed in ${work_dir}"; exit 1; }
 
     echo "Building bundle..."
     ( cd "${work_dir}" && npm run bundle ) \
