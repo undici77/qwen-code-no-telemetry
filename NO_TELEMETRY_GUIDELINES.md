@@ -348,9 +348,12 @@ Every successful merge REQUIRES:
     | `npm run lint:fix`                                 | ~120s+            | **180s** (may still timeout on large diffs) |
     | `npm run test --workspace=packages/sdk-typescript` | ~25s              | 60s                                         |
     | `npm run test --workspace=packages/acp-bridge`     | ~20s              | 60s                                         |
-    | `npm run test --workspace=packages/webui`          | ~10s              | 60s                                         |
+    | `npm run test --workspace=packages/web-shell`      | ~10s              | 60s                                         |
     | `npm run test --workspace=packages/core`           | ~75s              | **180s**                                    |
     | `npm install`                                      | ~60–100s          | **180s**                                    |
+    | `npm run check:egress`                             | ~45s              | 180s                                        |
+
+15. **EGRESS TRIPWIRE** ⚠️ See Section 18: Run `npm run check:egress` and require zero `LEAK` rows. This is the only check here that observes the running binary rather than its source, so it is the one that catches egress assembled at runtime — by a refactor, a new dependency, or worse. A run that reports `0 egress attempts` for the session scenario is a **broken detector, not a clean build**: it has happened, and §18 explains how to tell.
 
 ---
 
@@ -905,3 +908,55 @@ Say so explicitly when reporting:
 - **Prompt content.** The permitted LLM call still carries the prompt and any file context out of the process. A local endpoint keeps it on the machine; it is not the same as never leaving the process.
 - **Native binaries and dependencies.** Tracing `qwen` covers the Node process tree it spawns, not arbitrary native helpers reached by another route.
 - **DNS of inert URL strings.** Thousands of documented hosts are never contacted; this method does not prove each one unreachable, only that no socket was opened to any of them during the traced runs.
+
+---
+
+## 18. MANDATORY: Egress Tripwire at Every Release (Non-Negotiable)
+
+`npm run check:egress` **MUST** pass, with no `LEAK` rows, before any release is cut. It is the only check in this document that observes the running binary instead of its source, and therefore the only one that catches an arbitrary new egress path — including one introduced by an upstream merge, a new dependency, or code that never touches any subsystem the other gates watch.
+
+**Why this exists when §1–§17 exist.** Every other check inspects source or shipped bytes, so each proves only what the code _says_ it does. A grep cannot see a leak that a refactor assembled at runtime. This gate watches every way out of Node — `net`/`tls`/`http`/`https` sockets, `fetch`, `dgram`, `WebSocket`, DNS resolution, and `child_process` spawns (a `curl` or `git` subprocess bypasses the entire Node stack, so its argv is inspected instead).
+
+### Run it
+
+```bash
+npm run check:egress                              # fast scenario, ~45s
+node scripts/check-egress.mjs --cli=<path>       # trace a specific entry
+```
+
+It runs two scenarios — `--version` (which must open **zero** sockets) and one headless session that makes the model call a tool — then prints every destination it saw. Exit `0` = clean, `1` = leak found, `2` = the detector itself is broken.
+
+### The allowlist is derived, never hardcoded
+
+Trusted hosts are collected by walking the user's **own** settings (`~/.qwen/settings.json`, `QWEN_HOME`, workspace `.qwen/settings.json`) and **every string in it**, plus any exported `*_BASE_URL` / `*_ENDPOINT`, plus loopback and the container gateway. Anything else is a leak.
+
+This is deliberate and it is the load-bearing design decision:
+
+- A machine whose model endpoint is remote is not falsely accused — its endpoint is trusted because _its owner_ configured it.
+- Because the walk is generic rather than a list of known keys, **a new remote option added by an upstream merge surfaces as a finding instead of being silently trusted.** Enumerating keys would have gone stale the first time upstream added an option.
+- The resolved allowlist is printed at the top of every run. Read it. If a host is trusted that you did not configure, that is itself the finding.
+
+`QWEN_EGRESS_ALLOW=host1,host2` exists for legitimate one-offs. Using it means the run was no longer an unmodified test — record why in the release notes, the same rule §5 applies to every other waiver.
+
+### The self-test is not optional decoration
+
+Every run begins by reaching for `egress-tripwire-selftest.invalid` — a host that can never be allowed — and asserting the probe flags it as `LEAK`. If it does not, the run exits `2` (broken), **not** `0`.
+
+This rule was earned, not designed in: the first version of this gate reported _"0 egress attempts, no unexpected egress"_ while strace showed six sockets open. The launcher and the CLI it spawns both preload the probe and shared one log file, and the launcher — which makes no requests and exits last — overwrote the child's real hits with an empty list. A gate that can only ever say "clean" is indistinguishable from a dead one. It was also silently recording every connection as `0.0.0.0`, because undici passes an options object whose `host`/`port` are unpopulated at call time; destinations are now captured from the socket's `lookup`/`connect` events, which is ground truth.
+
+**How to apply:** never "fix" a green run by trusting it. Confirm the attempt count is plausible and the peers match the configured endpoint, and if you change the probe, verify against an independent `strace` run before believing it.
+
+### What it cannot see
+
+State these limits when reporting a pass — a clean verdict is scoped, not absolute:
+
+- **External agent binaries.** `codex-subagent-executor` deletes `NODE_OPTIONS` from its children, so those processes run untraced. Their _spawn_ is recorded, their sockets are not.
+- **Non-Node native helpers** doing raw syscalls bypass every hook. That is what the §17 `strace` pass is for — run it on Linux at least once per major release.
+- **The sanctioned channel.** The model endpoint is trusted by definition, and it carries the prompt and every file the model reads. If `model.baseUrl` is remote, your content leaves the machine by design and this gate will correctly call that clean. §1 prints the endpoint loudly for exactly this reason.
+- **Unexercised paths.** Only code that ran is certified. `serve`, Web Shell, channels, `/update` and `/review` need the deep scenario or their own traced runs.
+
+### Where it goes in the workflow
+
+- **Every release:** `npm run check:egress` is a blocking step, alongside `check:context` and `check:merge-drivers`.
+- **After any merge that touches network code, a dependency, or an approval-mode path:** run it. This is the check that would have caught the §1.7 artifact window on its own.
+- **CI:** deliberately **not** wired into the merged upstream workflows. Adding a job there re-conflicts on every merge; the fork's gates are run by hand at release, which is the same trade §1.5 makes with its `merge=ours` seams.
