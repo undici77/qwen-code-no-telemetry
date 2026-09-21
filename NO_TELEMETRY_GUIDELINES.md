@@ -720,3 +720,122 @@ cd packages/core && npx vitest run src/core/resume-opt-cache.test.ts src/core/en
 **Manual smoke test**: with an oMLX (or other prefix-caching) backend, start a session, call at least one deferred/`tool_search`-reachable tool, send a turn, close the CLI, and `--continue` immediately with nothing changed on disk. `cache-hit`/`cache-live` (§15 status-line items, if enabled) should show a healthy hit ratio on the first resumed turn instead of resetting — the deferred-tool call is the part of this test that would have caught the original bug (a smoke test that never calls a deferred tool cannot distinguish this fix from the broken first cut). Then edit a memory file (or add an MCP server) before resuming again — the prelude should rebuild and the model should see the change, confirming the fallback path still fires on real changes.
 
 **Conflict resolution**: keep upstream's refactor, re-apply the hook on top. Never resolve by dropping the patch.
+
+---
+
+## 17. Deep Privacy Check — Runtime-First Procedure (Fast Path)
+
+**Prove egress with syscalls, not with greps.** A traced run of the installed CLI settles "does anything leave the device" in about two minutes. A source sweep of `packages/core` takes tens of minutes, has twice killed the subagent running it out of memory, and even when it succeeds it only enumerates what _could_ connect — not what _does_. Do the runtime pass first; use static analysis only to explain a hit or to cover paths the run did not exercise.
+
+Run against the **installed** artifact (`$HOME/.npm-global/bin/qwen`), not `npm start` from source — the installed tree is what the user executes, and it is built through a different pipeline (`local-install.sh` stages, bundles and packs), so a source-only audit can certify bytes that never ship. Reinstall with `bash local-install.sh` first if the global copy is stale (see §5).
+
+### Step 1 — Trace every socket (this is the proof)
+
+```bash
+# Baseline: a no-op invocation must open ZERO network sockets.
+strace -f -q -e trace=connect -o /tmp/st_version.log qwen --version
+# Live session: one cheap prompt, tracing connects AND outbound datagrams.
+strace -f -q -e trace=connect,sendto,sendmsg -s 220 -o /tmp/st_live.log \
+  qwen -p "Reply with exactly: OK"
+```
+
+Then read every destination. **This extraction is the part people get wrong** — see Step 2:
+
+```bash
+grep -oE 'connect\(.*' /tmp/st_live.log | head -40
+grep -c 'htons(53)' /tmp/st_live.log   # 0 = no DNS left the box
+```
+
+**Interpretation table** — what each shape means:
+
+| Observed                                         | Meaning                                                                         | Verdict                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `AF_INET … :8000` (or your `model.baseUrl` port) | The LLM API call                                                                | Expected — this is the only permitted egress     |
+| `AF_INET … :0`                                   | Routing probe (`connect` with port 0 selects a local address and sends nothing) | Harmless, no bytes leave                         |
+| `AF_UNIX sun_path="/var/run/nscd/socket"`        | Local name-service cache lookup                                                 | Harmless, never leaves the box                   |
+| `AF_INET6 … :8000`                               | Same LLM endpoint over IPv6                                                     | Expected                                         |
+| `htons(53)`                                      | DNS query egress                                                                | Investigate — resolver should be container-local |
+| Any other host/port                              | Real egress                                                                     | Must be named, gated, and user-initiated         |
+
+Resolve the endpoint so you do not mistake a local gateway for an internet host — in a container `host.docker.internal` answers with **both** an IPv4 and an IPv6 address, so checking only one family is not enough:
+
+```bash
+node -e "require('dns').lookup('host.docker.internal',{all:true},(e,a)=>console.log(e?e.code:a.map(x=>x.address).join(' ')))"
+```
+
+Expected clean result: every destination is the configured model endpoint, plus port-0 routing probes and the nscd socket. `qwen --version` should show **no** connects at all — a connect there means a startup ping came back in with a merge.
+
+### Step 2 — The three traps that report a FALSE CLEAN
+
+These all fail _silent_, which is what makes them dangerous:
+
+1. **Grepping only `inet_addr` drops every IPv6 destination.** strace prints IPv4 as `inet_addr("1.2.3.4")` and IPv6 as `inet_pton(AF_INET6, "fd00::1")`; a one-family regex quietly returns "clean" while the whole session ran over IPv6. Match both, plus `sun_path` for `AF_UNIX`.
+2. **URL strings in `dist/` are noise, not egress.** The shipped bundle carries thousands of documentation and SDK reference URLs (chat-channel SDKs alone account for thousands of hits). Presence of a host string proves nothing; the invariant is _exercised_ egress. Never report a host as a leak because it appears in `dist/` — this is the same principle as §1.5's no-word-grep rule, applied to hosts.
+3. **Two different functions share the name `checkForUpdates`.** One is local-only (reads and migrates settings, no network); the other is the npm-registry version check that shells out to `npm view`. Grepping the bare name finds the wrong one and certifies the wrong file. Always follow the import to the definition before judging. The network one is reachable only through a sentinel process exit code produced by an explicit update, never at startup — which the Step 1 trace independently confirms by showing zero registry connects.
+
+### Step 3 — Opt-in egress inventory (start here, do not rediscover)
+
+Every path that can leave the device, and the gate that holds it. All are **off or user-triggered** by default; verify the gate, not the existence of the code.
+
+| Path                                | Destination                         | Gate and default                                                                                                                                                                                              |
+| ----------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model / LLM API                     | configured `model.baseUrl`          | The permitted traffic                                                                                                                                                                                         |
+| `web_search`                        | `serpapi.com`                       | Requires a resolved SerpApi key; no key ⇒ `ok:false, silent:true`, tool never registers (§1.5)                                                                                                                |
+| Update check                        | npm registry                        | Explicit `/update` only, behind a sentinel relaunch exit code; `enableAutoUpdate` forced `false` (§1.5 in §3, §1)                                                                                             |
+| Update download, skill install      | GitHub / release hosts              | Explicit `/update` or skill-install action                                                                                                                                                                    |
+| GitHub repo metadata, `git fetch`   | `api.github.com`, `github.com`      | Explicit GitHub-setup and `/review` commands                                                                                                                                                                  |
+| Chat channels (Feishu, Telegram, …) | per-channel hosts                   | Require user-supplied tokens; unconfigured ⇒ no traffic                                                                                                                                                       |
+| MCP servers                         | user-configured URLs                | Only servers the user added                                                                                                                                                                                   |
+| Artifact publish                    | `https://<bucket>.<endpoint>/<key>` | Publisher defaults to **`local`**; `oss` needs explicit selection **and** bucket **and** endpoint, endpoint is regex-pinned to `*.aliyuncs.com`; publishing is permission `ask` and the prompt names the host |
+| Artifact host publish               | whatever the user wrote             | Runs the user's own `uploadCommand`                                                                                                                                                                           |
+| live-host install                   | asset CDN + GitHub releases         | Explicit install command                                                                                                                                                                                      |
+| Web Shell `unpkg.com`               | browser, not CLI                    | Appears only as a CSP `connect-src` allowance; the CLI never fetches it                                                                                                                                       |
+
+Two things to keep flagging rather than "fixing": the OSS publisher's object ACL defaults to **`public-read`**, so an artifact you deliberately publish is world-readable at a predictable key unless you set `acl`; and the artifact tool itself is registered by default, which is safe only because of the publisher-default and `ask` gates above. If either gate moves, that becomes a real leak path.
+
+### Step 4 — Confirm the gates in code (fast, after the trace)
+
+Read the actual default at each assignment; never infer it from a schema description.
+
+```bash
+grep -rn "enableAutoUpdate" packages/cli/src/config/settings.ts | grep -v "\.test\."
+grep -rn "usageStatisticsEnabled = " packages/core/src/config/config.ts
+grep -rn "00000000-0000-0000-0000-000000000000" packages/core/src/config/installationManager.ts
+grep -rni "publisher ?? 'local'" packages/cli/src/config/config.ts packages/core/src/config/config.ts
+# Must return BOTH files. Case-insensitive on purpose: the two layers spell the
+# same default with different identifiers (`settings.artifact?.publisher` in the
+# cli resolver, `params.artifactPublisher` in core), so a case- or format-
+# sensitive pattern matches one file and looks clean while missing the other.
+grep -rn "getDefaultPermission" packages/core/src/tools/artifact/artifact-tool.ts
+grep -rn "artifactEnabled ?? true\|omniEnabled ?? false" packages/core/src/config/config.ts
+```
+
+Then prove the telemetry layer is inert **structurally**, not by vocabulary — the durable argument is that no exporter exists to send anything, so a retained `otlp*Endpoint` key is harmless:
+
+```bash
+grep -n "sdk-impl" packages/core/src/telemetry/sdk.ts            # zero: never imported
+grep -n "startTelemetrySdk" packages/core/src/telemetry/sdk-impl.ts  # stub, resolves sdk: undefined
+grep -c "uiTelemetryService" packages/core/src/telemetry/loggers.ts  # 4+ local-only sinks (§11)
+```
+
+And certify the shipped bytes, remembering `dist/cli.js` is a thin entry (§3 step 4 note) — grep the tree:
+
+```bash
+grep -rl "@opentelemetry/" "$HOME/.npm-global/lib/node_modules/@qwen-code/qwen-code/dist/"   # empty
+grep -rho "0\.[0-9]*\.[0-9]*-no-telemetry[^\"'\`]*" "$HOME/.npm-global/lib/node_modules/@qwen-code/qwen-code/dist/" | sort -u
+```
+
+The version string there embeds the build-time HEAD hash, so it doubles as proof of _which_ commit was installed.
+
+### Step 5 — If you delegate, scope narrowly
+
+Broad "very thorough" whole-repo sweeps have killed subagents here with host GPU out-of-memory, twice, after 13–32 tool calls and 250k–360k tokens each. Concurrency multiplies it: do not run two big agents plus a live traced session at once. Give each agent a short list of directories, a bounded question, and a word limit on the answer.
+
+### What this still does not prove
+
+Say so explicitly when reporting:
+
+- **Unexercised paths.** A trace certifies only the code that ran. `qwen serve`, Web Shell, chat channels, `/update`, `/review`, extension install and computer use need their own traced runs, or they rest on static gates alone.
+- **Prompt content.** The permitted LLM call still carries the prompt and any file context out of the process. A local endpoint keeps it on the machine; it is not the same as never leaving the process.
+- **Native binaries and dependencies.** Tracing `qwen` covers the Node process tree it spawns, not arbitrary native helpers reached by another route.
+- **DNS of inert URL strings.** Thousands of documented hosts are never contacted; this method does not prove each one unreachable, only that no socket was opened to any of them during the traced runs.
