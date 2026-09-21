@@ -49,32 +49,6 @@ const PROBE = join(__dirname, 'check-egress-probe.mjs');
 // Allowlist derivation
 // ---------------------------------------------------------------------------
 
-const LOCAL_HOSTS = new Set([
-  'localhost',
-  'localhost.localdomain',
-  'ip6-localhost',
-  'ip6-loopback',
-  'host.docker.internal',
-  'gateway.docker.internal',
-  'kubernetes.docker.internal',
-  'metadata.google.internal',
-]);
-
-function isLocalHost(host) {
-  if (!host) return true;
-  const h = host.replace(/^\[|\]$/g, '').toLowerCase();
-  if (h === '::' || h === '::1' || h === '0.0.0.0') return true;
-  if (h.startsWith('127.')) return true;
-  if (h.startsWith('::ffff:127.')) return true;
-  if (LOCAL_HOSTS.has(h)) return true;
-  // fd00::/8 ULA and 192.168/16 + 10/8 + 172.16/12 — a container talking to
-  // its own host or LAN is not the internet.
-  if (/^f[cd][0-9a-f]{2}:/i.test(h)) return true;
-  if (/^10\./.test(h) || /^192\.168\./.test(h)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
-  return false;
-}
-
 function hostFromUrl(value) {
   if (typeof value !== 'string') return undefined;
   const m = /^(?:https?|wss?|ftp):\/\/(?:[^/@]*@)?\[?([^\]/:]+)/i.exec(
@@ -315,6 +289,15 @@ function main() {
       '  Fix the code, or add the host to QWEN_EGRESS_ALLOW and record why in the release notes.',
     );
     process.exit(1);
+  }
+  if (failed) {
+    console.error(
+      '\n✗ A scenario failed to spawn, so no egress evidence covers it.',
+    );
+    console.error(
+      '  This run is inconclusive, not clean. Fix the CLI invocation before releasing.',
+    );
+    process.exit(2);
   }
   console.log(
     '\n✓ No unexpected egress. Every destination was loopback, the container gateway, or a host your own config named.',

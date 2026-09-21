@@ -183,7 +183,7 @@ if (typeof origWs === 'function') {
 
 const origDgramSend = dgram.Socket.prototype.send;
 dgram.Socket.prototype.send = function (...args) {
-  const [a, b, c] = args;
+  const [, b, c] = args;
   if (typeof c === 'string')
     record('udp', c, typeof b === 'number' ? b : undefined);
   else if (typeof b === 'number') record('udp', c ?? '0.0.0.0', b);
@@ -235,7 +235,7 @@ for (const name of [
 ]) {
   const orig = childProcess[name];
   if (typeof orig !== 'function') continue;
-  childProcess[name] = function (cmd, optionsOrArgs, options) {
+  childProcess[name] = function (cmd, optionsOrArgs, _options) {
     scanSpawn(cmd, Array.isArray(optionsOrArgs) ? optionsOrArgs : undefined);
     return orig.apply(this, arguments);
   };
