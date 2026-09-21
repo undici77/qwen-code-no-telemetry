@@ -9,8 +9,6 @@ import type { Config } from '../../config/config.js';
 import type { ArtifactHostConfig } from './publisher.js';
 import { createArtifactPublisher } from './create-publisher.js';
 import { LocalPublisher } from './local-publisher.js';
-import { HostPublisher } from './host-publisher.js';
-import { OssPublisher } from './oss-publisher.js';
 
 const cfg = (
   kind: 'local' | 'host' | 'oss',
@@ -32,22 +30,25 @@ describe('createArtifactPublisher', () => {
     );
   });
 
-  it('returns HostPublisher for the host kind', () => {
+  // [no-telemetry fork] §1.7 — remote publishing is hard-locked off, so every
+  // remote kind collapses to LocalPublisher. Upstream asserted HostPublisher /
+  // OssPublisher here; see no-remote-publish.test.ts for the full guarantee.
+  it('collapses the host kind to LocalPublisher (§1.7)', () => {
     const pub = createArtifactPublisher(
       cfg('host', {
         uploadCommand: 'up {file}',
         urlTemplate: 'https://h/{key}',
       }),
     );
-    expect(pub).toBeInstanceOf(HostPublisher);
+    expect(pub).toBeInstanceOf(LocalPublisher);
   });
 
-  it('returns HostPublisher even when host config is missing (defers to publish-time error)', () => {
-    expect(createArtifactPublisher(cfg('host'))).toBeInstanceOf(HostPublisher);
+  it('collapses a configured host to LocalPublisher (§1.7)', () => {
+    expect(createArtifactPublisher(cfg('host'))).toBeInstanceOf(LocalPublisher);
   });
 
-  it('returns OssPublisher for the oss kind', () => {
-    expect(createArtifactPublisher(cfg('oss'))).toBeInstanceOf(OssPublisher);
+  it('collapses the oss kind to LocalPublisher (§1.7)', () => {
+    expect(createArtifactPublisher(cfg('oss'))).toBeInstanceOf(LocalPublisher);
   });
 
   it('rejects unknown publisher kinds', () => {

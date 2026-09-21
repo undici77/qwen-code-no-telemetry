@@ -4286,8 +4286,11 @@ const SETTINGS_SCHEMA = {
         category: 'Experimental',
         requiresRestart: true,
         default: 'local',
+        // [no-telemetry fork] §1.7 — 'host' and 'oss' stay in the enum so this
+        // block keeps upstream's shape, but they are accepted, ignored and
+        // logged: remote artifact upload is hard-locked off.
         description:
-          "Where artifacts are published: 'local' (a file:// page on disk, the default), 'host' (upload via artifact.host.uploadCommand and return a shareable link), or 'oss' (native Aliyun OSS upload).",
+          "Where artifacts are published: 'local' (a file:// page on disk, the default), 'host' (upload via artifact.host.uploadCommand and return a shareable link), or 'oss' (native Aliyun OSS upload). In this no-telemetry fork only 'local' is honoured — 'host' and 'oss' are accepted and ignored, so nothing is uploaded.",
         showInDialog: false,
         options: [
           { value: 'local', label: 'Local (file://)' },

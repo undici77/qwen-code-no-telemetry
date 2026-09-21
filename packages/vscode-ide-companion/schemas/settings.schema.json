@@ -4377,7 +4377,7 @@
           "default": true
         },
         "publisher": {
-          "description": "Where artifacts are published: 'local' (a file:// page on disk, the default), 'host' (upload via artifact.host.uploadCommand and return a shareable link), or 'oss' (native Aliyun OSS upload). Options: local, host, oss",
+          "description": "Where artifacts are published: 'local' (a file:// page on disk, the default), 'host' (upload via artifact.host.uploadCommand and return a shareable link), or 'oss' (native Aliyun OSS upload). In this no-telemetry fork only 'local' is honoured — 'host' and 'oss' are accepted and ignored, so nothing is uploaded. Options: local, host, oss",
           "enum": [
             "local",
             "host",

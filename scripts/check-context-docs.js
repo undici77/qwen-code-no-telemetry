@@ -292,6 +292,8 @@ const TAGGED = [
   'packages/cli/src/config/settingsSchema.ts',
   'packages/cli/src/ui/statusLinePresets.ts',
   'packages/cli/src/ui/hooks/useStatusLine.ts',
+  'packages/core/src/tools/artifact/create-publisher.ts',
+  'packages/core/src/tools/artifact/artifact-tool.ts',
 ];
 const tagCount = (f) => (read(f).match(/\[no-telemetry fork\]/g) ?? []).length;
 for (const f of TAGGED) {

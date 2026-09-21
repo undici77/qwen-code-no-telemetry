@@ -60,16 +60,17 @@ loaded into context**, so open it before a merge — and in the always-on copy i
 section mechanically. This table only exists so a merge never starts without
 knowing the patches are there.
 
-| Patch                          | Section | One-line rule                                                                                       |
-| ------------------------------ | ------- | --------------------------------------------------------------------------------------------------- |
-| Telemetry dummy layer          | §1, §11 | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.                     |
-| `@opentelemetry/api` imports   | §12     | Relative import to `dummy-otel.js`; `tsconfig` `paths` do not rewrite `.js` output.                 |
-| WebSearch / SerpApi            | §1.5    | `web_search` stays SerpApi-backed; the seams are `merge=ours`, so upstream rewrites never conflict. |
-| Vision-bridge concurrency      | §1.6    | Throttle concurrent image conversions; never reject on a per-turn count.                            |
-| Control-flow timing audit      | §13     | Telemetry commits that add `await` can break TUI state updates.                                     |
-| **Append-only auto-memory**    | **§14** | **Memory index must stay out of the system prompt tail when the flag is on.**                       |
-| **Context/cache status items** | **§15** | **Four status-line items stay available; all logic in the fork-owned module.**                      |
-| Resume prelude reuse (auto)    | §16     | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.           |
+| Patch                          | Section  | One-line rule                                                                                              |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
+| Telemetry dummy layer          | §1, §11  | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.                            |
+| `@opentelemetry/api` imports   | §12      | Relative import to `dummy-otel.js`; `tsconfig` `paths` do not rewrite `.js` output.                        |
+| WebSearch / SerpApi            | §1.5     | `web_search` stays SerpApi-backed; the seams are `merge=ours`, so upstream rewrites never conflict.        |
+| Vision-bridge concurrency      | §1.6     | Throttle concurrent image conversions; never reject on a per-turn count.                                   |
+| **Artifact remote upload**     | **§1.7** | **Remote publishers collapse to `local`, hard-locked; publish always prompts, even under yolo/auto_edit.** |
+| Control-flow timing audit      | §13      | Telemetry commits that add `await` can break TUI state updates.                                            |
+| **Append-only auto-memory**    | **§14**  | **Memory index must stay out of the system prompt tail when the flag is on.**                              |
+| **Context/cache status items** | **§15**  | **Four status-line items stay available; all logic in the fork-owned module.**                             |
+| Resume prelude reuse (auto)    | §16      | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.                  |
 
 ## Common Commands
 

@@ -15,6 +15,9 @@ import { ArtifactTool, type UrlOpener } from './artifact-tool.js';
 import { LocalPublisher } from './local-publisher.js';
 import { MAX_ARTIFACT_BYTES } from './html.js';
 import { readArtifactSnapshot } from './artifact-snapshots.js';
+import { needsConfirmation } from '../../core/permissionFlow.js';
+import { ApprovalMode } from '../../config/approval-mode.js';
+import { ToolNames } from '../tool-names.js';
 
 const signal = new AbortController().signal;
 
@@ -443,6 +446,32 @@ describe('ArtifactTool', () => {
       .build({ file_path: file })
       .getConfirmationDetails(signal);
     expect((local as { prompt: string }).prompt).not.toMatch(/remote/i);
+  });
+
+  // [no-telemetry fork] §1.7 — the wiring that makes "always ask" real. The
+  // tool's `ask` is otherwise silenced by YOLO and by AUTO_EDIT's `info`
+  // auto-approve, so this override is the only thing forcing the prompt.
+  it('requires user interaction so no approval mode can silence it (§1.7)', async () => {
+    const file = await writeFragment('page.html', '<p>x</p>');
+    const invocation = tool.build({ file_path: file });
+    expect(invocation.requiresUserInteraction()).toBe(true);
+    expect(await invocation.getDefaultPermission()).toBe('ask');
+    expect(
+      needsConfirmation(
+        'ask',
+        ApprovalMode.YOLO,
+        ToolNames.ARTIFACT,
+        invocation.requiresUserInteraction(),
+      ),
+    ).toBe(true);
+    expect(
+      needsConfirmation(
+        'ask',
+        ApprovalMode.AUTO_EDIT,
+        ToolNames.ARTIFACT,
+        invocation.requiresUserInteraction(),
+      ),
+    ).toBe(true);
   });
 
   it('reports a cancellation when the publisher aborts', async () => {

@@ -36,6 +36,8 @@ import {
 } from './html.js';
 import { artifactIdFromPath, type ArtifactPublisher } from './publisher.js';
 import { createArtifactPublisher } from './create-publisher.js';
+// [no-telemetry fork] §1.7 — publishing always requires a human, even under yolo/auto_edit.
+import { artifactPublishRequiresUserInteraction } from './no-remote-publish.js';
 import {
   deleteArtifactSnapshot,
   saveArtifactSnapshot,
@@ -104,6 +106,15 @@ class ArtifactToolInvocation extends BaseToolInvocation<
   /** Publishing writes outside the project and may open a browser — always ask. */
   override getDefaultPermission(): Promise<PermissionDecision> {
     return Promise.resolve('ask');
+  }
+
+  // [no-telemetry fork] §1.7 — `ask` alone is not enough: `needsConfirmation()`
+  // skips confirmation for every tool under YOLO, and `isAutoEditApproved()`
+  // auto-approves any `type: 'info'` confirmation under AUTO_EDIT — which is
+  // this tool's confirmation shape. This override forces the prompt past both
+  // (same lever `exitPlanMode` uses).
+  override requiresUserInteraction(): boolean {
+    return artifactPublishRequiresUserInteraction();
   }
 
   override getConfirmationDetails(
