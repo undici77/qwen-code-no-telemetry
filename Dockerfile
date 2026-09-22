@@ -43,7 +43,7 @@ RUN QWEN_SKIP_PREPARE=1 corepack pnpm install --frozen-lockfile --reporter=appen
 # ratchet:docker.io/library/node:22-slim
 FROM docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 
-ARG QWEN_REF="v0.24.3-no-telemetry"
+ARG QWEN_REF="v0.24.4-no-telemetry"
 ARG REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 
 ENV QWEN_REF=${QWEN_REF}
