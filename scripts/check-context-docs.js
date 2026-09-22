@@ -10,6 +10,7 @@
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { compactTables } from './compact-md-tables.mjs';
 
 const read = (f) => {
   try {
@@ -70,6 +71,28 @@ check(
   lineCites.length === 0,
   lineCites.join(', '),
 );
+
+// Fork-owned docs carry their tables column-aligned by hand. That padding is
+// ~15% of the deep reference and buys nothing a renderer cannot do itself, so
+// it is stripped by a tool that proves it lost nothing before writing. A
+// padded table re-appearing after a merge is formatting drift, not content.
+for (const f of ['NO_TELEMETRY_GUIDELINES.md', 'QWEN.md']) {
+  const src = read(f);
+  if (!src) continue;
+  let r;
+  try {
+    r = compactTables(src);
+  } catch (e) {
+    check(`${f}: table structure unparseable`, false, e.message);
+    continue;
+  }
+  const saved = Buffer.byteLength(src) - Buffer.byteLength(r.text);
+  check(
+    `${f}: fork-owned docs must not carry column-padded tables`,
+    saved === 0 && r.cellsVerbatim && r.proseSafe,
+    `${saved} B of table padding — fix: node scripts/compact-md-tables.mjs --write`,
+  );
+}
 
 for (const f of DOCS) {
   const cmds = commandLines(read(f));

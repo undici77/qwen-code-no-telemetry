@@ -23,6 +23,14 @@ junit.xml
 # so formatting and `pnpm install` fight over the file. .yamllint.yml
 # already ignores it for the same reason.
 pnpm-lock.yaml
+# Prettier re-pads every markdown table to column width. This file is the
+# fork's deep reference and is read into model context at merge time, so that
+# padding is ~15% of its tokens for nothing; `npm run check:tables` strips it
+# with a proof that no cell changed. Without this entry `npm run format` pads
+# it straight back and the gate fails, so the two would fight over the file
+# exactly as they do over pnpm-lock.yaml above. Fork-owned, so opting it out
+# costs nothing upstream — unlike AGENTS.md, whose padding prettier owns.
+NO_TELEMETRY_GUIDELINES.md
 Thumbs.db
 packages/vscode-ide-companion/schemas/settings.schema.json
 packages/cli/src/services/insight/templates/insightTemplate.ts

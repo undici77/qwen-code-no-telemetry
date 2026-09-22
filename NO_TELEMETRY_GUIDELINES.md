@@ -25,16 +25,16 @@ The built-in `web_search` tool **MUST** remain backed by [SerpApi](https://serpa
 
 Upstream's `web-search.ts` is a large, actively-changed DashScope implementation (1400+ lines; 4 commits in the two months before v0.23.2). The fork used to carry its SerpApi backend as a whole-file replacement of that file, so **every** upstream change opened an ~800-line semantic conflict. The patch is split so that conflict is structurally impossible:
 
-| File                                                               | Owner    | Merge rule          | Role                                                                                                                                           |
-| ------------------------------------------------------------------ | -------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core/src/tools/serpapi-web-search.ts`                    | **fork** | new file            | The whole SerpApi backend: gate, fetch, Markdown conversion, tool class. Upstream never creates it.                                            |
-| `packages/core/src/tools/serpapi-web-search.test.ts`               | **fork** | new file            | The executable §1.5 guarantee (below).                                                                                                         |
-| `packages/core/src/tools/web-search.ts`                            | **fork** | `merge=ours`        | ~5-line re-export of the module above, under the names upstream's consumers import.                                                            |
-| `packages/core/src/tools/web-search.test.ts`                       | **fork** | `merge=ours`        | Shim guard — fails if the seam is ever resolved toward upstream.                                                                               |
-| `docs/developers/tools/web-search.md`                              | **fork** | `merge=ours`        | Fork documentation.                                                                                                                            |
-| `packages/core/src/config/config.ts` (`webSearch` field docstring) | mixed    | small additive hunk | Fork comment marks SerpApi the only backend and upstream's keys inert. Comment only — no behaviour change, but NOT byte-identical to upstream. |
-| `packages/cli/src/config/config.ts` (`resolveWebSearchSettings`)   | mixed    | small additive hunk | Upstream body preserved; four SerpApi keys appended, tagged.                                                                                   |
-| `packages/cli/src/config/settingsSchema.ts` (`webSearch` block)    | mixed    | small additive hunk | Upstream keys kept so the block stays upstream-shaped; descriptions are fork-owned.                                                            |
+|File|Owner|Merge rule|Role|
+|---|---|---|---|
+|`packages/core/src/tools/serpapi-web-search.ts`|**fork**|new file|The whole SerpApi backend: gate, fetch, Markdown conversion, tool class. Upstream never creates it.|
+|`packages/core/src/tools/serpapi-web-search.test.ts`|**fork**|new file|The executable §1.5 guarantee (below).|
+|`packages/core/src/tools/web-search.ts`|**fork**|`merge=ours`|~5-line re-export of the module above, under the names upstream's consumers import.|
+|`packages/core/src/tools/web-search.test.ts`|**fork**|`merge=ours`|Shim guard — fails if the seam is ever resolved toward upstream.|
+|`docs/developers/tools/web-search.md`|**fork**|`merge=ours`|Fork documentation.|
+|`packages/core/src/config/config.ts` (`webSearch` field docstring)|mixed|small additive hunk|Fork comment marks SerpApi the only backend and upstream's keys inert. Comment only — no behaviour change, but NOT byte-identical to upstream.|
+|`packages/cli/src/config/config.ts` (`resolveWebSearchSettings`)|mixed|small additive hunk|Upstream body preserved; four SerpApi keys appended, tagged.|
+|`packages/cli/src/config/settingsSchema.ts` (`webSearch` block)|mixed|small additive hunk|Upstream keys kept so the block stays upstream-shaped; descriptions are fork-owned.|
 
 **Upstream's DashScope keys are accepted and inert.** `model`, `webExtractor`, `baseUrl` and `apiKeyEnv` stay in the schema and the resolver because deleting them would re-open a conflict in three files for no privacy gain — the fork has no DashScope backend, so no code path can turn those values into a request. They are documented as ignored in `settingsSchema.ts`, `settings.schema.json` and the tool docs.
 
@@ -125,14 +125,14 @@ return (
 
 ### How the patch is structured (read this before a merge)
 
-| File                                                               | Owner    | Merge rule            | Role                                                                                                                                                                                                  |
-| ------------------------------------------------------------------ | -------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core/src/tools/artifact/no-remote-publish.ts`            | **fork** | new file              | All lockdown logic. Upstream never creates this path, so it can never conflict.                                                                                                                       |
-| `packages/core/src/tools/artifact/no-remote-publish.test.ts`       | **fork** | new file              | The executable §1.7 guarantee (below).                                                                                                                                                                |
-| `packages/core/src/tools/artifact/create-publisher.ts`             | mixed    | small additive hunk   | One tagged call wrapping the kind before upstream's `switch`. The `host`/`oss` branches stay in the file and stay type-valid, just unreachable.                                                       |
-| `packages/core/src/tools/artifact/artifact-tool.ts`                | mixed    | small additive hunk   | Tagged `requiresUserInteraction()` override — the existing upstream lever (same one `exitPlanMode` uses) that forces `'ask'` past YOLO and AUTO_EDIT.                                                 |
-| `packages/core/src/tools/artifact/create-publisher.test.ts`        | mixed    | small additive hunk   | Upstream asserted `HostPublisher`/`OssPublisher`; retagged to assert the collapse to `LocalPublisher`.                                                                                                |
-| `packages/cli/src/config/settingsSchema.ts` (`artifact.publisher`) | mixed    | description text only | `'host'`/`'oss'` stay in the enum so the block keeps upstream's shape; the description says they are accepted and ignored. Keys are **not** deleted. Regenerate the vscode schema copy after editing. |
+|File|Owner|Merge rule|Role|
+|---|---|---|---|
+|`packages/core/src/tools/artifact/no-remote-publish.ts`|**fork**|new file|All lockdown logic. Upstream never creates this path, so it can never conflict.|
+|`packages/core/src/tools/artifact/no-remote-publish.test.ts`|**fork**|new file|The executable §1.7 guarantee (below).|
+|`packages/core/src/tools/artifact/create-publisher.ts`|mixed|small additive hunk|One tagged call wrapping the kind before upstream's `switch`. The `host`/`oss` branches stay in the file and stay type-valid, just unreachable.|
+|`packages/core/src/tools/artifact/artifact-tool.ts`|mixed|small additive hunk|Tagged `requiresUserInteraction()` override — the existing upstream lever (same one `exitPlanMode` uses) that forces `'ask'` past YOLO and AUTO_EDIT.|
+|`packages/core/src/tools/artifact/create-publisher.test.ts`|mixed|small additive hunk|Upstream asserted `HostPublisher`/`OssPublisher`; retagged to assert the collapse to `LocalPublisher`.|
+|`packages/cli/src/config/settingsSchema.ts` (`artifact.publisher`)|mixed|description text only|`'host'`/`'oss'` stay in the enum so the block keeps upstream's shape; the description says they are accepted and ignored. Keys are **not** deleted. Regenerate the vscode schema copy after editing.|
 
 **No escape hatch, by design.** There is deliberately no env var or settings key that re-arms remote publishing. Re-enabling it means editing `no-remote-publish.ts`, so the decision is always visible in a diff. Do not add a bypass "for convenience".
 
@@ -292,7 +292,7 @@ Every successful merge REQUIRES:
     ```bash
     npm run typecheck 2>&1 | tail -10
     # If sdk-typescript fails with "ExpectStatic has no call signatures",
-    # check vitest version drift (see QWEN.md §Efficiency & Troubleshooting #6).
+    # check vitest version drift (see §10 "Vitest Version Drift").
     ```
 
     **Step 3 — Targeted package tests ONLY (never root `npm run test`):**
@@ -301,7 +301,7 @@ Every successful merge REQUIRES:
     # Run these in parallel; each should complete in <60s:
     npm run test --workspace=packages/sdk-typescript 2>&1 | tail -5
     npm run test --workspace=packages/acp-bridge 2>&1 | tail -5
-    npm run test --workspace=packages/webui 2>&1 | tail -5
+    npm run test --workspace=packages/web-shell 2>&1 | tail -5
     ```
 
     **Step 4 — Core tests (slow, ~75s — only if core files changed):**
@@ -352,8 +352,14 @@ Every successful merge REQUIRES:
     | `npm run test --workspace=packages/core`           | ~75s              | **180s**                                    |
     | `npm install`                                      | ~60–100s          | **180s**                                    |
     | `npm run check:egress`                             | ~45s              | 180s                                        |
+    | `npm run check:tables`                             | ~1s               | 30s                                         |
 
 15. **EGRESS TRIPWIRE** ⚠️ See Section 18: Run `npm run check:egress` and require zero `LEAK` rows. This is the only check here that observes the running binary rather than its source, so it is the one that catches egress assembled at runtime — by a refactor, a new dependency, or worse. A run that reports `0 egress attempts` for the session scenario is a **broken detector, not a clean build**: it has happened, and §18 explains how to tell.
+16. **TABLE PADDING** — run `npm run check:tables` after any merge or edit that touches this file's tables. Column alignment is ~15% of this file's bytes and it is pure formatting, so the gate strips it and refuses to write unless it has proved every cell string survived verbatim and no line outside a table was touched. Two things it exists to stop: a merge re-padding the tables, and a future reader assuming the padding is meaningful. It deliberately skips `AGENTS.md` — upstream owns that file's tables and prettier emits that padding, so compacting there re-opens a conflict every sync. This file is in `.prettierignore` for the same reason: prettier re-pads every table it sees and would fight the gate forever.
+    ```bash
+    npm run check:tables                              # self-test, then report only
+    npm run check:tables -- --write                   # apply, after the same proof
+    ```
 
 ---
 
@@ -361,10 +367,10 @@ Every successful merge REQUIRES:
 
 The version system has two distinct layers that serve different purposes:
 
-| Layer                     | Purpose                                      | Conflict Resolution                   |
-| ------------------------- | -------------------------------------------- | ------------------------------------- |
-| **Upstream version**      | Package compatibility, dependency resolution | **Keep identical** to upstream `main` |
-| **No-telemetry identity** | UI identification, user awareness            | Always present in display strings     |
+|Layer|Purpose|Conflict Resolution|
+|---|---|---|
+|**Upstream version**|Package compatibility, dependency resolution|**Keep identical** to upstream `main`|
+|**No-telemetry identity**|UI identification, user awareness|Always present in display strings|
 
 ### Critical Rules:
 
@@ -379,14 +385,27 @@ The version system has two distinct layers that serve different purposes:
 
 `package.json` `"version"` is the single source of truth. On release, read the version from `package.json` and update:
 
-| File          | What to Update                                                                      |
-| ------------- | ----------------------------------------------------------------------------------- |
-| `Dockerfile`  | `ARG QWEN_REF="v[version]-no-telemetry"`                                            |
-| `install.sh`  | All example version references and usage docs                                       |
-| `install.ps1` | All example version references and usage docs (Windows counterpart of `install.sh`) |
-| `README.md`   | Install script URLs/examples AND the "original README" link version                 |
+|File|What to Update|
+|---|---|
+|`Dockerfile`|`ARG QWEN_REF="v[version]-no-telemetry"`|
+|`install.sh`|All example version references and usage docs|
+|`install.ps1`|All example version references and usage docs (Windows counterpart of `install.sh`)|
+|`README.md`|Install script URLs/examples AND the "original README" link version|
 
 The `-no-telemetry` suffix is always the same — never change it.
+
+### Single-Merge Strategy
+
+Produce a single release commit while keeping `main` aligned:
+
+```bash
+git reset --hard [LAST_TAG]
+git merge --no-ff main -m "feat: release [VERSION]"
+# resolve/neutralize the telemetry patches, then:
+git commit --amend
+```
+
+_Avoid `git reset --soft` after the merge — it breaks the history link to `main`, which is what lets future merges see what was already taken._
 
 ---
 
@@ -394,17 +413,17 @@ The `-no-telemetry` suffix is always the same — never change it.
 
 When merging from `main`, conflicts may arise. Use this priority order:
 
-| Conflict Type                         | Priority    | Action                                                                                                                                                                                                                                       |
-| ------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@opentelemetry/*` in dependencies    | **HIGHEST** | Remove immediately, no exceptions                                                                                                                                                                                                            |
-| Metrics/analytics/tracking code       | **HIGHEST** | Replace with no-op stubs                                                                                                                                                                                                                     |
-| Installation ID generation            | **HIGHEST** | Return static UUID `00000000-0000-0000-0000-000000000000`                                                                                                                                                                                    |
-| WebSearch/SerpApi patch               | **HIGHEST** | **ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily. |
-| Vision-bridge image concurrency patch | **HIGHEST** | **ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.                                                                                                                                                |
-| Append-only auto-memory patch         | **HIGHEST** | **ALWAYS** re-apply the 13 `[no-telemetry fork]` hook lines (client.ts 5, environmentContext.ts 6, refresh.ts 2) on top of upstream's new shape. Never resolve by dropping the flag.                                                         |
-| Specialized `README.md` content       | **HIGHEST** | **DO NOT** merge upstream README. Keep fork docs — now declared `merge=ours` in `.gitattributes`, so git discards upstream's version instead of leaving this to memory. List what was discarded per §1.5 merge reporting.                    |
-| Version string in `package.json`      | **MEDIUM**  | Match upstream (without `-no-telemetry`)                                                                                                                                                                                                     |
-| UI display version                    | **LOW**     | Keep `-no-telemetry` suffix for clarity                                                                                                                                                                                                      |
+|Conflict Type|Priority|Action|
+|---|---|---|
+|`@opentelemetry/*` in dependencies|**HIGHEST**|Remove immediately, no exceptions|
+|Metrics/analytics/tracking code|**HIGHEST**|Replace with no-op stubs|
+|Installation ID generation|**HIGHEST**|Return static UUID `00000000-0000-0000-0000-000000000000`|
+|WebSearch/SerpApi patch|**HIGHEST**|**ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily.|
+|Vision-bridge image concurrency patch|**HIGHEST**|**ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.|
+|Append-only auto-memory patch|**HIGHEST**|**ALWAYS** re-apply the 13 `[no-telemetry fork]` hook lines (client.ts 5, environmentContext.ts 6, refresh.ts 2) on top of upstream's new shape. Never resolve by dropping the flag.|
+|Specialized `README.md` content|**HIGHEST**|**DO NOT** merge upstream README. Keep fork docs — now declared `merge=ours` in `.gitattributes`, so git discards upstream's version instead of leaving this to memory. List what was discarded per §1.5 merge reporting.|
+|Version string in `package.json`|**MEDIUM**|Match upstream (without `-no-telemetry`)|
+|UI display version|**LOW**|Keep `-no-telemetry` suffix for clarity|
 
 ### Golden Rule:
 
@@ -420,6 +439,21 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 
 - **Legacy Approach (Until v0.12.1-no-telemetry)**: The policy was to **delete all telemetry-related files**. While effective for privacy, this caused massive merge conflicts and made it difficult to align with upstream updates.
 - **Current Approach (From v0.12.3-no-telemetry onwards)**: Switched to a **"privacy-first" dummy implementation**. We remove all `@opentelemetry/*` packages from `package.json` but maintain the file structure with no-op/dummy layers. This keeps the application code calling these modules untouched, making merges easier while ensuring zero data leakage.
+
+### Repository Layout
+
+`packages/` holds every workspace; the CLI entry is `packages/cli` and the backend plus telemetry dummy layer is `packages/core`. Three of the frontends below (`desktop-shell`, `live-host`, `mobile-shell`) are **excluded** from the root `workspaces` list — present in the tree, but not installed or built by the aggregate commands — and `packages/channels` is a container of nested workspace packages rather than one package:
+
+|Area|Contents|
+|---|---|
+|`packages/cli`, `packages/core`|Interactive entry point; backend, config, tools, services, telemetry dummy layer.|
+|`packages/acp-bridge`, `packages/web-shell`, `packages/web-templates`, `packages/vscode-ide-companion`, `packages/zed-extension`, `packages/chrome-extension`, `packages/desktop-shell`, `packages/mobile-shell`|Frontends and editor integrations.|
+|`packages/sdk-java`, `packages/sdk-typescript`, `packages/sdk-python`, `packages/node-repl`, `packages/qwen-live`, `packages/live-host`, `packages/browser-use`, `packages/cua-driver`, `packages/mobile-mcp`, `packages/audio-capture`, `packages/channels`|SDKs, runtime adapters and optional capability packages.|
+|`docs/`, `docs-site/`|Source documentation and the Next.js documentation site.|
+|`integration-tests/`, `scripts/`, `eslint-rules/`|Cross-package tests, build/release tooling, custom lint rules.|
+|`build.sh`, `install.sh`, `install.ps1`, `Dockerfile`, `Makefile`|Build and install entry points (`install.ps1` is the Windows counterpart of `install.sh`).|
+
+_Regenerate rather than trust this table: `ls packages/` is authoritative and this list drifts as upstream adds workspaces._
 
 ---
 
@@ -458,12 +492,11 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 ### Stale Build Artifacts
 
 If you update a `.ts` file but `esbuild` (e.g., in `vscode-ide-companion`) complains about missing exports in the corresponding `.js` file in the same `src` folder, you have **stale artifacts**.
-**Fix**: Use the cleanup script in Section 3.4.
+**Fix**: Use the cleanup command in §3, item 4 (`find packages -name "*.ts" -not -path "*/node_modules/*" -exec bash -c '...' \;`).
 
-### WebUI Type Generation
+### Web Shell Type Generation
 
-`vite-plugin-dts` may fail to generate types if CSS/SVG imports are present.
-**Pattern**: Use a dedicated `tsconfig.dts.json` and a manual `tsc` step in the `webui` build script to ensure valid `.d.ts` files are produced.
+`@qwen-code/webui` was retired upstream (#9812) and no `tsconfig.dts.json` exists in the tree. The live pattern is `packages/web-shell`: its build runs three `vite build` passes and then a manual `tsc -p tsconfig.lib.json` with `emitDeclarationOnly` + `declarationDir: dist/types`, which is how valid `.d.ts` files get produced without a dts plugin. Keep the manual `tsc` step when merging — dropping it ships a package with no types.
 
 ### Express Request Params
 
@@ -474,6 +507,53 @@ In newer TypeScript versions or strict modes, `req.params['id']` might be inferr
 
 `local-install.sh` builds in a temporary directory without `.git`.
 **Optimization**: Ensure build scripts (like `generate-git-commit-info.js`) handle the absence of a git repository gracefully (e.g., by checking environment variables first or silencing stderr).
+
+### Vitest Version Drift
+
+`packages/sdk-typescript` must keep vitest in sync with the workspace root (`^3.2.4`). A mismatch creates an isolated `node_modules` and `tsc` fails with `ExpectStatic has no call signatures`.
+
+```bash
+cd packages/sdk-typescript && node -p "require('vitest/package.json').version"
+# Must print 3.2.x. Do NOT cat packages/sdk-typescript/node_modules/vitest/package.json
+# — vitest is hoisted to the repo root, that path does not exist, and a dead path
+# reads as "no version" rather than as a failure.
+```
+
+### Targeting Tests (never the root suite)
+
+Never run `npm run test` from the project root — it launches every package and times out. Always target a single workspace: `npm run test --workspace=packages/core`, or `cd packages/<p> && npx vitest run src/path/to/file.test.ts`. If a test exceeds 2× its expected duration, kill it and investigate rather than waiting. `packages/cli` carries mutation-testing harnesses that take 3+ minutes; run with `--reporter=verbose` to see progress.
+
+### Pre-Existing Failures (running as root, NOT caused by fork changes)
+
+Before investigating a failure, confirm it is a regression on the clean `dev` branch (`git stash && npm run test --workspace=... && git stash pop`). These fail because root bypasses permission checks, not because of anything the fork changed:
+
+|Test|Why it fails as root|
+|---|---|
+|`packages/core/src/tools/edit.test.ts` — "should return FILE_WRITE_FAILURE on write error"|root bypasses file permission checks|
+|`packages/core/src/utils/pathReader.test.ts` — "should return an error string if reading a file with no permissions"|root bypasses file permission checks|
+|`packages/cli/src/utils/housekeeping/cleanup.test.ts` — "counts errors and continues sweep when one dir cannot be removed"|root bypasses directory write restrictions|
+
+`packages/cli`'s permission error-counting case in `cleanup.test.ts` auto-skips when `process.getuid?.() === 0`.
+
+Two further recurring core-suite classes are environmental rather than fork regressions: the **LSP config loader** suite and **bundled-skill integration** tests. Rule out the root-permission class and these before spending time on any "new" failure.
+
+> Counts drift with upstream. Treat the list above as the _known classes_, and re-baseline with a clean-branch run before quoting a number.
+
+### Tests Fixed for No-Telemetry
+
+These tests were changed (not deleted) to match fork behavior, so a merge that restores upstream's version fails:
+
+|Test|What it pins|
+|---|---|
+|`packages/core/src/config/installationManager.test.ts`|static UUID `00000000-0000-0000-0000-000000000000`|
+|`packages/core/src/config/config.test.ts`|usage statistics disabled by default|
+|`packages/cli/src/config/settingsSchema.test.ts`|`gitCoAuthor` present in schema with default `false`|
+|`packages/cli/src/llm.test.tsx`|mocks `getCliVersionDisplay` to `1.0.0-no-telemetry`|
+|`packages/cli/src/ui/systemInfo.test.ts`|renders the `-no-telemetry` suffix in the version line|
+|`packages/cli/src/i18n/mustTranslateKeys.test.ts`|restored deleted locale files + `git-commit.js`|
+|`packages/core/src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`)|excluded in `packages/core/vitest.config.ts` — cannot compile without the removed `@opentelemetry` deps|
+
+> `packages/cli/src/gemini.test.tsx` used to carry the `getCliVersionDisplay` mock. That file no longer exists upstream — the mock now lives in `llm.test.tsx` and the suffix assertion in `ui/systemInfo.test.ts`. A merge that resurrects the old row is pointing at a dead path.
 
 ---
 
@@ -495,65 +575,24 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 ### The `loggers.ts` PARTIAL no-op rule
 
-`packages/core/src/telemetry/loggers.ts` contains ~30 logger functions. After a no-telemetry merge, it is tempting to make ALL of them no-ops. **DO NOT do this.** Four functions MUST forward events to `uiTelemetryService` or the quit statistics will be permanently blank:
+`packages/core/src/telemetry/loggers.ts` exports 54 `log*`/`record*` functions. The fork patches **no function body** in this file — `git diff upstream/main -- packages/core/src/telemetry/loggers.ts` is the `dummy-otel.js` import swap (§12) and nothing else. Six functions call `uiTelemetryService`; they are the local statistics pipeline and MUST NOT be no-ops, or the quit summary (Model Usage / tokens / tool counts) goes permanently blank:
 
-| Function                | Must forward to                              | Privacy impact              |
-| ----------------------- | -------------------------------------------- | --------------------------- |
-| `logApiResponse`        | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
-| `logApiError`           | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
-| `logToolCall`           | `uiTelemetryService.addEvent()`              | ✅ Zero — local memory only |
-| `recordSkillInvocation` | `uiTelemetryService.recordSkillInvocation()` | ✅ Zero — local memory only |
+|Function|Must forward to|
+|---|---|
+|`logApiResponse`|`uiTelemetryService.addEvent()` + `recordUiTelemetryEventToChat()`|
+|`logApiError`|`uiTelemetryService.addEvent()` + `recordUiTelemetryEventToChat()`|
+|`logToolCall`|`uiTelemetryService.addEvent()` + `recordUiTelemetryEventToChat()`|
+|`logUserFeedback`|`uiTelemetryService.addEvent()` + `recordUiTelemetryEventToChat()`|
+|`logApiCancel`|`uiTelemetryService.addEvent()`|
+|`recordSkillInvocation`|`uiTelemetryService.recordSkillInvocation()`|
 
-**These four functions are NOT a telemetry leak.** They do not send data anywhere. They update an in-memory counter that is displayed to the user on their own screen when the session ends. No-op-ing them is a correctness bug, not a privacy improvement.
+**These six are NOT a telemetry leak.** They do not send data anywhere — they update an in-memory counter displayed to the user on their own screen when the session ends, and four of them append to the local `--resume` recording. No-op-ing them is a correctness bug, not a privacy improvement.
 
-The correct implementation (copy exactly, do NOT make no-ops):
+The other 48 keep their upstream bodies and stay **inert** because the sinks behind them are dead, not because their bodies were emptied: `sdk.ts` exports no-op `initializeTelemetry`/`shutdownTelemetry` and `isTelemetrySdkInitialized()` returns `false`, so every `if (!isTelemetrySdkInitialized()) return;` guard short-circuits before `logs.getLogger(...)` is reached; `QwenLogger.flushToRum()` and `flushIfNeeded()` are no-ops, so the RUM buffer is assembled in memory and never transmitted; and `config.ts` hardcodes `this.usageStatisticsEnabled = false`, which gates the `recordTokenUsageFromApiResponse*` calls at their own call sites.
 
-```typescript
-export function logApiResponse(config: Config, event: ApiResponseEvent): void {
-  const uiEvent = {
-    ...event,
-    'event.name': EVENT_API_RESPONSE,
-    'event.timestamp': new Date().toISOString(),
-  } as UiEvent;
-  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  recordUiTelemetryEventToChat(config, uiEvent);
-}
+> 🔒 **Privacy proof for `getChatRecordingService()`** — `packages/core/src/services/chatRecordingService.ts` contains no `fetch`, `http.request`, `https.request`, `XMLHttpRequest`, `WebSocket` or `child_process` call. It appends JSONL lines to `~/.qwen/tmp/<project_id>/chats/<session-id>.jsonl` for `--resume` only. Purely local session persistence.
 
-export function logApiError(config: Config, event: ApiErrorEvent): void {
-  const uiEvent = {
-    ...event,
-    'event.name': EVENT_API_ERROR,
-    'event.timestamp': new Date().toISOString(),
-  } as UiEvent;
-  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  recordUiTelemetryEventToChat(config, uiEvent);
-}
-
-export function logToolCall(config: Config, event: ToolCallEvent): void {
-  const uiEvent = {
-    ...event,
-    'event.name': EVENT_TOOL_CALL,
-    'event.timestamp': new Date().toISOString(),
-  } as UiEvent;
-  uiTelemetryService.addEvent(uiEvent, config.getSessionId());
-  recordUiTelemetryEventToChat(config, uiEvent);
-}
-
-export function recordSkillInvocation(
-  config: Config,
-  event: { skillName: string; success: boolean },
-): void {
-  uiTelemetryService.recordSkillInvocation(
-    event.skillName,
-    event.success,
-    config.getSessionId(),
-  );
-}
-```
-
-> 🔒 **Privacy proof for `getChatRecordingService()`** — writes to a local file (`~/.qwen/tmp/<session-id>.json`) for the `--resume` feature only. Verified: no network calls anywhere in `ChatRecordingService`. This is purely local session persistence.
-
-All other ~29 `log*` functions in `loggers.ts` MUST remain `(_config, _event): void {}` (complete no-ops) because they would otherwise route data to external OTel exporters, GCP, or analytics endpoints.
+> ⚠️ **Never hand-copy a function body into this document, and never "tighten" the rule by emptying one.** An earlier revision of this section carried a 9-line `logApiResponse` under "copy exactly, do NOT make no-ops". The real function is ~70 lines and contains `if (config.getUsageStatisticsEnabled())` and `if (!isInternalPromptId(event.prompt_id))` gates plus subagent identity attribution — pasting that short copy over it would have **deleted a privacy gate** and opened a permanent upstream conflict. The invariant is only the forward calls in the table above; prove them with the grep below, never against a transcribed body.
 
 ### Verification checklist after every merge
 
@@ -563,15 +602,25 @@ Run this grep to confirm no external data paths snuck in:
 # Must print ZERO results (no real OTel packages)
 find node_modules -name "index.js" -path "*opentelemetry/api*" 2>/dev/null
 
-# Must show uiTelemetryService only for the 4 allowed functions
-grep -n "uiTelemetryService\|fetch\|http\.request\|https\.request" \
-  packages/core/src/telemetry/loggers.ts
+# Must show uiTelemetryService in EXACTLY these 6 functions and nowhere else:
+# logApiResponse, logApiError, logToolCall, logApiCancel, logUserFeedback,
+# recordSkillInvocation. A 7th name appearing here is a new local-stats sink;
+# one of these 6 disappearing is the §11 blanking bug.
+awk '/^(export )?(async )?function /{fn=$0; sub(/\(.*/,"",fn);
+     sub(/^(export )?(async )?function /,"",fn)} /uiTelemetryService/ && fn {print fn}' \
+  packages/core/src/telemetry/loggers.ts | sort -u
 
-# Must return false (no usage stats sent as request headers)
-grep -A3 "getUsageStatisticsEnabled" packages/core/src/config/config.ts
+# Must show the hardcoded false, not a getter pass-through
+grep -n "this.usageStatisticsEnabled = " packages/core/src/config/config.ts
 
-# Must be === true guard (update check disabled by default)
-grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
+# Must be default: false (auto-update off by default)
+grep -A6 "enableAutoUpdate:" packages/cli/src/config/settingsSchema.ts | grep default
+
+# Must be a no-op returning {} — the only RUM send path
+grep -A2 "async flushToRum" packages/core/src/telemetry/qwen-logger/qwen-logger.ts
+
+# Must return false, so every `if (!isTelemetrySdkInitialized()) return;` guards
+grep -A2 "export function isTelemetrySdkInitialized" packages/core/src/telemetry/sdk.ts
 ```
 
 ---
@@ -582,12 +631,12 @@ grep -B1 "checkForUpdates()" packages/cli/src/gemini.tsx
 
 **Rule**: All source `.ts` files that import from `@opentelemetry/api` (or any other removed `@opentelemetry/*` package) MUST use **relative imports** pointing to the local dummy instead:
 
-| Source file location                 | Correct import                                    |
-| ------------------------------------ | ------------------------------------------------- |
-| `packages/core/src/telemetry/*.ts`   | `import ... from './dummy-otel.js'`               |
-| `packages/core/src/core/*.ts`        | `import ... from '../telemetry/dummy-otel.js'`    |
-| `packages/core/src/core/subdir/*.ts` | `import ... from '../../telemetry/dummy-otel.js'` |
-| `packages/core/src/utils/*.ts`       | `import ... from '../telemetry/dummy-otel.js'`    |
+|Source file location|Correct import|
+|---|---|
+|`packages/core/src/telemetry/*.ts`|`import ... from './dummy-otel.js'`|
+|`packages/core/src/core/*.ts`|`import ... from '../telemetry/dummy-otel.js'`|
+|`packages/core/src/core/subdir/*.ts`|`import ... from '../../telemetry/dummy-otel.js'`|
+|`packages/core/src/utils/*.ts`|`import ... from '../telemetry/dummy-otel.js'`|
 
 **After every merge**, verify no stray `@opentelemetry` imports remain in non-test source:
 
@@ -612,7 +661,7 @@ Upstream telemetry fixes frequently change **control flow** (adding `await`, wra
 
 ### The incident (v0.21.12 regression)
 
-Upstream commit `43b0779bc fix(telemetry): Address main agent tracing edge cases (#9121)` changed the tool-result submission in `packages/cli/src/ui/hooks/useGeminiStream.ts` from fire-and-forget to awaited:
+Upstream commit `43b0779bc fix(telemetry): Address main agent tracing edge cases (#9121)` changed the tool-result submission in `packages/cli/src/ui/hooks/use-llm-stream.ts` from fire-and-forget to awaited. The file was named `useGeminiStream.ts` when this incident was recorded; upstream #10124 renamed generic Gemini identifiers to Llm, so cite the new path or the grep silently matches nothing:
 
 ```ts
 // before (v0.21.11): submission returns immediately
@@ -642,7 +691,7 @@ The display-clear notification must fire **at the commit point**, not after the 
 ```bash
 # 1. The tool-result submission must not block the scheduler's display-clear.
 #    (An `await` here is fine ONLY while the early notify in #2 is present.)
-grep -n "submitQuery(responsesToSend, SendMessageType.ToolResult" packages/cli/src/ui/hooks/useGeminiStream.ts
+grep -n "submitQuery(responsesToSend, SendMessageType.ToolResult" packages/cli/src/ui/hooks/use-llm-stream.ts
 # 2. The early display-clear notify must exist in the core scheduler:
 grep -n "notifyToolCallsUpdate()" packages/core/src/core/coreToolScheduler.ts
 #    It must appear BOTH right after `this.toolCalls = [];` in
@@ -665,12 +714,12 @@ The managed auto-memory index **MUST** be deliverable through the conversation i
 
 **Hooks** — all logic is in the fork-owned module; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
 
-| File                                                                  | Ownership | Must contain                                                                                                                               |
-| --------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core/src/memory/append-only-prompt-cache.ts` (+ `.test.ts`) | **Fork**  | `isAppendOnlyMemoryEnabled`, `buildAutoMemoryReminder`, `appendAutoMemoryDelta`. Restore verbatim if a merge deletes it.                   |
-| `packages/core/src/memory/refresh.ts`                                 | Upstream  | Early return at the top of `refreshMemoryInstruction()`.                                                                                   |
-| `packages/core/src/core/client.ts`                                    | Upstream  | `autoMemory:` ternary in `getMainSessionSystemInstruction()` + `includeAutoMemoryReminder: true` at the **three** main-session call sites. |
-| `packages/core/src/core/environmentContext.ts`                        | Upstream  | `includeAutoMemoryReminder?` option + the `reminderParts` entry.                                                                           |
+|File|Ownership|Must contain|
+|---|---|---|
+|`packages/core/src/memory/append-only-prompt-cache.ts` (+ `.test.ts`)|**Fork**|`isAppendOnlyMemoryEnabled`, `buildAutoMemoryReminder`, `appendAutoMemoryDelta`. Restore verbatim if a merge deletes it.|
+|`packages/core/src/memory/refresh.ts`|Upstream|Early return at the top of `refreshMemoryInstruction()`.|
+|`packages/core/src/core/client.ts`|Upstream|`autoMemory:` ternary in `getMainSessionSystemInstruction()` + `includeAutoMemoryReminder: true` at the **three** main-session call sites.|
+|`packages/core/src/core/environmentContext.ts`|Upstream|`includeAutoMemoryReminder?` option + the `reminderParts` entry.|
 
 **Invariants**:
 
@@ -703,21 +752,21 @@ The status line **MUST** be able to report live prompt-cache state and precise c
 
 **Items** (all opt-in — absent from `DEFAULT_STATUS_LINE_PRESET_CONFIG`):
 
-| Id               | Renders            | Source                                                              |
-| ---------------- | ------------------ | ------------------------------------------------------------------- |
-| `context-tokens` | `54.1k/128.0k`     | `lastPromptTokenCount` / `contextWindowSize`                        |
-| `cache-live`     | `Cache 92% now`    | `uiTelemetryService.getLastCachedContentTokenCount()` ÷ last prompt |
-| `cache-hit`      | `Cache 88% avg`    | main model's `bySource[MAIN_SOURCE]` cached ÷ prompt                |
-| `compact-in`     | `Compact in 18.2k` | `computeThresholds(window, pct).auto` − current usage               |
+|Id|Renders|Source|
+|---|---|---|
+|`context-tokens`|`54.1k/128.0k`|`lastPromptTokenCount` / `contextWindowSize`|
+|`cache-live`|`Cache 92% now`|`uiTelemetryService.getLastCachedContentTokenCount()` ÷ last prompt|
+|`cache-hit`|`Cache 88% avg`|main model's `bySource[MAIN_SOURCE]` cached ÷ prompt|
+|`compact-in`|`Compact in 18.2k`|`computeThresholds(window, pct).auto` − current usage|
 
 **Hooks** — all logic is in the fork-owned module; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
 
-| File                                                           | Ownership | Must contain                                                                                                                                                                                                                                                                                                              |
-| -------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/cli/src/ui/status-line-fork-items.ts` (+ `.test.ts`) | **Fork**  | `FORK_STATUS_LINE_ITEM_IDS`, `FORK_STATUS_LINE_ITEMS`, `FORK_CONTEXT_ITEM_IDS`, `resolveMainModelContext`, `buildForkStatusLineData`, `formatForkStatusLineItem`. Restore verbatim if a merge deletes it.                                                                                                                 |
-| `packages/cli/src/ui/statusLinePresets.ts`                     | Upstream  | Import + 2 array spreads + `fork?` field on `StatusLinePresetData` and the builder params + `default:` branch delegating to `formatForkStatusLineItem`.                                                                                                                                                                   |
-| `packages/cli/src/ui/hooks/useStatusLine.ts`                   | Upstream  | Import + `...FORK_CONTEXT_ITEM_IDS` in `CONTEXT_PRESET_ITEM_IDS` + `resolveMainModelContext(cfg, ui.currentModel)` replacing the `contextWindowSize` read in `doUpdate` + the `fork: buildForkStatusLineData({...})` argument + `resolveMainModelContext` in the over-limit check of the returned `hideContextIndicator`. |
-| `packages/cli/src/ui/hooks/useStatusLine.test.ts`              | Upstream  | `getAutoCompactThreshold` on `mockConfig` (the real `Config` has it; the literal mock does not).                                                                                                                                                                                                                          |
+|File|Ownership|Must contain|
+|---|---|---|
+|`packages/cli/src/ui/status-line-fork-items.ts` (+ `.test.ts`)|**Fork**|`FORK_STATUS_LINE_ITEM_IDS`, `FORK_STATUS_LINE_ITEMS`, `FORK_CONTEXT_ITEM_IDS`, `resolveMainModelContext`, `buildForkStatusLineData`, `formatForkStatusLineItem`. Restore verbatim if a merge deletes it.|
+|`packages/cli/src/ui/statusLinePresets.ts`|Upstream|Import + 2 array spreads + `fork?` field on `StatusLinePresetData` and the builder params + `default:` branch delegating to `formatForkStatusLineItem`.|
+|`packages/cli/src/ui/hooks/useStatusLine.ts`|Upstream|Import + `...FORK_CONTEXT_ITEM_IDS` in `CONTEXT_PRESET_ITEM_IDS` + `resolveMainModelContext(cfg, ui.currentModel)` replacing the `contextWindowSize` read in `doUpdate` + the `fork: buildForkStatusLineData({...})` argument + `resolveMainModelContext` in the over-limit check of the returned `hideContextIndicator`.|
+|`packages/cli/src/ui/hooks/useStatusLine.test.ts`|Upstream|`getAutoCompactThreshold` on `mockConfig` (the real `Config` has it; the literal mock does not).|
 
 **Invariants**:
 
@@ -763,10 +812,10 @@ Not gated by a flag or a command — always on, because it can never show the mo
 
 **Hooks** — all logic is in the fork-owned module; the upstream file carries only an additive import and a post-build comparison call site tagged `// [no-telemetry fork]`.
 
-| File                                                        | Ownership | Must contain                                                                                                                                                                                                                                                                                |
-| ----------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core/src/core/resume-opt-cache.ts` (+ `.test.ts`) | **Fork**  | `reuseResumedPreludeIfUnchanged`. Restore verbatim if a merge deletes it.                                                                                                                                                                                                                   |
-| `packages/core/src/core/environmentContext.ts`              | Upstream  | Import of `reuseResumedPreludeIfUnchanged` + the `stableTexts`/`deferredToolsText` split inside `getInitialChatHistory` + the post-build comparison call site (after `prelude` is constructed, before the final `return`), injecting `getStartupContextLength` as `deps` (see invariant 2). |
+|File|Ownership|Must contain|
+|---|---|---|
+|`packages/core/src/core/resume-opt-cache.ts` (+ `.test.ts`)|**Fork**|`reuseResumedPreludeIfUnchanged`. Restore verbatim if a merge deletes it.|
+|`packages/core/src/core/environmentContext.ts`|Upstream|Import of `reuseResumedPreludeIfUnchanged` + the `stableTexts`/`deferredToolsText` split inside `getInitialChatHistory` + the post-build comparison call site (after `prelude` is constructed, before the final `return`), injecting `getStartupContextLength` as `deps` (see invariant 2).|
 
 **Invariants**:
 
@@ -817,14 +866,14 @@ grep -c 'htons(53)' /tmp/st_live.log   # 0 = no DNS left the box
 
 **Interpretation table** — what each shape means:
 
-| Observed                                         | Meaning                                                                         | Verdict                                          |
-| ------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `AF_INET … :8000` (or your `model.baseUrl` port) | The LLM API call                                                                | Expected — this is the only permitted egress     |
-| `AF_INET … :0`                                   | Routing probe (`connect` with port 0 selects a local address and sends nothing) | Harmless, no bytes leave                         |
-| `AF_UNIX sun_path="/var/run/nscd/socket"`        | Local name-service cache lookup                                                 | Harmless, never leaves the box                   |
-| `AF_INET6 … :8000`                               | Same LLM endpoint over IPv6                                                     | Expected                                         |
-| `htons(53)`                                      | DNS query egress                                                                | Investigate — resolver should be container-local |
-| Any other host/port                              | Real egress                                                                     | Must be named, gated, and user-initiated         |
+|Observed|Meaning|Verdict|
+|---|---|---|
+|`AF_INET … :8000` (or your `model.baseUrl` port)|The LLM API call|Expected — this is the only permitted egress|
+|`AF_INET … :0`|Routing probe (`connect` with port 0 selects a local address and sends nothing)|Harmless, no bytes leave|
+|`AF_UNIX sun_path="/var/run/nscd/socket"`|Local name-service cache lookup|Harmless, never leaves the box|
+|`AF_INET6 … :8000`|Same LLM endpoint over IPv6|Expected|
+|`htons(53)`|DNS query egress|Investigate — resolver should be container-local|
+|Any other host/port|Real egress|Must be named, gated, and user-initiated|
 
 Resolve the endpoint so you do not mistake a local gateway for an internet host — in a container `host.docker.internal` answers with **both** an IPv4 and an IPv6 address, so checking only one family is not enough:
 
@@ -839,26 +888,26 @@ Expected clean result: every destination is the configured model endpoint, plus 
 These all fail _silent_, which is what makes them dangerous:
 
 1. **Grepping only `inet_addr` drops every IPv6 destination.** strace prints IPv4 as `inet_addr("1.2.3.4")` and IPv6 as `inet_pton(AF_INET6, "fd00::1")`; a one-family regex quietly returns "clean" while the whole session ran over IPv6. Match both, plus `sun_path` for `AF_UNIX`.
-2. **URL strings in `dist/` are noise, not egress.** The shipped bundle carries thousands of documentation and SDK reference URLs (chat-channel SDKs alone account for thousands of hits). Presence of a host string proves nothing; the invariant is _exercised_ egress. Never report a host as a leak because it appears in `dist/` — this is the same principle as §1.5's no-word-grep rule, applied to hosts.
+2. **URL strings in `dist/` are noise, not egress.** The shipped bundle carries thousands of documentation and SDK reference URLs (chat-channel SDKs alone account for thousands of hits). Presence of a host string proves nothing; the invariant is _exercised_ egress. Never report a host as a leak because it appears in `dist/` — this is the same principle as §1.5's no-word-grep rule, applied to hosts. A directory-wide _host_ grep inside `packages/core/src/tools/` is wrong for the same reason: `packages/core/src/tools/artifact/oss-publisher.ts` legitimately names `*.aliyuncs.com` for artifact uploads, an unrelated feature that §1.7 keeps unreachable by default. The real invariant is **host selection inside the search path** — the request URL in `serpapi-web-search.ts` is a hardcoded `https://serpapi.com/search` template whose only parameters are `q`/`engine`/`hl`/`gl`/`api_key`, so no setting can supply a host. Gate on that, not on a word or a directory.
 3. **Two different functions share the name `checkForUpdates`.** One is local-only (reads and migrates settings, no network); the other is the npm-registry version check that shells out to `npm view`. Grepping the bare name finds the wrong one and certifies the wrong file. Always follow the import to the definition before judging. The network one is reachable only through a sentinel process exit code produced by an explicit update, never at startup — which the Step 1 trace independently confirms by showing zero registry connects.
 
 ### Step 3 — Opt-in egress inventory (start here, do not rediscover)
 
 Every path that can leave the device, and the gate that holds it. All are **off or user-triggered** by default; verify the gate, not the existence of the code.
 
-| Path                                | Destination                         | Gate and default                                                                                                                                                                                              |
-| ----------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model / LLM API                     | configured `model.baseUrl`          | The permitted traffic                                                                                                                                                                                         |
-| `web_search`                        | `serpapi.com`                       | Requires a resolved SerpApi key; no key ⇒ `ok:false, silent:true`, tool never registers (§1.5)                                                                                                                |
-| Update check                        | npm registry                        | Explicit `/update` only, behind a sentinel relaunch exit code; `enableAutoUpdate` forced `false` (§1.5 in §3, §1)                                                                                             |
-| Update download, skill install      | GitHub / release hosts              | Explicit `/update` or skill-install action                                                                                                                                                                    |
-| GitHub repo metadata, `git fetch`   | `api.github.com`, `github.com`      | Explicit GitHub-setup and `/review` commands                                                                                                                                                                  |
-| Chat channels (Feishu, Telegram, …) | per-channel hosts                   | Require user-supplied tokens; unconfigured ⇒ no traffic                                                                                                                                                       |
-| MCP servers                         | user-configured URLs                | Only servers the user added                                                                                                                                                                                   |
-| Artifact publish                    | `https://<bucket>.<endpoint>/<key>` | Publisher defaults to **`local`**; `oss` needs explicit selection **and** bucket **and** endpoint, endpoint is regex-pinned to `*.aliyuncs.com`; publishing is permission `ask` and the prompt names the host |
-| Artifact host publish               | whatever the user wrote             | Runs the user's own `uploadCommand`                                                                                                                                                                           |
-| live-host install                   | asset CDN + GitHub releases         | Explicit install command                                                                                                                                                                                      |
-| Web Shell `unpkg.com`               | browser, not CLI                    | Appears only as a CSP `connect-src` allowance; the CLI never fetches it                                                                                                                                       |
+|Path|Destination|Gate and default|
+|---|---|---|
+|Model / LLM API|configured `model.baseUrl`|The permitted traffic|
+|`web_search`|`serpapi.com`|Requires a resolved SerpApi key; no key ⇒ `ok:false, silent:true`, tool never registers (§1.5)|
+|Update check|npm registry|Explicit `/update` only, behind a sentinel relaunch exit code; `enableAutoUpdate` forced `false` (§1.5 in §3, §1)|
+|Update download, skill install|GitHub / release hosts|Explicit `/update` or skill-install action|
+|GitHub repo metadata, `git fetch`|`api.github.com`, `github.com`|Explicit GitHub-setup and `/review` commands|
+|Chat channels (Feishu, Telegram, …)|per-channel hosts|Require user-supplied tokens; unconfigured ⇒ no traffic|
+|MCP servers|user-configured URLs|Only servers the user added|
+|Artifact publish|`https://<bucket>.<endpoint>/<key>`|Publisher defaults to **`local`**; `oss` needs explicit selection **and** bucket **and** endpoint, endpoint is regex-pinned to `*.aliyuncs.com`; publishing is permission `ask` and the prompt names the host|
+|Artifact host publish|whatever the user wrote|Runs the user's own `uploadCommand`|
+|live-host install|asset CDN + GitHub releases|Explicit install command|
+|Web Shell `unpkg.com`|browser, not CLI|Appears only as a CSP `connect-src` allowance; the CLI never fetches it|
 
 Two things to keep flagging rather than "fixing": the OSS publisher's object ACL defaults to **`public-read`**, so an artifact you deliberately publish is world-readable at a predictable key unless you set `acl`; and the artifact tool itself is registered by default, which is safe only because of the publisher-default and `ask` gates above. If either gate moves, that becomes a real leak path.
 
