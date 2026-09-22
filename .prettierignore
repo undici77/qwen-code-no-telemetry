@@ -31,6 +31,12 @@ pnpm-lock.yaml
 # exactly as they do over pnpm-lock.yaml above. Fork-owned, so opting it out
 # costs nothing upstream — unlike AGENTS.md, whose padding prettier owns.
 NO_TELEMETRY_GUIDELINES.md
+# Same rationale for the path-gated fork rules: they were relocated verbatim out
+# of QWEN.md/AGENTS.md to keep the always-on context budget under the warning
+# threshold, and prettier re-padding a table added to one later would break that
+# byte-for-byte relocation. Fork-owned, so opting out costs nothing upstream.
+.qwen/rules/
+.qwen/review-rules.md
 Thumbs.db
 packages/vscode-ide-companion/schemas/settings.schema.json
 packages/cli/src/services/insight/templates/insightTemplate.ts

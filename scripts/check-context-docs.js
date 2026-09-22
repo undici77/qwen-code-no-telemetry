@@ -41,7 +41,27 @@ const check = (name, ok, detail = '') => {
 };
 
 // ── Doc hygiene: gates that cannot see what they claim ──────────────────────
-const DOCS = ['AGENTS.md', 'QWEN.md', 'NO_TELEMETRY_GUIDELINES.md'];
+// The path-gated rules under .qwen/rules/ carry the fork-patch narrative that
+// used to sit in QWEN.md. If they were not folded into DOCS, every gate below
+// would go blind on that text the moment it moved — the word-gate ban, the
+// brittle-citation ban and the §12 inline-import form would all silently stop
+// applying to the sentences they exist to police.
+const RULES_DIR = '.qwen/rules';
+const RULE_FILES = existsSync(RULES_DIR)
+  ? readdirSync(RULES_DIR)
+      .filter((f) => f.endsWith('.md'))
+      .map((f) => `${RULES_DIR}/${f}`)
+      .sort()
+  : [];
+const REVIEW_RULES = '.qwen/review-rules.md';
+
+const DOCS = [
+  'AGENTS.md',
+  'QWEN.md',
+  'NO_TELEMETRY_GUIDELINES.md',
+  REVIEW_RULES,
+  ...RULE_FILES,
+];
 const docText = DOCS.map(read).join('\n');
 
 /** Command lines inside ``` fences only — prose that forbids a gate is not a gate. */
@@ -76,7 +96,7 @@ check(
 // ~15% of the deep reference and buys nothing a renderer cannot do itself, so
 // it is stripped by a tool that proves it lost nothing before writing. A
 // padded table re-appearing after a merge is formatting drift, not content.
-for (const f of ['NO_TELEMETRY_GUIDELINES.md', 'QWEN.md']) {
+for (const f of ['NO_TELEMETRY_GUIDELINES.md', 'QWEN.md', ...RULE_FILES]) {
   const src = read(f);
   if (!src) continue;
   let r;
@@ -269,9 +289,18 @@ check(
 // ── Review rules live in exactly one home ──────────────────────────────────
 const crCount = (f) => (read(f).match(/^## Code Review$/gm) ?? []).length;
 
+// The rules moved to .qwen/review-rules.md, which `qwen review` reads FIRST
+// (packages/cli/src/commands/review/load-rules.ts). Keeping them in AGENTS.md
+// too meant 684 tokens resident in every non-review session for a section that
+// was already re-read verbatim on the turns that needed it.
 check(
-  'AGENTS.md carries exactly one ## Code Review',
-  crCount('AGENTS.md') === 1,
+  `${REVIEW_RULES} carries exactly one ## Code Review`,
+  crCount(REVIEW_RULES) === 1,
+  `found ${crCount(REVIEW_RULES)}`,
+);
+check(
+  'AGENTS.md carries no ## Code Review (pointer only, no double injection)',
+  crCount('AGENTS.md') === 0,
   `found ${crCount('AGENTS.md')}`,
 );
 check(
@@ -430,6 +459,125 @@ check(
   'no dangling relative import in runnable telemetry code',
   dangling.length === 0,
   dangling.join(', '),
+);
+
+// ── Path-gated rules: the always-on budget split ────────────────────────────
+// Every § narrative moved out of QWEN.md into `.qwen/rules/<file>.md` with a
+// `paths:` glob, so it arrives as a tool-result reminder only when a matching
+// file is touched (ConditionalRulesRegistry.matchAndConsume, deduped once per
+// session) instead of riding in the cached system-prompt prefix every turn.
+// Four ways that silently rots, none of which the runtime reports:
+//   • a rule loses `paths:` → it becomes BASELINE, i.e. always-on, undoing the
+//     split and growing the prefix;
+//   • a § cited in QWEN.md points at a rule file that is gone → dangling pointer;
+//   • a rule file nothing cites → invisible content;
+//   • `.gitignore`'s `.qwen/*` swallows the directory → a fresh clone carries
+//     none of it while every local check still passes.
+// rulesDiscovery.ts is the source of truth for the frontmatter regex and the
+// accepted `paths:` shapes; this gate mirrors them rather than importing .ts
+// into a plain-node script, and trips if either literal drifts.
+const rulesSrc = read('packages/core/src/config/rulesDiscovery.ts');
+check(
+  'rulesDiscovery frontmatter contract unchanged (this gate mirrors it)',
+  rulesSrc.includes('const FRONTMATTER_REGEX = /^---\\n') &&
+    /pathsRaw\s*=\s*frontmatter\['paths'\]/.test(rulesSrc),
+);
+check(
+  '.qwen/rules/ holds rule files (guard against a vacuous pass)',
+  RULE_FILES.length >= 9,
+  `found ${RULE_FILES.length}`,
+);
+
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---(?:\n|$)([\s\S]*)$/;
+const baselineRules = [];
+for (const f of RULE_FILES) {
+  const src = read(f).replace(/^\uFEFF/, '');
+  const m = FRONTMATTER_RE.exec(src);
+  if (!m) {
+    check(
+      `${f}: frontmatter starting at byte 0`,
+      false,
+      'a leading blank line or BOM makes this a baseline (always-on) rule',
+    );
+    baselineRules.push(f);
+    continue;
+  }
+  const block = m[1].match(/^paths:\n((?:[ \t]*-[^\n]*\n?)+)/m);
+  const globs = block
+    ? block[1]
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => l.replace(/^[ \t]*-[ \t]*/, '').trim())
+        .filter(Boolean)
+    : [];
+  check(
+    `${f}: declares a non-empty paths: (no paths = baseline = always-on)`,
+    globs.length > 0,
+    'body would load into every request and grow the cached prefix',
+  );
+  if (globs.length === 0) baselineRules.push(f);
+}
+check(
+  'no rule file collapsed to baseline',
+  baselineRules.length === 0,
+  `${baselineRules.join(', ')} — add paths: or move the text back deliberately`,
+);
+
+const tripwireSection =
+  (read('QWEN.md').match(/### Patch tripwires\n([\s\S]*?)\n### /) ?? [])[1] ??
+  '';
+const cited = [
+  ...new Set(
+    [...tripwireSection.matchAll(/§(\d+(?:\.\d+)?)/g)].map((x) => `§${x[1]}`),
+  ),
+];
+check(
+  'QWEN.md tripwires cite every patch (9+)',
+  cited.length >= 9,
+  `cited ${cited.length}: ${cited.join(' ')}`,
+);
+const ruleText = RULE_FILES.map(read).join('\n');
+for (const ref of cited) {
+  check(
+    `QWEN.md cites ${ref} — a path-gated rule file must carry it`,
+    ruleText.includes(ref),
+    'no rule file holds this §; the narrative is lost from context',
+  );
+}
+for (const f of RULE_FILES) {
+  const own = [...read(f).matchAll(/§(\d+(?:\.\d+)?)/g)].map((x) => `§${x[1]}`);
+  const reachable =
+    own.some((s) => cited.includes(s)) ||
+    read('QWEN.md').includes(f) ||
+    read('AGENTS.md').includes(f);
+  check(`${f} is reachable from the always-on index`, reachable);
+}
+
+const gitignore = read('.gitignore');
+for (const line of [
+  '!.qwen/rules/',
+  '!.qwen/rules/**',
+  '!.qwen/review-rules.md',
+]) {
+  check(
+    `.gitignore re-includes ${line}`,
+    gitignore.includes(line),
+    '`.qwen/*` above would drop it from a fresh clone with no error',
+  );
+}
+
+// The ratchet. This is the gate that was missing while the always-on context
+// was hand-trimmed three times (Aug 18, Sep 11, Sep 22) and grew back each
+// time: nothing ever asserted the budget, so only a startup banner reported the
+// regression, and only to whoever happened to start a session.
+const ALWAYS_ON_BUDGET = 5200;
+const alwaysOnTokens = Math.ceil(
+  ['QWEN.md', 'AGENTS.md', ...baselineRules].map(read).join('\n').length / 4,
+);
+check(
+  `always-on context within the ${ALWAYS_ON_BUDGET}-token budget`,
+  alwaysOnTokens <= ALWAYS_ON_BUDGET,
+  `${alwaysOnTokens} tokens — trim it, or move detail into a path-gated rule`,
 );
 
 if (failures.length > 0) {
