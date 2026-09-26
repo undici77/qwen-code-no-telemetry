@@ -53,16 +53,25 @@ describe('extractCodeReviewSection', () => {
 
   // The whole point of #3: this repo's own review rules must carry a section the
   // loader can find, or every /review in the repo runs with zero project rules.
-  // They live in AGENTS.md; QWEN.md used to hold a subset copy, which the loader
-  // concatenated — every agent brief got the same rules twice.
-  it('AGENTS.md has a Code Review section the loader extracts non-empty', () => {
-    const agentsMd = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8');
-    const section = extractCodeReviewSection(agentsMd);
+  // In this fork that single home is `.qwen/review-rules.md`, which the loader reads
+  // first and in full (load-rules.ts order: review-rules, copilot-instructions,
+  // AGENTS.md section, QWEN.md section). AGENTS.md and QWEN.md stay pointer-only on
+  // purpose — a `## Code Review` block in either would inject the same rules a second
+  // time into every agent brief. scripts/check-context-docs.js enforces that split.
+  it('.qwen/review-rules.md holds the project rules the loader extracts non-empty', () => {
+    const rulesMd = readFileSync(
+      join(repoRoot, '.qwen', 'review-rules.md'),
+      'utf8',
+    );
+    const section = extractCodeReviewSection(rulesMd);
     expect(section).not.toBeNull();
     expect(section!.length).toBeGreaterThan(200);
     expect(section).toContain('## Code Review');
-    // must stop at the next section, not bleed into it
-    expect(section).not.toContain('## GitHub Operations');
+  });
+
+  it('AGENTS.md stays pointer-only, so the loader injects the rules once', () => {
+    const agentsMd = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8');
+    expect(extractCodeReviewSection(agentsMd)).toBeNull();
   });
 
   it('QWEN.md carries no Code Review section, so the loader injects the rules once', () => {
