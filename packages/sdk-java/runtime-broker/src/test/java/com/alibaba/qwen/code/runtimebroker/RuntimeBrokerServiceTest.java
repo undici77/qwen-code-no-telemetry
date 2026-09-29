@@ -10,12 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -311,10 +314,9 @@ class RuntimeBrokerServiceTest {
             assertTrue(join(fixture.service.release(
                     "harness", "runtime")));
             assertEquals(1, fixture.transport.releaseCalls.get());
-            assertEquals("runtime_session_not_found",
-                    failure(fixture.service.getExecution("harness",
-                            "runtime", created.getExecutionCallId()))
-                                    .getCode());
+            assertEquals(ToolExecutionRecord.State.SETTLED,
+                    join(fixture.service.getExecution("harness", "runtime",
+                            created.getExecutionCallId())).getState());
         }
     }
 
@@ -1352,6 +1354,18 @@ class RuntimeBrokerServiceTest {
     }
 
     @Test
+    void refusesAnIllFormedRuntimeSessionIdBeforeResolvingTheScope() {
+        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            for (String surrogate : List.of("\uD800", "\uDC00")) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> fixture.service.acquire("harness",
+                                "s" + surrogate, "bootstrap"));
+            }
+            assertNull(fixture.resolver.lastHarness.get());
+        }
+    }
+
+    @Test
     void invalidExecutionInputsUseTheCodedErrorChannel() {
         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
             join(fixture.service.acquire("harness", "runtime",
@@ -1377,6 +1391,84 @@ class RuntimeBrokerServiceTest {
                     invalidPayload.getCode());
             assertEquals(400, invalidPayload.getStatusCode());
             assertTrue(!invalidPayload.isRetryable());
+            // The JSON writer would send each of these as "p?", whether the
+            // lone surrogate is a high or a low one.
+            for (String surrogate : List.of("\uD800", "\uDC00")) {
+                for (String field : List.of("promptId", "callId",
+                        "argsDigest")) {
+                    Map<String, Object> reference = new HashMap<>(Map.of(
+                            "sessionId", "runtime", "promptId", "prompt",
+                            "callId", "call", "argsDigest", "digest"));
+                    reference.put(field, "p" + surrogate);
+                    RuntimeBrokerException refusal = failure(
+                            fixture.service.createExecution("harness",
+                                    "runtime", "surrogate-" + field
+                                            + surrogate, reference));
+                    assertEquals("runtime_reference_invalid",
+                            refusal.getCode(), field);
+                    // The identity check refuses it, before the whole
+                    // reference is checked.
+                    assertEquals("reference " + field + " is invalid",
+                            refusal.getMessage());
+                }
+                // The Worker would run the rewritten tool name or input.
+                for (Map<String, Object> call : List.<Map<String, Object>>of(
+                        Map.of("toolName", "read" + surrogate,
+                                "input", Map.of()),
+                        Map.of("toolName", "run_shell_command", "input",
+                                Map.of("command", "rm file" + surrogate)),
+                        Map.of("toolName", "read_file", "input",
+                                Map.of("path" + surrogate, "a")),
+                        Map.of("toolName", "read_file", "input",
+                                Map.of("args", List.of("y" + surrogate))))) {
+                    Map<String, Object> reference = new HashMap<>(Map.of(
+                            "sessionId", "runtime", "promptId", "prompt",
+                            "callId", "call", "argsDigest", "digest"));
+                    reference.putAll(call);
+                    assertEquals("runtime_reference_invalid", failure(
+                            fixture.service.createExecution("harness",
+                                    "runtime", "tool-" + call.hashCode(),
+                                    reference)).getCode(), call.toString());
+                }
+            }
+            assertEquals(0, fixture.transport.executeCalls.get());
+        }
+    }
+
+    @Test
+    void refusesADeferredPayloadWithALoneSurrogate()
+            throws Exception {
+        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            join(fixture.service.acquire("harness", "runtime",
+                    "bootstrap"));
+            // A raw one, which the UTF-8 encoder would turn into '?', then
+            // plain ASCII text where only the parsed payload shows the
+            // surrogates the Worker would receive as '?'.
+            for (String payload : List.of(
+                    "{\"toolName\":\"read_file\",\"input\":{\"path\":\"a\ud800\"}}",
+                    "{\"toolName\":\"read\\ud800\",\"input\":{}}",
+                    "{\"toolName\":\"read_file\",\"input\":"
+                            + "{\"path\":\"a\\udc00\"}}",
+                    "{\"toolName\":\"read_file\",\"input\":"
+                            + "{\"p\\udfff\":[\"a\"]}}")) {
+                String digest = "sha256:" + HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(
+                                payload.getBytes(StandardCharsets.UTF_8)));
+                ToolExecutionRecord reserved = join(
+                        fixture.service.prepareExecution("harness",
+                                "runtime", "deferred-" + payload.hashCode(),
+                                Map.of("sessionId", "runtime", "promptId",
+                                        "prompt", "callId",
+                                        "call-" + payload.hashCode(),
+                                        "argsDigest", digest)));
+                RuntimeBrokerException refusal = failure(
+                        fixture.service.startExecution("harness", "runtime",
+                                reserved.getExecutionCallId(), payload));
+                assertEquals("runtime_payload_invalid", refusal.getCode(),
+                        payload);
+                assertEquals(400, refusal.getStatusCode());
+            }
+            assertEquals(0, fixture.transport.executeCalls.get());
         }
     }
 
@@ -1796,8 +1888,9 @@ class RuntimeBrokerServiceTest {
     }
 
     @Test
-    void failedReattestationRetiresTheBindingAndReprovisions() {
+    void transientReattestationFailureCanRetryTheLiveBinding() {
         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            fixture.provisioner.retryFailedConfirm = true;
             RuntimeBindingRecord ready = join(fixture.service.warm(
                     "harness"));
             assertEquals(RuntimeBindingRecord.State.READY, ready.getState());
@@ -1810,48 +1903,90 @@ class RuntimeBrokerServiceTest {
             RuntimeBrokerException error = failure(
                     fixture.service.warm("harness"));
             assertEquals("runtime_provision_failed", error.getCode());
-            assertEquals(RuntimeBindingRecord.State.FAILED,
+            assertEquals(RuntimeBindingRecord.State.READY,
                     fixture.bindingRepository.findById(ready.getBindingId())
                             .getState());
 
             fixture.provisioner.confirmResult =
                     CompletableFuture.completedFuture(null);
-            RuntimeBindingRecord again = join(fixture.service.warm(
-                    "harness"));
-            assertEquals(RuntimeBindingRecord.State.READY, again.getState());
+            assertEquals(ready.getBindingId(), join(fixture.service.warm("harness")).getBindingId());
+            fixture.resolver.result = CompletableFuture.completedFuture(new RuntimeScope(
+                    "tenant", "another-workspace", "generation", "/another-workspace",
+                    "capability", "workspace"));
+            assertEquals(RuntimeBindingRecord.State.READY,
+                    join(fixture.service.warm("another-harness")).getState());
             assertEquals(2, fixture.provisioner.calls.get());
-            assertNotEquals(ready.getLease().getRuntimeInstanceId(),
-                    again.getLease().getRuntimeInstanceId());
-            assertEquals(1, fixture.provisioner.releaseCalls.get());
-            assertEquals(ready.getLease().getRuntimeInstanceId(),
-                    fixture.provisioner.releasedLease
-                            .getRuntimeInstanceId());
+            assertEquals(0, fixture.provisioner.releaseCalls.get());
         }
     }
 
     @Test
-    void deadLeaseReleasesTheSessionWithoutCallingTransport() {
+    void deadProcessReattestationPinsTheBindingWithoutStopEvidence() {
+        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            fixture.provisioner.retryFailedConfirm = true;
+            RuntimeBindingRecord ready = join(fixture.service.warm("harness"));
+            fixture.provisioner.usable = false;
+            fixture.provisioner.confirmResult = CompletableFuture.failedFuture(
+                    new RuntimeBrokerException(503, "runtime_provision_failed",
+                            "Managed Runtime process is not alive.", true));
+
+            assertEquals("runtime_provision_failed", failure(fixture.service.warm("harness")).getCode());
+            assertEquals(RuntimeBindingRecord.State.LOST,
+                    fixture.bindingRepository.findById(ready.getBindingId()).getState());
+            fixture.provisioner.confirmResult = CompletableFuture.completedFuture(null);
+            assertEquals("runtime_broker_runtime_lost", failure(fixture.service.warm("harness")).getCode());
+            assertEquals(1, fixture.provisioner.calls.get());
+            assertEquals(0, fixture.provisioner.releaseCalls.get());
+        }
+    }
+
+    @Test
+    void identityConflictStillPinsTheLiveBinding() {
+        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            fixture.provisioner.retryFailedConfirm = true;
+            RuntimeBindingRecord ready = join(fixture.service.warm("harness"));
+            fixture.provisioner.confirmResult = CompletableFuture.failedFuture(
+                    new RuntimeBrokerException(409, "managed_runtime_identity_conflict",
+                            "Unexpected Runtime identity", false));
+
+            assertEquals("managed_runtime_identity_conflict",
+                    failure(fixture.service.warm("harness")).getCode());
+            assertEquals(RuntimeBindingRecord.State.LOST,
+                    fixture.bindingRepository.findById(ready.getBindingId()).getState());
+            assertEquals(0, fixture.provisioner.releaseCalls.get());
+        }
+    }
+
+    @Test
+    void provisionerWithoutLiveRetryProofPinsAfterFailedConfirm() {
+        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
+            RuntimeBindingRecord ready = join(fixture.service.warm("harness"));
+            fixture.provisioner.confirmResult = CompletableFuture.failedFuture(
+                    new RuntimeBrokerException(503, "runtime_provision_failed",
+                            "Attestation unavailable", true));
+
+            assertEquals("runtime_provision_failed", failure(fixture.service.warm("harness")).getCode());
+            assertEquals(RuntimeBindingRecord.State.LOST,
+                    fixture.bindingRepository.findById(ready.getBindingId()).getState());
+        }
+    }
+
+    @Test
+    void deadLeaseDoesNotReleaseWithoutStopProof() {
         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
             join(fixture.service.acquire("harness", "runtime", "bootstrap"));
             fixture.provisioner.usable = false;
-
-            assertTrue(join(fixture.service.release("harness", "runtime")));
+            assertEquals("runtime_reconciliation_required",
+                    failure(fixture.service.release("harness", "runtime")).getCode());
             assertEquals(0, fixture.transport.releaseCalls.get());
-            assertEquals(1, fixture.provisioner.releaseCalls.get());
-            assertEquals(RuntimeSessionRecord.State.RELEASED,
-                    fixture.sessionRepository.findById(WORKSPACE_SCOPE,
-                            "runtime").getState());
-            assertEquals(RuntimeBindingRecord.State.FAILED,
-                    fixture.bindingRepository.findById("binding-1")
-                            .getState());
-
-            fixture.provisioner.usable = true;
-            assertEquals("runtime_session_conflict",
-                    failure(fixture.service.acquire("harness", "runtime",
-                            "bootstrap")).getCode());
+            assertEquals(0, fixture.provisioner.releaseCalls.get());
             assertEquals(RuntimeSessionRecord.State.READY,
-                    join(fixture.service.acquire("harness", "runtime-2",
-                            "bootstrap")).getState());
+                    fixture.sessionRepository.findById(WORKSPACE_SCOPE, "runtime").getState());
+            assertEquals(RuntimeBindingRecord.State.LOST,
+                    fixture.bindingRepository.findById("binding-1").getState());
+            fixture.provisioner.usable = true;
+            assertEquals("runtime_broker_runtime_lost",
+                    failure(fixture.service.acquire("harness", "runtime-2", "bootstrap")).getCode());
         }
     }
 
@@ -1870,7 +2005,7 @@ class RuntimeBrokerServiceTest {
             RuntimeBrokerException busy = failure(
                     fixture.service.release("harness", "runtime"));
 
-            assertEquals("runtime_session_busy", busy.getCode());
+            assertEquals("runtime_reconciliation_required", busy.getCode());
             assertEquals(0, fixture.transport.releaseCalls.get());
             assertEquals(RuntimeSessionRecord.State.READY,
                     fixture.sessionRepository.findById(WORKSPACE_SCOPE,
@@ -1890,7 +2025,7 @@ class RuntimeBrokerServiceTest {
             assertEquals(0, fixture.transport.executeCalls.get());
             awaitExecution(fixture.executionRepository, "execution-1",
                     ToolExecutionRecord.State.UNKNOWN);
-            assertEquals(RuntimeBindingRecord.State.FAILED,
+            assertEquals(RuntimeBindingRecord.State.LOST,
                     fixture.bindingRepository.findById("binding-1")
                             .getState());
         }
@@ -2141,7 +2276,7 @@ class RuntimeBrokerServiceTest {
             assertEquals("runtime_execution_evidence_unavailable",
                     first.getCode());
             assertFalse(first.isRetryable());
-            assertEquals(RuntimeBindingRecord.State.FAILED,
+            assertEquals(RuntimeBindingRecord.State.LOST,
                     fixture.bindingRepository.findById("binding-1")
                             .getState());
             fixture.provisioner.usable = true;
@@ -2220,7 +2355,7 @@ class RuntimeBrokerServiceTest {
             RuntimeBindingRecord ready = fixture.bindingRepository
                     .findById("binding-1");
             fixture.bindingRepository.compareAndSet(ready, ready.withState(
-                    RuntimeBindingRecord.State.FAILED, null, START));
+                    RuntimeBindingRecord.State.LOST, ready.getLease(), START));
             try (RuntimeBrokerService restarted = restartedService(fixture)) {
                 assertEquals("runtime_execution_evidence_unavailable",
                         failure(restarted.reconcileExecution("harness",
@@ -2898,6 +3033,7 @@ class RuntimeBrokerServiceTest {
         volatile CompletableFuture<Void> confirmResult =
                 CompletableFuture.completedFuture(null);
         volatile boolean usable = true;
+        volatile boolean retryFailedConfirm;
         volatile boolean closed;
 
         @Override
@@ -2916,6 +3052,11 @@ class RuntimeBrokerServiceTest {
                 RuntimeLease lease) {
             confirmCalls.incrementAndGet();
             return confirmResult;
+        }
+
+        @Override
+        public boolean canRetryFailedConfirm(RuntimeLease lease) {
+            return retryFailedConfirm && usable;
         }
 
         @Override
@@ -3072,6 +3213,12 @@ class RuntimeBrokerServiceTest {
         }
 
         @Override
+        public boolean hasActiveByRuntimeSession(String bindingId, long generation,
+                String runtimeSessionId) {
+            return delegate.hasActiveByRuntimeSession(bindingId, generation, runtimeSessionId);
+        }
+
+        @Override
         public ToolExecutionRecord findOrCreate(
                 ToolExecutionRecord candidate) {
             return delegate.findOrCreate(candidate);
@@ -3144,6 +3291,18 @@ class RuntimeBrokerServiceTest {
         }
 
         @Override
+        public ToolExecutionRecord resolveUnsettled(ToolExecutionRecord expected,
+                Map<String, Object> result, Instant time) {
+            return delegate.resolveUnsettled(expected, result, time);
+        }
+
+        @Override
+        public List<ToolExecutionRecord> findUnsettled(RuntimeSessionRecord session,
+                String afterExecutionCallId, int limit) {
+            return delegate.findUnsettled(session, afterExecutionCallId, limit);
+        }
+
+        @Override
         public boolean hasActiveByBinding(String bindingId,
                 long runtimeGeneration) {
             return delegate.hasActiveByBinding(bindingId,
@@ -3164,6 +3323,12 @@ class RuntimeBrokerServiceTest {
 
         HookedExecutionRepository(Clock clock) {
             delegate = new InMemoryToolExecutionRepository(clock);
+        }
+
+        @Override
+        public boolean hasActiveByRuntimeSession(String bindingId, long generation,
+                String runtimeSessionId) {
+            return delegate.hasActiveByRuntimeSession(bindingId, generation, runtimeSessionId);
         }
 
         @Override
@@ -3259,6 +3424,18 @@ class RuntimeBrokerServiceTest {
         }
 
         @Override
+        public ToolExecutionRecord resolveUnsettled(ToolExecutionRecord expected,
+                Map<String, Object> result, Instant time) {
+            return delegate.resolveUnsettled(expected, result, time);
+        }
+
+        @Override
+        public List<ToolExecutionRecord> findUnsettled(RuntimeSessionRecord session,
+                String afterExecutionCallId, int limit) {
+            return delegate.findUnsettled(session, afterExecutionCallId, limit);
+        }
+
+        @Override
         public boolean hasActiveByBinding(String bindingId,
                 long runtimeGeneration) {
             return delegate.hasActiveByBinding(bindingId,
@@ -3275,6 +3452,41 @@ class RuntimeBrokerServiceTest {
         StaleBindingRepository(Clock clock) {
             delegate = new InMemoryRuntimeBindingRepository(clock,
                     () -> "binding");
+        }
+
+        @Override
+        public RuntimeSessionRecord completeSessionRelease(RuntimeSessionRepository sessions,
+                RuntimeSessionRecord expected) {
+            return delegate.completeSessionRelease(sessions, expected);
+        }
+
+        @Override
+        public java.util.List<RuntimeBindingRecord> findRecoveryCandidates(String kind, String after, int limit) {
+            return delegate.findRecoveryCandidates(kind, after, limit);
+        }
+
+        @Override
+        public RuntimeBindingRecord finishLostRecovery(RuntimeSessionRepository sessions,
+                ToolExecutionRepository executions, RuntimeBindingRecord expected) {
+            return delegate.finishLostRecovery(sessions, executions, expected);
+        }
+
+        @Override
+        public RuntimeBindingRecord recoverLost(RuntimeSessionRepository sessions,
+                ToolExecutionRepository executions, RuntimeBindingRecord expected) {
+            return delegate.recoverLost(sessions, executions, expected);
+        }
+
+        @Override
+        public RuntimeSessionRecord admitSession(RuntimeSessionRepository sessions,
+                RuntimeSessionRecord candidate) {
+            return delegate.admitSession(sessions, candidate);
+        }
+
+        @Override
+        public ToolExecutionRecord admitExecution(RuntimeSessionRepository sessions,
+                ToolExecutionRepository executions, ToolExecutionRecord candidate) {
+            return delegate.admitExecution(sessions, executions, candidate);
         }
 
         @Override

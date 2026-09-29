@@ -46,6 +46,8 @@ import { hasVerifiableInode } from '../utils/file-identity.js';
 import { readRuntimeStatus } from '../utils/runtimeStatus.js';
 import {
   LITE_READ_BUF_SIZE,
+  isManagedExecutionTranscriptSync,
+  isManagedOwnerRecord,
   isManagedSessionTranscriptSync,
   managedSessionResourceRoot,
   readManagedSessionTitleInfoSync,
@@ -96,6 +98,9 @@ import { findRunningLegacyGoalCard } from '../goals/goal-legacy-cards.js';
 import { parseGoalStateRecordPayloadV2 } from '../goals/goal-reducer.js';
 export {
   buildApiHistoryFromConversation,
+  findApiHistoryPromptIndex,
+  getApiHistoryPromptId,
+  markApiHistoryPrompt,
   type BuildApiHistoryOptions,
 } from './session-api-history.js';
 import {
@@ -114,9 +119,7 @@ function isManagedFirstRecord(record: ChatRecord): boolean {
   // New Managed logs write the execution-engine marker before the header.
   return (
     record.subtype === 'managed_session_header_v1' ||
-    (record.subtype === 'session_execution_engine' &&
-      (record.systemPayload as { engine?: unknown } | undefined)?.engine ===
-        'managed')
+    isManagedOwnerRecord(record)
   );
 }
 
@@ -124,6 +127,13 @@ export class BranchPointInvalidError extends Error {
   constructor(readonly recordId: string) {
     super(`Invalid or inactive branch point: ${recordId}`);
     this.name = 'BranchPointInvalidError';
+  }
+}
+
+export class SessionForkSourceUnavailableError extends Error {
+  constructor(readonly sessionId: string) {
+    super(`Source session not found or empty: ${sessionId}`);
+    this.name = 'SessionForkSourceUnavailableError';
   }
 }
 
@@ -1054,7 +1064,7 @@ export class SessionService {
 
   assertLegacySessionExecution(sessionId: string): void {
     if (
-      isManagedSessionTranscriptSync(this.getSessionTranscriptPath(sessionId))
+      isManagedExecutionTranscriptSync(this.getSessionTranscriptPath(sessionId))
     ) {
       throw new SessionExecutionEngineError(
         sessionId,
@@ -3902,7 +3912,10 @@ export class SessionService {
         return false;
       }
 
-      if (isManagedSessionTranscriptSync(filePath)) {
+      // An owner record alone refuses too: a Managed create that stops before
+      // its header leaves one, and the next Managed open completes that
+      // create only while the transcript holds nothing but owner records.
+      if (isManagedExecutionTranscriptSync(filePath)) {
         throw new SessionExecutionEngineError(
           sessionId,
           'belongs to managed, rename must go through its session authority',
@@ -3981,7 +3994,7 @@ export class SessionService {
     const sourcePath = path.join(chatsDir, `${sourceSessionId}.jsonl`);
     const targetPath = path.join(chatsDir, `${newSessionId}.jsonl`);
 
-    if (isManagedSessionTranscriptSync(sourcePath)) {
+    if (isManagedExecutionTranscriptSync(sourcePath)) {
       throw new SessionExecutionEngineError(
         sourceSessionId,
         'belongs to managed, cannot fork with the legacy session service',
@@ -3991,7 +4004,7 @@ export class SessionService {
     // Read + parse the full source transcript.
     const records = await jsonl.read<ChatRecord>(sourcePath);
     if (records.length === 0) {
-      throw new Error(`Source session not found or empty: ${sourceSessionId}`);
+      throw new SessionForkSourceUnavailableError(sourceSessionId);
     }
 
     if (
@@ -4056,7 +4069,7 @@ export class SessionService {
         ),
     );
     if (sourceRecords.length === 0) {
-      throw new Error(`Source session not found or empty: ${sourceSessionId}`);
+      throw new SessionForkSourceUnavailableError(sourceSessionId);
     }
 
     // Rebuild the parentUuid chain in active-history order so the fork is a
@@ -4128,6 +4141,16 @@ export class SessionService {
           sessionId: newSessionId,
           cwd: this.projectRoot,
           systemPayload,
+          // Keep record identities in the fork's session namespace.
+          ...(typeof record.promptId === 'string'
+            ? {
+                promptId: remapForkPromptId(
+                  record.promptId,
+                  sourceSessionId,
+                  newSessionId,
+                ),
+              }
+            : {}),
           parentUuid:
             isArtifactRecord &&
             record.parentUuid !== null &&
@@ -4637,18 +4660,30 @@ export class SessionService {
   }
 }
 
+function remapForkPromptId(
+  promptId: string,
+  sourceSessionId: string,
+  newSessionId: string,
+): string {
+  const sourcePrefix = `${sourceSessionId}########`;
+  if (!promptId.startsWith(sourcePrefix)) {
+    return promptId;
+  }
+  return `${newSessionId}########${promptId.slice(sourcePrefix.length)}`;
+}
+
 function remapSnapshotPromptId(
   snapshot: FileHistorySnapshot,
   sourceSessionId: string,
   newSessionId: string,
 ): FileHistorySnapshot {
-  const sourcePrefix = `${sourceSessionId}########`;
-  if (!snapshot.promptId.startsWith(sourcePrefix)) {
-    return snapshot;
-  }
   return {
     ...snapshot,
-    promptId: `${newSessionId}########${snapshot.promptId.slice(sourcePrefix.length)}`,
+    promptId: remapForkPromptId(
+      snapshot.promptId,
+      sourceSessionId,
+      newSessionId,
+    ),
   };
 }
 
@@ -4680,6 +4715,20 @@ function remapSystemPayloadForFork(
   remappedArtifactIds: Map<string, string>,
 ): ChatRecord['systemPayload'] {
   if (record.type !== 'system') return record.systemPayload;
+  if (record.subtype === 'chat_compression') {
+    const payload = record.systemPayload as
+      | { promptIds?: Array<string | null> }
+      | undefined;
+    if (!Array.isArray(payload?.promptIds)) return record.systemPayload;
+    return {
+      ...(payload ?? {}),
+      promptIds: payload.promptIds.map((promptId) =>
+        typeof promptId === 'string'
+          ? remapForkPromptId(promptId, sourceSessionId, newSessionId)
+          : promptId,
+      ),
+    } as ChatRecord['systemPayload'];
+  }
   if (record.subtype === 'file_history_snapshot') {
     return remapFileHistorySnapshotPayload(
       record.systemPayload,

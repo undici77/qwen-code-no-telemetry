@@ -10,6 +10,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import type { CommandContext } from './commands/types.js';
 import { getCliVersion, getCliVersionDisplay } from '../utils/version.js';
+import { formatAuxModelSelectorForDisplay } from '../utils/aux-model-selector.js';
 import {
   IdeClient,
   AuthType,
@@ -237,8 +238,13 @@ export async function getExtendedSystemInfo(
   // Get display version (includes -no-telemetry suffix and hash)
   const cliVersionDisplay = await getCliVersionDisplay();
 
-  // Get fast model from settings
-  const fastModel = context.services.settings?.merged?.fastModel || undefined;
+  // Get fast model from settings. The persisted selector can carry a
+  // userinfo-bearing baseUrl suffix — bug reports must not embed it.
+  const fastModelSetting =
+    context.services.settings?.merged?.fastModel || undefined;
+  const fastModel = fastModelSetting
+    ? formatAuxModelSelectorForDisplay(fastModelSetting)
+    : undefined;
   const lspStatus = getLspStatus(context);
 
   return {

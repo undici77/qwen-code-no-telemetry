@@ -966,6 +966,13 @@ export * from './services/session-sources.js';
 export { RecordSourceTool } from './tools/record-source.js';
 export { resolveReviewWorkflowConcurrency } from './agents/runtime/review-workflow.js';
 
+export {
+  captureHookExecutionOwner,
+  getHookExecutionOwner,
+  runWithHookExecutionOwner,
+} from './hooks/hook-execution-context.js';
+export type { HookExecutionOwner } from './hooks/hook-execution-context.js';
+
 // ============================================================================
 // Daemon tracing and metrics (used by CLI serve telemetry)
 // ============================================================================
