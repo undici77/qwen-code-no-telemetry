@@ -136,7 +136,15 @@ function selfTest() {
   const log = join(dir, 'hits.json');
   const r = spawnSync(
     process.execPath,
-    ['-e', `fetch('https://${canary}').catch(()=>{})`],
+    [
+      '-e',
+      `
+      fetch('https://${canary}').catch(()=>{});
+      // Second canary: an interpreter child. NODE_OPTIONS --import is a Node
+      // flag, so this child is unhooked — the probe must still notice it.
+      require('node:child_process').spawnSync('python3', ['-c', 'pass']);
+    `,
+    ],
     {
       env: {
         ...process.env,
@@ -170,6 +178,18 @@ function selfTest() {
     process.exit(2);
   }
   console.log('  self-test   : probe caught the canary host as LEAK ✓');
+  // A clean verdict only means something if the probe can see the child that
+  // would have produced it. An unhooked interpreter must leave a BLIND row.
+  if (!hits.some((h) => h.verdict === 'BLIND')) {
+    console.error(
+      `✗ SELF-TEST FAILED: an interpreter child spawned unhooked and nothing was verdicted BLIND (status ${r.status}).`,
+    );
+    console.error(
+      '  Non-Node children open their sockets outside every hook here, so a clean verdict would not cover them.',
+    );
+    process.exit(2);
+  }
+  console.log('  blind child : interpreter spawn flagged BLIND ✓');
 }
 
 function main() {
@@ -281,12 +301,42 @@ function main() {
     for (const s of spawned) console.log(`    ${s.target}`);
   }
 
+  // BLIND = a child that ran outside every hook in the probe. Its traffic was
+  // not observed, so it is neither clean nor a leak — it is unverified, and an
+  // unverified child must be named and signed off, never passed by silence.
+  const blind = [
+    ...new Set(all.filter((h) => h.verdict === 'BLIND').map((h) => h.target)),
+  ];
+  const ack = new Set(
+    (process.env['QWEN_EGRESS_BLIND_ACK'] || '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const exeOf = (t) =>
+    String(t).split(/\s+/)[0].split(/[\\/]/).pop().toLowerCase();
+  const unacked = blind.filter((t) => !ack.has(exeOf(t)));
+  if (blind.length > 0) {
+    console.log('\n  BLIND — children whose sockets this probe cannot see:');
+    for (const b of blind)
+      console.log(`    ${ack.has(exeOf(b)) ? 'acked   ' : 'UNACKED'} ${b}`);
+  }
+
   if (leaks > 0) {
     console.log(
       `\n✗ ${leaks} destination(s) not derived from your own config. Do not release.`,
     );
     console.log(
       '  Fix the code, or add the host to QWEN_EGRESS_ALLOW and record why in the release notes.',
+    );
+    process.exit(1);
+  }
+  if (unacked.length > 0) {
+    console.error(
+      `\n✗ ${unacked.length} blind child run(s) not acknowledged. Their egress is unverified — do not release.`,
+    );
+    console.error(
+      '  Acknowledge a trusted runtime with QWEN_EGRESS_BLIND_ACK=<exe>[,<exe>…] and record why in the release notes.',
     );
     process.exit(1);
   }

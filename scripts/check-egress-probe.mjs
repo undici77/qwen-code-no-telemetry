@@ -63,13 +63,15 @@ function callSite() {
   return undefined;
 }
 
-function record(kind, host, port, note) {
+function record(kind, host, port, note, forced) {
   const target = host ? (port ? `${host}:${port}` : host) : (note ?? kind);
   const local = isLocalHost(host);
   const h = String(host ?? '')
     .replace(/^\[|\]$/g, '')
     .toLowerCase();
-  const verdict = local || allowed.has(h) ? 'ok' : 'LEAK';
+  // `forced` exists because a row with no host used to fall through
+  // isLocalHost(undefined) → true and be verdicted 'ok' no matter what it was.
+  const verdict = forced ?? (local || allowed.has(h) ? 'ok' : 'LEAK');
   hits.push({ kind, target, verdict, site: callSite() });
 }
 
@@ -204,14 +206,32 @@ dns.lookup = function (hostname, ...rest) {
 const NET_TOOLS =
   /^(curl|wget|nc|ncat|telnet|ssh|scp|sftp|rsync|git|npm|npx|pnpm|yarn|pip|pip3|uv|gh|docker|podman|brew|cargo|go|aria2c|openssl)$/;
 
+// Interpreters this probe cannot instrument: NODE_OPTIONS --import is a Node
+// flag, so a python/ruby/java child opens its sockets entirely unhooked. A
+// spawn of one is a blind spot and must never verdict 'ok' by silence.
+const BLIND_SPAWNERS =
+  /^(python|python3|python[0-9.]+|ruby|perl|php|java|deno|bun|dotnet|uvx|conda|Rscript)$/i;
+
+const URL_HOST_RE = /(?:https?|wss?|ftp):\/\/(?:[^/@\s]*@)?\[?([^\]/:\s]+)/gi;
+
 function scanSpawn(cmd, args) {
   const all = [String(cmd ?? ''), ...(args ?? []).map(String)];
   const exe = all[0].split(/[\\/]/).pop();
-  if (NET_TOOLS.test(exe))
-    record('spawn', undefined, undefined, all.join(' ').slice(0, 200));
+  const joined = all.join(' ');
+  if (NET_TOOLS.test(exe)) {
+    // The argv names the peer, so use it: a spawned curl to a host your config
+    // never named is a LEAK, not an unexamined 'ok'.
+    const hosts = new Set(
+      [...joined.matchAll(URL_HOST_RE)].map((m) => m[1].toLowerCase()),
+    );
+    if (hosts.size === 0) {
+      record('spawn', undefined, undefined, joined.slice(0, 200), 'BLIND');
+    } else {
+      for (const h of hosts) record('spawn', h, undefined, `${exe} → ${h}`);
+    }
+  }
   // `sh -c "curl …"` hides the tool inside the command string.
   if (/^(sh|bash|zsh|cmd|powershell)$/i.test(exe)) {
-    const joined = all.join(' ');
     for (const m of joined.matchAll(
       /(?:^|[;&|]\s*)(curl|wget|nc|git|npm|gh)\b/gi,
     )) {
@@ -220,8 +240,12 @@ function scanSpawn(cmd, args) {
         undefined,
         undefined,
         `${m[1]} (inside shell): ${joined.slice(0, 180)}`,
+        'BLIND',
       );
     }
+  }
+  if (BLIND_SPAWNERS.test(exe)) {
+    record('blind', undefined, undefined, joined.slice(0, 200), 'BLIND');
   }
 }
 

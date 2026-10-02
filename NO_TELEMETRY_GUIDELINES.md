@@ -964,7 +964,7 @@ Say so explicitly when reporting:
 
 `npm run check:egress` **MUST** pass, with no `LEAK` rows, before any release is cut. It is the only check in this document that observes the running binary instead of its source, and therefore the only one that catches an arbitrary new egress path — including one introduced by an upstream merge, a new dependency, or code that never touches any subsystem the other gates watch.
 
-**Why this exists when §1–§17 exist.** Every other check inspects source or shipped bytes, so each proves only what the code _says_ it does. A grep cannot see a leak that a refactor assembled at runtime. This gate watches every way out of Node — `net`/`tls`/`http`/`https` sockets, `fetch`, `dgram`, `WebSocket`, DNS resolution, and `child_process` spawns (a `curl` or `git` subprocess bypasses the entire Node stack, so its argv is inspected instead).
+**Why this exists when §1–§17 exist.** Every other check inspects source or shipped bytes, so each proves only what the code _says_ it does. A grep cannot see a leak that a refactor assembled at runtime. This gate watches every way out of Node — `net`/`tls`/`http`/`https` sockets, `fetch`, `dgram`, `WebSocket`, DNS resolution, and `child_process` spawns (a `curl` or `git` subprocess bypasses the entire Node stack, so its argv is inspected instead; an interpreter that opens its own sockets is verdicted `BLIND`, never `ok`).
 
 ### Run it
 
@@ -973,7 +973,7 @@ npm run check:egress                              # fast scenario, ~45s
 node scripts/check-egress.mjs --cli=<path>       # trace a specific entry
 ```
 
-It runs two scenarios — `--version` (which must open **zero** sockets) and one headless session that makes the model call a tool — then prints every destination it saw. Exit `0` = clean, `1` = leak found, `2` = the detector itself is broken.
+It runs two scenarios — `--version` (which must open **zero** sockets) and one headless session that makes the model call a tool — then prints every destination it saw. Exit `0` = clean, `1` = leak found **or an unacknowledged `BLIND` child**, `2` = the detector itself is broken.
 
 ### The allowlist is derived, never hardcoded
 
@@ -987,9 +987,15 @@ This is deliberate and it is the load-bearing design decision:
 
 `QWEN_EGRESS_ALLOW=host1,host2` exists for legitimate one-offs. Using it means the run was no longer an unmodified test — record why in the release notes, the same rule §5 applies to every other waiver.
 
+### `BLIND`: unobserved is not clean
+
+A spawn was recorded with no host, and `isLocalHost(undefined)` is true — so **every spawn row verdicted `ok`, unconditionally**. Interpreters outside the network-CLI list (`python`, `ruby`, `java`, …) were never matched and recorded nothing at all. A subprocess could reach anywhere and the run still printed clean.
+
+Now a network CLI whose argv names a URL is verdicted against the allowlist like any other destination, and a spawn of a non-Node interpreter is `BLIND` — not clean, not a leak, **unobserved**. `BLIND` blocks the release. Acknowledge a runtime you trust with `QWEN_EGRESS_BLIND_ACK=<exe>[,<exe>…]` and record why in the release notes, the same discipline as `QWEN_EGRESS_ALLOW` above.
+
 ### The self-test is not optional decoration
 
-Every run begins by reaching for `egress-tripwire-selftest.invalid` — a host that can never be allowed — and asserting the probe flags it as `LEAK`. If it does not, the run exits `2` (broken), **not** `0`.
+Every run begins by reaching for `egress-tripwire-selftest.invalid` — a host that can never be allowed — and asserting the probe flags it as `LEAK`. If it does not, the run exits `2` (broken), **not** `0`. The run also spawns an interpreter child and exits `2` if no `BLIND` row appears, so this category cannot rot back into silence.
 
 This rule was earned, not designed in: the first version of this gate reported _"0 egress attempts, no unexpected egress"_ while strace showed six sockets open. The launcher and the CLI it spawns both preload the probe and shared one log file, and the launcher — which makes no requests and exits last — overwrote the child's real hits with an empty list. A gate that can only ever say "clean" is indistinguishable from a dead one. It was also silently recording every connection as `0.0.0.0`, because undici passes an options object whose `host`/`port` are unpopulated at call time; destinations are now captured from the socket's `lookup`/`connect` events, which is ground truth.
 
@@ -999,8 +1005,8 @@ This rule was earned, not designed in: the first version of this gate reported _
 
 State these limits when reporting a pass — a clean verdict is scoped, not absolute:
 
-- **External agent binaries.** `codex-subagent-executor` deletes `NODE_OPTIONS` from its children, so those processes run untraced. Their _spawn_ is recorded, their sockets are not.
-- **Non-Node native helpers** doing raw syscalls bypass every hook. That is what the §17 `strace` pass is for — run it on Linux at least once per major release.
+- **External agent binaries.** `codex-subagent-executor` deletes `NODE_OPTIONS` from its children, so those processes run untraced. Their _spawn_ is recorded as `BLIND`, their sockets are not.
+- **Non-Node native helpers** doing raw syscalls bypass every hook; spawned directly they surface as `BLIND`. That is what the §17 `strace` pass is for — run it on Linux at least once per major release.
 - **The sanctioned channel.** The model endpoint is trusted by definition, and it carries the prompt and every file the model reads. If `model.baseUrl` is remote, your content leaves the machine by design and this gate will correctly call that clean. §1 prints the endpoint loudly for exactly this reason.
 - **Unexercised paths.** Only code that ran is certified. `serve`, Web Shell, channels, `/update` and `/review` need the deep scenario or their own traced runs.
 
