@@ -645,4 +645,20 @@ describe('isCollapsibleTool', () => {
     // Legacy todo tool → non-collapsible
     expect(isCollapsibleTool('TodoWrite')).toBe(false);
   });
+
+  it('collapses MCP search servers so the result body stays out of the transcript', () => {
+    // Registered name — the form the error path delivers.
+    expect(isCollapsibleTool('mcp__websearch__web_search')).toBe(true);
+    // The mcp__<server>__ prefix is forced by the client, so the server name is not ours.
+    expect(isCollapsibleTool('mcp__any-name__web_search')).toBe(true);
+    // Display name — the form the SUCCESS path delivers (DiscoveredMCPTool
+    // builds `${serverToolName} (${serverName} MCP Server)`); matching only
+    // the registered form would leave every real result body rendered.
+    expect(isCollapsibleTool('web_search (websearch MCP Server)')).toBe(true);
+    expect(isCollapsibleTool('web_search (any-name MCP Server)')).toBe(true);
+    // A non-search MCP tool keeps its result — that one IS the answer.
+    expect(isCollapsibleTool('mcp__websearch__fetch_page')).toBe(false);
+    expect(isCollapsibleTool('fetch_page (websearch MCP Server)')).toBe(false);
+    expect(isCollapsibleTool('mcp__joplin__list_notebooks')).toBe(false);
+  });
 });

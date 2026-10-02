@@ -237,6 +237,14 @@ const COLLAPSIBLE_CATEGORIES: ReadonlySet<ToolCategory> = new Set([
 ]);
 
 function getToolCategory(toolName: string): ToolCategory {
+  // Fork: collapse MCP web_search like grep — its hits are as disposable.
+  // Two name forms arrive: registered `mcp__<server>__web_search` (error
+  // path) and displayName `web_search (<server> MCP Server)` (success path,
+  // built in core's DiscoveredMCPTool).
+  if (toolName.startsWith('mcp__') && toolName.endsWith('__web_search')) {
+    return 'search';
+  }
+  if (/^web_search \(.+ MCP Server\)$/.test(toolName)) return 'search';
   return TOOL_NAME_TO_CATEGORY[toolName] ?? 'other';
 }
 
