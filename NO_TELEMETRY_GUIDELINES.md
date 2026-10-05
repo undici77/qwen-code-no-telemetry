@@ -151,9 +151,15 @@ grep -n "enforceNoRemoteArtifactPublisher" packages/core/src/tools/artifact/crea
 grep -n "requiresUserInteraction" packages/core/src/tools/artifact/artifact-tool.ts
 # Each must return a hit. If either disappears, the lockdown is gone.
 
-# 3. No remote publisher may be constructed outside the tests.
+# 3. No remote publisher may be constructed anywhere but the unreachable branches.
 git grep -n "new OssPublisher\|new HostPublisher" -- 'packages/*/src/**' ':!*.test.ts'
-# Must return zero lines. create-publisher.ts is the only production site.
+# Must return EXACTLY two lines, both in create-publisher.ts: the `case 'host':`
+# and `case 'oss':` branches. Those branches stay in the file on purpose (see the
+# table above) and are unreachable because enforceNoRemoteArtifactPublisher() has
+# already collapsed the kind to 'local'. A hit in ANY other file is a real leak
+# path. Do not delete these two branches to force a zero count — that breaks the
+# `never` exhaustiveness check on the default case and re-opens the upstream
+# conflict for no privacy gain.
 
 # 4. The approval-mode hole must still be the shape this patch assumes. If
 #    upstream ever narrows YOLO or the 'info' auto-approve, re-read this
@@ -218,7 +224,7 @@ Every successful merge REQUIRES:
 
     Do **not** fix this with a blanket `packages/*/src/**/*.js` ignore — `packages/cli/src/i18n/locales/*.js` and the bundled `dataviz` scripts are hand-written tracked sources and would be silently swallowed.
 
-5.  **LOCKFILE REGEN**: Run `npm install` to ensure `package-lock.json` is consistent.
+5.  **LOCKFILE REGEN**: Run `corepack pnpm install` to keep `pnpm-lock.yaml` consistent with the manifests after the `@opentelemetry/*` lines are stripped, and commit it. The tree is **pnpm-only** — there is no `package-lock.json` and one must not be created; an `npm install` here resolves a different dependency graph and breaks the build. `packages/vscode-ide-companion/NOTICES.txt` and `pnpm-lock.yaml` both resolve to OURS on every merge, because upstream's regenerated copies re-admit the whole otel closure.
 6.  **VERIFICATION**: Run `npm run build:packages` and `npm run lint`.
 7.  **STATS DISPLAY CHECK** ⚠️ See Section 11: Verify `logApiResponse`, `logApiError`, `logToolCall` in `packages/core/src/telemetry/loggers.ts` forward to `uiTelemetryService` — they must NOT be no-ops.
 8.  **RUNTIME IMPORT CHECK** ⚠️ See Section 12: Verify no `.ts` source files import directly from `@opentelemetry/api` (or other removed packages) using the bare package name:
@@ -829,7 +835,7 @@ Not gated by a flag or a command — always on, because it can never show the mo
 **Verify after every merge**:
 
 ```bash
-grep -rn "no-telemetry fork" packages/core/src/core/environmentContext.ts | grep -i "resume"   # 2 lines (import + call site)
+grep -rn "no-telemetry fork" packages/core/src/core/environmentContext.ts | grep -i "resume"   # 3 lines (import, the mandated stableTexts/deferredToolsText split comment, call site)
 grep -c "reuseResumedPreludeIfUnchanged" packages/core/src/core/environmentContext.ts          # 2 (import + call)
 grep -n "from './environmentContext" packages/core/src/core/resume-opt-cache.ts                # zero lines (invariant 2)
 cd packages/core && npx vitest run src/core/resume-opt-cache.test.ts src/core/environmentContext.test.ts

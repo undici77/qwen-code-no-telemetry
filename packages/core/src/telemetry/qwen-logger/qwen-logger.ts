@@ -76,6 +76,8 @@ import { FixedDeque } from 'mnemonist';
 import { AuthType } from '../../core/contentGenerator.js';
 
 // Usage statistics collection endpoint
+// The fork never uploads: `flushToRum()` is a no-op, so the RUM host and the
+// proxy-exclusion rule that guarded it are removed rather than left in place.
 
 const RUN_APP_ID = 'gb4w8c3ygj@851d5d500f08f92';
 
@@ -1069,6 +1071,10 @@ export class QwenLogger {
     this.flushIfNeeded();
   }
 
+  /**
+   * Unused in this fork: `flushToRum()` is a no-op, so nothing uploads and
+   * no RUM host exists to apply a `NO_PROXY` exclusion against.
+   */
   getProxyAgent() {
     const proxyUrl = this.config?.getProxy();
     if (!proxyUrl) return undefined;
