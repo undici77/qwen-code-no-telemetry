@@ -10,9 +10,13 @@ import {
   runWithHookExecutionOwner,
 } from '../hooks/hook-execution-context.js';
 import type { SessionSourceService } from '../services/session-sources.js';
+import type { RequestLifecycleEvent } from '../telemetry/request-lifecycle.js';
 
 import { resolveProviderProtocol } from '../models/modelRegistry.js';
-import { refreshModelCatalog } from '../models/model-catalog-refresh.js';
+import {
+  refreshModelCatalog,
+  MODEL_CATALOG_REFRESH_ENV,
+} from '../models/model-catalog-refresh.js';
 import {
   captureReasoningSnapshot,
   validateReasoningCapabilities,
@@ -83,6 +87,7 @@ import type {
 import {
   ExecutionCleanupError,
   MANAGED_RUNTIME_TOOL_NAMES,
+  ManagedRuntimeOutcomeUnknownError,
 } from '../services/execution-environment.js';
 import { isTieredEffortWireModel } from '../core/modalityDefaults.js';
 import {
@@ -256,6 +261,7 @@ import type { ToolInvocationGuard } from '../core/tool-invocation-guard.js';
 import {
   createAgentHostToolInvocationGuard,
   createAgentToolInvocationGuard,
+  createSessionAgentToolInvocationGuard,
 } from '../agents/workspace-agents/capability.js';
 import type {
   ExecutionSandboxPolicy,
@@ -347,6 +353,10 @@ import {
 } from '../managed-runtime/managed-session-authority.js';
 import { LocalJsonlManagedSessionJournalStore } from '../managed-runtime/local-jsonl-managed-session-journal-store.js';
 import { LocalManagedSessionResourceStore } from '../managed-runtime/managed-session-resources.js';
+import {
+  LocalManagedRuntimeOutcomes,
+  unresolvedRuntimeWorkReason,
+} from '../managed-runtime/managed-runtime-outcomes.js';
 import { readManagedSessionRecords } from '../managed-runtime/managed-session-message-projection.js';
 import {
   MANAGED_SESSION_FORMAT_VERSION,
@@ -404,7 +414,10 @@ import {
   scanMemoryMetadataCorpusStatus,
   type MemoryMetadataCorpusStatus,
 } from '../memory/metadata-migration.js';
-import { buildStructuredAutoMemoryPrompt } from '../memory/prompt.js';
+import {
+  buildAutoMemoryIndexContext,
+  buildStructuredAutoMemoryPrompt,
+} from '../memory/prompt.js';
 import { CommitAttributionService } from '../services/commitAttribution.js';
 import { isSafeModeEnv } from '../utils/safe-mode.js';
 
@@ -563,6 +576,14 @@ export class TrustGateError extends Error {
     this.name = 'TrustGateError';
   }
 }
+
+/**
+ * Why `Config.setApprovalMode` refuses a privileged mode in a session-agents
+ * session: every write or command an agent runs there asks the person in the
+ * chat session (see `Config.markSessionAgentSession`).
+ */
+const SESSION_AGENT_APPROVAL_MODE_ERROR =
+  'A session agent always asks before writing or running commands; its approval mode stays "default".';
 
 /**
  * Information about an approval mode including display name and description.
@@ -1038,10 +1059,17 @@ export interface AgentsCollabSettings {
    */
   maxParallelAgents?: number;
   /**
-   * Per-model maximum number of background sub-agents running concurrently,
-   * keyed by concrete model ID. Overrides the global `maxParallelAgents` for
-   * the matched model; models not listed here fall back to the global limit.
-   * Useful when a model has a lower concurrency capacity than the rest.
+   * Per-model maximum number of top-level sub-agents running concurrently,
+   * keyed by concrete model ID. Bounds both background and foreground
+   * launches. For background launches the tighter of this cap and the global
+   * `maxParallelAgents` binds; foreground launches are bounded by this cap
+   * alone. Applies to top-level launches only — nested sub-agents, teammate
+   * fan-out, foreground interactive forks, external-executor subagents, and
+   * agents dispatched by a workflow script are not capped. Models not listed
+   * here fall back to the global limit for background launches and are
+   * uncapped for foreground launches — list a model here to bound its
+   * foreground fan-out. Useful when a model has a lower concurrency capacity
+   * than the rest.
    */
   maxParallelAgentsByModel?: Record<string, number>;
   /** Display mode for multi-agent sessions ('in-process' | 'tmux' | 'iterm2') */
@@ -1107,6 +1135,13 @@ export interface ConfigParameters {
    * Managed session has no tools.
    */
   managedRuntimeEnvironment?: (config: Config) => ExecutionEnvironment;
+  /**
+   * Called by a Managed session's Runtime machinery when a worker's stop
+   * could not be proven (`quarantined: true`) and when the reaper proves it
+   * (`false`, with the same reason). The host quarantines the engine on the
+   * first and lifts it on the second. Ignored for any other engine.
+   */
+  onManagedEngineQuarantine?: (quarantined: boolean, reason: Error) => void;
   embeddingModel?: string;
   sandbox?: SandboxConfig;
   targetDir: string;
@@ -1381,8 +1416,8 @@ export interface ConfigParameters {
   todoWriteEnabled?: boolean;
   agentTeamEnabled?: boolean;
   /**
-   * Opt-in for persistent workspace Agents collaborating on shared threads.
-   * Separate from `agentTeamEnabled`: neither implies the other.
+   * Opt-in for persistent workspace Agents answering @-mentions in chat
+   * sessions. Separate from `agentTeamEnabled`: neither implies the other.
    */
   agentCollaborationEnabled?: boolean;
   workflowsEnabled?: boolean;
@@ -2649,12 +2684,16 @@ export function deriveAgentConfig(
   };
 }
 
+/**
+ * A subagent of an untrusted folder, or of a session-agents session (which
+ * always asks, see `Config.markSessionAgentSession`), gets no privileged mode.
+ */
 function getTrustedDerivedApprovalMode(
   base: Config,
   requestedMode: ApprovalMode,
 ): ApprovalMode {
   if (
-    !base.isTrustedFolder() &&
+    (!base.isTrustedFolder() || base.isSessionAgentSession?.() === true) &&
     requestedMode !== ApprovalMode.DEFAULT &&
     requestedMode !== ApprovalMode.PLAN
   ) {
@@ -2757,6 +2796,10 @@ export class Config {
     config: Config,
   ) => ExecutionEnvironment;
   private managedRuntimeEnvironment?: ExecutionEnvironment;
+  private readonly onManagedEngineQuarantine?: (
+    quarantined: boolean,
+    reason: Error,
+  ) => void;
   private managedRuntimeClosing?: Promise<void>;
   private managedSessionBlock?: Error;
   private restoredFileHistory = false;
@@ -2770,6 +2813,7 @@ export class Config {
   private pendingSessionWriterLease?: SessionWriterLease;
   /** The Managed Session log a Managed session records through. */
   private managedSession?: ManagedSession;
+  private managedRuntimeOutcomes?: LocalManagedRuntimeOutcomes;
   private pendingSessionWriterRelease:
     | { lease: SessionWriterLease; promise: Promise<void> }
     | undefined;
@@ -2862,6 +2906,14 @@ export class Config {
   private systemPrompt: string | undefined;
   private workspaceAgentName: string | undefined;
   private workspaceAgentExecutionAllowedTools: ReadonlySet<string> | undefined;
+  /** The persona's `disallowedTools`; enforced for session-agents sessions. */
+  private workspaceAgentDisallowedTools: readonly string[] | undefined;
+  /**
+   * Set when this `agent` session was started by the session-agents
+   * orchestrator (a persisted binding names it). See
+   * {@link markSessionAgentSession}.
+   */
+  private sessionAgentSession = false;
   private readonly appendSystemPrompt: string | undefined;
   private liveAppendSystemPrompt: string | undefined;
   private outputStyle: OutputStyleDefinition | undefined;
@@ -2960,15 +3012,11 @@ export class Config {
    * built. See {@link getPromptToolSnapshot}.
    */
   private promptToolSnapshot: ReadonlySet<string> | undefined;
+  private promptAgentReachable = false;
 
-  /**
-   * Volatile system-prompt layer: the managed auto-memory section
-   * (instructions + MEMORY.md indexes). Kept separate from `userMemory`
-   * (context files, stable in-session) because it is rewritten on every
-   * memory save — prompt assembly appends it last so a save invalidates
-   * the shortest possible cached prompt prefix.
-   */
+  /** Stable managed-memory policy, separate from the changing catalog. */
   private autoMemoryPrompt = '';
+  private autoMemoryContext = '';
   private memoryRecallMode: MemoryRecallMode = 'legacy';
   private memoryCorpusRevision = '';
   private memoryRecallModeInitialized = false;
@@ -3037,6 +3085,9 @@ export class Config {
   private goalTurnHostGeneration = 0;
   private readonly chatRecordingFailureListeners =
     new Set<ChatRecordingFailureListener>();
+  private readonly requestLifecycleListeners = new Set<
+    (event: RequestLifecycleEvent) => void
+  >();
   private fileCheckpointingEnabled: boolean;
   // Object state is intentionally shared by derived Configs through prototype
   // lookup so every agent contributes to the same session budget.
@@ -3321,6 +3372,10 @@ export class Config {
     this.managedRuntimeEnvironmentFactory =
       params.sessionExecutionEngine === 'managed'
         ? params.managedRuntimeEnvironment
+        : undefined;
+    this.onManagedEngineQuarantine =
+      params.sessionExecutionEngine === 'managed'
+        ? params.onManagedEngineQuarantine
         : undefined;
     this.setSessionRestoreProjection(params.sessionRestoreProjection);
     // Daemon Configs use sessionIdContext and must not replace the
@@ -4097,7 +4152,13 @@ export class Config {
   ): Promise<void> {
     this.debugLogger.info('Config initialization started');
     await this.proxyDispatcherReady;
-    void refreshModelCatalog();
+    // [no-telemetry fork] upstream fetches https://models.dev/api.json here on
+    // every startup. models.dev is not a host the user configured, so it is never
+    // contacted automatically; the bundled model-registry.json already serves limits
+    // and modalities locally. Opt in with QWEN_CODE_MODELS_DEV_REFRESH=on.
+    if (process.env[MODEL_CATALOG_REFRESH_ENV] === 'on') {
+      void refreshModelCatalog();
+    }
     options?.signal?.throwIfAborted();
     // Omni multimodal support declares ffmpeg/ffprobe as hard runtime
     // prerequisites: fail fast at startup with an actionable message
@@ -5083,6 +5144,36 @@ export class Config {
         if (this.sessionWriterShutdownRequested) {
           throw new SessionWriterShutdownError();
         }
+        // A committed receipt outlives its crash: settle what it proves
+        // before the gate reads, so a settled-but-unsettled crash window does
+        // not block on a call whose outcome the log already carries.
+        const sequenceBeforeRepair =
+          this.managedSession.authority.committedSequence;
+        await this.getManagedRuntimeOutcomes()?.recoverCommittedReceipts();
+        // The repair writes records the projection read above lacks: give
+        // this open the history the log now holds.
+        if (
+          this.sessionRestoreProjectionSource &&
+          this.managedSession.authority.committedSequence !==
+            sequenceBeforeRepair
+        ) {
+          projection = await this.sessionRestoreProjectionSource();
+          this.setSessionRestoreProjection(projection);
+        }
+        // A reopened log answers for itself: Runtime dispatches that never
+        // settled block the session again, as the in-memory block already
+        // does for the live process. The outcome cannot be learned from a
+        // past worker generation, and nothing replays it.
+        const unresolved = await unresolvedRuntimeWorkReason(
+          this.managedSession.authority,
+        );
+        if (unresolved !== undefined) {
+          this.blockManagedSession(
+            new ManagedRuntimeOutcomeUnknownError(
+              `The Managed session's log shows Runtime work with an unknown outcome: ${unresolved}.`,
+            ),
+          );
+        }
         recorder.bindManagedSink(
           managedRecordWriter(this.managedSession, {
             transcriptPath: this.getTranscriptPath(),
@@ -5339,6 +5430,7 @@ export class Config {
     if (this.isSafeMode()) {
       this.setUserMemory('');
       this.autoMemoryPrompt = '';
+      this.autoMemoryContext = '';
       this.setMemoryFileCount(0);
       this.setContextFilePaths([]);
       this.conditionalRulesRegistry = new ConditionalRulesRegistry(
@@ -5512,32 +5604,44 @@ export class Config {
       // empty" placeholder — the same shape the per-project layer has used
       // since day one — so the cost is one extra index header.
       this.setUserMemory(memoryContent);
-      this.autoMemoryPrompt =
-        this.memoryRecallMode === 'structured'
-          ? buildStructuredAutoMemoryPrompt(
-              getAutoMemoryRoot(this.getProjectRoot()),
-              getUserAutoMemoryRoot(),
-              teamMemoryEnabled
-                ? getTeamAutoMemoryRoot(this.getProjectRoot())
-                : undefined,
-            )
-          : this.memoryManager.buildAutoMemoryPrompt(
-              getAutoMemoryRoot(this.getProjectRoot()),
-              managedAutoMemoryIndex,
-              {
-                memoryDir: getUserAutoMemoryRoot(),
-                indexContent: userAutoMemoryIndex,
-              },
-              teamMemoryEnabled
-                ? {
-                    memoryDir: getTeamAutoMemoryRoot(this.getProjectRoot()),
-                    indexContent: teamAutoMemoryIndex,
-                  }
-                : undefined,
-            );
+      const memoryDir = getAutoMemoryRoot(this.getProjectRoot());
+      const userSection = {
+        memoryDir: getUserAutoMemoryRoot(),
+        indexContent: userAutoMemoryIndex,
+      };
+      const teamSection = teamMemoryEnabled
+        ? {
+            memoryDir: getTeamAutoMemoryRoot(this.getProjectRoot()),
+            indexContent: teamAutoMemoryIndex,
+          }
+        : undefined;
+      if (this.memoryRecallMode === 'structured') {
+        this.autoMemoryPrompt = buildStructuredAutoMemoryPrompt(
+          memoryDir,
+          userSection.memoryDir,
+          teamSection?.memoryDir,
+        );
+      } else {
+        const policy = this.memoryManager.buildAutoMemoryPrompt(
+          memoryDir,
+          managedAutoMemoryIndex,
+          userSection,
+          teamSection,
+          { includeIndexes: false },
+        );
+        const catalog = buildAutoMemoryIndexContext(
+          memoryDir,
+          managedAutoMemoryIndex,
+          userSection,
+          teamSection,
+        );
+        this.autoMemoryPrompt = policy;
+        this.autoMemoryContext = catalog;
+      }
     } else {
       this.setUserMemory(memoryContent);
       this.autoMemoryPrompt = '';
+      this.autoMemoryContext = '';
     }
     this.setMemoryFileCount(fileCount);
     this.setContextFilePaths(contextFilePaths);
@@ -5970,6 +6074,46 @@ export class Config {
     return this.managedSessionBlock;
   }
 
+  /**
+   * Quarantines the engine that hosts this Managed session: a Runtime
+   * worker's stop could not be proven, so no new Managed session may run
+   * beside work nobody can account for. Cleared with the same reason once
+   * the reaper proves the stop.
+   */
+  reportManagedEngineQuarantine(reason: Error): void {
+    if (isDerivedConfig(this)) {
+      (Object.getPrototypeOf(this) as Config).reportManagedEngineQuarantine(
+        reason,
+      );
+      return;
+    }
+    this.onManagedEngineQuarantine?.(true, reason);
+  }
+
+  /** Lifts a quarantine reported with this very reason. */
+  clearManagedEngineQuarantine(reason: Error): void {
+    if (isDerivedConfig(this)) {
+      (Object.getPrototypeOf(this) as Config).clearManagedEngineQuarantine(
+        reason,
+      );
+      return;
+    }
+    this.onManagedEngineQuarantine?.(false, reason);
+  }
+
+  /**
+   * The durable outcome writer for this session's Runtime-backed tools, built
+   * once the log is open. A Managed session that records no log has none; a
+   * derived Config has none either, as its tools would need an execution
+   * scope of their own.
+   */
+  getManagedRuntimeOutcomes(): LocalManagedRuntimeOutcomes | undefined {
+    if (isDerivedConfig(this) || !this.managedSession) return undefined;
+    return (this.managedRuntimeOutcomes ??= new LocalManagedRuntimeOutcomes(
+      this.managedSession,
+    ));
+  }
+
   getSessionRestoreRuntime(): SessionRuntimeResumeState | undefined {
     return this.sessionRestoreRuntime;
   }
@@ -6057,6 +6201,7 @@ export class Config {
     systemPrompt: string,
     agentName: string,
     executionAllowedTools?: readonly string[],
+    disallowedTools?: readonly string[],
   ): void {
     if (this.sessionSourceType !== 'agent') {
       throw new Error(
@@ -6073,6 +6218,9 @@ export class Config {
     this.workspaceAgentExecutionAllowedTools = executionAllowedTools
       ? new Set(executionAllowedTools)
       : undefined;
+    this.workspaceAgentDisallowedTools = disallowedTools
+      ? [...disallowedTools]
+      : undefined;
   }
 
   /**
@@ -6084,6 +6232,40 @@ export class Config {
    */
   getWorkspaceAgentName(): string | undefined {
     return this.workspaceAgentName;
+  }
+
+  /**
+   * Marks this agent session as one the session-agents orchestrator drives
+   * (an agent answering @-mentions in a chat session).
+   *
+   * Must be called before `initialize()`. The caller sets it only after
+   * finding a persisted session-agents binding that names this session for
+   * this agent, so it is a server-side decision, never a client claim.
+   *
+   * Effects (product decision 2026-10-05, session-multi-agent design §8-1):
+   * no read-only ceiling — every tool is available and writes / command
+   * execution go through the session's ordinary approval flow, which the
+   * orchestrator relays to the chat session. That flow is the only gate, so
+   * the session is pinned to `default` approval whatever the settings say,
+   * and {@link setApprovalMode} refuses a privileged mode for it later.
+   */
+  markSessionAgentSession(): void {
+    if (this.sessionSourceType !== 'agent') {
+      throw new Error(
+        'Only an agent session can be marked as a session-agents session.',
+      );
+    }
+    this.sessionAgentSession = true;
+    // Assigned rather than set: before `initialize()` there is no permission
+    // manager to adjust, and a fresh hidden session has no mode history.
+    this.approvalMode = ApprovalMode.DEFAULT;
+    this.prePlanMode = undefined;
+    this.planExecutionMode = undefined;
+  }
+
+  /** Whether {@link markSessionAgentSession} was applied to this session. */
+  isSessionAgentSession(): boolean {
+    return this.sessionAgentSession && this.sessionSourceType === 'agent';
   }
 
   setSessionSource(sourceType: string, sourceId?: string): void {
@@ -6105,10 +6287,13 @@ export class Config {
    * and should be displayed to the user during startup.
    */
   getWarnings(): string[] {
-    // Both layers are always loaded into the system prompt, so the size
-    // estimate must cover context files and the auto-memory section alike.
+    // Include the request-only catalog as well as the system memory policy.
     const memoryContextWarning = this.buildMemoryContextWarning(
-      [this.getUserMemory(), this.autoMemoryPrompt]
+      [
+        this.getUserMemory(),
+        this.getAutoMemoryPrompt(),
+        this.getAutoMemoryContext(),
+      ]
         .filter(Boolean)
         .join('\n\n'),
     );
@@ -7728,6 +7913,7 @@ export class Config {
     // reassigns it, and the stale text keeps routing to search_memory while
     // the reset mode leaves that tool undeclared.
     this.autoMemoryPrompt = '';
+    this.autoMemoryContext = '';
 
     let memoryRefreshError: unknown;
     try {
@@ -7853,6 +8039,7 @@ export class Config {
         await (earlyWriterClose ?? closeWriter());
       }
       this.chatRecordingFailureListeners.clear();
+      this.requestLifecycleListeners.clear();
       if (options?.shutdownTelemetry !== false && isTelemetrySdkInitialized()) {
         await shutdownTelemetry();
       }
@@ -8905,13 +9092,26 @@ export class Config {
     this.promptToolSnapshot = names;
   }
 
-  /**
-   * The managed auto-memory section of the system prompt (volatile layer).
-   * Empty when managed memory is unavailable. Callers assembling a system
-   * prompt must append this after all stable/context content.
-   */
+  getPromptAgentReachable(): boolean {
+    return this.promptAgentReachable;
+  }
+
+  setPromptAgentReachable(reachable: boolean): void {
+    this.promptAgentReachable = reachable;
+  }
+
+  /** Managed-memory policy for the system prompt, without legacy indexes. */
   getAutoMemoryPrompt(): string {
     return this.autoMemoryPrompt;
+  }
+
+  /** Latest legacy catalog, sent only at the request tail, never stored history. */
+  getAutoMemoryContext(): string {
+    // Scoped maintenance configs override the policy getter to suppress session
+    // memory. Respect that override rather than inheriting the parent's catalog.
+    return this.memoryRecallMode === 'legacy' && this.getAutoMemoryPrompt()
+      ? this.autoMemoryContext
+      : '';
   }
 
   getMemoryRecallMode(): MemoryRecallMode {
@@ -9225,6 +9425,12 @@ export class Config {
     if (executionMode === ApprovalMode.PLAN) {
       throw new Error('Plan is not an execution approval mode');
     }
+    if (
+      this.isSessionAgentSession?.() === true &&
+      executionMode !== ApprovalMode.DEFAULT
+    ) {
+      throw new Error(SESSION_AGENT_APPROVAL_MODE_ERROR);
+    }
     if (!this.isTrustedFolder() && executionMode !== ApprovalMode.DEFAULT) {
       throw new TrustGateError(
         'Cannot enable privileged approval modes in an untrusted folder.',
@@ -9305,6 +9511,15 @@ export class Config {
       !Object.prototype.hasOwnProperty.call(this, 'setApprovalMode')
     ) {
       throw new Error('Derived Configs cannot change approval mode');
+    }
+    if (
+      // Optional call: per-agent configs built over a partial parent (e.g.
+      // InProcessBackend's) may not carry the method.
+      this.isSessionAgentSession?.() === true &&
+      mode !== ApprovalMode.DEFAULT &&
+      mode !== ApprovalMode.PLAN
+    ) {
+      throw new Error(SESSION_AGENT_APPROVAL_MODE_ERROR);
     }
     if (
       !this.isTrustedFolder() &&
@@ -10046,7 +10261,8 @@ export class Config {
   }
 
   /**
-   * Whether persistent workspace Agents may collaborate on shared threads.
+   * Whether persistent workspace Agents may answer @-mentions in chat
+   * sessions.
    *
    * Independent of {@link isAgentTeamEnabled}: neither flag implies the other,
    * and enabling this one permits collaboration without opening any Agent to
@@ -11556,6 +11772,23 @@ export class Config {
     };
   }
 
+  onRequestLifecycle(
+    listener: (event: RequestLifecycleEvent) => void,
+  ): () => void {
+    this.requestLifecycleListeners.add(listener);
+    return () => this.requestLifecycleListeners.delete(listener);
+  }
+
+  notifyRequestLifecycle(event: RequestLifecycleEvent): void {
+    for (const listener of this.requestLifecycleListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        this.debugLogger.warn('Request lifecycle listener failed:', error);
+      }
+    }
+  }
+
   private createChatRecordingService(): ChatRecordingService {
     return new ChatRecordingService(
       this,
@@ -12134,7 +12367,7 @@ export class Config {
 
   /**
    * Whether this session carries a workspace-agent persona. This is the source
-   * of truth for collaboration tools and skill side effects.
+   * of truth for the agent tool guard and skill side effects.
    */
   isWorkspaceAgentSession(): boolean {
     return (
@@ -12152,6 +12385,17 @@ export class Config {
           this.getWorkspaceContext().isPathWithinWorkspace(candidate),
       );
     }
+    if (this.isWorkspaceAgentSession() && this.isSessionAgentSession()) {
+      // Session-agents sessions skip the read-only ceiling (session-multi-agent design §8-1).
+      return createSessionAgentToolInvocationGuard(
+        this.toolInvocationGuard,
+        this.workspaceAgentExecutionAllowedTools,
+        this.workspaceAgentDisallowedTools,
+      );
+    }
+    // An `agent` session no session-agents binding claims cannot get this far
+    // (acpAgent refuses it at creation); the read-only ceiling is the
+    // fail-closed default should one ever run.
     return this.isWorkspaceAgentSession()
       ? createAgentToolInvocationGuard(
           this.toolInvocationGuard,
@@ -12826,49 +13070,6 @@ export class Config {
     // Same helper as the bare-mode branch above to keep the registration
     // shape and permission gating in sync between the two paths.
     await registerStructuredOutputIfRequested();
-
-    // The six thread tools are the collaboration surface, so they are gated
-    // on the collaboration opt-in — not merely on being a subagent or on a
-    // session calling itself an agent. `sourceType` is attribution, not
-    // authorization: a client can set it when creating a session, so the
-    // opt-in, plus the server-binding check the dispatcher applies, are what
-    // decide whether these tools exist. The flag alone is not enough.
-    //
-    // Deliberately NOT `|| options?.forSubAgent`. A subagent runs on a
-    // `deriveConfig` child, and that is `Object.create(parent)`, so an agent's
-    // own subagent reads `sourceType === 'agent'` straight off the prototype
-    // chain and lands here anyway. Adding `forSubAgent` only widened the gate
-    // to subagents of *ordinary* conversations, which have no agent run frame
-    // — every one of these tools would have thrown "requires an active agent
-    // run context" on first use. Observed both ways with the six-combination
-    // probe: dropping the clause takes the plain-subagent row from six tools
-    // to zero and leaves the agent-subagent row at six.
-    if (this.isWorkspaceAgentSession()) {
-      await registerLazy(ToolNames.THREAD_POST, async () => {
-        const { ThreadPostTool } = await import('../tools/thread-tools.js');
-        return new ThreadPostTool(this);
-      });
-      await registerLazy(ToolNames.THREAD_WAIT, async () => {
-        const { ThreadWaitTool } = await import('../tools/thread-tools.js');
-        return new ThreadWaitTool(this);
-      });
-      await registerLazy(ToolNames.THREAD_BLOCK, async () => {
-        const { ThreadBlockTool } = await import('../tools/thread-tools.js');
-        return new ThreadBlockTool(this);
-      });
-      await registerLazy(ToolNames.THREAD_REVIEW, async () => {
-        const { ThreadReviewTool } = await import('../tools/thread-tools.js');
-        return new ThreadReviewTool(this);
-      });
-      await registerLazy(ToolNames.THREAD_CREATE, async () => {
-        const { ThreadCreateTool } = await import('../tools/thread-tools.js');
-        return new ThreadCreateTool(this);
-      });
-      await registerLazy(ToolNames.THREAD_READ, async () => {
-        const { ThreadReadTool } = await import('../tools/thread-tools.js');
-        return new ThreadReadTool(this);
-      });
-    }
 
     // Register cron tools unless disabled
     if (this.isCronEnabled()) {

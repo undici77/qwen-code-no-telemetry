@@ -6,6 +6,8 @@
     "composite": true,
     "types": ["node", "vitest/globals"],
     "baseUrl": ".",
+    // No `"*"` catch-all: tsx resolves tsconfig `paths` at runtime, and a catch-all
+    // bypasses each package's `exports` map, picking its CJS entry over its ESM one.
     "paths": {
       "@lydell/node-pty": ["../../node_modules/@lydell/node-pty/node-pty.d.ts"],
       "@opentelemetry/api": ["./src/telemetry/dummy-otel.ts"],
@@ -15,8 +17,7 @@
       ],
       "@opentelemetry/resources": ["./src/telemetry/log-to-span-processor.ts"],
       "@opentelemetry/sdk-node": ["./src/telemetry/sdk.ts"],
-      "@opentelemetry/instrumentation-http": ["./src/telemetry/sdk.ts"],
-      "*": ["node_modules/*", "../../node_modules/*"]
+      "@opentelemetry/instrumentation-http": ["./src/telemetry/sdk.ts"]
     }
   },
   "include": ["index.ts", "src/**/*.ts", "src/**/*.json"],

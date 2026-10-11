@@ -913,6 +913,7 @@ Every path that can leave the device, and the gate that holds it. All are **off 
 |Artifact publish|`https://<bucket>.<endpoint>/<key>`|Publisher defaults to **`local`**; `oss` needs explicit selection **and** bucket **and** endpoint, endpoint is regex-pinned to `*.aliyuncs.com`; publishing is permission `ask` and the prompt names the host|
 |Artifact host publish|whatever the user wrote|Runs the user's own `uploadCommand`|
 |live-host install|asset CDN + GitHub releases|Explicit install command|
+|Model catalog refresh|`models.dev/api.json`|Upstream fires this from `Config.initializeInternal()` on **every** startup, opt-out only. The fork inverts it to opt-in (`QWEN_CODE_MODELS_DEV_REFRESH=on`) at the call site, so it never fires; the bundled `model-registry.json` serves limits and modalities locally. Found by `check:egress`, not by any grep|
 |Web Shell `unpkg.com`|browser, not CLI|Appears only as a CSP `connect-src` allowance; the CLI never fetches it|
 
 Two things to keep flagging rather than "fixing": the OSS publisher's object ACL defaults to **`public-read`**, so an artifact you deliberately publish is world-readable at a predictable key unless you set `acl`; and the artifact tool itself is registered by default, which is safe only because of the publisher-default and `ask` gates above. If either gate moves, that becomes a real leak path.
@@ -932,6 +933,11 @@ grep -rni "publisher ?? 'local'" packages/cli/src/config/config.ts packages/core
 # sensitive pattern matches one file and looks clean while missing the other.
 grep -rn "getDefaultPermission" packages/core/src/tools/artifact/artifact-tool.ts
 grep -rn "artifactEnabled ?? true\|omniEnabled ?? false" packages/core/src/config/config.ts
+grep -n "refreshModelCatalog" packages/core/src/config/config.ts
+# Must show the call ONLY inside the `MODEL_CATALOG_REFRESH_ENV === 'on'` guard.
+# A bare `void refreshModelCatalog();` means upstream's opt-out default returned —
+# that is automatic models.dev egress on every startup, and `check:egress` reports
+# it as LEAK. No grep in this document catches it; only the tripwire does.
 ```
 
 Then prove the telemetry layer is inert **structurally**, not by vocabulary — the durable argument is that no exporter exists to send anything, so a retained `otlp*Endpoint` key is harmless:
