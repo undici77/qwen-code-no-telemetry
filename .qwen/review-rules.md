@@ -10,6 +10,8 @@ Review` heading in `AGENTS.md`, which meant 684 tokens were resident in every
 session as well as re-read on the turns that needed them. Do not restore that
 heading to `AGENTS.md` — `npm run check:context` fails if you do.
 
+- **Apply module-specific review rules.** Read any nested `AGENTS.md` that
+  applies to the reviewed files and include its `## Code Review` rules.
 - **Verify a finding against the exact reviewed commit before reporting it.**
   Read the lines you are about to cite. A Critical that quotes code not present at
   the commit under review is worse than no finding — it blocks the author over

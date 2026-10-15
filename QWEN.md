@@ -2,9 +2,9 @@
 
 This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code): maximum privacy, zero external data leakage, while staying aligned with upstream `main`.
 
-This file holds fork-specific policy and, per mandatory patch, only its NEVER-clause. The full narrative, traps and ownership tables for each § are path-gated in `.qwen/rules/` — injected as a reminder the first time a matching file is read or edited, once per session — and in `NO_TELEMETRY_GUIDELINES.md` (NTG) at the same §. NTG is **not loaded**; open it before a merge for the ownership tables, numbered invariants, smoke tests, the package layout (§7) and build/test detail (§3, §10). Nothing here is the only copy of anything: `check:context` fails if a § loses its rule file.
+This file holds fork-specific policy and, per mandatory patch, only its NEVER-clause. Full narrative, traps and ownership tables are path-gated in `.qwen/rules/` (injected on first touch of a matching file) and in `NO_TELEMETRY_GUIDELINES.md` (NTG, **not loaded** — open it before a merge) at the same §. `check:context` fails if a § loses its rule file.
 
-Elsewhere and not restated here: generic principles, commands, conventions, workflow, GitHub ops and the directory table in **`AGENTS.md`** (upstream-owned, also loaded); review rules in **`.qwen/review-rules.md`**, which `/review` reads verbatim into every agent brief; Web Shell rules in `.qwen/rules/web-shell.md`; Versioning & Release in `.qwen/rules/fork-release-versioning.md`; Build & Test Notes in `.qwen/rules/fork-build-and-test.md`.
+Elsewhere: generic principles, commands and conventions in **`AGENTS.md`** (upstream-owned); review rules in **`.qwen/review-rules.md`**; Web Shell rules in `.qwen/rules/web-shell.md`; versioning & release in `.qwen/rules/fork-release-versioning.md`; build & test notes in `.qwen/rules/fork-build-and-test.md`.
 
 ## No-Telemetry Policy (MANDATORY)
 
@@ -19,7 +19,7 @@ Elsewhere and not restated here: generic principles, commands, conventions, work
 
 ## Fork Patches — MUST Survive Every Merge
 
-Every merge from upstream `main` must re-apply these on top of whatever upstream changed. Never resolve a conflict by dropping one. `AGENTS.md` holds the index table; `npm run check:context` re-verifies the invariants mechanically and fails on drift — including the two documentation traps greps alone cannot catch: a word-gate that matches inert upstream code, and a `file.ts:NNNN` citation that has silently moved.
+Every merge from upstream `main` must re-apply these on top of whatever upstream changed; never drop one. `AGENTS.md` holds the index table; `npm run check:context` re-verifies the invariants mechanically.
 
 ### Patch tripwires
 
@@ -37,7 +37,7 @@ NEVER-clauses, not explanations — read the rule file for the § before editing
 
 ### Gate
 
-`check:context` runs the grep checks for every patch above — §11/§12/§1.5/§1.6/§13/§14/§15/§16 wiring — with tag totals stricter than the prose states, refuses a column-padded table in a fork-owned doc, keeps the always-on token budget ratcheted, and refuses a § that lost its rule file or a rule file that lost its `paths:` — a rule with no `paths:` is baseline, so it would go silently always-on and undo the split. `check:tables` strips table padding (~15% of NTG's tokens) and will not write unless it has proved every cell survived verbatim; those files are in `.prettierignore` because prettier re-pads tables and would otherwise undo it. The `vitest` runs are the executable guarantees it cannot run — keep them after every merge:
+`check:context` runs the grep checks for every patch above (§11/§12/§1.5/§1.6/§13/§14/§15/§16 wiring) with tag totals stricter than the prose, refuses a column-padded table in a fork-owned doc, ratchets the always-on token budget, and refuses a § that lost its rule file or a rule file that lost its `paths:` (no `paths:` ⇒ baseline ⇒ silently always-on). `check:tables` strips table padding and will not write unless every cell provably survived; those files are in `.prettierignore` because prettier re-pads tables. The `vitest` runs are the executable guarantees it cannot run — keep them after every merge:
 
 ```bash
 npm run check:context

@@ -1,27 +1,20 @@
 package com.alibaba.qwen.code.managedagent;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.alibaba.qwen.code.managedagent.api.ApiException;
 import com.alibaba.qwen.code.managedagent.api.ApiModels.InputBlock;
 import com.alibaba.qwen.code.managedagent.api.AuthenticatedTenantActor;
 import com.alibaba.qwen.code.managedagent.api.TenantContextFilter;
 import com.alibaba.qwen.code.managedagent.api.WorkspaceSelection;
+import com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties;
 import com.alibaba.qwen.code.managedagent.harness.UnavailableHarnessConnector;
 import com.alibaba.qwen.code.managedagent.service.ManagedAgentService;
 import com.alibaba.qwen.code.managedagent.service.RequestDigests;
+import com.alibaba.qwen.code.managedagent.store.ManagedAgentDefinitionStore;
 import com.alibaba.qwen.code.managedagent.store.ManagedAgentStore;
 import com.alibaba.qwen.code.managedagent.store.ManagedWorkspaceRegistry;
 import com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,6 +22,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * D8b and D8c-1 Session admission: a stored AgentDefinition revision pins
@@ -67,6 +74,115 @@ class ManagedAgentDefinitionAdmissionTest {
     private ManagedAgentStore store;
     @Autowired
     private ManagedWorkspaceRegistry registry;
+    @Autowired
+    private ManagedAgentDefinitionStore definitions;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "false, default", "false, yolo", "true, default", "true, yolo"
+    })
+    void shellOptInSelectsOnlyTheBuiltInProfile(boolean shellEnabled,
+            String definitionApproval) throws Exception {
+        String tenant = tenant();
+        register(tenant, "ws-a", "storage-a");
+        grant(tenant, "ws-a", "actor", true);
+        JsonNode definition = define(tenant, "definition",
+                FILES_DEFINITION.replace("\"default\"",
+                        "\"" + definitionApproval + "\""));
+        var properties = new ManagedAgentProperties();
+        properties.getHarness().setWorkspaceFilesEnabled(true);
+        properties.getHarness().setWorkspaceShellEnabled(shellEnabled);
+        properties.getHarness().setApprovalMode("default");
+        var selected = new ManagedAgentStore(jdbc, mapper, Clock.systemUTC(),
+                ignored -> {}, registry, properties);
+        selected.setManagedAgentDefinitionStore(definitions);
+        var transaction = new TransactionTemplate(transactionManager);
+        var workspace = new WorkspaceSelection("ws-a", ".");
+        String builtin = transaction.execute(status ->
+                selected.insertWorkspaceSessionCommand(tenant, "actor",
+                        "builtin", "builtin-digest", "qwen-code", null,
+                        null, List.of(), null, workspace).sessionId());
+        String custom = transaction.execute(status ->
+                selected.insertWorkspaceSessionCommand(tenant, "actor",
+                        "custom", "custom-digest", definition.get("id").asText(),
+                        null, null, List.of(), null, workspace).sessionId());
+        assertThat(selected.requireSession(tenant, builtin).toolProfile())
+                .isEqualTo(shellEnabled ? "hosted-workspace-shell/1"
+                        : "hosted-workspace-files/1");
+        var pinned = selected.requireSession(tenant, custom);
+        assertThat(pinned.toolProfile()).isEqualTo("hosted-workspace-files/1");
+        assertThat(pinned.agentDefinitionDigest())
+                .isEqualTo(definition.get("digest").asText());
+        assertThat(jdbc.queryForObject("SELECT approval_mode FROM ma_session"
+                        + " WHERE tenant_id = ? AND session_id = ?",
+                String.class, tenant, custom)).isEqualTo(definitionApproval);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"default", "auto-edit"})
+    void customShellInitialInputRequiresOptInButEmptyCreationAndReplayDoNot(
+            String mode) throws Exception {
+        String tenant = tenant();
+        register(tenant, "ws-a", "storage-a", WorkspaceExecutionProfile.CONFIG_REF,
+                WorkspaceExecutionProfile.POLICY_REF);
+        grant(tenant, "ws-a", "actor", true);
+        JsonNode definition = define(tenant, "definition", FILES_DEFINITION
+                .replace("hosted-workspace-files/1", "hosted-workspace-shell/1")
+                .replace("\"default\"", "\"" + mode + "\""));
+        String agentId = definition.get("id").asText();
+        var properties = new ManagedAgentProperties();
+        properties.setDefinitionToolProfiles(List.of("hosted-workspace-shell/1"));
+        properties.getHarness().setWorkspaceFilesEnabled(true);
+        properties.getHarness().setWorkspaceShellEnabled(true);
+        properties.getRuntimeBroker().setWorkspaceMounts(List.of(
+                new ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
+                        tenant, "storage-a", "/workspace")));
+        var enabled = new ManagedAgentStore(jdbc, mapper, Clock.systemUTC(),
+                ignored -> {}, registry, properties);
+        enabled.setManagedAgentDefinitionStore(definitions);
+        var transaction = new TransactionTemplate(transactionManager);
+        var workspace = new WorkspaceSelection("ws-a", ".");
+        var input = List.<Map<String, Object>>of(
+                Map.of("type", "input_text", "text", "go"));
+        var initial = transaction.execute(status -> enabled.insertWorkspaceSessionCommand(
+                tenant, "actor", "initial", "initial-digest", agentId, null,
+                null, input, "payload-digest", workspace));
+        assertThat(initial.turnId()).isNotNull();
+        assertThat(enabled.requireSession(tenant, initial.sessionId()).approvalMode())
+                .isEqualTo(mode);
+        properties.getHarness().setWorkspaceShellEnabled(false);
+        var disabled = new ManagedAgentStore(jdbc, mapper, Clock.systemUTC(),
+                ignored -> {}, registry, properties);
+        disabled.setManagedAgentDefinitionStore(definitions);
+        var empty = transaction.execute(status -> disabled.insertWorkspaceSessionCommand(
+                tenant, "actor", "empty", "empty-digest", agentId, null,
+                null, List.of(), null, workspace));
+        assertThat(empty.turnId()).isNull();
+        assertThat(disabled.requireSession(tenant, empty.sessionId()).toolProfile())
+                .isEqualTo("hosted-workspace-shell/1");
+        assertThat(transaction.execute(status -> disabled.insertWorkspaceSessionCommand(
+                tenant, "actor", "initial", "initial-digest", agentId, null,
+                null, input, "payload-digest", workspace)).sessionId())
+                .isEqualTo(initial.sessionId());
+        assertThatThrownBy(() -> transaction.execute(status -> disabled.insertWorkspaceSessionCommand(
+                tenant, "actor", "fresh", "fresh-digest", agentId, null,
+                null, input, "payload-digest", workspace)))
+                .isInstanceOfSatisfying(ApiException.class,
+                        error -> assertThat(error.getCode()).isEqualTo("workspace_unavailable"));
+        assertThatThrownBy(() -> transaction.execute(status -> disabled.insertTurnCommand(
+                tenant, "SUBMIT_TURN", "later", "later-digest", empty.sessionId(),
+                input, "payload-digest")))
+                .isInstanceOfSatisfying(ApiException.class,
+                        error -> assertThat(error.getCode()).isEqualTo("workspace_unavailable"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ma_session WHERE tenant_id = ?",
+                Integer.class, tenant)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ma_turn WHERE tenant_id = ?",
+                Integer.class, tenant)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ma_request_receipt WHERE namespace = 'SESSION_CREATE_ACTOR' AND tenant_id = ?",
+                Integer.class, tenant)).isEqualTo(2);
+    }
 
     @Test
     void omittedAndExplicitRevisionsPinAndExposeTheDigest() throws Exception {
@@ -84,16 +200,16 @@ class ManagedAgentDefinitionAdmissionTest {
         String sessionId = mapper.readTree(response.getResponse()
                 .getContentAsString()).get("id").asText();
         assertThat(jdbc.queryForObject(
-                "SELECT tool_profile FROM managed_agent_session"
+                "SELECT tool_profile FROM ma_session"
                         + " WHERE tenant_id = ? AND session_id = ?",
                 String.class, tenant, sessionId))
                 .isEqualTo("hosted-workspace-files/1");
         assertThat(jdbc.queryForObject(
-                "SELECT approval_mode FROM managed_agent_session"
+                "SELECT approval_mode FROM ma_session"
                         + " WHERE tenant_id = ? AND session_id = ?",
                 String.class, tenant, sessionId)).isEqualTo("default");
         assertThat(jdbc.queryForObject(
-                "SELECT agent_definition_digest FROM managed_agent_session"
+                "SELECT agent_definition_digest FROM ma_session"
                         + " WHERE tenant_id = ? AND session_id = ?",
                 String.class, tenant, sessionId)).isEqualTo(digest);
         // A second revision supersedes nothing already pinned. The update
@@ -323,7 +439,7 @@ class ManagedAgentDefinitionAdmissionTest {
                                 + "\",\"input\":[]}"))
                 .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
         var session = store.requireSession(tenant, receipt.get("id").asText());
-        var definitions = new com.alibaba.qwen.code.managedagent.store.ManagedAgentDefinitionStore(jdbc);
+        var definitions = new com.alibaba.qwen.code.managedagent.store.ManagedAgentDefinitionStore(jdbc, new RequestDigests());
         assertThat(definitions.pinnedContent(session).get("instructions"))
                 .isEqualTo("Review in Chinese.");
         var resources = new com.alibaba.qwen.code.managedagent.store.ManagedSessionStore(jdbc);
@@ -332,11 +448,11 @@ class ManagedAgentDefinitionAdmissionTest {
         assertThat(resources.publishAgentInstructions(tenant, "workspace", session.sessionId(),
                 "Review in Chinese.")).isEqualTo(first);
         assertThat(first.resourceId()).isEqualTo("agent-instructions-" + first.digest());
-        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_managed_session_resource"
+        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM ma_resource"
                         + " WHERE tenant_id = ? AND session_id = ? AND resource_id = ?",
                 byte[].class, tenant, session.sessionId(), first.resourceId()))
                 .isEqualTo("Review in Chinese.".getBytes(StandardCharsets.UTF_8));
-        jdbc.update("UPDATE managed_agent_session SET agent_definition_digest = ?"
+        jdbc.update("UPDATE ma_session SET agent_definition_digest = ?"
                         + " WHERE tenant_id = ? AND session_id = ?", "0".repeat(64), tenant, session.sessionId());
         assertThatThrownBy(() -> definitions.pinnedContent(store.requireSession(tenant, session.sessionId())))
                 .isInstanceOf(ApiException.class);
@@ -381,7 +497,7 @@ class ManagedAgentDefinitionAdmissionTest {
 
     private String register(String tenant, String id, String storageId,
             String configRef, String policyRef) {
-        jdbc.update("INSERT INTO managed_workspace_registry (tenant_id,"
+        jdbc.update("INSERT INTO ma_workspace (tenant_id,"
                         + " workspace_id, workspace_generation, storage_id,"
                         + " display_name, config_ref, policy_ref, state)"
                         + " VALUES (?, ?, 1, ?, ?, ?, ?, 'ACTIVE')",
@@ -391,7 +507,7 @@ class ManagedAgentDefinitionAdmissionTest {
 
     private void grant(String tenant, String workspaceId, String actorId,
             boolean canCreate) {
-        jdbc.update("INSERT INTO managed_workspace_access (tenant_id,"
+        jdbc.update("INSERT INTO ma_workspace_access (tenant_id,"
                         + " workspace_id, actor_id, role)"
                         + " VALUES (?, ?, ?, ?)",
                 tenant, workspaceId,

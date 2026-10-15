@@ -9,7 +9,7 @@ import {
   context,
   ROOT_CONTEXT,
 } from '../../../../../packages/core/src/telemetry/dummy-otel.js';
-import type { Application } from 'express';
+import type { Application, Response } from 'express';
 import type { DaemonLogContext, DaemonLogger } from '../daemon-logger.js';
 import { getDaemonTelemetryInboundTraceId } from './telemetry-context.js';
 
@@ -36,6 +36,31 @@ export const ACCESS_LOG_CONTROLLER_LOCAL = 'accessLogController';
 
 /** res.locals key the pre-auth gates set on their reject path. */
 export const ACCESS_LOG_REJECT_LOCAL = 'accessLogPreAuthReject';
+
+/**
+ * res.locals keys an entity that rejects a request with an `{error, code}`
+ * body — a route helper's `error()` or app-level middleware such as the
+ * Hosted Harness contract gate: without these the access log records the
+ * status but never the branch that produced it.
+ */
+export const ACCESS_LOG_ERROR_CODE_LOCAL = 'accessLogErrorCode';
+export const ACCESS_LOG_ERROR_REASON_LOCAL = 'accessLogErrorReason';
+
+/**
+ * Records the rejecting branch of an `{error, code}` refusal so the access
+ * log can attribute every status >= 400: every emitter calls this, never
+ * each wires the locals itself.
+ */
+export function markAccessLogError(
+  res: Response,
+  code: string,
+  reason?: string,
+): void {
+  const locals = res.locals as Record<string, unknown> | undefined;
+  if (!locals) return;
+  locals[ACCESS_LOG_ERROR_CODE_LOCAL] = code;
+  if (reason !== undefined) locals[ACCESS_LOG_ERROR_REASON_LOCAL] = reason;
+}
 
 export interface AccessLogController {
   sealAndFlushSuppressed(): void;
@@ -218,6 +243,17 @@ export function installAccessLogMiddleware(
         // where it is the only traceId link between a daemon log line and the
         // caller that sent the traceparent header.
         const inboundTraceId = getDaemonTelemetryInboundTraceId(res);
+        const locals = res.locals as Record<string, unknown> | undefined;
+        const errorCode =
+          status >= 400 &&
+          typeof locals?.[ACCESS_LOG_ERROR_CODE_LOCAL] === 'string'
+            ? (locals[ACCESS_LOG_ERROR_CODE_LOCAL] as string)
+            : undefined;
+        const errorReason =
+          status >= 400 &&
+          typeof locals?.[ACCESS_LOG_ERROR_REASON_LOCAL] === 'string'
+            ? (locals[ACCESS_LOG_ERROR_REASON_LOCAL] as string)
+            : undefined;
         const ctx = {
           route: route.value,
           ...(route.originalBytes
@@ -240,6 +276,8 @@ export function installAccessLogMiddleware(
               }
             : {}),
           ...(inboundTraceId ? { traceId: inboundTraceId } : {}),
+          ...(errorCode ? { code: errorCode } : {}),
+          ...(errorReason ? { reason: errorReason } : {}),
           status,
           durationMs: Math.max(0, Math.round(monotonicNow() - startMs)),
         };

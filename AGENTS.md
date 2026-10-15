@@ -49,16 +49,11 @@ approve.**
 
 ## Fork Patches — MUST Survive Every Merge
 
-This is a **no-telemetry fork**. A set of patches is mandatory and
-non-negotiable: every merge from upstream `main` must re-apply them on top of
-whatever upstream changed. Never resolve a conflict by dropping one.
-
-The full rules, invariants and post-merge verification commands for each patch
-live in **`NO_TELEMETRY_GUIDELINES.md`** — the deep reference, which is **not
-loaded into context**, so open it before a merge — and in the always-on copy in
-**`QWEN.md`**. `npm run check:context` re-verifies every command in that
-section mechanically. This table only exists so a merge never starts without
-knowing the patches are there.
+This is a **no-telemetry fork**: every merge from upstream `main` must re-apply
+these patches on top of whatever upstream changed. Never resolve a conflict by
+dropping one. Rules, invariants and verification commands live in
+**`NO_TELEMETRY_GUIDELINES.md`** (not loaded — open it before a merge) and in
+**`QWEN.md`**; `npm run check:context` re-verifies them mechanically.
 
 | Patch                          | Section  | One-line rule                                                                                              |
 | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
@@ -71,6 +66,13 @@ knowing the patches are there.
 | **Append-only auto-memory**    | **§14**  | **Memory index must stay out of the system prompt tail when the flag is on.**                              |
 | **Context/cache status items** | **§15**  | **Four status-line items stay available; all logic in the fork-owned module.**                             |
 | Resume prelude reuse (auto)    | §16      | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.                  |
+
+## Module-specific Instructions
+
+Before changing `packages/sdk-java/managed-agent-server/**`, read its
+[AGENTS.md](packages/sdk-java/managed-agent-server/AGENTS.md). It supplements
+these repository-wide rules with Java verification and service constraints;
+the common design, self-audit, and PR workflows still apply.
 
 ## Common Commands
 
@@ -223,15 +225,24 @@ auto-injected on first touch of that package. Read it before editing there.
 2. **Test plan for behavioral changes** — write an E2E test plan in
    `.qwen/e2e-tests/` when the change affects user-observable behavior. Dry-run
    against the global `qwen` CLI first to confirm the baseline.
-3. **Build, typecheck, and test before declaring done**:
+3. **Update workflow meta-tests when changing CI definitions** — if you edit
+   `.github/workflows/*.yml`, run
+   `grep -R ".github/workflows/<filename>.yml" scripts/tests/` and update every
+   `scripts/tests/*.test.js` that parses the changed file. These tests pin
+   trigger shape and failure-routing contracts; leaving them stale turns a
+   workflow change into a red main CI run.
+4. **Build, typecheck, and test before declaring done**:
    `npm run build && npm run typecheck`, plus unit tests for the files you
-   changed.
-4. **Self-audit before declaring done** — read the full diff you are about
+   changed. Changes confined to `packages/sdk-java/managed-agent-server/`
+   follow its local Maven verification instructions instead. Cross-language
+   changes require both the affected Java checks and the TypeScript checks
+   above. Documentation-only changes require formatting and reference checks.
+5. **Self-audit before declaring done** — read the full diff you are about
    to ship, including new untracked files, in open-ended passes, not hunting
    for anything specific. Then verify each change, and each green test you
    rely on as evidence, presuming it wrong (a passing test can assert the
    wrong thing). Stop after two consecutive clean passes — a clean pass is
-   evidence about that pass, not the code. A fix re-runs step 3, resets the
+   evidence about that pass, not the code. A fix re-runs step 4, resets the
    clean-pass count, and gets a further pass over the updated diff — never
    exit on a pass that found something. If five passes bring no convergence,
    say so instead of declaring done. Scale to the diff: one clean, careful

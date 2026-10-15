@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+
 import java.util.List;
 
 public final class ManagedSessionStoreModels {
@@ -98,7 +99,12 @@ public final class ManagedSessionStoreModels {
     public record WriterGrant(long writerGeneration, long leaseUntil,
             long journalRevision, long committedSequence,
             String lastCommitDigest, long activationEpoch,
-            boolean replayed) {
+            boolean replayed, int supportedStorageVersion) {
+        public WriterGrant(long writerGeneration, long leaseUntil, long journalRevision,
+                long committedSequence, String lastCommitDigest, long activationEpoch, boolean replayed) {
+            this(writerGeneration, leaseUntil, journalRevision, committedSequence, lastCommitDigest,
+                    activationEpoch, replayed, ManagedSessionReaderVersion.SUPPORTED);
+        }
     }
 
     public record SealReceipt(long writerGeneration, String state,
@@ -112,7 +118,9 @@ public final class ManagedSessionStoreModels {
             @NotBlank @Pattern(regexp =
                     "BLOCKED_RESOURCE|BLOCKED_WORKSPACE|BLOCKED_EXECUTION")
                     String recoveryStatus,
-            @NotBlank @Size(max = 4096) String recoveryDetailCode) {
+            // Must stay within the recovery_detail_code VARCHAR(128) column;
+            // a wider cap turns the one-way recovery block into a 500.
+            @NotBlank @Size(max = 128) String recoveryDetailCode) {
     }
 
     public record RecoveryStateReceipt(long writerGeneration,

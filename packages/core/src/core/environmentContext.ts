@@ -566,6 +566,10 @@ export interface InitialChatHistoryOptions {
   // main session opts in, and only append-only memory mode acts on it.
   // See NO_TELEMETRY_GUIDELINES.md §14.
   includeAutoMemoryReminder?: boolean;
+  // Main-session git snapshot. It lives in the prelude instead of the system
+  // prompt so a repository change between sessions does not invalidate the
+  // provider-cached system prompt. Subagents leave it unset.
+  gitStatus?: string | null;
 }
 
 /**
@@ -605,9 +609,11 @@ export async function getInitialChatHistory(
     ? await buildAvailableSkillsReminder(config)
     : null;
 
-  // Stable parts first (MCP, skills, startup) so prefix-caching servers
-  // retain the KV-cache for the shared prefix. Deferred-tools is last because
-  // progressive MCP discovery can change it — only the tail recomputes.
+  // Stable parts first (MCP, skills, startup, git snapshot) so prefix-caching
+  // servers retain the KV-cache for the shared prefix. The git snapshot is
+  // computed once per session, so it sits with the other session-constant
+  // parts. Deferred-tools is last because progressive MCP discovery can
+  // change it — only the tail recomputes.
   //
   // Split for the [no-telemetry fork] resume-reuse check below: `stableTexts`
   // excludes the deferred-tools text on purpose. That reminder shrinks
@@ -625,6 +631,7 @@ export async function getInitialChatHistory(
     options.includeAutoMemoryReminder ? buildAutoMemoryReminder(config) : null,
     skillsResult?.reminder ?? null,
     startupReminder,
+    options.gitStatus ? wrapSystemReminder(options.gitStatus) : null,
   ].filter((text): text is string => text !== null);
   const deferredToolsText = includeDeferredToolsReminder
     ? buildDeferredToolsReminder(toolRegistry)

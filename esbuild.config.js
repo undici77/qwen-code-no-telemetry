@@ -280,6 +280,10 @@ const workerBuild = esbuild.build({
   alias: {
     fzf: path.resolve(__dirname, 'node_modules/fzf/dist/fzf.es.js'),
   },
+  define: {
+    __dirname: '__qwen_dirname',
+    __filename: '__qwen_filename',
+  },
   banner: {
     js: `"use strict";`,
   },
