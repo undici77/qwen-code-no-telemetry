@@ -69,8 +69,8 @@ dropping one. Rules, invariants and verification commands live in
 
 ## Module-specific Instructions
 
-Before changing `packages/sdk-java/managed-agent-server/**`, read its
-[AGENTS.md](packages/sdk-java/managed-agent-server/AGENTS.md). It supplements
+Before changing `packages/managed-agent-server/**`, read its
+[AGENTS.md](packages/managed-agent-server/AGENTS.md). It supplements
 these repository-wide rules with Java verification and service constraints;
 the common design, self-audit, and PR workflows still apply.
 
@@ -233,7 +233,7 @@ auto-injected on first touch of that package. Read it before editing there.
    workflow change into a red main CI run.
 4. **Build, typecheck, and test before declaring done**:
    `npm run build && npm run typecheck`, plus unit tests for the files you
-   changed. Changes confined to `packages/sdk-java/managed-agent-server/`
+   changed. Changes confined to `packages/managed-agent-server/`
    follow its local Maven verification instructions instead. Cross-language
    changes require both the affected Java checks and the TypeScript checks
    above. Documentation-only changes require formatting and reference checks.
