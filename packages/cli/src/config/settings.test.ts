@@ -221,6 +221,13 @@ vi.mock('../utils/jsonc-editor.js', async (importOriginal) => {
   };
 });
 
+// [no-telemetry fork] `merged.general` is always present: the privacy defaults
+// are hardcoded in LoadedSettings.computeMergedSettings.
+const NO_TELEMETRY_GENERAL = {
+  enableAutoUpdate: false,
+  gitCoAuthor: { commit: false, pr: false },
+};
+
 describe('Settings Loading and Merging', () => {
   let mockFsExistsSync: Mocked<typeof fs.existsSync>;
   let mockStripJsonComments: Mocked<typeof stripJsonComments>;
@@ -286,7 +293,7 @@ describe('Settings Loading and Merging', () => {
       expect(settings.system.settings).toEqual({});
       expect(settings.user.settings).toEqual({});
       expect(settings.workspace.settings).toEqual({});
-      expect(settings.merged).toEqual({});
+      expect(settings.merged).toEqual({ general: NO_TELEMETRY_GENERAL });
     });
 
     it('loads .env starting from the explicit workspace directory', () => {
@@ -409,6 +416,7 @@ describe('Settings Loading and Merging', () => {
       expect(settings.user.settings).toEqual({});
       expect(settings.workspace.settings).toEqual({});
       expect(settings.merged).toEqual({
+        general: NO_TELEMETRY_GENERAL,
         ...systemSettingsContent,
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
@@ -448,6 +456,7 @@ describe('Settings Loading and Merging', () => {
       });
       expect(settings.workspace.settings).toEqual({});
       expect(settings.merged).toEqual({
+        general: NO_TELEMETRY_GENERAL,
         ...userSettingsContent,
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
@@ -487,6 +496,7 @@ describe('Settings Loading and Merging', () => {
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
       expect(settings.merged).toEqual({
+        general: NO_TELEMETRY_GENERAL,
         ...workspaceSettingsContent,
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
@@ -564,6 +574,7 @@ describe('Settings Loading and Merging', () => {
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
       expect(settings.merged).toEqual({
+        general: NO_TELEMETRY_GENERAL,
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
         ui: {
           theme: 'system-theme',
@@ -1089,6 +1100,12 @@ describe('Settings Loading and Merging', () => {
       expect(settings.merged.general?.enableAutoUpdate).toBe(false);
     });
 
+    it('keeps the update gate closed when no settings file sets `general`', () => {
+      const settings = loadSettings(MOCK_WORKSPACE_DIR);
+
+      expect(settings.merged.general?.enableAutoUpdate).toBe(false);
+    });
+
     it('should consolidate disableAutoUpdate and disableUpdateNag - any true means enableAutoUpdate is false', () => {
       (mockFsExistsSync as Mock).mockImplementation(
         (p: fs.PathLike) => p === USER_SETTINGS_PATH,
@@ -1482,6 +1499,7 @@ describe('Settings Loading and Merging', () => {
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
       });
       expect(settings.merged).toEqual({
+        general: NO_TELEMETRY_GENERAL,
         [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
         context: {
           fileName: 'WORKSPACE_CONTEXT.md',
@@ -3563,6 +3581,7 @@ describe('Settings Loading and Merging', () => {
           [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
         });
         expect(settings.merged).toEqual({
+          general: NO_TELEMETRY_GENERAL,
           ...systemSettingsContent,
           [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
         });

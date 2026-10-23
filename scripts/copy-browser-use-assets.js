@@ -7,7 +7,6 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 /**
  * Recursive copy that avoids `fs.cpSync`. Node's `cpSyncCopyDir` binding fails
@@ -31,15 +30,8 @@ function copyTreeRecursive(source, target) {
   }
 }
 
-/**
- * Copy the built Browser Use runtime (SDK bundle, Native Host, its setup
- * script, NOTICE and the pinned playwright-core) into `skillDir/runtime`.
- *
- * Two callers: `copy_bundle_assets.js` stages it into `dist/bundled` for the
- * shipped CLI, and `scripts/dev.js` (or running this file directly) stages it
- * next to the source SKILL.md for `npm run dev`. No build step writes into the
- * source tree; the dev copy is git-ignored.
- */
+// Assemble an isolated Browser SDK fixture for dependency and kernel tests.
+// Production loads the published package through the preloaded cua runtime.
 export function copyBrowserUseAssets(root, skillDir) {
   const browserUseDir = path.join(root, 'packages', 'browser-use');
   const runtimeFiles = [
@@ -88,17 +80,5 @@ export function copyBrowserUseAssets(root, skillDir) {
   copyTreeRecursive(
     path.dirname(playwrightManifestPath),
     path.join(runtimeDir, 'node_modules', 'playwright-core'),
-  );
-}
-
-if (
-  process.argv[1] &&
-  fs.existsSync(process.argv[1]) &&
-  fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
-  const root = fileURLToPath(new URL('..', import.meta.url));
-  copyBrowserUseAssets(
-    root,
-    path.join(root, 'packages/core/src/skills/bundled/browser-use'),
   );
 }

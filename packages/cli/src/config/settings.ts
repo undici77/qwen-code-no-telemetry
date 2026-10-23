@@ -808,10 +808,13 @@ export class LoadedSettings {
     );
 
     // Hardcode no-telemetry defaults
-    if (merged.general) {
-      merged.general.enableAutoUpdate = false;
-      merged.general.gitCoAuthor = { commit: false, pr: false };
-    }
+    // Unconditional: with no `general` key in any scope the startup update
+    // gate (`enableAutoUpdate !== false`) would otherwise stay open.
+    merged.general = {
+      ...merged.general,
+      enableAutoUpdate: false,
+      gitCoAuthor: { commit: false, pr: false },
+    };
 
     return merged;
   }

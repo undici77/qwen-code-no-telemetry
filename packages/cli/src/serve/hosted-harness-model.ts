@@ -14,11 +14,13 @@ import {
 } from '@qwen-code/qwen-code-core/core/llm-chat.js';
 import type { HostedModelRequest } from './hosted-model-recovery.js';
 import type { HostedModelSelection } from './hosted-model-selection.js';
+import { HOSTED_MODEL_REQUEST_BYTES } from '@qwen-code/qwen-code-core/managed-runtime/hosted-recovery-records.js';
 
 import type { Content, Part } from '@google/genai';
 import { createHash, randomUUID } from 'node:crypto';
 import { SendMessageType } from '@qwen-code/qwen-code-core/core/client.js';
 import { ToolNames } from '@qwen-code/qwen-code-core/tools/tool-names.js';
+import { DEFAULT_TOOL_OUTPUT_BATCH_BUDGET } from '@qwen-code/qwen-code-core/config/config.js';
 import type { ToolCallRequestInfo } from '@qwen-code/qwen-code-core/core/turn.js';
 import type { ChatRecord } from '@qwen-code/qwen-code-core/services/chatRecordingService.js';
 import { loadCliConfig, type CliArgs } from '../config/config.js';
@@ -136,6 +138,16 @@ export async function applyHostedModelPin(
   }
 }
 
+export function hostedToolOutputBudget(cwd: string): number {
+  return (
+    loadSettings(cwd, {
+      skipLoadEnvironment: true,
+      skipWorkspaceSettings: true,
+      workspaceTrusted: false,
+    }).merged.tools?.toolOutputBatchBudget ?? DEFAULT_TOOL_OUTPUT_BATCH_BUDGET
+  );
+}
+
 export async function runHostedHarnessTextTurn(input: {
   sessionId: string;
   cwd: string;
@@ -170,6 +182,7 @@ export async function runHostedHarnessTextTurn(input: {
         | 'resumeHookResults'
         | 'hookStopReason'
         | 'setModelRound'
+        | 'setToolOutputBudget'
         | 'planModeInstructions'
       >
     >;
@@ -209,6 +222,9 @@ export async function runHostedHarnessTextTurn(input: {
     true,
     { toolInvocationGuard: () => ({ allowed: false }) },
   );
+  const outputBudget = config.getToolOutputBatchBudget?.();
+  if (outputBudget !== undefined)
+    input.toolTurn?.setToolOutputBudget?.(outputBudget);
   const contextWithInstructions = (context: string | undefined) =>
     [
       input.agentInstructions
@@ -633,7 +649,7 @@ export async function runHostedHarnessTextTurn(input: {
         finished = false;
         usage.length = 0;
       };
-      prepare.maxSnapshotBytes = 64 * 1024;
+      prepare.maxSnapshotBytes = HOSTED_MODEL_REQUEST_BYTES;
       const usage: unknown[] = [];
       let finalOutputHandled = false;
       try {

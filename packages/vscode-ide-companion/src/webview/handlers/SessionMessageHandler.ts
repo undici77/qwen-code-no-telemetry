@@ -979,6 +979,7 @@ export class SessionMessageHandler extends BaseMessageHandler {
 
       await this.agentManager.sendMessage(
         buildPromptBlocks(promptText, promptImages),
+        { submittedPrompt: text },
       );
 
       // Save assistant message

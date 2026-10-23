@@ -10,7 +10,7 @@ This document defines the privacy policy, technical architecture, and maintenanc
 2.  **NO IDENTITY**: No unique installation IDs. `getInstallationId()` must ALWAYS return `00000000-0000-0000-0000-000000000000`. The `InstallationManager` is hardcoded to this static ID.
 3.  **LOCAL PERSISTENCE ONLY**: Data is strictly local. It is only saved for local session history and hierarchical memory, as required for the application's core functionality.
 4.  **NEUTRALIZED CORE**: All network-bound loggers are replaced with no-op functions.
-5.  **DISABLED AUTO-UPDATES**: Hardcode `enableAutoUpdate` to `false` in default settings.
+5.  **DISABLED AUTO-UPDATES**: Hardcode `enableAutoUpdate` to `false` in default settings. The hardcode in `LoadedSettings.computeMergedSettings` must be **unconditional** (it creates `merged.general` when absent): the startup gate is `enableAutoUpdate !== false`, so an `if (merged.general)` guard leaves it open for any user whose settings never set `general`.
 6.  **DISABLED GIT CO-AUTHOR**: Hardcode `gitCoAuthor` to `false` in default settings to prevent accidental identity leakage in commit history.
 
 ---
