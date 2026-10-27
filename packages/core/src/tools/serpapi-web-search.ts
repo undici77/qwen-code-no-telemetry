@@ -117,6 +117,12 @@ export interface WebSearchSettings {
    * WEB_SEARCH_MAX_PER_SESSION); see {@link resolveWebSearchMaxPerSession}.
    */
   maxPerSession?: number;
+  /**
+   * Accepted and ignored — upstream trusts extra hosts for a configurable
+   * DashScope endpoint; here the request host is hardcoded to serpapi.com, so
+   * there is no endpoint whose trust set these suffixes could widen.
+   */
+  allowedHosts?: string[];
 }
 
 /** Resolved backend configuration for the SerpApi side request. */
