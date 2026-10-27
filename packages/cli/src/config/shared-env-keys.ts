@@ -8,6 +8,7 @@ import {
   QWEN_CODE_SERVE_ENV,
 } from './acp-channel-fallback.js';
 import { PRIVATE_CONVERSATIONS_RUNTIME_ENV } from '@qwen-code/qwen-code-core/conversationsRuntimeMarker';
+import { EXTRACT_NOOP_SKIP_TURNS_ENV } from '@qwen-code/qwen-code-core/memory/extract-cadence.js';
 
 import { writeStderrLineSafe } from '../utils/stdioHelpers.js';
 import {
@@ -75,6 +76,10 @@ export const PROJECT_ENV_HARDCODED_EXCLUSIONS = [
   // Project memory routing is frozen daemon-wide before workspace env files
   // load, so only the operator's launch environment or CLI flag may set it.
   'QWEN_CODE_MEMORY_PROJECT_SCOPE',
+  // The extraction-cadence experiment (#13004) is default-off and changes what
+  // the paired runs measure. A repository must not switch it on for every
+  // session in that repo through its own `.env`.
+  EXTRACT_NOOP_SKIP_TURNS_ENV,
   // Workflow execution is an explicit user opt-in. A project must not enable
   // it or override a user opt-in through settings.env or a project .env.
   'QWEN_CODE_ENABLE_WORKFLOWS',
@@ -264,6 +269,16 @@ export const PROJECT_ENV_HARDCODED_EXCLUSIONS = [
   // operator set in the daemon's launch env still apply.
   'QWEN_CDP_MCP_COMMAND',
   'QWEN_SERVE_CDP_TUNNEL_OVER_WS',
+  // The serve daemon bearer token, resolved from --token, the operator's
+  // exported environment, or — only on a non-loopback bind with neither
+  // source present — a generated ephemeral bearer. A project `.env`,
+  // `.qwen/.env`, or workspace settings.env supplying it would let a cloned
+  // repository preset the daemon credential for the operator who launches
+  // `qwen serve` there; the full loader already rejects the key on the reload
+  // tier, and the fast path must not be a second, weaker entry point. The
+  // operator channels (export/--token) and home-scoped `.env` files are
+  // unaffected; settings.env is rejected at every scope.
+  'QWEN_SERVER_TOKEN',
   // QWEN_SERVE_NEW_FILE_MODE decides the creation mode of every agent-written
   // NEW file (owner-only 0600 vs umask-derived). A project `.env` flipping it
   // to `system` would silently widen file visibility daemon-wide — including
@@ -400,6 +415,7 @@ export const HOME_ENV_BOOTSTRAP_KEYS = [
 // (behind --experimental-lsp) and its keys were chosen independently.
 export const INHERITED_LOADER_ENV_KEYS = [
   'NODE_OPTIONS',
+  'BUN_OPTIONS',
   // npm maps its `node-options` config onto npm_config_node_options in the
   // environment, and `npm run` lifecycle scripts apply it like NODE_OPTIONS —
   // the same hijack through an adjacent key. The config-file keys are the

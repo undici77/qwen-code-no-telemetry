@@ -1584,6 +1584,13 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 10000
+            },
+            "allowedHosts": {
+              "description": "Extra host suffixes trusted for an explicitly configured search backend, for gateways that serve the DashScope Responses API under their own domain (exact host, or any subdomain of a listed suffix). Empty by default, so behaviour is unchanged unless set. Automatic derivation never uses this list, so a custom host is only used when WEB_SEARCH_BASE_URL or a modelProviders entry names it. The configured host receives the API key. Env override: WEB_SEARCH_ALLOWED_HOSTS (comma-separated).",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         },
@@ -4605,6 +4612,11 @@
         },
         "agentTeam": {
           "description": "Enable agent team collaboration tools (experimental). When enabled, the model can create agent teams and coordinate work using team_create, team_delete, send_message, task_create, task_update, and task_list tools. Can also be enabled via QWEN_CODE_ENABLE_AGENT_TEAM=1 environment variable.",
+          "type": "boolean",
+          "default": false
+        },
+        "unifiedAgentLoop": {
+          "description": "Run headless sessions (`-p` and stream-json) and the model rounds of ACP user prompts (Zed, VS Code, Web Shell) on the shared agent loop (experimental). Other turns and surfaces keep their current loop for now. Can also be enabled via QWEN_CODE_ENABLE_UNIFIED_AGENT_LOOP=1 environment variable.",
           "type": "boolean",
           "default": false
         },

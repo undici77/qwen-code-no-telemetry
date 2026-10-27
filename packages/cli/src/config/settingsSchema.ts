@@ -3177,6 +3177,17 @@ const SETTINGS_SCHEMA = {
             description: `Maximum web_search calls in one session (default ${DEFAULT_WEB_SEARCH_MAX_PER_SESSION}, max ${MAX_WEB_SEARCH_MAX_PER_SESSION}; other values fall back to the default). The count is shared with subagents and resets when the session changes (/clear, /resume, branching). Once it is reached, further searches are skipped and the model is told to continue with what it has gathered. Env override: WEB_SEARCH_MAX_PER_SESSION.`,
             showInDialog: true,
           },
+          allowedHosts: {
+            type: 'array',
+            label: 'Extra Search Hosts',
+            category: 'Tools',
+            requiresRestart: true,
+            default: undefined as string[] | undefined,
+            items: { type: 'string' },
+            description:
+              'Extra host suffixes trusted for an explicitly configured search backend, for gateways that serve the DashScope Responses API under their own domain (exact host, or any subdomain of a listed suffix). Empty by default, so behaviour is unchanged unless set. Automatic derivation never uses this list, so a custom host is only used when WEB_SEARCH_BASE_URL or a modelProviders entry names it. The configured host receives the API key. Env override: WEB_SEARCH_ALLOWED_HOSTS (comma-separated).',
+            showInDialog: false,
+          },
         },
       },
       toolSearch: {
@@ -4570,6 +4581,16 @@ const SETTINGS_SCHEMA = {
         default: false,
         description:
           'Enable agent team collaboration tools (experimental). When enabled, the model can create agent teams and coordinate work using team_create, team_delete, send_message, task_create, task_update, and task_list tools. Can also be enabled via QWEN_CODE_ENABLE_AGENT_TEAM=1 environment variable.',
+        showInDialog: true,
+      },
+      unifiedAgentLoop: {
+        type: 'boolean',
+        label: 'Unified Agent Loop',
+        category: 'Experimental',
+        requiresRestart: true,
+        default: false,
+        description:
+          'Run headless sessions (`-p` and stream-json) and the model rounds of ACP user prompts (Zed, VS Code, Web Shell) on the shared agent loop (experimental). Other turns and surfaces keep their current loop for now. Can also be enabled via QWEN_CODE_ENABLE_UNIFIED_AGENT_LOOP=1 environment variable.',
         showInDialog: true,
       },
       agentCollaboration: {
