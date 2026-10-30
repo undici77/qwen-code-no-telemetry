@@ -1,0 +1,6 @@
+#!/bin/sh
+# Must live here, not in .git/hooks: core.hooksPath is .husky/_, and husky's
+# stub exits 0 when .husky/<name> is absent, so a guard in the wrong place
+# fails silently and looks identical to one that passed.
+# No attribution trailers of any kind, whatever the named co-author.
+sed -i -E '/^[[:space:]]*(🤖[[:space:]]*)?(co-?authored-by:|generated with )/Id' "$1"
