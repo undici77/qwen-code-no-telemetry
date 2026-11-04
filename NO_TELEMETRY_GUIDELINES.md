@@ -552,7 +552,7 @@ These tests were changed (not deleted) to match fork behavior, so a merge that r
 |Test|What it pins|
 |---|---|
 |`packages/core/src/config/installationManager.test.ts`|static UUID `00000000-0000-0000-0000-000000000000`|
-|`packages/core/src/config/config.test.ts`|usage statistics disabled by default|
+|`packages/core/src/config/config.test.ts`|usage statistics disabled by default, and the §17 catalog-refresh gate: its `model-catalog-refresh.js` mock must stay a **partial** mock (`importOriginal`), because the fork's call site reads `MODEL_CATALOG_REFRESH_ENV` from that module — upstream's factory listing only `refreshModelCatalog` makes every `Config.initialize()` throw|
 |`packages/cli/src/config/settingsSchema.test.ts`|`gitCoAuthor` present in schema with default `false`|
 |`packages/cli/src/llm.test.tsx`|mocks `getCliVersionDisplay` to `1.0.0-no-telemetry`|
 |`packages/cli/src/ui/systemInfo.test.ts`|renders the `-no-telemetry` suffix in the version line|
@@ -913,7 +913,7 @@ Every path that can leave the device, and the gate that holds it. All are **off 
 |Artifact publish|`https://<bucket>.<endpoint>/<key>`|Publisher defaults to **`local`**; `oss` needs explicit selection **and** bucket **and** endpoint, endpoint is regex-pinned to `*.aliyuncs.com`; publishing is permission `ask` and the prompt names the host|
 |Artifact host publish|whatever the user wrote|Runs the user's own `uploadCommand`|
 |live-host install|asset CDN + GitHub releases|Explicit install command|
-|Model catalog refresh|`models.dev/api.json`|Upstream fires this from `Config.initializeInternal()` on **every** startup, opt-out only. The fork inverts it to opt-in (`QWEN_CODE_MODELS_DEV_REFRESH=on`) at the call site, so it never fires; the bundled `model-registry.json` serves limits and modalities locally. Found by `check:egress`, not by any grep|
+|Model catalog refresh|`models.dev/api.json`|Upstream fires this from `Config.initializeInternal()`; v0.26.7 added the operator `model.catalogRefresh` switch and coupled the call to `privacy.usageStatisticsEnabled`, which §1 pins to `false`. The fork gates it on `modelCatalogRefreshEnabled && QWEN_CODE_MODELS_DEV_REFRESH=on`, so it never fires automatically and the opt-in still works; the bundled `model-registry.json` serves limits and modalities locally. Found by `check:egress`, not by any grep|
 |Web Shell `unpkg.com`|browser, not CLI|Appears only as a CSP `connect-src` allowance; the CLI never fetches it|
 
 Two things to keep flagging rather than "fixing": the OSS publisher's object ACL defaults to **`public-read`**, so an artifact you deliberately publish is world-readable at a predictable key unless you set `acl`; and the artifact tool itself is registered by default, which is safe only because of the publisher-default and `ask` gates above. If either gate moves, that becomes a real leak path.
@@ -934,7 +934,9 @@ grep -rni "publisher ?? 'local'" packages/cli/src/config/config.ts packages/core
 grep -rn "getDefaultPermission" packages/core/src/tools/artifact/artifact-tool.ts
 grep -rn "artifactEnabled ?? true\|omniEnabled ?? false" packages/core/src/config/config.ts
 grep -n "refreshModelCatalog" packages/core/src/config/config.ts
-# Must show the call ONLY inside the `MODEL_CATALOG_REFRESH_ENV === 'on'` guard.
+# Must show the call inside a guard that still requires
+# `MODEL_CATALOG_REFRESH_ENV === 'on'` (v0.26.7 wraps it in
+# `modelCatalogRefreshEnabled &&` — keep both terms).
 # A bare `void refreshModelCatalog();` means upstream's opt-out default returned —
 # that is automatic models.dev egress on every startup, and `check:egress` reports
 # it as LEAK. No grep in this document catches it; only the tripwire does.
