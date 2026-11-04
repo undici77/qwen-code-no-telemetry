@@ -7,6 +7,7 @@
 // No-telemetry fork patch — see NO_TELEMETRY_GUIDELINES.md §14 for why this
 // exists and which upstream files it hooks into.
 
+import type { Content } from '@google/genai';
 import type { Config } from '../config/config.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { escapeSystemReminderTags } from '../utils/xml.js';
@@ -82,49 +83,52 @@ export function buildAutoMemoryReminder(config: Config): string | null {
 
 /**
  * Append-only counterpart of `refreshMemoryInstruction`: reload memory from
- * disk (so `/memory show`, `/context` and the next session stay accurate) but
- * deliver the change as an appended reminder instead of rewriting the system
- * prompt.
+ * disk (so `/memory show`, `/context` and the next session stay accurate)
+ * without rewriting the system prompt. Delivery is deferred to
+ * `drainAutoMemoryDelta`, because this runs after a tool batch and before its
+ * responses are submitted — appending here would split a tool call from its
+ * result.
  */
 export async function appendAutoMemoryDelta(
   config: Config,
   logContext?: string,
 ): Promise<void> {
-  const prefix = logContext ? `${logContext}: ` : '';
-
   try {
     await config.refreshHierarchicalMemory();
   } catch (err) {
+    const prefix = logContext ? `${logContext}: ` : '';
     debugLogger.warn(`${prefix}refreshHierarchicalMemory failed: ${err}`);
   }
+}
 
+/**
+ * Deliver any memory change since the last delivery as one appended reminder.
+ * Called at the start of a user query with no tool call pending, so the delta
+ * lands right before the user's prompt.
+ */
+export function drainAutoMemoryDelta(
+  config: Config,
+  chat: { addHistory(content: Content): void },
+): void {
+  if (!isAppendOnlyMemoryEnabled()) {
+    return;
+  }
   const current = config.getAutoMemoryPrompt();
   const previous = deliveredMemoryPrompt.get(config);
   if (previous === undefined || previous === current) {
     // No prelude delivered yet (the next `getInitialChatHistory` carries the
-    // full index), or nothing changed. Either way there is nothing to append.
+    // full prompt), or nothing changed. Either way there is nothing to append.
     return;
   }
 
   const body = buildDeltaBody(previous, current);
-  if (!body) {
-    deliveredMemoryPrompt.set(config, current);
-    return;
-  }
-
-  try {
-    const client = config.getLlmClient();
-    if (!client?.isInitialized()) {
-      return;
-    }
-    await client.addHistory({
+  if (body) {
+    chat.addHistory({
       role: 'user',
       parts: [{ text: wrapReminder(body) }],
     });
-    deliveredMemoryPrompt.set(config, current);
-  } catch (err) {
-    debugLogger.warn(`${prefix}appendAutoMemoryDelta failed: ${err}`);
   }
+  deliveredMemoryPrompt.set(config, current);
 }
 
 /** Test seam: drop the per-Config delivery record. */

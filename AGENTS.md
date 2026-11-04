@@ -63,7 +63,7 @@ dropping one. Rules, invariants and verification commands live in
 | Vision-bridge concurrency      | §1.6     | Throttle concurrent image conversions; never reject on a per-turn count.                                   |
 | **Artifact remote upload**     | **§1.7** | **Remote publishers collapse to `local`, hard-locked; publish always prompts, even under yolo/auto_edit.** |
 | Control-flow timing audit      | §13      | Telemetry commits that add `await` can break TUI state updates.                                            |
-| **Append-only auto-memory**    | **§14**  | **Memory index must stay out of the system prompt tail when the flag is on.**                              |
+| **Append-only auto-memory**    | **§14**  | **With the flag on, memory saves and tool-turn reminders never rewrite already-cached prompt bytes.**      |
 | **Context/cache status items** | **§15**  | **Four status-line items stay available; all logic in the fork-owned module.**                             |
 | Resume prelude reuse (auto)    | §16      | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.                  |
 

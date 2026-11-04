@@ -31,7 +31,7 @@ NEVER-clauses, not explanations — read the rule file for the § before editing
 - **§1.6** the vision bridge never rejects on a per-turn count; throttle and queue.
 - **§1.7** remote artifact publishing stays locked off and always prompts a human, even under `yolo`/`auto_edit`; a publisher backend outside the collapse list is open egress.
 - **§13** audit telemetry commits for `void` → `await` and callback reordering — span-only timing changes survive the merge and duplicate the live tool group.
-- **§14** with `QWEN_MEMORY_APPEND_ONLY=1` the memory index never rides in the system prompt tail; `refreshMemoryInstruction()` stays the single chokepoint.
+- **§14** with `QWEN_MEMORY_APPEND_ONLY=1` no memory save or tool-turn reminder rewrites cached bytes; `refreshMemoryInstruction()` stays the single chokepoint; the converter fold is all-or-nothing and never hides user text.
 - **§15** UI code never reads the context window or model id from `getContentGeneratorConfig()` / `getModel()`; use `resolveMainModelContext()`.
 - **§16** resumed prelude reuse compares rebuilt stable texts byte-for-byte and never skips the rebuild.
 

@@ -255,6 +255,7 @@ const s14 = countTag([
   'packages/core/src/core/client.ts',
   'packages/core/src/core/environmentContext.ts',
   'packages/core/src/memory/refresh.ts',
+  'packages/core/src/core/openaiContentGenerator/converter.ts',
 ]);
 const s15 = countTag([
   'packages/cli/src/ui/statusLinePresets.ts',
@@ -270,6 +271,22 @@ check(
       /reuseResumedPreludeIfUnchanged/g,
     ) ?? []
   ).length === 2,
+);
+check(
+  '§14 prefix-stable tool turns wired (import + call)',
+  (
+    read('packages/core/src/core/openaiContentGenerator/converter.ts').match(
+      /foldInjectedContextIntoToolMessage/g,
+    ) ?? []
+  ).length === 2,
+);
+check(
+  '§14 memory delta drained at the user-query boundary (1 call)',
+  (
+    read('packages/core/src/core/client.ts').match(
+      /drainAutoMemoryDelta\(this\.config/g,
+    ) ?? []
+  ).length === 1,
 );
 const agentProd = productionTsFiles('packages/core/src/agents');
 const agentOptIn = agentProd.filter((f) =>
@@ -340,6 +357,7 @@ const TAGGED = [
   'packages/core/src/core/client.ts',
   'packages/core/src/core/environmentContext.ts',
   'packages/core/src/memory/refresh.ts',
+  'packages/core/src/core/openaiContentGenerator/converter.ts',
   'packages/cli/src/config/config.ts',
   'packages/cli/src/config/settingsSchema.ts',
   'packages/cli/src/ui/statusLinePresets.ts',
@@ -375,6 +393,7 @@ const S14 = [
   'packages/core/src/core/client.ts',
   'packages/core/src/core/environmentContext.ts',
   'packages/core/src/memory/refresh.ts',
+  'packages/core/src/core/openaiContentGenerator/converter.ts',
 ];
 const S15 = [
   'packages/cli/src/ui/statusLinePresets.ts',
@@ -382,7 +401,7 @@ const S15 = [
 ];
 const sumTags = (files) => files.reduce((n, f) => n + tagCount(f), 0);
 // §1.5's guard lives in core/config.ts, which is NOT part of §14's tally.
-check('§14 tag total is 13', sumTags(S14) === 13, `found ${sumTags(S14)}`);
+check('§14 tag total is 18', sumTags(S14) === 18, `found ${sumTags(S14)}`);
 check('§15 tag total is 12', sumTags(S15) === 12, `found ${sumTags(S15)}`);
 
 // ── Fork README protected by git, not by memory ─────────────────────────────

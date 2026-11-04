@@ -9,6 +9,7 @@ import type { Config } from '../config/config.js';
 import {
   appendAutoMemoryDelta,
   buildAutoMemoryReminder,
+  drainAutoMemoryDelta,
   isAppendOnlyMemoryEnabled,
   resetAppendOnlyMemoryStateForTests,
 } from './append-only-prompt-cache.js';
@@ -26,21 +27,19 @@ const INDEX_V2 = [
 
 interface FakeConfig {
   config: Config;
-  addHistory: ReturnType<typeof vi.fn>;
+  chat: { addHistory: ReturnType<typeof vi.fn> };
   setPrompt: (prompt: string) => void;
 }
 
 function createFakeConfig(initialPrompt: string): FakeConfig {
   let prompt = initialPrompt;
-  const addHistory = vi.fn();
   const config = {
     getAutoMemoryPrompt: () => prompt,
     refreshHierarchicalMemory: vi.fn().mockResolvedValue(undefined),
-    getLlmClient: () => ({ isInitialized: () => true, addHistory }),
   } as unknown as Config;
   return {
     config,
-    addHistory,
+    chat: { addHistory: vi.fn() },
     setPrompt: (next: string) => {
       prompt = next;
     },
@@ -94,69 +93,87 @@ describe('append-only auto-memory delivery', () => {
   });
 
   describe('appendAutoMemoryDelta', () => {
-    it('appends only the added index lines', async () => {
-      const { config, addHistory, setPrompt } = createFakeConfig(INDEX_V1);
+    it('reloads memory from disk but never appends', async () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V1);
       buildAutoMemoryReminder(config);
 
       setPrompt(INDEX_V2);
       await appendAutoMemoryDelta(config);
 
-      expect(addHistory).toHaveBeenCalledTimes(1);
-      const text = addHistory.mock.calls[0][0].parts[0].text as string;
+      expect(config.refreshHierarchicalMemory).toHaveBeenCalledTimes(1);
+      expect(chat.addHistory).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('drainAutoMemoryDelta', () => {
+    it('appends only the added lines', () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V1);
+      buildAutoMemoryReminder(config);
+
+      setPrompt(INDEX_V2);
+      drainAutoMemoryDelta(config, chat);
+
+      expect(chat.addHistory).toHaveBeenCalledTimes(1);
+      const text = chat.addHistory.mock.calls[0][0].parts[0].text as string;
+      expect(text).toContain('<system-reminder>');
       expect(text).toContain('Added:');
       expect(text).toContain('[Build is esbuild](build.md)');
       expect(text).not.toContain('[Auth uses JWT](auth-jwt.md)');
     });
 
-    it('reports removed entries', async () => {
-      const { config, addHistory, setPrompt } = createFakeConfig(INDEX_V2);
+    it('reports removed entries', () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V2);
       buildAutoMemoryReminder(config);
 
       setPrompt(INDEX_V1);
-      await appendAutoMemoryDelta(config);
+      drainAutoMemoryDelta(config, chat);
 
-      const text = addHistory.mock.calls[0][0].parts[0].text as string;
+      const text = chat.addHistory.mock.calls[0][0].parts[0].text as string;
       expect(text).toContain('Removed:');
       expect(text).toContain('[Build is esbuild](build.md)');
     });
 
-    it('appends nothing when the index is unchanged', async () => {
-      const { config, addHistory } = createFakeConfig(INDEX_V1);
+    it('appends nothing when the prompt is unchanged', () => {
+      const { config, chat } = createFakeConfig(INDEX_V1);
       buildAutoMemoryReminder(config);
 
-      await appendAutoMemoryDelta(config);
+      drainAutoMemoryDelta(config, chat);
 
-      expect(addHistory).not.toHaveBeenCalled();
+      expect(chat.addHistory).not.toHaveBeenCalled();
     });
 
-    it('appends nothing before the prelude has delivered an index', async () => {
-      const { config, addHistory, setPrompt } = createFakeConfig(INDEX_V1);
+    it('appends nothing before the prelude has delivered a prompt', () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V1);
       resetAppendOnlyMemoryStateForTests(config);
 
       setPrompt(INDEX_V2);
-      await appendAutoMemoryDelta(config);
+      drainAutoMemoryDelta(config, chat);
 
-      expect(addHistory).not.toHaveBeenCalled();
+      expect(chat.addHistory).not.toHaveBeenCalled();
     });
 
-    it('still reloads memory from disk', async () => {
-      const { config } = createFakeConfig(INDEX_V1);
+    it('appends nothing when the mode is off', () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V1);
       buildAutoMemoryReminder(config);
+      delete process.env['QWEN_MEMORY_APPEND_ONLY'];
 
-      await appendAutoMemoryDelta(config);
+      setPrompt(INDEX_V2);
+      drainAutoMemoryDelta(config, chat);
 
-      expect(config.refreshHierarchicalMemory).toHaveBeenCalledTimes(1);
+      expect(chat.addHistory).not.toHaveBeenCalled();
     });
 
-    it('emits a single delta for repeated saves of the same content', async () => {
-      const { config, addHistory, setPrompt } = createFakeConfig(INDEX_V1);
+    it('emits one cumulative delta for several saves between drains', async () => {
+      const { config, chat, setPrompt } = createFakeConfig(INDEX_V1);
       buildAutoMemoryReminder(config);
 
       setPrompt(INDEX_V2);
       await appendAutoMemoryDelta(config);
       await appendAutoMemoryDelta(config);
+      drainAutoMemoryDelta(config, chat);
+      drainAutoMemoryDelta(config, chat);
 
-      expect(addHistory).toHaveBeenCalledTimes(1);
+      expect(chat.addHistory).toHaveBeenCalledTimes(1);
     });
   });
 });

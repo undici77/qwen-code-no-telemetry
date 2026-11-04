@@ -239,7 +239,10 @@ import { type File, type IdeContext } from '../ide/types.js';
 import type { StopHookOutput } from '../hooks/types.js';
 import { approvalModeToPermissionMode } from '../hooks/permission-mode.js';
 // [no-telemetry fork] Append-only memory mode — NO_TELEMETRY_GUIDELINES.md §14
-import { isAppendOnlyMemoryEnabled } from '../memory/append-only-prompt-cache.js';
+import {
+  drainAutoMemoryDelta,
+  isAppendOnlyMemoryEnabled,
+} from '../memory/append-only-prompt-cache.js';
 
 const MAX_TURNS = 100;
 const MAX_RECENT_TOOL_NAMES_FOR_MEMORY = 20;
@@ -5017,6 +5020,12 @@ export class LlmClient {
           this.drainPendingAddedMcpToolsReminder();
         } catch (error) {
           debugLogger.warn('drainPendingAddedMcpToolsReminder failed', error);
+        }
+        // [no-telemetry fork] §14: deferred memory delta, never mid tool pair.
+        try {
+          drainAutoMemoryDelta(this.config, this.getChat());
+        } catch (error) {
+          debugLogger.warn('drainAutoMemoryDelta failed', error);
         }
         try {
           await this.drainSkillAndCommandReminders();

@@ -49,6 +49,8 @@ import { evictOldestImagesBeyondCap } from './image-budget.js';
 import { setGenAiUsageProvenance } from '../../telemetry/gen-ai-usage.js';
 import { SchemaValidator } from '../../utils/schemaValidator.js';
 import { TrailingThinkingTagFilter } from './trailing-thinking-tag-filter.js';
+// [no-telemetry fork] Prefix-stable tool turns — NO_TELEMETRY_GUIDELINES.md §14
+import { foldInjectedContextIntoToolMessage } from './tool-turn-reminder-fold.js';
 
 const debugLogger = createDebugLogger('CONVERTER');
 const SPLIT_TOOL_MEDIA_TEXT = '(attached media from previous tool call)';
@@ -698,6 +700,8 @@ function processContent(
   // user message inline (after each tool message) would interleave and
   // break that contract when multiple parallel tool calls return media.
   const accumulatedSplitMedia: OpenAIContentPart[] = [];
+  // [no-telemetry fork] §14 prefix-stable tool turns
+  let lastToolMessage: OpenAI.Chat.ChatCompletionToolMessageParam | undefined;
 
   const flushAssistantMessage = () => {
     if (
@@ -880,6 +884,7 @@ function processContent(
           }
         }
         messages.push(toolMessage);
+        lastToolMessage = toolMessage; // [no-telemetry fork] §14
       }
     }
   }
@@ -905,7 +910,16 @@ function processContent(
     return;
   }
 
-  if (contentParts.length > 0) {
+  if (
+    contentParts.length > 0 &&
+    // [no-telemetry fork] §14 prefix-stable tool turns
+    !foldInjectedContextIntoToolMessage(
+      parts,
+      contentParts,
+      lastToolMessage,
+      accumulatedSplitMedia.length > 0,
+    )
+  ) {
     messages.push({
       role: 'user',
       content:

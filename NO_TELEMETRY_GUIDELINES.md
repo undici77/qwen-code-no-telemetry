@@ -712,41 +712,59 @@ grep -n "clears the live tool-call view before a slow completion callback" packa
 
 ## 14. MANDATORY: Append-Only Auto-Memory Patch (Non-Negotiable)
 
-The managed auto-memory index **MUST** be deliverable through the conversation instead of the system prompt tail, gated by the `QWEN_MEMORY_APPEND_ONLY` environment variable. This is a **mandatory, non-removable patch** that applies to every merge.
+With `QWEN_MEMORY_APPEND_ONLY` set, nothing a memory operation does may change bytes that a prefix-caching server has already cached. This is a **mandatory, non-removable patch** that applies to every merge.
 
-**Why**: upstream keeps the memory index in the **system prompt**, which is serialized ahead of the whole conversation. `refreshMemoryInstruction()` rewrites it on every memory write, and the background extractor runs once per user turn — so one added index line invalidates every KV block behind it. On a prefix-caching server (oMLX, DeepSeek/Qwen, Anthropic `cache_control`) that is a full re-prefill of the transcript. With the flag on, the index rides in the startup prelude and later saves append a small delta at the end of history.
+**Why**: a prefix-caching server (oMLX and other vLLM-style paged KV caches, DeepSeek/Qwen implicit caching, Anthropic `cache_control`) reuses the cache only up to the first differing token, so any rewrite in front of the newest message re-prefills everything after it. Upstream #13521 (v0.26.x) already moved the memory **index** out of the system prompt: `getAutoMemoryPrompt()` is now policy-only, and the catalog travels as an appended "full snapshot" part (`memory/request-context.ts`). This patch guards what is left:
 
-**Usage**: `QWEN_MEMORY_APPEND_ONLY=1` (also `true` / `on`). Unset = upstream behavior, byte for byte.
+1. **Policy layer**: the auto-memory policy rides in the startup prelude instead of the system prompt tail, and `refreshMemoryInstruction()` never rewrites the system prompt.
+2. **Delta placement**: a policy change is delivered as an appended delta at the next user query, never between a tool call and its result. `refreshMemoryAfterManagedWrite` runs after a tool batch and before its responses are submitted, so appending there would split the pair.
+3. **Prefix-stable tool turns**: Qwen/DeepSeek-style chat templates render `<think>` only for assistant messages after the **last user message**. Upstream appends injected context to tool-result turns: the catalog snapshot after every `MEMORY.md` change, todo reminders and memory recall. The OpenAI converter emits that context as a separate `role: "user"` message, so every injection drops the rendered reasoning of every earlier step of the turn, and the server re-prefills from the first assistant message of the turn. With the flag on, such a turn folds the injected context into its last tool message instead, as the Anthropic converter already does upstream.
 
-**Hooks** — all logic is in the fork-owned module; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
+**Usage**: `QWEN_MEMORY_APPEND_ONLY=1` (also `true` / `on`). Unset = upstream behavior, byte for byte, on every provider.
+
+**Hooks** — all logic is in fork-owned modules; upstream files carry only additive hunks tagged `// [no-telemetry fork]`.
 
 |File|Ownership|Must contain|
 |---|---|---|
-|`packages/core/src/memory/append-only-prompt-cache.ts` (+ `.test.ts`)|**Fork**|`isAppendOnlyMemoryEnabled`, `buildAutoMemoryReminder`, `appendAutoMemoryDelta`. Restore verbatim if a merge deletes it.|
+|`packages/core/src/memory/append-only-prompt-cache.ts` (+ `.test.ts`)|**Fork**|`isAppendOnlyMemoryEnabled`, `buildAutoMemoryReminder`, `appendAutoMemoryDelta`, `drainAutoMemoryDelta`. Restore verbatim if a merge deletes it.|
+|`packages/core/src/core/openaiContentGenerator/tool-turn-reminder-fold.ts` (+ `.test.ts`)|**Fork**|`foldInjectedContextIntoToolMessage`. Restore verbatim if a merge deletes it.|
 |`packages/core/src/memory/refresh.ts`|Upstream|Early return at the top of `refreshMemoryInstruction()`.|
-|`packages/core/src/core/client.ts`|Upstream|`autoMemory:` ternary in `getMainSessionSystemInstruction()` + `includeAutoMemoryReminder: true` at the **three** main-session call sites.|
+|`packages/core/src/core/client.ts`|Upstream|`autoMemory:` ternary in `getMainSessionSystemInstruction()` + `includeAutoMemoryReminder: true` at the **three** main-session call sites + `drainAutoMemoryDelta(this.config, this.getChat())` in the `!hasPendingToolCall && (UserQuery \|\| Cron)` drain block, next to `drainPendingAddedMcpToolsReminder()`.|
 |`packages/core/src/core/environmentContext.ts`|Upstream|`includeAutoMemoryReminder?` option + the `reminderParts` entry.|
+|`packages/core/src/core/openaiContentGenerator/converter.ts`|Upstream|In `processContent`: the import, `let lastToolMessage`, its assignment after `messages.push(toolMessage)`, and the `!foldInjectedContextIntoToolMessage(...)` guard on the final user-message push.|
 
 **Invariants**:
 
 1. `refreshMemoryInstruction()` is the single chokepoint — route any new memory-driven refresh through it.
 2. `includeAutoMemoryReminder` defaults to `false`; only the three main-session sites opt in. Subagents never do.
 3. The custom-instruction branch of `client.ts` stays untouched.
-4. Flag off ⇒ upstream behavior unchanged.
+4. Flag off ⇒ upstream behavior unchanged, including the OpenAI wire format.
+5. `appendAutoMemoryDelta` never appends; only `drainAutoMemoryDelta` does, and only from the user-query drain block.
+6. The fold is **all-or-nothing**: a turn is folded only when every text part is injected context (a part carrying `AUTO_MEMORY_SNAPSHOT_METADATA`, or text starting with `SYSTEM_REMINDER_OPEN`). `extractCuratedHistory` merges a real user prompt typed after an interrupt into the tool turn, and that prompt must never be hidden inside a tool result. One unrecognised part leaves the whole turn on the upstream path, so the worst case is "no cache win".
+7. The fold never runs when tool media was split into a follow-up user message (that boundary exists anyway).
+8. Unwrapped reminders (legacy recall `## Relevant memory`, exploration `System:`, loop reminders) are deliberately not recognised. If upstream wraps them in `<system-reminder>` they start folding automatically.
+
+**Known gap** (follow-up): with the flag on, a write to a project context file (`QWEN.md`/`AGENTS.md`) reloads `userMemory` but is not delivered to the model until an unrelated system-prompt rebuild (model, language, output style, `/cd`, recall-mode switch).
+
+**Settings recipe — reasoning across user prompts**: the fold keeps one turn's reasoning stable. Across real user prompts, Qwen-style templates still drop earlier `<think>` blocks, so the previous turn is re-prefilled. Templates that support it (Qwen3.6+) keep them with `preserve_thinking`. Upstream sends it only to DashScope; for a local oMLX/vLLM entry, set it in `modelProviders` → `generationConfig.extra_body`: `{"chat_template_kwargs": {"preserve_thinking": true}}`. The pipeline's own `chat_template_kwargs` rewrites spread existing keys and only touch `enable_thinking`, so the key survives. Templates that do not know the kwarg ignore it.
 
 **Verify after every merge**:
 
 ```bash
 grep -rn "no-telemetry fork" packages/core/src/core/client.ts \
-  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts   # 13 lines (client 5, envContext 6, refresh 2)
+  packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts \
+  packages/core/src/core/openaiContentGenerator/converter.ts   # 18 lines (client 6, envContext 6, refresh 2, converter 4)
 grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts  # exactly 1
 grep -c "includeAutoMemoryReminder" packages/core/src/core/client.ts                      # 3
+grep -c "drainAutoMemoryDelta(this.config" packages/core/src/core/client.ts               # 1
+grep -c "foldInjectedContextIntoToolMessage" packages/core/src/core/openaiContentGenerator/converter.ts  # 2
 grep -c "isAppendOnlyMemoryEnabled()" packages/core/src/memory/refresh.ts                 # 1
 grep -rn "includeAutoMemoryReminder" packages/core/src/agents/                            # zero lines
-cd packages/core && npx vitest run src/memory/append-only-prompt-cache.test.ts
+cd packages/core && npx vitest run src/memory/append-only-prompt-cache.test.ts \
+  src/core/openaiContentGenerator/tool-turn-reminder-fold.test.ts
 ```
 
-**Conflict resolution**: keep upstream's refactor, re-apply the hooks on top. Never resolve by dropping the patch.
+**Conflict resolution**: keep upstream's refactor, re-apply the hooks on top. Never resolve by dropping the patch. If upstream rewrites `processContent`, re-attach the fold at whatever point emits the trailing user message of a tool-result turn.
 
 ---
 
