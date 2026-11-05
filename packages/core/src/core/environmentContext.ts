@@ -81,6 +81,78 @@ export function formatDateForContext(date: Date = new Date()): string {
 }
 
 /**
+ * `partMetadata` key on a part that tells the model the date; its value is
+ * that date. The client puts it on the date reminders it adds and on a startup
+ * context that starts a conversation. Part metadata never reaches the model,
+ * so text the user writes, pastes or includes cannot carry it.
+ */
+export const DATE_REMINDER_METADATA = 'qwen-code:date-reminder';
+
+// The date reminder sessions recorded before the date reminder carried
+// DATE_REMINDER_METADATA (a compressed record can keep one). Read only when it
+// is a whole part, as the client added it. Safe to remove once those sessions
+// have cycled out.
+const LEGACY_DATE_REMINDER_PATTERN = new RegExp(
+  `^${SYSTEM_REMINDER_OPEN}\\nThe current date is: ([^\\n]+?)\\. Note: This is the authoritative current date[^\\n]*\\n${SYSTEM_REMINDER_CLOSE}$`,
+);
+
+/**
+ * The last date the history tells the model, read only from what the client
+ * generates: the marked startup context and date reminder parts. The date
+ * reminder is decided from this rather than from client state, so rewind,
+ * resume, compaction and `/clear` cannot leave the two out of step.
+ */
+export function findLastAnnouncedDate(
+  history: readonly Content[],
+): string | undefined {
+  for (let index = history.length - 1; index >= 0; index--) {
+    const content = history[index]!;
+    if (content.role !== 'user') continue;
+    const parts = content.parts ?? [];
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
+      const part = parts[partIndex]!;
+      const marked = part.partMetadata?.[DATE_REMINDER_METADATA];
+      if (typeof marked === 'string') return marked;
+      if (
+        typeof part.text !== 'string' ||
+        !part.text.startsWith(SYSTEM_REMINDER_OPEN)
+      ) {
+        continue;
+      }
+      const date = LEGACY_DATE_REMINDER_PATTERN.exec(part.text.trimEnd())?.[1];
+      if (date !== undefined) return date;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The reminder part that tells the model today's date, or undefined when the
+ * history already gives it. With no date in the history, a history that holds
+ * earlier turns (a resumed or compacted conversation, whose startup context
+ * was rebuilt) is told that those turns may come from another date.
+ */
+export function buildDateReminder(
+  history: readonly Content[],
+  today: string = formatDateForContext(),
+): Part | undefined {
+  const announced = findLastAnnouncedDate(history);
+  if (announced === today) return undefined;
+  let text: string;
+  if (announced !== undefined) {
+    text = `The date has changed since earlier in this conversation. Today's date is now ${today}. Use this date from here on; there is no need to mention the change to the user.`;
+  } else if (history.length > getStartupContextLength(history)) {
+    text = `Today's date is ${today}. Earlier parts of this conversation may come from another date; use this date from here on.`;
+  } else {
+    text = `Today's date is ${today}.`;
+  }
+  return {
+    text: wrapSystemReminder(text),
+    partMetadata: { [DATE_REMINDER_METADATA]: today },
+  };
+}
+
+/**
  * Generates a string describing the current workspace directories and their structures.
  * @param {Config} config - The runtime configuration and services.
  * @returns {Promise<string>} A promise that resolves to the directory context string.
@@ -124,8 +196,10 @@ ${folderStructure}`;
  * @param {Config} config - The runtime configuration and services.
  * @returns A promise that resolves to an array of `Part` objects containing environment information.
  */
-export async function getEnvironmentContext(config: Config): Promise<Part[]> {
-  const today = formatDateForContext();
+export async function getEnvironmentContext(
+  config: Config,
+  today: string = formatDateForContext(),
+): Promise<Part[]> {
   const platform = config.getExecutionEnvironment?.()
     ? ''
     : `My operating system is: ${process.platform}\n`;
@@ -579,8 +653,9 @@ export function buildChangedAgentsReminder(
 
 export async function buildStartupContextReminder(
   config: Config,
+  today?: string,
 ): Promise<string> {
-  const envParts = await getEnvironmentContext(config);
+  const envParts = await getEnvironmentContext(config, today);
   const envContextString = envParts.map((part) => part.text || '').join('\n\n');
   return wrapSystemReminder(envContextString);
 }
@@ -601,6 +676,13 @@ export interface InitialChatHistoryOptions {
   // prompt so a repository change between sessions does not invalidate the
   // provider-cached system prompt. Subagents leave it unset.
   gitStatus?: string | null;
+  // The date the turns after the startup context ran under, recorded on the
+  // startup context part for the date reminder (see findLastAnnouncedDate).
+  // Defaults to the startup context's own date when it starts the
+  // conversation, and to none when it goes in front of `extraHistory`, whose
+  // date is unknown. A caller that puts the startup context in front of turns
+  // whose date it knows passes that date; null records none.
+  announcedDate?: string | null;
 }
 
 /**
@@ -633,9 +715,16 @@ export async function getInitialChatHistory(
   const includeAvailableSkillsReminder =
     (options.includeAvailableSkillsReminder ?? true) &&
     toolRegistry.getAllToolNames().includes(ToolNames.SKILL);
+  const today = formatDateForContext();
   const startupReminder = config.getSkipStartupContext()
     ? null
-    : await buildStartupContextReminder(config);
+    : await buildStartupContextReminder(config, today);
+  const announcedDate =
+    options.announcedDate !== undefined
+      ? options.announcedDate
+      : extraHistory?.length
+        ? null
+        : today;
   const skillsResult = includeAvailableSkillsReminder
     ? await buildAvailableSkillsReminder(config)
     : null;
@@ -654,24 +743,38 @@ export async function getInitialChatHistory(
   // function runs, on every resume — so it almost never matches the
   // original session-start build even when nothing else changed. See
   // NO_TELEMETRY_GUIDELINES.md §16.
-  const stableTexts = [
-    buildMcpServerInstructionsReminder(toolRegistry),
+  const asPart = (text: string | null): Part | null =>
+    text === null ? null : { text };
+  const stableParts = [
+    asPart(buildMcpServerInstructionsReminder(toolRegistry)),
     // [no-telemetry fork] Append-only memory mode: the auto-memory index is
     // delivered here instead of in the system prompt tail. Returns null when
     // the mode is off. See NO_TELEMETRY_GUIDELINES.md §14.
-    options.includeAutoMemoryReminder ? buildAutoMemoryReminder(config) : null,
-    skillsResult?.reminder ?? null,
-    startupReminder,
-    options.gitStatus ? wrapSystemReminder(options.gitStatus) : null,
-  ].filter((text): text is string => text !== null);
+    asPart(
+      options.includeAutoMemoryReminder
+        ? buildAutoMemoryReminder(config)
+        : null,
+    ),
+    asPart(skillsResult?.reminder ?? null),
+    startupReminder === null
+      ? null
+      : {
+          text: startupReminder,
+          ...(announcedDate !== null && {
+            partMetadata: { [DATE_REMINDER_METADATA]: announcedDate },
+          }),
+        },
+    asPart(options.gitStatus ? wrapSystemReminder(options.gitStatus) : null),
+  ].filter((part): part is Part => part !== null);
+  const stableTexts = stableParts.map((part) => part.text ?? '');
   const deferredToolsText = includeDeferredToolsReminder
     ? buildDeferredToolsReminder(toolRegistry)
     : null;
 
   const reminderParts = [
-    ...stableTexts,
-    ...(deferredToolsText !== null ? [deferredToolsText] : []),
-  ].map((text) => ({ text }));
+    ...stableParts,
+    ...(deferredToolsText !== null ? [{ text: deferredToolsText }] : []),
+  ];
 
   const prelude =
     reminderParts.length === 0
@@ -719,7 +822,7 @@ export async function getInitialChatHistory(
  *    counted as real user prompts for rewind indexing.
  */
 export function getStartupContextLength(
-  history: Content[],
+  history: readonly Content[],
   options: { includeCompressed?: boolean } = {},
 ): number {
   const firstEntry = history[0];
@@ -748,7 +851,7 @@ export function getStartupContextLength(
 }
 
 function detectCompressedPrefixLength(
-  history: Content[],
+  history: readonly Content[],
   offset: number,
 ): number {
   const firstEntry = history[offset];

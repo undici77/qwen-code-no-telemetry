@@ -1821,6 +1821,7 @@ export class WorkflowTool extends BaseDeclarativeTool<
       buildWorkflowParamSchema(surface, nameOnly),
       /* isOutputMarkdown */ true,
       /* canUpdateOutput */ true,
+      /* shouldDefer */ true,
     );
     this.authoringSurface = surface;
   }

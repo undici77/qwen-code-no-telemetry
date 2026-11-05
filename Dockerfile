@@ -59,7 +59,7 @@ FROM docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1
 # declared before its own FROM.
 ARG APT_MIRROR=
 
-ARG QWEN_REF="v0.26.7-no-telemetry"
+ARG QWEN_REF="v0.26.8-no-telemetry"
 ARG REPO_URL="https://github.com/undici77/qwen-code-no-telemetry"
 
 ENV QWEN_REF=${QWEN_REF}

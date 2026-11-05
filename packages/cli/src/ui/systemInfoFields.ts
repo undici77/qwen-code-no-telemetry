@@ -97,6 +97,10 @@ function formatAuth(info: ExtendedSystemInfo): string {
     return '';
   }
 
+  if (info.selectedAuthType === 'qwen-subscription') {
+    return 'Qwen Subscription';
+  }
+
   const managedProvider = findProviderByCredentials(
     info.baseUrl,
     info.apiKeyEnvKey,
