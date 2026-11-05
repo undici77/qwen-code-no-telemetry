@@ -264,16 +264,7 @@ Every successful merge REQUIRES:
     grep -n "bridgeSlotsAvailable = VISION_BRIDGE_MAX_IMAGES" packages/core/src/services/visionBridge/vision-bridge-service.ts
     # The bound must be a concurrency limit, not a per-turn count.
     ```
-12. **APPEND-ONLY AUTO-MEMORY CHECK** ⚠️ See Section 14: Verify the prompt-cache patch survived. All **13** tagged hook lines must still be present across the three files (`core/client.ts` 5, `core/environmentContext.ts` 6, `memory/refresh.ts` 2), and the memory layer must no longer be hardcoded into the main system prompt:
-
-    ```bash
-    grep -rn "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
-    # Must return 13 lines
-    grep -c "autoMemory: this.config.getAutoMemoryPrompt()" packages/core/src/core/client.ts
-    # Must return exactly 1 (the custom-instruction branch, intentionally untouched)
-    grep -rn "includeAutoMemoryReminder" packages/core/src/agents/
-    # Must return zero lines (subagents never opt in)
-    ```
+12. **APPEND-ONLY AUTO-MEMORY CHECK** ⚠️ See Section 14: run its **"Verify after every merge"** block verbatim. It is the single home of the hook counts (four upstream files, including the converter fold), the wiring greps and the two vitest files. Do not copy the numbers here: this item once said 13 while the real total was 18, and nothing noticed. `npm run check:context` enforces the totals.
 
 13. **CONTEXT & PROMPT-CACHE STATUS ITEMS CHECK** ⚠️ See Section 15: Verify the status-line patch survived. All logic must still live in the fork-owned module, and the fork module must not import upstream values back (module cycle):
 
@@ -332,10 +323,8 @@ Every successful merge REQUIRES:
     grep -n "https://" packages/core/src/tools/serpapi-web-search.ts
     # loggers.ts must reference uiTelemetryService (4+ lines):
     grep -c "uiTelemetryService" packages/core/src/telemetry/loggers.ts
-    # append-only memory hooks must survive the merge — grep -c prints one
-    # "path:count" per file, so read the numbers, not a line count:
-    grep -c "no-telemetry fork" packages/core/src/core/client.ts packages/core/src/core/environmentContext.ts packages/core/src/memory/refresh.ts
-    # expect client.ts 5, environmentContext.ts 6, refresh.ts 2  (13 total)
+    # append-only memory hooks (§14): run that section's verify block; the
+    # counts live only there and in scripts/check-context-docs.js
     # status-line context/cache hooks must survive the merge:
     grep -c "no-telemetry fork" packages/cli/src/ui/statusLinePresets.ts packages/cli/src/ui/hooks/useStatusLine.ts
     # expect statusLinePresets.ts 7, useStatusLine.ts 5  (12 total)
@@ -426,7 +415,7 @@ When merging from `main`, conflicts may arise. Use this priority order:
 |Installation ID generation|**HIGHEST**|Return static UUID `00000000-0000-0000-0000-000000000000`|
 |WebSearch/SerpApi patch|**HIGHEST**|**ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily.|
 |Vision-bridge image concurrency patch|**HIGHEST**|**ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.|
-|Append-only auto-memory patch|**HIGHEST**|**ALWAYS** re-apply the 13 `[no-telemetry fork]` hook lines (client.ts 5, environmentContext.ts 6, refresh.ts 2) on top of upstream's new shape. Never resolve by dropping the flag.|
+|Append-only auto-memory patch|**HIGHEST**|**ALWAYS** re-apply every `[no-telemetry fork]` hook listed in §14 (client.ts, environmentContext.ts, refresh.ts, converter.ts) on top of upstream's new shape. Never resolve by dropping the flag or the converter fold.|
 |Specialized `README.md` content|**HIGHEST**|**DO NOT** merge upstream README. Keep fork docs — now declared `merge=ours` in `.gitattributes`, so git discards upstream's version instead of leaving this to memory. List what was discarded per §1.5 merge reporting.|
 |Version string in `package.json`|**MEDIUM**|Match upstream (without `-no-telemetry`)|
 |UI display version|**LOW**|Keep `-no-telemetry` suffix for clarity|
