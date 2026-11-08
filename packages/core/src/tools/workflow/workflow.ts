@@ -982,6 +982,9 @@ function startCancelledResult(): WorkflowToolResult {
   return {
     llmContent: 'Workflow was cancelled before it could start.',
     returnDisplay: 'Workflow cancelled.',
+    // Same returned-interruption shape as the monitor: nothing ran, so the
+    // scheduler must not tell the model the call completed.
+    interruptedBeforeCompletion: true,
   };
 }
 

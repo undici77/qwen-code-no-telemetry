@@ -9,6 +9,7 @@ import * as messageDeletion from '../utils/message-deletion';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, forwardRef, useImperativeHandle } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { DAEMON_APPROVAL_MODES } from '../test/sidebarHarness';
 import {
   DaemonHttpError,
   GOAL_PAUSE_REASON_COMMAND,
@@ -137,7 +138,7 @@ const ownerGuard = {
 };
 
 vi.mock('@qwen-code/web-shell/daemon-react-sdk', () => ({
-  DAEMON_APPROVAL_MODES: ['default', 'plan', 'auto-edit', 'auto', 'yolo'],
+  DAEMON_APPROVAL_MODES,
   useActions: () => daemonActions,
   useConnection: () => connectionState,
   useDaemonFollowupSuggestion: (options: any) => {
@@ -3170,6 +3171,20 @@ describe('ChatPane', () => {
     render();
     expect(testid('pane-streaming')?.getAttribute('data-started-at')).toBe(
       'none',
+    );
+  });
+
+  it('uses this local send clock while the server user echo has not arrived', () => {
+    streamingStateValue = 'waiting';
+    messagesState = [
+      { id: 'old-user', role: 'user', content: 'old', timestamp: 1000 },
+    ];
+    Object.assign(connectionState, {
+      localPrompt: { sessionId: connectionState.sessionId, startedAt: 9000 },
+    });
+    render();
+    expect(testid('pane-streaming')?.getAttribute('data-started-at')).toBe(
+      '9000',
     );
   });
 
