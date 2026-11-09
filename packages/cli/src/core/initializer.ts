@@ -13,6 +13,7 @@ import {
 } from '@qwen-code/qwen-code-core';
 import { type LoadedSettings } from '../config/settings.js';
 export type { LoadedSettings } from '../config/settings.js';
+import { getSubscriptionStartupFallbackModel } from '../config/modelProvidersScope.js';
 import { performInitialAuth } from './auth.js';
 import { AuthType } from '@qwen-code/qwen-code-core/utils/auth-type.js';
 import { subscriptionModelUnavailable } from '@qwen-code/qwen-code-core/qwen/subscription-models.js';
@@ -35,6 +36,7 @@ export interface InitializeAppOptions {
    * paint; non-TUI paths leave it false so the first request keeps IDE context.
    */
   deferIdeConnection?: boolean;
+  allowSubscriptionStartupFallback?: boolean;
 }
 
 /**
@@ -72,7 +74,14 @@ export async function initializeApp(
   // Use authType from modelsConfig which respects CLI --auth-type argument
   // over settings.security.auth.selectedType
   const authType = config.getModelsConfig().getCurrentAuthType();
-  const authError = await performInitialAuth(config, authType);
+  const subscriptionFallbackModel = options.allowSubscriptionStartupFallback
+    ? getSubscriptionStartupFallbackModel(settings, authType, config)
+    : undefined;
+  const authError = await performInitialAuth(
+    config,
+    authType,
+    subscriptionFallbackModel,
+  );
   const inactiveSubscription =
     authType === AuthType.QWEN_SUBSCRIPTION && !config.getAuthType();
   const authNotice =
