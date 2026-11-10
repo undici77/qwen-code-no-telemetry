@@ -10,7 +10,10 @@ import {
   type HumanPromptInput,
   type WorkflowIntentTrigger,
 } from './workflow-intent.js';
-import { isTopLevelSession } from '../agents/runtime/agent-context.js';
+import {
+  isTopLevelSession,
+  runOutsideAgentContext,
+} from '../agents/runtime/agent-context.js';
 import { logWorkflowKeyword } from '../telemetry/loggers.js';
 import { WorkflowKeywordEvent } from '../telemetry/types.js';
 
@@ -1504,7 +1507,14 @@ export class LlmClient {
       );
     }
     const deferredTools = this.resolveDeferredToolsForReminder(deferredSummary);
-    const toolDeclarations = toolRegistry.getFunctionDeclarations();
+    // The main chat's declarations are main-session-owned. Some of them
+    // (read_file) read the model's modalities through the async-local runtime
+    // view, so building them inside a leaked background-agent frame bakes that
+    // model's modalities into the prompt prefix and breaks the prompt cache
+    // (#7156 class). Build them outside any agent frame.
+    const toolDeclarations = runOutsideAgentContext(() =>
+      toolRegistry.getFunctionDeclarations(),
+    );
     // Some providers reject an empty tool list; offer none instead.
     const tools: Tool[] = toolDeclarations.length
       ? [{ functionDeclarations: toolDeclarations }]

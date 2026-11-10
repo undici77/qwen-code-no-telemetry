@@ -157,7 +157,10 @@ import {
   markApiHistoryPrompt,
 } from '../services/session-api-history.js';
 import type { ChatRecord } from '../services/chatRecordingService.js';
-import { runWithAgentContext } from '../agents/runtime/agent-context.js';
+import {
+  getCurrentAgentId,
+  runWithAgentContext,
+} from '../agents/runtime/agent-context.js';
 import {
   clearCacheSafeParams,
   getCacheSafeParams,
@@ -2968,6 +2971,25 @@ describe('Gemini Client (client.ts)', () => {
       await client.setTools();
 
       expect(setTools).toHaveBeenCalledWith(tools);
+    });
+
+    it('builds the declarations outside any leaked agent frame', async () => {
+      // A background agent's runtime view must not decide what the main chat
+      // declares: read_file's description follows the model's modalities.
+      const reg = registryMock();
+      reg.getDeferredToolSummary.mockReturnValue([]);
+      let agentIdAtBuild: string | null | undefined;
+      reg.getFunctionDeclarations.mockImplementation(() => {
+        agentIdAtBuild = getCurrentAgentId();
+        return [{ name: 'read_file' }];
+      });
+      vi.spyOn(client.getChat(), 'setTools').mockImplementation(() => {});
+
+      await runWithAgentContext('leaked-background-agent', () =>
+        client.setTools(),
+      );
+
+      expect(agentIdAtBuild).toBeNull();
     });
 
     it('leaves the todo reminder to a host that runs its own tool-call guards', async () => {
