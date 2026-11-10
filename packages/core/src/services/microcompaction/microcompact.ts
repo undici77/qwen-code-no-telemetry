@@ -7,7 +7,10 @@
 import type { Content, Part } from '@google/genai';
 
 import type { ClearContextOnIdleSettings } from '../../config/config.js';
-import { DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD } from '../../config/clearContextDefaults.js';
+import {
+  DEFAULT_TOOL_RESULTS_IDLE_MINUTES,
+  DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD,
+} from '../../config/clearContextDefaults.js';
 import { sanitizeMimeForPlaceholder } from '../compactionInputSlimming.js';
 import { ToolNames, canonicalToolName } from '../../tools/tool-names.js';
 
@@ -300,7 +303,8 @@ export function evaluateTimeBasedTrigger(
   lastApiCompletionTimestamp: number | null,
   settings: ClearContextOnIdleSettings,
 ): { gapMs: number } | null {
-  const thresholdMin = settings.toolResultsThresholdMinutes ?? 60;
+  const thresholdMin =
+    settings.toolResultsThresholdMinutes ?? DEFAULT_TOOL_RESULTS_IDLE_MINUTES;
   // -1 means disabled
   if (thresholdMin < 0) {
     return null;
@@ -1033,7 +1037,8 @@ export function microcompactHistory(
     return { history };
   }
 
-  const thresholdMinutes = settings.toolResultsThresholdMinutes ?? 60;
+  const thresholdMinutes =
+    settings.toolResultsThresholdMinutes ?? DEFAULT_TOOL_RESULTS_IDLE_MINUTES;
   // Only count items that were actually protected by keepRecent, not
   // already-cleared items that were skipped during the clearing pass.
   const toolsKept = tool.filter((r) => keepRefs.has(refKey(r))).length;

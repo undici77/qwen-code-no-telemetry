@@ -356,6 +356,20 @@ Every successful merge REQUIRES:
     npm run check:tables -- --write                   # apply, after the same proof
     ```
 
+17. **TOOL-RESULT CLEARING DEFAULTS CHECK** ⚠️ See Section 19: both microcompaction triggers must still default to `-1`. `npm run check:context` asserts the values; the tests are the second line:
+
+    ```bash
+    cd packages/core && npx vitest run src/config/config.test.ts -t "getClearContextOnIdle"
+    cd packages/cli && npx vitest run src/config/settingsSchema.test.ts
+    ```
+
+18. **SETTOOLS FRAME CHECK** ⚠️ See Section 20: `LlmClient.setTools()` must still build the declarations outside any agent frame.
+
+    ```bash
+    grep -n "runOutsideAgentContext" packages/core/src/core/client.ts     # import + the setTools call
+    cd packages/core && npx vitest run src/core/client.test.ts -t "outside any leaked agent frame"
+    ```
+
 ---
 
 ## 4. Versioning Strategy: Two-Layer Approach
@@ -416,6 +430,8 @@ When merging from `main`, conflicts may arise. Use this priority order:
 |WebSearch/SerpApi patch|**HIGHEST**|**ALWAYS** keep the SerpApi backend. `merge=ours` handles the seams automatically — a conflict here means the driver is unregistered, so fix `git config --local merge.ours.driver true`. Never accept upstream DashScope/Google/GLM/Tavily.|
 |Vision-bridge image concurrency patch|**HIGHEST**|**ALWAYS** throttle concurrency (max 4 in flight); never reject an image on a per-turn count.|
 |Append-only auto-memory patch|**HIGHEST**|**ALWAYS** re-apply every `[no-telemetry fork]` hook listed in §14 (client.ts, environmentContext.ts, refresh.ts, converter.ts) on top of upstream's new shape. Never resolve by dropping the flag or the converter fold.|
+|Tool-result clearing defaults|**HIGHEST**|**ALWAYS** keep both `clearContextOnIdle` triggers at `-1` (§19). Never restore `60` minutes or `500_000` characters as defaults.|
+|`setTools()` declaration frame|**HIGHEST**|**ALWAYS** build the main chat's tool declarations through `runOutsideAgentContext` (§20).|
 |Specialized `README.md` content|**HIGHEST**|**DO NOT** merge upstream README. Keep fork docs — now declared `merge=ours` in `.gitattributes`, so git discards upstream's version instead of leaving this to memory. List what was discarded per §1.5 merge reporting.|
 |Version string in `package.json`|**MEDIUM**|Match upstream (without `-no-telemetry`)|
 |UI display version|**LOW**|Keep `-no-telemetry` suffix for clarity|
@@ -546,6 +562,9 @@ These tests were changed (not deleted) to match fork behavior, so a merge that r
 |`packages/cli/src/llm.test.tsx`|mocks `getCliVersionDisplay` to `1.0.0-no-telemetry`|
 |`packages/cli/src/ui/systemInfo.test.ts`|renders the `-no-telemetry` suffix in the version line|
 |`packages/cli/src/i18n/mustTranslateKeys.test.ts`|restored deleted locale files + `git-commit.js`|
+|`packages/core/src/config/config.test.ts` (`getClearContextOnIdle`)|tool-result clearing disabled by default, explicit opt-in still honoured (§19)|
+|`packages/cli/src/config/settingsSchema.test.ts`|schema defaults for the two `clearContextOnIdle` thresholds are `-1` (§19)|
+|`packages/core/src/core/client.test.ts`|`setTools` builds declarations outside a leaked agent frame (§20)|
 |`packages/core/src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`)|excluded in `packages/core/vitest.config.ts` — cannot compile without the removed `@opentelemetry` deps|
 
 > `packages/cli/src/gemini.test.tsx` used to carry the `getCliVersionDisplay` mock. That file no longer exists upstream — the mock now lives in `llm.test.tsx` and the suffix assertion in `ui/systemInfo.test.ts`. A merge that resurrects the old row is pointing at a dead path.
@@ -1036,3 +1055,49 @@ State these limits when reporting a pass — a clean verdict is scoped, not abso
 - **Every release:** `npm run check:egress` is a blocking step, alongside `check:context` and `check:merge-drivers`.
 - **After any merge that touches network code, a dependency, or an approval-mode path:** run it. This is the check that would have caught the §1.7 artifact window on its own.
 - **CI:** deliberately **not** wired into the merged upstream workflows. Adding a job there re-conflicts on every merge; the fork's gates are run by hand at release, which is the same trade §1.5 makes with its `merge=ours` seams.
+
+---
+
+## 19. MANDATORY: Tool-Result Clearing Is Off By Default (Non-Negotiable)
+
+Upstream's microcompaction clears the **oldest** tool results in place once they pass a size threshold (500,000 characters) or after an idle gap (60 minutes). Clearing rewrites a message in the middle of the history, so a prefix-caching server (oMLX and other vLLM-style paged KV caches) re-prefills everything after it. Measured on 2026-11-10: one `[TOOL-RESULT MC]` event cleared 105 results starting at message 3 (~33k tokens in) of a ~400k-token conversation and forced a ~9-minute re-prefill. This is a **mandatory, non-removable patch** that applies to every merge.
+
+**Rule**: both triggers default to `-1` (disabled). Users can still opt in through `context.clearContextOnIdle.toolResultsThresholdMinutes` and `...toolResultsTotalCharsThreshold`. An explicit setting always wins; only the default changes. Auto-compaction at the context window's auto threshold is unaffected.
+
+|File|Ownership|Must contain|
+|---|---|---|
+|`packages/core/src/config/clearContextDefaults.ts`|Upstream|`[no-telemetry fork]` tag, `DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD = -1` and `DEFAULT_TOOL_RESULTS_IDLE_MINUTES = -1`.|
+|`packages/core/src/config/config.ts`|Upstream|`?? DEFAULT_TOOL_RESULTS_IDLE_MINUTES` where `clearContextOnIdle` is normalised (upstream has `?? 60`).|
+|`packages/core/src/services/microcompaction/microcompact.ts`|Upstream|`?? DEFAULT_TOOL_RESULTS_IDLE_MINUTES` at both idle-threshold reads (upstream has `?? 60`).|
+|`packages/cli/src/config/settingsSchema.ts`|Upstream|Schema defaults taken from the two constants, descriptions tagged `[no-telemetry fork]`.|
+
+**Verify after every merge**:
+
+```bash
+grep -n "= -1;" packages/core/src/config/clearContextDefaults.ts   # 2 lines
+grep -rn "?? 60" packages/core/src/services/microcompaction/microcompact.ts packages/core/src/config/config.ts | grep -i "threshold"   # zero lines
+cd packages/core && npx vitest run src/config/config.test.ts -t "getClearContextOnIdle"
+cd packages/cli && npx vitest run src/config/settingsSchema.test.ts
+```
+
+The two tests pin the defaults; a merge that restores `60` / `500_000` fails them. Tests changed for this patch: the `getClearContextOnIdle` default row and `should expose cumulative tool result threshold in clearContextOnIdle`.
+
+**Conflict resolution**: keep upstream's refactor, re-apply the `-1` defaults. Never resolve by restoring the old defaults.
+
+---
+
+## 20. MANDATORY: Main-Chat Tool Declarations Are Built Outside Agent Frames (Non-Negotiable)
+
+`LlmClient.setTools()` builds the main chat's tool declarations once and stores them in the chat. Some declarations depend on the model: `read_file`'s description is rebuilt from `Config.getEffectiveInputModalities()`, which goes through `getContentGeneratorConfig()` and therefore through the async-local runtime view that background and fast-model runs push (the #7156 leak class). Built inside such a frame, the declarations pick up **another model's modalities**: on 2026-11-10 `read_file` grew by exactly 474 characters (the audio/video paragraph) at a new user turn, 46k characters into the tool block, and the prefix cache was invalidated from there on.
+
+**Rule**: the declaration build in `setTools()` goes through `runOutsideAgentContext(() => toolRegistry.getFunctionDeclarations())`, the same helper used for other main-session-owned work. The call site has no `[no-telemetry fork]` tag on purpose: the §14 hook count for `client.ts` is exact, so `npm run check:context` asserts the call itself instead.
+
+|File|Ownership|Must contain|
+|---|---|---|
+|`packages/core/src/core/client.ts`|Upstream|`runOutsideAgentContext` imported from `agents/runtime/agent-context.js` and wrapped around `toolRegistry.getFunctionDeclarations()` inside `setTools()`.|
+|`packages/core/src/core/client.test.ts`|Upstream|`builds the declarations outside any leaked agent frame`.|
+
+**Verify after every merge**: see Section 3, item 18.
+
+**Conflict resolution**: keep upstream's refactor of `setTools()` and re-apply the wrapper around the declaration build. Never drop it. If upstream makes `read_file` (or any declaration) independent of the async-local view, the wrapper becomes redundant but harmless.
+

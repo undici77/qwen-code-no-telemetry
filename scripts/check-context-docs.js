@@ -354,6 +354,7 @@ check(
 // could strip the §1.5 inert-key guards in the config files unnoticed.
 const TAGGED = [
   'packages/core/src/config/config.ts',
+  'packages/core/src/config/clearContextDefaults.ts',
   'packages/core/src/core/client.ts',
   'packages/core/src/core/environmentContext.ts',
   'packages/core/src/memory/refresh.ts',
@@ -584,6 +585,44 @@ for (const line of [
     '`.qwen/*` above would drop it from a fresh clone with no error',
   );
 }
+
+// ── §19 tool-result clearing is off by default; §20 setTools builds outside ──
+// ── any leaked agent frame. Tag presence alone cannot see a silently reverted
+// default or a dropped wrapper, so the values are asserted here.
+const clearDefaults = read('packages/core/src/config/clearContextDefaults.ts');
+for (const name of [
+  'DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD',
+  'DEFAULT_TOOL_RESULTS_IDLE_MINUTES',
+]) {
+  check(
+    `§19 ${name} stays -1`,
+    new RegExp(`export const ${name} = -1;`).test(clearDefaults),
+    'tool-result clearing must stay disabled by default',
+  );
+}
+for (const f of [
+  'packages/core/src/config/config.ts',
+  'packages/core/src/services/microcompaction/microcompact.ts',
+]) {
+  const src = read(f);
+  check(
+    `§19 ${f} has no hard-coded 60-minute idle default`,
+    !/toolResultsThresholdMinutes\s*\?\?\s*60/.test(src),
+    'use DEFAULT_TOOL_RESULTS_IDLE_MINUTES',
+  );
+  check(
+    `§19 ${f} reads DEFAULT_TOOL_RESULTS_IDLE_MINUTES`,
+    src.includes('DEFAULT_TOOL_RESULTS_IDLE_MINUTES'),
+    'the idle default was dropped',
+  );
+}
+check(
+  '§20 LlmClient.setTools builds declarations via runOutsideAgentContext',
+  /runOutsideAgentContext\(\(\) =>\s*toolRegistry\.getFunctionDeclarations\(\)/.test(
+    read('packages/core/src/core/client.ts'),
+  ),
+  'a leaked background model view would be baked into the tool declarations',
+);
 
 // The ratchet. This is the gate that was missing while the always-on context
 // was hand-trimmed three times (Aug 18, Sep 11, Sep 22) and grew back each

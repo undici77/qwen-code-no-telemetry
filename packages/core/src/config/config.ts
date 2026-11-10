@@ -330,7 +330,10 @@ import {
   DEFAULT_MEMORY_FILE_FILTERING_OPTIONS,
 } from '../utils/file-filtering-options.js';
 import { DEFAULT_QWEN_CUSTOM_IGNORE_FILE_NAMES } from '../utils/qwenIgnoreParser.js';
-import { DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD } from './clearContextDefaults.js';
+import {
+  DEFAULT_TOOL_RESULTS_IDLE_MINUTES,
+  DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD,
+} from './clearContextDefaults.js';
 import { DEFAULT_QWEN_EMBEDDING_MODEL } from './models.js';
 import type {
   MCPServerConfig,
@@ -802,7 +805,10 @@ export interface ChatCompressionSettings {
   imagePayloadThreshold?: number;
 }
 
-export { DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD } from './clearContextDefaults.js';
+export {
+  DEFAULT_TOOL_RESULTS_IDLE_MINUTES,
+  DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD,
+} from './clearContextDefaults.js';
 
 /**
  * Settings for clearing stale or oversized tool-result context.
@@ -3737,7 +3743,8 @@ export class Config {
     this.maxToolCalls = params.maxToolCalls ?? -1;
     const clearContextOnIdle = params.clearContextOnIdle;
     const toolResultsThresholdMinutes =
-      clearContextOnIdle?.toolResultsThresholdMinutes ?? 60;
+      clearContextOnIdle?.toolResultsThresholdMinutes ??
+      DEFAULT_TOOL_RESULTS_IDLE_MINUTES;
     this.clearContextOnIdle = {
       toolResultsThresholdMinutes,
       toolResultsNumToKeep: clearContextOnIdle?.toolResultsNumToKeep ?? 5,

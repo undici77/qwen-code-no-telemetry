@@ -312,8 +312,13 @@ describe('SettingsSchema', () => {
 
       expect(threshold).toBeDefined();
       expect(threshold?.type).toBe('number');
-      expect(threshold?.default).toBe(500_000);
+      // [fork] tool-result clearing is off by default (guidelines §19).
+      expect(threshold?.default).toBe(-1);
       expect(threshold?.requiresRestart).toBe(false);
+      expect(
+        getSettingsSchema().context.properties.clearContextOnIdle.properties
+          ?.toolResultsThresholdMinutes?.default,
+      ).toBe(-1);
     });
 
     it('should have sandboxImage setting under tools', () => {

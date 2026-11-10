@@ -1117,9 +1117,9 @@
           "type": "object",
           "properties": {
             "toolResultsThresholdMinutes": {
-              "description": "Minutes of inactivity before clearing old tool result content. Use -1 to disable.",
+              "description": "[no-telemetry fork] Minutes of inactivity before clearing old tool result content. Default -1 (disabled) so the prompt cache is never rewritten; use a positive number to opt in.",
               "type": "number",
-              "default": 60
+              "default": -1
             },
             "toolResultsNumToKeep": {
               "type": "integer",
@@ -1127,9 +1127,9 @@
               "description": "Integer number of most-recent compactable tool results to preserve when clearing. Values below 1 are floored to 1."
             },
             "toolResultsTotalCharsThreshold": {
-              "description": "Total compactable tool result output characters allowed in history before clearing oldest results. When exceeded, oldest results are cleared down to half this threshold (best effort) to preserve the provider prompt cache on later turns. Use -1 to disable. This is a soft threshold: protected recent tool results may keep the total above it.",
+              "description": "[no-telemetry fork] Total compactable tool result output characters allowed in history before clearing oldest results. Default -1 (disabled) so the prompt cache is never rewritten; set a positive number to opt in. When exceeded, oldest results are cleared down to half this threshold (best effort) to preserve the provider prompt cache on later turns. Use -1 to disable. This is a soft threshold: protected recent tool results may keep the total above it.",
               "type": "number",
-              "default": 500000
+              "default": -1
             }
           }
         },

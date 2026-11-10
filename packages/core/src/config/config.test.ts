@@ -11491,12 +11491,13 @@ describe('Server Config (config.ts)', () => {
 
   describe('getClearContextOnIdle', () => {
     it.each`
-      title                                                                                  | clearContextOnIdle                             | expected
-      ${'should default the cumulative tool result threshold to 500000 chars'}               | ${undefined}                                   | ${{ toolResultsThresholdMinutes: 60, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: 500_000 }}
-      ${'should use a custom cumulative tool result threshold if provided'}                  | ${{ toolResultsTotalCharsThreshold: 123_456 }} | ${{ toolResultsTotalCharsThreshold: 123_456 }}
-      ${'should preserve an explicit disabled cumulative tool result threshold'}             | ${{ toolResultsTotalCharsThreshold: -1 }}      | ${{ toolResultsThresholdMinutes: 60, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
-      ${'should keep legacy disabled idle cleanup disabled for the size trigger too'}        | ${{ toolResultsThresholdMinutes: -1 }}         | ${{ toolResultsThresholdMinutes: -1, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
-      ${'should treat any negative legacy idle threshold as disabling the size trigger too'} | ${{ toolResultsThresholdMinutes: -2 }}         | ${{ toolResultsThresholdMinutes: -2, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
+      title                                                                                  | clearContextOnIdle                                                              | expected
+      ${'[fork] should leave tool result clearing disabled by default (prompt-cache safe)'}  | ${undefined}                                                                    | ${{ toolResultsThresholdMinutes: -1, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
+      ${'[fork] should still honour an explicit opt-in to the upstream thresholds'}          | ${{ toolResultsThresholdMinutes: 60, toolResultsTotalCharsThreshold: 500_000 }} | ${{ toolResultsThresholdMinutes: 60, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: 500_000 }}
+      ${'should use a custom cumulative tool result threshold if provided'}                  | ${{ toolResultsTotalCharsThreshold: 123_456 }}                                  | ${{ toolResultsTotalCharsThreshold: 123_456 }}
+      ${'should preserve an explicit disabled cumulative tool result threshold'}             | ${{ toolResultsTotalCharsThreshold: -1 }}                                       | ${{ toolResultsThresholdMinutes: -1, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
+      ${'should keep legacy disabled idle cleanup disabled for the size trigger too'}        | ${{ toolResultsThresholdMinutes: -1 }}                                          | ${{ toolResultsThresholdMinutes: -1, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
+      ${'should treat any negative legacy idle threshold as disabling the size trigger too'} | ${{ toolResultsThresholdMinutes: -2 }}                                          | ${{ toolResultsThresholdMinutes: -2, toolResultsNumToKeep: 5, toolResultsTotalCharsThreshold: -1 }}
     `('%s', ({ clearContextOnIdle, expected }) => {
       const config = makeConfig(
         clearContextOnIdle === undefined ? {} : { clearContextOnIdle },

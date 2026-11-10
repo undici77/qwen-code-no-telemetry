@@ -28,6 +28,7 @@ import {
   DEFAULT_QWEN_CUSTOM_IGNORE_FILE_NAMES,
   DEFAULT_STOP_HOOK_BLOCK_CAP,
   DEFAULT_TOOL_OUTPUT_BATCH_BUDGET,
+  DEFAULT_TOOL_RESULTS_IDLE_MINUTES,
   DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_LINES,
   DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD,
@@ -2347,9 +2348,9 @@ const SETTINGS_SCHEMA = {
             label: 'Tool Results Idle Threshold (minutes)',
             category: 'Context',
             requiresRestart: false,
-            default: 60 as number,
+            default: DEFAULT_TOOL_RESULTS_IDLE_MINUTES as number,
             description:
-              'Minutes of inactivity before clearing old tool result content. Use -1 to disable.',
+              '[no-telemetry fork] Minutes of inactivity before clearing old tool result content. Default -1 (disabled) so the prompt cache is never rewritten; use a positive number to opt in.',
             showInDialog: false,
           },
           toolResultsNumToKeep: {
@@ -2375,7 +2376,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: false,
             default: DEFAULT_TOOL_RESULTS_TOTAL_CHARS_THRESHOLD as number,
             description:
-              'Total compactable tool result output characters allowed in history before clearing oldest results. When exceeded, oldest results are cleared down to half this threshold (best effort) to preserve the provider prompt cache on later turns. Use -1 to disable. This is a soft threshold: protected recent tool results may keep the total above it.',
+              '[no-telemetry fork] Total compactable tool result output characters allowed in history before clearing oldest results. Default -1 (disabled) so the prompt cache is never rewritten; set a positive number to opt in. When exceeded, oldest results are cleared down to half this threshold (best effort) to preserve the provider prompt cache on later turns. Use -1 to disable. This is a soft threshold: protected recent tool results may keep the total above it.',
             showInDialog: false,
           },
         },
