@@ -2,7 +2,7 @@
 
 > This README replaces the original one to document this fork specifically.
 > For full documentation on features, configuration, and usage refer to the
-> [original README at v0.27.1](https://github.com/QwenLM/qwen-code/blob/v0.27.1/README.md).
+> [original README at v0.27.2](https://github.com/QwenLM/qwen-code/blob/v0.27.2/README.md).
 
 ---
 
@@ -29,6 +29,38 @@ No data is sent to external servers during usage.
 
 ---
 
+### Defaults Changed vs Upstream
+
+Privacy first, then tuning for local prefix-caching servers (oMLX, vLLM-style), where the prompt prefix must stay byte-stable or the server re-prefills the whole conversation. Rules, checks and merge notes: [NO_TELEMETRY_GUIDELINES.md](NO_TELEMETRY_GUIDELINES.md).
+
+**Privacy**
+
+| Feature                    | Upstream default               | This fork                                                        |
+| -------------------------- | ------------------------------ | ---------------------------------------------------------------- |
+| Telemetry and usage stats  | OpenTelemetry, usage reporting | None: dependencies removed, loggers no-op; quit stats stay local |
+| Installation ID            | Unique per install             | Fixed all-zero UUID                                              |
+| Auto-update                | On                             | Off (explicit `/update` only)                                    |
+| Git co-author trailer      | On                             | Off                                                              |
+| Web search                 | DashScope                      | SerpApi; tool stays off until a key is set                       |
+| models.dev catalog refresh | Daily download                 | Off unless `QWEN_CODE_MODELS_DEV_REFRESH=on`                     |
+| Artifact publishing        | Remote upload possible         | Local only; always asks, even in yolo / auto_edit                |
+
+**Local AI**
+
+| Feature                     | Upstream default                                        | This fork                                                         |
+| --------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
+| Old tool-result clearing    | On (500k chars / 60 min idle)                           | **Off** (`-1`); opt in via `context.clearContextOnIdle`           |
+| Tool list sent to the model | Built under whatever model view is live                 | Built outside agent frames; can't change between turns            |
+| Memory saves, reminders     | Can rewrite the cached prefix                           | Append-only with `QWEN_MEMORY_APPEND_ONLY=1` (opt-in)             |
+| Resumed sessions            | Startup prelude rebuilt, cache missed                   | Reused when provably unchanged                                    |
+| Vision bridge               | Images past the 4th in a turn rejected                  | Throttled to 4 concurrent, none dropped                           |
+| Live tool-call view         | Finished block could show twice while the reply streams | Cleared at commit time                                            |
+| Status line                 | No cache info                                           | Opt-in: `context-tokens`, `cache-live`, `cache-hit`, `compact-in` |
+
+Check the running binary for egress with `npm run check:egress`.
+
+---
+
 ### The Evolution of No-Telemetry
 
 - **Until v0.12.1-no-telemetry**: The policy was to **delete all telemetry-related files**. While effective for privacy, this made it difficult to maintain the fork and align it with upstream updates.
@@ -52,8 +84,8 @@ Installs Node.js via NVM and Qwen Code into your home directory.
 Safe to use inside ephemeral Docker containers.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.27.1-no-telemetry/install.sh \
-    | bash -s v0.27.1-no-telemetry
+curl -fsSL https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.27.2-no-telemetry/install.sh \
+    | bash -s v0.27.2-no-telemetry
 ```
 
 ### Option 2 — Windows (PowerShell, no admin required)
@@ -63,8 +95,8 @@ rights needed. Requires [Git for Windows](https://git-scm.com/download/win)
 (npm needs `git.exe` on PATH to fetch the package from GitHub).
 
 ```powershell
-iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.27.1-no-telemetry/install.ps1 -OutFile install.ps1
-.\install.ps1 v0.27.1-no-telemetry
+iwr https://raw.githubusercontent.com/undici77/qwen-code-no-telemetry/v0.27.2-no-telemetry/install.ps1 -OutFile install.ps1
+.\install.ps1 v0.27.2-no-telemetry
 ```
 
 ### Option 3 — Docker

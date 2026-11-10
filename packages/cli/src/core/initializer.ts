@@ -37,6 +37,7 @@ export interface InitializeAppOptions {
    */
   deferIdeConnection?: boolean;
   allowSubscriptionStartupFallback?: boolean;
+  allowUnlistedSubscriptionModel?: boolean;
 }
 
 /**
@@ -81,6 +82,8 @@ export async function initializeApp(
     config,
     authType,
     subscriptionFallbackModel,
+    options.allowUnlistedSubscriptionModel &&
+      Boolean(settings.merged.model?.name),
   );
   const inactiveSubscription =
     authType === AuthType.QWEN_SUBSCRIPTION && !config.getAuthType();
