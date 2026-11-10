@@ -57,7 +57,7 @@ dropping one. Rules, invariants and verification commands live in
 
 | Patch                          | Section  | One-line rule                                                                                              |
 | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
-| Telemetry dummy layer          | §1, §11  | No `@opentelemetry/*`; 4 named loggers keep forwarding to `uiTelemetryService`.                            |
+| Telemetry dummy layer          | §1, §11  | No `@opentelemetry/*`; 6 named loggers keep forwarding to `uiTelemetryService`.                            |
 | `@opentelemetry/api` imports   | §12      | Relative import to `dummy-otel.js`; `tsconfig` `paths` do not rewrite `.js` output.                        |
 | WebSearch / SerpApi            | §1.5     | `web_search` stays SerpApi-backed; the seams are `merge=ours`, so upstream rewrites never conflict.        |
 | Vision-bridge concurrency      | §1.6     | Throttle concurrent image conversions; never reject on a per-turn count.                                   |
@@ -66,6 +66,8 @@ dropping one. Rules, invariants and verification commands live in
 | **Append-only auto-memory**    | **§14**  | **With the flag on, memory saves and tool-turn reminders never rewrite already-cached prompt bytes.**      |
 | **Context/cache status items** | **§15**  | **Four status-line items stay available; all logic in the fork-owned module.**                             |
 | Resume prelude reuse (auto)    | §16      | Reuses a resumed session's prelude verbatim only when a full rebuild proves it unchanged.                  |
+| Tool-result clearing off       | §19      | Both `clearContextOnIdle` triggers default to `-1`; users opt in through settings.                         |
+| Main-chat tool declarations    | §20      | `setTools()` builds declarations outside agent frames, so another model's view never leaks in.             |
 
 ## Module-specific Instructions
 

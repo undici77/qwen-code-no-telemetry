@@ -36,6 +36,7 @@ pnpm-lock.yaml
 # exactly as they do over pnpm-lock.yaml above. Fork-owned, so opting it out
 # costs nothing upstream — unlike AGENTS.md, whose padding prettier owns.
 NO_TELEMETRY_GUIDELINES.md
+fork-docs/
 # Same rationale for the path-gated fork rules: they were relocated verbatim out
 # of QWEN.md/AGENTS.md to keep the always-on context budget under the warning
 # threshold, and prettier re-padding a table added to one later would break that

@@ -2,20 +2,20 @@
 
 This is a **no-telemetry fork** of [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code): maximum privacy, zero external data leakage, while staying aligned with upstream `main`.
 
-This file holds fork-specific policy and, per mandatory patch, only its NEVER-clause. Full narrative, traps and ownership tables are path-gated in `.qwen/rules/` (injected on first touch of a matching file) and in `NO_TELEMETRY_GUIDELINES.md` (NTG, **not loaded** — open it before a merge) at the same §. `check:context` fails if a § loses its rule file.
+This file holds fork-specific policy and, per mandatory patch, only its NEVER-clause. Narrative, traps and ownership tables are path-gated in `.qwen/rules/` (injected on first touch of a matching file) and in `NO_TELEMETRY_GUIDELINES.md` (NTG, **not loaded** — open it before a merge) at the same §.
 
-Elsewhere: generic principles, commands and conventions in **`AGENTS.md`** (upstream-owned); review rules in **`.qwen/review-rules.md`**; Web Shell rules in `.qwen/rules/web-shell.md`; versioning & release in `.qwen/rules/fork-release-versioning.md`; build & test notes in `.qwen/rules/fork-build-and-test.md`.
+Elsewhere: principles, commands, conventions in **`AGENTS.md`** (upstream-owned); review rules `.qwen/review-rules.md`; Web Shell `.qwen/rules/web-shell.md`; release versioning `.qwen/rules/fork-release-versioning.md`; build & test `.qwen/rules/fork-build-and-test.md`.
 
 ## No-Telemetry Policy (MANDATORY)
 
-**Implementation strategy (dummy layer):** instead of deleting telemetry files (which broke merges), keep the file structure but neutralize it:
+**Implementation strategy (dummy layer):** keep the file structure (deleting files broke merges) but neutralize it:
 
 1. All `@opentelemetry/*` packages removed from dependencies.
 2. Telemetry exports in `packages/core/src/telemetry/` replaced with no-op functions.
 3. `InstallationManager.getInstallationId()` returns static UUID `00000000-0000-0000-0000-000000000000`.
 4. Usage statistics and auto-updates disabled by default.
 
-**Conflict resolution priority:** when merging from `main`, telemetry conflicts are resolved by REMOVAL — never keep `@opentelemetry/*` packages or tracking code "just to match versions". Version strings must match upstream, but the no-telemetry policy overrides any telemetry-related code.
+**Conflict resolution:** telemetry conflicts are resolved by REMOVAL — never keep `@opentelemetry/*` or tracking code to match versions. Version strings match upstream; the policy overrides everything else.
 
 ## Fork Patches — MUST Survive Every Merge
 
@@ -34,15 +34,18 @@ NEVER-clauses, not explanations — read the rule file for the § before editing
 - **§14** with `QWEN_MEMORY_APPEND_ONLY=1` no memory save or tool-turn reminder rewrites cached bytes; `refreshMemoryInstruction()` stays the single chokepoint; the converter fold is all-or-nothing and never hides user text.
 - **§15** UI code never reads the context window or model id from `getContentGeneratorConfig()` / `getModel()`; use `resolveMainModelContext()`.
 - **§16** resumed prelude reuse compares rebuilt stable texts byte-for-byte and never skips the rebuild.
+- **§19** `clearContextOnIdle` triggers default to `-1`; never restore 60 min / 500k.
+- **§20** `setTools()` builds declarations via `runOutsideAgentContext`.
 
 ### Gate
 
-`check:context` runs the grep checks for every patch above (§11/§12/§1.5/§1.6/§13/§14/§15/§16 wiring) with tag totals stricter than the prose, refuses a column-padded table in a fork-owned doc, ratchets the always-on token budget, and refuses a § that lost its rule file or a rule file that lost its `paths:` (no `paths:` ⇒ baseline ⇒ silently always-on). `check:tables` strips table padding and will not write unless every cell provably survived; those files are in `.prettierignore` because prettier re-pads tables. The `vitest` runs are the executable guarantees it cannot run — keep them after every merge:
+`check:context` greps every patch above, rejects column-padded tables in fork docs (fix: `check:tables`; they are `.prettierignore`d), enforces the always-on token budget, requires each § a path-gated rule file, and refuses `@opentelemetry` in manifests, lockfile and `node_modules`. `check:egress` alone observes the binary. Keep all of these after every merge:
 
 ```bash
 npm run check:context
 npm run check:merge-drivers
 npm run check:tables
+npm run check:egress
 cd packages/core && npx vitest run src/tools/serpapi-web-search.test.ts src/tools/web-search.test.ts
 npx vitest run src/tools/artifact/
 ```
