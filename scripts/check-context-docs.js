@@ -54,11 +54,19 @@ const RULE_FILES = existsSync(RULES_DIR)
       .sort()
   : [];
 const REVIEW_RULES = '.qwen/review-rules.md';
+// Sections of NO_TELEMETRY_GUIDELINES.md split out so each file reads in one pass.
+const FORK_DOCS = existsSync('fork-docs')
+  ? readdirSync('fork-docs')
+      .filter((f) => f.endsWith('.md'))
+      .sort()
+      .map((f) => `fork-docs/${f}`)
+  : [];
 
 const DOCS = [
   'AGENTS.md',
   'QWEN.md',
   'NO_TELEMETRY_GUIDELINES.md',
+  ...FORK_DOCS,
   REVIEW_RULES,
   ...RULE_FILES,
 ];
@@ -96,7 +104,12 @@ check(
 // ~15% of the deep reference and buys nothing a renderer cannot do itself, so
 // it is stripped by a tool that proves it lost nothing before writing. A
 // padded table re-appearing after a merge is formatting drift, not content.
-for (const f of ['NO_TELEMETRY_GUIDELINES.md', 'QWEN.md', ...RULE_FILES]) {
+for (const f of [
+  'NO_TELEMETRY_GUIDELINES.md',
+  'QWEN.md',
+  ...FORK_DOCS,
+  ...RULE_FILES,
+]) {
   const src = read(f);
   if (!src) continue;
   let r;
@@ -622,6 +635,175 @@ check(
     read('packages/core/src/core/client.ts'),
   ),
   'a leaked background model view would be baked into the tool declarations',
+);
+
+// ── §1 / §1.5 / §1.7 privacy defaults ───────────────────────────────────────
+// These used to be proved only by vitest files nobody was forced to run
+// together, so a merge could drop one and the single gate command stayed
+// green. Each regex reads the assignment itself, never a schema description.
+const settingsTs = read('packages/cli/src/config/settings.ts');
+check(
+  '§1 computeMergedSettings hardcodes enableAutoUpdate:false and gitCoAuthor off, unconditionally',
+  /merged\.general = \{\s*\.\.\.merged\.general,\s*enableAutoUpdate: false,\s*gitCoAuthor: \{ commit: false, pr: false \},?\s*\};/.test(
+    settingsTs,
+  ),
+  'the startup gate is `enableAutoUpdate !== false`: a guarded or missing hardcode leaves auto-update open',
+);
+check(
+  '§1 usageStatisticsEnabled is hardcoded false, not a getter pass-through',
+  /this\.usageStatisticsEnabled = false;/.test(
+    read('packages/core/src/config/config.ts'),
+  ),
+);
+check(
+  '§1 getInstallationId returns the static all-zero UUID',
+  /getInstallationId\(\): string \{\s*return '00000000-0000-0000-0000-000000000000';/.test(
+    read('packages/core/src/config/installationManager.ts'),
+  ),
+);
+check(
+  '§17 models.dev catalog refresh needs both the operator switch and the explicit env opt-in',
+  /this\.modelCatalogRefreshEnabled &&\s*process\.env\[MODEL_CATALOG_REFRESH_ENV\] === 'on'/.test(
+    read('packages/core/src/config/config.ts'),
+  ),
+  'a bare `void refreshModelCatalog()` is automatic models.dev egress at every startup',
+);
+for (const f of [
+  'packages/cli/src/config/config.ts',
+  'packages/core/src/config/config.ts',
+]) {
+  check(
+    `§1.7 ${f} defaults the artifact publisher to 'local'`,
+    /(?:settings\.artifact\?\.publisher|params\.artifactPublisher) \?\? 'local'/.test(
+      read(f),
+    ),
+  );
+}
+check(
+  '§1.7 create-publisher collapses the kind before its switch',
+  /enforceNoRemoteArtifactPublisher\(/.test(
+    read('packages/core/src/tools/artifact/create-publisher.ts'),
+  ),
+);
+check(
+  '§1.7 ArtifactTool overrides requiresUserInteraction (prompt survives yolo/auto_edit)',
+  /override requiresUserInteraction\(\): boolean \{\s*return artifactPublishRequiresUserInteraction\(\);/.test(
+    read('packages/core/src/tools/artifact/artifact-tool.ts'),
+  ),
+);
+const remoteCtors = execFileSync(
+  'git',
+  [
+    'grep',
+    '-nE',
+    'new (Oss|Host)Publisher',
+    '--',
+    'packages/*/src/**',
+    ':!*.test.ts',
+  ],
+  { encoding: 'utf8' },
+)
+  .split('\n')
+  .filter(Boolean);
+check(
+  '§1.7 remote publishers are constructed only in create-publisher.ts (exactly 2 unreachable branches)',
+  remoteCtors.length === 2 &&
+    remoteCtors.every((l) => l.includes('create-publisher.ts:')),
+  remoteCtors.join(' | '),
+);
+check(
+  '§1.5 web-search.ts still re-exports the fork SerpApi backend',
+  /export \* from '\.\/serpapi-web-search\.js'/.test(
+    read('packages/core/src/tools/web-search.ts'),
+  ),
+);
+const serpUrls = [
+  ...read('packages/core/src/tools/serpapi-web-search.ts').matchAll(
+    /https?:\/\/[^\s'"`)\]]+/g,
+  ),
+]
+  .map((m) => m[0])
+  .filter(
+    (u) =>
+      !u.startsWith('https://serpapi.com/search') && !u.includes('example.com'),
+  );
+check(
+  '§1.5 serpapi-web-search.ts names no host but serpapi.com (and the example.com attribution text)',
+  serpUrls.length === 0,
+  serpUrls.join(', '),
+);
+// The `session_id` header carries a per-session identifier. It is sent only to
+// these three https Routify hosts; any addition is a new identifier egress path.
+const sessionHosts = read(
+  'packages/core/src/core/outbound-session-id.ts',
+).match(/SESSION_ID_HEADER_HOSTS: readonly string\[\] = \[([^\]]*)\]/);
+check(
+  'session_id header host list is exactly the three known Routify hosts',
+  !!sessionHosts &&
+    [...sessionHosts[1].matchAll(/'([^']+)'/g)]
+      .map((m) => m[1])
+      .sort()
+      .join(',') ===
+      'routify-online.alibaba-inc.com,routify-pub.alibaba-inc.com,routify.alibaba-inc.com',
+  'a new host receiving the session id is a decision to record, not a merge default',
+);
+
+// ── Dependencies: no OpenTelemetry in any manifest, lockfile or install ─────
+// The §12 gates above read source only. A merge or `pnpm install` can still
+// re-admit the whole otel closure through a manifest or the lockfile without
+// a single import changing, and upstream's regenerated lockfile always does.
+const manifests = execFileSync(
+  'git',
+  ['ls-files', '*package.json', 'pnpm-lock.yaml'],
+  { encoding: 'utf8' },
+)
+  .split('\n')
+  .filter(Boolean);
+const otelManifests = manifests.filter((f) => /@opentelemetry/.test(read(f)));
+check(
+  'no @opentelemetry in any tracked package.json or pnpm-lock.yaml',
+  otelManifests.length === 0,
+  otelManifests.join(', '),
+);
+const otelInstalled = existsSync('node_modules/.pnpm')
+  ? readdirSync('node_modules/.pnpm').filter((d) =>
+      d.startsWith('@opentelemetry'),
+    )
+  : [];
+check(
+  'no @opentelemetry package installed in node_modules/.pnpm',
+  otelInstalled.length === 0,
+  `${otelInstalled.slice(0, 3).join(', ')} — fix: corepack pnpm install`,
+);
+
+// Built output is what ships. A build pipeline can assemble an otel import that
+// no source line contains, so scan the compiled trees too. Comments that merely
+// name the package (the dummy layer explains itself) are not imports.
+const builtTrees = ['packages/core/dist', 'packages/cli/dist', 'dist'].filter(
+  (d) => existsSync(d),
+);
+let builtOtel = [];
+if (builtTrees.length > 0) {
+  try {
+    builtOtel = execFileSync(
+      'grep',
+      [
+        '-rIlE',
+        `(from|import\\(|require\\()\\s*['"]@opentelemetry/`,
+        ...builtTrees,
+      ],
+      { encoding: 'utf8', maxBuffer: 1 << 26 },
+    )
+      .split('\n')
+      .filter(Boolean);
+  } catch (e) {
+    if (e.status !== 1) throw e; // 1 = grep found nothing
+  }
+}
+check(
+  'no real @opentelemetry import in built output (packages/*/dist, dist)',
+  builtOtel.length === 0,
+  `${builtOtel.slice(0, 3).join(', ')} — rebuild after fixing the source`,
 );
 
 // The ratchet. This is the gate that was missing while the always-on context

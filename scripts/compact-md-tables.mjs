@@ -18,9 +18,19 @@
  *   node scripts/compact-md-tables.mjs           # report, write nothing
  *   node scripts/compact-md-tables.mjs --write   # compact in place
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const FORK_OWNED_DOCS = ['NO_TELEMETRY_GUIDELINES.md', 'QWEN.md'];
+// fork-docs/ holds the sections split out of NO_TELEMETRY_GUIDELINES.md.
+const FORK_OWNED_DOCS = [
+  'NO_TELEMETRY_GUIDELINES.md',
+  'QWEN.md',
+  ...(existsSync('fork-docs')
+    ? readdirSync('fork-docs')
+        .filter((f) => f.endsWith('.md'))
+        .sort()
+        .map((f) => `fork-docs/${f}`)
+    : []),
+];
 
 /** Split a table row on unescaped pipes. Outer pipes yield empty ends. */
 function splitRow(line) {
@@ -108,7 +118,9 @@ export function compactTables(text) {
 
     for (const row of block) {
       rows++;
-      const cells = splitRow(row).slice(1, -1).map((c) => c.trim());
+      const cells = splitRow(row)
+        .slice(1, -1)
+        .map((c) => c.trim());
       if (cells.every(isSepCell)) {
         out.push(`|${cells.map(() => '---').join('|')}|`);
         continue;
@@ -129,7 +141,8 @@ export function compactTables(text) {
   const proseSafe =
     sameLen(proseBefore, proseAfter) &&
     proseBefore.every(
-      (l, k) => l === proseAfter[k] || l.replace(/[ \t]+$/, '') === proseAfter[k],
+      (l, k) =>
+        l === proseAfter[k] || l.replace(/[ \t]+$/, '') === proseAfter[k],
     );
   return {
     text: result,
@@ -145,13 +158,16 @@ export function compactTables(text) {
 /** Padding bytes recoverable from `text`, or 0 if it is already compact. */
 export function tablePaddingWaste(text) {
   try {
-    return Buffer.byteLength(text) - Buffer.byteLength(compactTables(text).text);
+    return (
+      Buffer.byteLength(text) - Buffer.byteLength(compactTables(text).text)
+    );
   } catch {
     return 0;
   }
 }
 
-const main = process.argv[1] && process.argv[1].endsWith('compact-md-tables.mjs');
+const main =
+  process.argv[1] && process.argv[1].endsWith('compact-md-tables.mjs');
 if (main) {
   const write = process.argv.includes('--write');
   let wasted = 0;
@@ -221,5 +237,8 @@ if (main) {
     );
     process.exit(1);
   }
-  if (write) console.log('Tables compacted — every cell compared verbatim before writing.');
+  if (write)
+    console.log(
+      'Tables compacted — every cell compared verbatim before writing.',
+    );
 }

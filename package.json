@@ -130,6 +130,7 @@
     "check:context": "node scripts/check-context-docs.js",
     "check:tables": "node scripts/compact-md-tables.test.mjs && node scripts/compact-md-tables.mjs",
     "check:egress": "node scripts/check-egress.mjs",
+    "report:merge-egress": "node scripts/merge-egress-report.mjs",
     "preflight": "npm run clean && corepack pnpm install --frozen-lockfile && npm run format && npm run lint:ci && npm run build && npm run typecheck && npm run test:ci && npm run check:serve-fast-path-bundle",
     "postinstall": "node scripts/check-merge-drivers.js --fix && patch-package && node scripts/prepare-sharp.js",
     "prepare": "node scripts/prepare.js",

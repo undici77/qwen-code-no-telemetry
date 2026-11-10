@@ -28,9 +28,11 @@
 // rather than a list of known keys — a new remote option added by an upstream
 // merge shows up as a finding instead of being silently trusted.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -124,6 +126,158 @@ function resolveCli(explicit) {
   return { cmd: 'qwen', args: [] };
 }
 
+// ---------------------------------------------------------------------------
+// Loopback fake model
+// ---------------------------------------------------------------------------
+
+// The session scenario is only evidence if it reaches a model: on a machine
+// with no model configured the CLI exits before its first request, so the
+// probe sees nothing and the run used to end "clean". Serving the model
+// ourselves, on loopback and with a throwaway QWEN_HOME, makes the scenario
+// hermetic and lets the run prove the round-trip happened.
+function startFakeModel(tool, headers) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      requests.push(req.url);
+      for (const name of Object.keys(req.headers)) headers.add(name);
+      if (
+        req.method !== 'POST' ||
+        !String(req.url).endsWith('/chat/completions')
+      ) {
+        res.writeHead(404).end();
+        return;
+      }
+      let body = {};
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        // Treated as a plain request below.
+      }
+      const answered = (body.messages ?? []).some((m) => m.role === 'tool');
+      const message =
+        !answered && body.tools?.length
+          ? {
+              role: 'assistant',
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_egress_probe',
+                  type: 'function',
+                  function: {
+                    name: tool.name,
+                    arguments: JSON.stringify(tool.args),
+                  },
+                },
+              ],
+            }
+          : { role: 'assistant', content: 'done' };
+      const finish = message.tool_calls ? 'tool_calls' : 'stop';
+      const usage = { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 };
+      const base = { id: 'fake', created: 0, model: body.model ?? 'fake' };
+      if (!body.stream) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ...base,
+            object: 'chat.completion',
+            choices: [{ index: 0, message, finish_reason: finish }],
+            usage,
+          }),
+        );
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      const send = (choice, extra = {}) =>
+        res.write(
+          `data: ${JSON.stringify({ ...base, object: 'chat.completion.chunk', choices: [choice], ...extra })}\n\n`,
+        );
+      send({ index: 0, delta: message, finish_reason: null });
+      send({ index: 0, delta: {}, finish_reason: finish }, { usage });
+      res.end('data: [DONE]\n\n');
+    });
+  });
+  return new Promise((ok) =>
+    server.listen(0, '127.0.0.1', () =>
+      ok({
+        url: `http://127.0.0.1:${server.address().port}/v1`,
+        requests,
+        close: () => server.close(),
+      }),
+    ),
+  );
+}
+
+/** Async on purpose: the fake model lives in this process and must keep serving. */
+function runAsync(cmd, args, env, timeout) {
+  return new Promise((done) => {
+    const child = spawn(cmd, args, { env, timeout, stdio: 'ignore' });
+    child.on('error', (error) => done({ error }));
+    child.on('exit', (status) => done({ status }));
+  });
+}
+
+// The probe verdicts destinations; it cannot see what a request carries. A new
+// identifier header (a session or install id) would leave the machine on the
+// sanctioned channel without any destination changing. The fake model records
+// every header name of the session scenario, and anything outside this list is
+// a finding. v0.27.2 baseline: standard HTTP plus the OpenAI SDK's x-stainless-*
+// platform fingerprint (arch, OS, runtime version).
+const HEADER_ALLOW = new Set([
+  'accept',
+  'accept-encoding',
+  'accept-language',
+  'authorization',
+  'connection',
+  'content-length',
+  'content-type',
+  'host',
+  'sec-fetch-mode',
+  'user-agent',
+]);
+
+function unexpectedHeaders(names) {
+  const extra = new Set(
+    (process.env['QWEN_EGRESS_HEADER_ALLOW'] || '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return [...names]
+    .filter(
+      (n) =>
+        !HEADER_ALLOW.has(n) && !n.startsWith('x-stainless-') && !extra.has(n),
+    )
+    .sort();
+}
+
+// Opt-in kernel cross-check (--strace, Linux). The probe is JavaScript running
+// inside the traced process, so anything that escapes NODE_OPTIONS — a child
+// that clears it, a native addon — is invisible to it. strace sees the same run
+// from outside: every non-local address the kernel was asked to connect to must
+// also appear in the probe's records, or the probe has a blind spot (exit 2).
+// Ports 0 (routing probes) and 53 (resolver, counted not judged) are excluded.
+const PRIVATE_PEER =
+  /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0$|::1$|f[cd][0-9a-f]{2}:|::ffff:(127|10|192\.168)\.)/i;
+
+function kernelPeers(logFile) {
+  const ips = new Set();
+  let dns = 0;
+  for (const line of readFileSync(logFile, 'utf8').split('\n')) {
+    if (!line.includes('connect(')) continue;
+    const port = /htons\((\d+)\)/.exec(line)?.[1];
+    const ip =
+      /inet_addr\("([^"]+)"\)/.exec(line)?.[1] ??
+      /inet_pton\(AF_INET6, "([^"]+)"/.exec(line)?.[1];
+    if (!ip || !port || port === '0') continue;
+    if (port === '53') dns += 1;
+    else if (!PRIVATE_PEER.test(ip)) ips.add(ip);
+  }
+  return { ips, dns };
+}
+
 // Proves the detector is alive. A tripwire that can only ever print "clean"
 // is indistinguishable from a broken one — the first version of this script
 // did exactly that, reporting zero attempts while strace showed six sockets
@@ -192,11 +346,18 @@ function selfTest() {
   console.log('  blind child : interpreter spawn flagged BLIND ✓');
 }
 
-function main() {
+async function main() {
   const explicit = process.argv
     .find((a) => a.startsWith('--cli='))
     ?.slice('--cli='.length);
   const cli = resolveCli(explicit);
+  const useStrace =
+    process.argv.includes('--strace') ||
+    process.env['QWEN_EGRESS_STRACE'] === '1';
+  if (useStrace && spawnSync('strace', ['-V']).error) {
+    console.error('✗ --strace needs strace on PATH (Linux).');
+    process.exit(2);
+  }
   const allowed = deriveAllowlist(process.cwd());
   const logDir = mkdtempSync(join(tmpdir(), 'qwen-egress-'));
   const logFile = join(logDir, 'hits.json');
@@ -216,16 +377,60 @@ function main() {
     QWEN_EGRESS_ALLOWED: [...allowed].join(','),
   };
 
-  const scenarios = [
-    { name: 'startup (--version)', args: ['--version'], timeout: 60_000 },
+  const page = join(logDir, 'page.html');
+  writeFileSync(page, '<html><body>EGRESS-PROBE-MARKER</body></html>\n');
+  const headers = new Set();
+  // Each session scenario is hermetic: its own fake model, its own throwaway
+  // QWEN_HOME (optionally with settings), and a tool call the fake model forces.
+  // `allow` extends the trusted hosts for that scenario only; `expect` returns a
+  // message when the run does not prove what the scenario exists to prove.
+  const sessions = [
     {
       name: 'session with one tool call',
-      args: [
-        '-p',
-        `Read the file ${scratch} and reply with its exact contents.`,
-      ],
-      timeout: 240_000,
+      prompt: `Read the file ${scratch} and reply with its exact contents.`,
+      tool: { name: 'read_file', args: { file_path: scratch } },
     },
+    {
+      // §1.5: with a key the tool registers and must contact serpapi.com and
+      // nothing else, whatever DashScope-shaped values the settings carry.
+      name: 'web_search (SerpApi key set)',
+      prompt: 'Search the web for egress-probe.',
+      flags: ['--approval-mode', 'yolo'],
+      tool: { name: 'web_search', args: { query: 'egress probe' } },
+      env: { SERPAPI_API_KEY: 'egress-probe' },
+      allow: ['serpapi.com'],
+      expect: (hits) =>
+        hits.some((h) => String(h.target).includes('serpapi.com'))
+          ? undefined
+          : 'web_search never attempted serpapi.com — the tool did not run',
+    },
+    {
+      // §1.7: remote publisher fully armed, auto-approving mode. The endpoint
+      // is NOT allowlisted, so any attempt at it is a LEAK.
+      name: 'artifact publish (oss armed, yolo)',
+      prompt: `Publish ${page} as an artifact.`,
+      flags: ['--approval-mode', 'yolo'],
+      tool: { name: 'artifact', args: { file_path: page } },
+      settings: {
+        artifact: {
+          publisher: 'oss',
+          oss: {
+            bucket: 'egress-probe',
+            endpoint: 'oss-cn-hangzhou.aliyuncs.com',
+          },
+        },
+      },
+    },
+  ];
+  const scenarios = [
+    { name: 'startup (--version)', args: ['--version'], timeout: 60_000, env },
+    ...sessions.map((x, i) => ({
+      ...x,
+      args: [...(x.flags ?? []), '-p', x.prompt],
+      timeout: 240_000,
+      model: true,
+      index: i,
+    })),
   ];
 
   console.log('Egress tripwire — NO_TELEMETRY_GUIDELINES.md §18');
@@ -244,12 +449,44 @@ function main() {
       if (stale.startsWith('hits.'))
         rmSync(join(logDir, stale), { force: true });
     }
-    const r = spawnSync(cli.cmd, [...cli.args, ...s.args], {
-      env,
-      timeout: s.timeout,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    let fake;
+    let scenarioEnv = s.env;
+    if (s.model) {
+      fake = await startFakeModel(s.tool, headers);
+      const home = join(logDir, `qwen-home-${s.index}`);
+      mkdirSync(home, { recursive: true });
+      if (s.settings)
+        writeFileSync(join(home, 'settings.json'), JSON.stringify(s.settings));
+      scenarioEnv = {
+        ...env,
+        ...s.env,
+        QWEN_EGRESS_ALLOWED: [...allowed, ...(s.allow ?? [])].join(','),
+        QWEN_HOME: home,
+        OPENAI_API_KEY: 'egress-probe',
+        OPENAI_BASE_URL: fake.url,
+        OPENAI_MODEL: 'egress-probe',
+      };
+    }
+    const traceLog = join(logDir, `strace-${s.name.replace(/\W+/g, '-')}.log`);
+    const r = await runAsync(
+      useStrace ? 'strace' : cli.cmd,
+      useStrace
+        ? [
+            '-f',
+            '-qq',
+            '-e',
+            'trace=connect',
+            '-o',
+            traceLog,
+            cli.cmd,
+            ...cli.args,
+            ...s.args,
+          ]
+        : [...cli.args, ...s.args],
+      scenarioEnv,
+      s.timeout,
+    );
+    fake?.close();
     if (r.error) {
       console.error(`✗ ${s.name}: spawn failed — ${r.error.message}`);
       failed = true;
@@ -264,7 +501,40 @@ function main() {
     all.push(...hits.map((h) => ({ ...h, scenario: s.name })));
     const status = r.status === 0 ? 'ran' : `exit ${r.status}`;
     console.log(`  ${s.name}: ${status}, ${hits.length} egress attempt(s)`);
+    if (useStrace && existsSync(traceLog)) {
+      const { ips, dns } = kernelPeers(traceLog);
+      const unseen = [...ips].filter(
+        (ip) => !hits.some((h) => String(h.target).includes(ip)),
+      );
+      console.log(
+        `    kernel cross-check: ${ips.size} non-local peer(s)${ips.size ? ` [${[...ips].join(', ')}]` : ''}, ${dns} resolver connect(s), ${unseen.length} unseen by the probe`,
+      );
+      for (const ip of unseen) {
+        console.error(
+          `✗ ${s.name}: the kernel connected to ${ip}; the probe recorded nothing for it.`,
+        );
+        failed = true;
+      }
+    }
+    // A session that never completed a model round-trip observed nothing: the
+    // tool call needs the model's reply, then a second request carrying the
+    // tool result. Fewer than two requests means this is not evidence.
+    if (fake && (r.status !== 0 || fake.requests.length < 2)) {
+      console.error(
+        `✗ ${s.name}: exit ${r.status}, ${fake.requests.length} model request(s) — the session never completed a tool round-trip.`,
+      );
+      failed = true;
+    }
+    const missing = s.expect?.(hits);
+    if (missing) {
+      console.error(`✗ ${s.name}: ${missing}`);
+      failed = true;
+    }
   }
+  const badHeaders = unexpectedHeaders(headers);
+  console.log(
+    `  request headers: ${headers.size} distinct, ${badHeaders.length} unexpected`,
+  );
 
   rmSync(logDir, { recursive: true, force: true });
 
@@ -322,9 +592,15 @@ function main() {
       console.log(`    ${ack.has(exeOf(b)) ? 'acked   ' : 'UNACKED'} ${b}`);
   }
 
+  for (const h of badHeaders) {
+    console.log(
+      `  header ${h.padEnd(36)} UNEXPECTED  (sent to the model endpoint)`,
+    );
+    leaks += 1;
+  }
   if (leaks > 0) {
     console.log(
-      `\n✗ ${leaks} destination(s) not derived from your own config. Do not release.`,
+      `\n✗ ${leaks} finding(s): destination(s) not derived from your own config, or unexpected request header(s). Do not release.`,
     );
     console.log(
       '  Fix the code, or add the host to QWEN_EGRESS_ALLOW and record why in the release notes.',
@@ -342,10 +618,10 @@ function main() {
   }
   if (failed) {
     console.error(
-      '\n✗ A scenario failed to spawn, so no egress evidence covers it.',
+      '\n✗ A scenario failed to run or never reached the model, so no egress evidence covers it.',
     );
     console.error(
-      '  This run is inconclusive, not clean. Fix the CLI invocation before releasing.',
+      '  This run is inconclusive, not clean. Fix the CLI invocation or its model setup before releasing.',
     );
     process.exit(2);
   }
@@ -354,4 +630,4 @@ function main() {
   );
 }
 
-main();
+await main();

@@ -96,12 +96,24 @@ net.Socket.prototype.connect = function (...args) {
   } else if (typeof a === 'number') {
     record('tcp', b ?? '0.0.0.0', a);
   }
-  this.once('lookup', (_err, address, port) => {
-    if (address) record('peer', address, port);
+  // A peer address is the resolved form of a destination already verdicted by
+  // name. It is `ok` only when it was resolved FROM an allowed hostname; a
+  // connection by bare IP has no such name and keeps its own verdict. The
+  // 'lookup' event is (err, address, family, host) — the third argument is the
+  // address family, not a port.
+  let resolvedFrom;
+  const peerVerdict = () =>
+    resolvedFrom && allowed.has(String(resolvedFrom).toLowerCase())
+      ? 'ok'
+      : undefined;
+  this.once('lookup', (_err, address, _family, host) => {
+    resolvedFrom = host;
+    if (address) record('peer', address, undefined, undefined, peerVerdict());
   });
   this.once('connect', () => {
     const ra = this.remoteAddress;
-    if (ra && this.remotePort) record('peer', ra, this.remotePort);
+    if (ra && this.remotePort)
+      record('peer', ra, this.remotePort, undefined, peerVerdict());
   });
   return origSocketConnect.apply(this, args);
 };

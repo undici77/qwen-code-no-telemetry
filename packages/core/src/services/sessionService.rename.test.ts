@@ -25,6 +25,16 @@ vi.mock('node:path');
 vi.mock('../utils/paths.js');
 vi.mock('../utils/jsonl-utils.js');
 vi.mock('../utils/runtimeStatus.js');
+// These suites mock `path`, so an unmocked sidecar read or write would hit the
+// real `/chats` and `/projects` (writable when run as root) and leak state
+// between runs and into other suites.
+vi.mock('./session-title-sidecar.js', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  readSessionTitleSidecar: vi.fn(() => undefined),
+  writeSessionTitleSidecar: vi.fn(),
+  removeSessionTitleSidecar: vi.fn(),
+  moveSessionTitleSidecar: vi.fn(),
+}));
 
 describe('SessionService - rename and custom title', () => {
   let sessionService: SessionService;

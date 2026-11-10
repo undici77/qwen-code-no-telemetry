@@ -87,6 +87,21 @@ describe('outbound session ID', () => {
     );
   });
 
+  // [no-telemetry fork] The session ID is a per-session identifier. It must
+  // reach only the listed https hosts: a local or third-party model endpoint,
+  // a lookalike hostname and a downgraded scheme must all receive nothing.
+  it.each([
+    'https://api.openai.com/v1',
+    'http://127.0.0.1:8000/v1',
+    'https://host.docker.internal:8000/v1',
+    'http://routify.alibaba-inc.com/protocol/openai/v1',
+    'https://routify.alibaba-inc.com.evil.example/v1',
+    'https://evil-routify.alibaba-inc.com/v1',
+    'not a url',
+  ])('sends no session ID to %s', (destination) => {
+    expect(buildSessionIdHeaders(config(), destination)).toEqual({});
+  });
+
   it('does not send an empty session ID', () => {
     expect(
       buildSessionIdHeaders(
