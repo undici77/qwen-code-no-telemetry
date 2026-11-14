@@ -609,6 +609,8 @@ for (const line of [
   '!.qwen/rules/',
   '!.qwen/rules/**',
   '!.qwen/review-rules.md',
+  '!.qwen/e2e-tests/',
+  '!.qwen/e2e-tests/**',
 ]) {
   check(
     `.gitignore re-includes ${line}`,
