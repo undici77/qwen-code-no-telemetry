@@ -8,6 +8,7 @@ import {
   normalizeLanguage,
 } from './i18n';
 import type { WebShellLanguage } from './i18n';
+import { CHANNEL_METHOD_PLATFORMS } from './components/channels/channel-platform';
 
 // getTranslator returns the raw key when EN has no entry. SettingsMessage
 // translateSettingText then substitutes the settingsSchema.ts description,
@@ -46,6 +47,16 @@ const WEIXIN_LOGIN_KEYS = [
   'qrAlt',
   'openUrl',
 ].map((suffix) => `channels.weixin.${suffix}`);
+
+// The editor labels live in a different namespace, so the prefix above does
+// not reach them. A missing zh `.description` falls back to the plugin's
+// hardcoded English sentence rather than to a raw key, which is the silent
+// degradation this table exists to catch.
+const WEIXIN_EDITOR_KEYS = [
+  'channels.editor.field.weixin.groupPolicy',
+  'channels.editor.field.weixin.groupPolicy.description',
+  'channels.editor.field.weixin.groupPolicy.option.disabled',
+];
 
 const BROWSER_NOTIFICATION_KEYS = [
   'label',
@@ -100,9 +111,42 @@ const SCHEDULED_TASK_DELIVERY_KEYS = [
   'user',
   'chat',
   'cardPrefix',
+  'configuredGroupHint',
+  'configuredHint',
+  'useConfiguredDestination',
+  'differentConfiguredDestination',
 ].map((suffix) => `scheduledTasks.delivery.${suffix}`);
 
+const OUTBOUND_CHANNEL_KEYS = [
+  'method.title',
+  'method.description',
+  'method.applicationBot',
+  'method.applicationBot.description',
+  'method.webhook',
+  'method.webhook.description',
+  'status.readyToSend',
+  'statusDescription.readyToSend',
+  'statusDescription.notReadyToSend',
+  'statusDescription.outbound',
+  'editor.field.webhook.webhookUrl',
+  'editor.field.webhook.webhookUrl.description',
+  'editor.field.webhook.signingSecret',
+  'editor.field.webhook.signingSecret.description',
+].map((suffix) => `channels.${suffix}`);
+
 describe('web-shell i18n catalog', () => {
+  it('labels the incremental session expansion with its count in both locales', () => {
+    expect(getTranslator('en')('sidebar.showMoreSessions', { count: 10 })).toBe(
+      'Show 10 more',
+    );
+    expect(
+      getTranslator('zh-CN')('sidebar.showMoreSessions', { count: 10 }),
+    ).toBe('再显示 10 个');
+    expect(
+      getTranslator('zh-CN')('sidebar.showMoreSessions', { count: 3 }),
+    ).toBe('再显示 3 个');
+  });
+
   it('localizes the scheduled-task workspace host-lock hint', () => {
     expect(getTranslator('en')('scheduledTasks.workspaceFixedByHost')).toBe(
       'Fixed by host',
@@ -123,6 +167,68 @@ describe('web-shell i18n catalog', () => {
     expect(zh('scheduledTasks.delivery.perRun')).toContain(
       '每次新会话不支持频道投递',
     );
+  });
+
+  it('keeps the outbound Channel translations in both locales', () => {
+    const en = getTranslator('en');
+    const zh = getTranslator('zh-CN');
+    for (const key of OUTBOUND_CHANNEL_KEYS) {
+      expect(en(key)).not.toBe(key);
+      expect(zh(key)).not.toBe(key);
+      expect(zh(key)).not.toBe(en(key));
+    }
+  });
+
+  it.each(WEB_SHELL_LANGUAGES)(
+    'keeps shared connection and webhook copy platform-neutral in %s',
+    (language) => {
+      const t = getTranslator(language);
+      for (const key of [
+        'channels.method.title',
+        'channels.method.description',
+        'channels.method.webhook.description',
+        'channels.editor.field.webhook.webhookUrl.description',
+        'channels.editor.field.webhook.signingSecret.description',
+      ]) {
+        expect(t(key)).not.toBe(key);
+        expect(t(key)).not.toMatch(/DingTalk|钉钉|Feishu|飞书/i);
+      }
+      for (const key of [
+        'channels.method.title',
+        'channels.method.description',
+      ]) {
+        expect(t(key, { platform: 'Example platform' })).toContain(
+          'Example platform',
+        );
+      }
+    },
+  );
+
+  it('defines names for every grouped channel platform', () => {
+    for (const platform of new Set(Object.values(CHANNEL_METHOD_PLATFORMS))) {
+      if (!platform) continue;
+      const key = `channels.platform.name.${platform.type}`;
+      for (const language of WEB_SHELL_LANGUAGES) {
+        expect(getTranslator(language)(key)).not.toBe(key);
+      }
+    }
+  });
+
+  it.each([
+    { type: 'dingtalk', english: 'DingTalk', chinese: '钉钉' },
+    { type: 'feishu', english: 'Feishu', chinese: '飞书' },
+  ])('localizes $type in the connection chooser', (platform) => {
+    for (const language of ['en', 'zh-CN'] as const) {
+      const t = getTranslator(language);
+      const name = t(`channels.platform.name.${platform.type}`);
+      expect(name).toBe(
+        language === 'zh-CN' ? platform.chinese : platform.english,
+      );
+      expect(t('channels.method.title', { platform: name })).toContain(name);
+      expect(t('channels.method.description', { platform: name })).toContain(
+        name,
+      );
+    }
   });
 
   it('keeps the channel range message spacing in both locales', () => {
@@ -155,7 +261,7 @@ describe('web-shell i18n catalog', () => {
   it('keeps every WeChat login translation in both locales', () => {
     const en = getTranslator('en');
     const zh = getTranslator('zh-CN');
-    for (const key of WEIXIN_LOGIN_KEYS) {
+    for (const key of [...WEIXIN_LOGIN_KEYS, ...WEIXIN_EDITOR_KEYS]) {
       const vars = { id: 'wx-user-1', time: '2026-11-09 10:00' };
       expect(en(key, vars)).not.toBe(key);
       expect(zh(key, vars)).not.toBe(key);

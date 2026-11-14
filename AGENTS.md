@@ -50,10 +50,10 @@ approve.**
 ## Fork Patches — MUST Survive Every Merge
 
 This is a **no-telemetry fork**: every merge from upstream `main` must re-apply
-these patches on top of whatever upstream changed. Never resolve a conflict by
-dropping one. Rules, invariants and verification commands live in
-**`NO_TELEMETRY_GUIDELINES.md`** (not loaded — open it before a merge) and in
-**`QWEN.md`**; `npm run check:context` re-verifies them mechanically.
+these patches on top of whatever upstream changed; never drop one. Rules,
+invariants and verification commands live in **`NO_TELEMETRY_GUIDELINES.md`**
+(not loaded — open it before a merge) and in **`QWEN.md`**;
+`npm run check:context` re-verifies them mechanically.
 
 | Patch                          | Section  | One-line rule                                                                                              |
 | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
@@ -100,7 +100,8 @@ Runs the CLI via `tsx` with `DEV=true`. Changes to `packages/core` or
 `packages/cli` are reflected immediately without rebuilding. Browser Use reuses
 its built runtime, like other compiled workspace dependencies. After editing
 Browser Use, run `npm run build --workspace=@qwen-code/browser-use` to rebuild
-its runtime for dev. Normal `npm install` prepares it automatically.
+its runtime for dev. A normal `corepack pnpm install` prepares it
+automatically.
 
 ### Unit Testing
 
