@@ -22,7 +22,7 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 ### The `loggers.ts` PARTIAL no-op rule
 
-`packages/core/src/telemetry/loggers.ts` exports 54 `log*`/`record*` functions. The fork patches **no function body** in this file — `git diff upstream/main -- packages/core/src/telemetry/loggers.ts` is the `dummy-otel.js` import swap (§12) and nothing else. Six functions call `uiTelemetryService`; they are the local statistics pipeline and MUST NOT be no-ops, or the quit summary (Model Usage / tokens / tool counts) goes permanently blank:
+`packages/core/src/telemetry/loggers.ts` exports 60 `log*`/`record*` functions (61 exported functions in all; recount with `grep -cE "^export (async )?function (log|record)" packages/core/src/telemetry/loggers.ts` — the number tracks upstream and drifts every merge, so never quote it from memory). The fork patches **no function body** in this file — `git diff upstream/main -- packages/core/src/telemetry/loggers.ts` is the `dummy-otel.js` import swap (§12) and nothing else. Six functions call `uiTelemetryService`; they are the local statistics pipeline and MUST NOT be no-ops, or the quit summary (Model Usage / tokens / tool counts) goes permanently blank:
 
 |Function|Must forward to|
 |---|---|
@@ -35,7 +35,7 @@ This is the most subtle and dangerous post-merge failure mode. **Read carefully.
 
 **These six are NOT a telemetry leak.** They do not send data anywhere — they update an in-memory counter displayed to the user on their own screen when the session ends, and four of them append to the local `--resume` recording. No-op-ing them is a correctness bug, not a privacy improvement.
 
-The other 48 keep their upstream bodies and stay **inert** because the sinks behind them are dead, not because their bodies were emptied: `sdk.ts` exports no-op `initializeTelemetry`/`shutdownTelemetry` and `isTelemetrySdkInitialized()` returns `false`, so every `if (!isTelemetrySdkInitialized()) return;` guard short-circuits before `logs.getLogger(...)` is reached; `QwenLogger.flushToRum()` and `flushIfNeeded()` are no-ops, so the RUM buffer is assembled in memory and never transmitted; and `config.ts` hardcodes `this.usageStatisticsEnabled = false`, which gates the `recordTokenUsageFromApiResponse*` calls at their own call sites.
+The other 54 keep their upstream bodies and stay **inert** because the sinks behind them are dead, not because their bodies were emptied: `sdk.ts` exports no-op `initializeTelemetry`/`shutdownTelemetry` and `isTelemetrySdkInitialized()` returns `false`, so every `if (!isTelemetrySdkInitialized()) return;` guard short-circuits before `logs.getLogger(...)` is reached; `QwenLogger.flushToRum()` and `flushIfNeeded()` are no-ops, so the RUM buffer is assembled in memory and never transmitted; and `config.ts` hardcodes `this.usageStatisticsEnabled = false`, which gates the `recordTokenUsageFromApiResponse*` calls at their own call sites.
 
 > 🔒 **Privacy proof for `getChatRecordingService()`** — `packages/core/src/services/chatRecordingService.ts` contains no `fetch`, `http.request`, `https.request`, `XMLHttpRequest`, `WebSocket` or `child_process` call. It appends JSONL lines to `~/.qwen/tmp/<project_id>/chats/<session-id>.jsonl` for `--resume` only. Purely local session persistence.
 
@@ -56,6 +56,14 @@ find node_modules -name "index.js" -path "*opentelemetry/api*" 2>/dev/null
 awk '/^(export )?(async )?function /{fn=$0; sub(/\(.*/,"",fn);
      sub(/^(export )?(async )?function /,"",fn)} /uiTelemetryService/ && fn {print fn}' \
   packages/core/src/telemetry/loggers.ts | sort -u
+
+# `npm run check:context` enforces all six, each against the sink named in the
+# table above and scoped to its own body. It used to check four of six, and to
+# read a fixed 4000-character slice from the function's start — a window that
+# runs past the closing brace, so `recordSkillInvocation` was credited for
+# `logUserFeedback`'s call and blanking its forwarder kept the gate green.
+# Prove any §11 gate you write: delete the forward call, require a failure that
+# names that function, restore. A green slice-check is not evidence.
 
 # Must show the hardcoded false, not a getter pass-through
 grep -n "this.usageStatisticsEnabled = " packages/core/src/config/config.ts

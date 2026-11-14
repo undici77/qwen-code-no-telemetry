@@ -145,7 +145,16 @@ npm run check:egress                              # fast scenario, ~45s
 node scripts/check-egress.mjs --cli=<path>       # trace a specific entry
 ```
 
-It runs two scenarios — `--version` (which must open **zero** sockets) and one headless session that makes the model call a tool — then prints every destination it saw. Exit `0` = clean, `1` = leak found **or an unacknowledged `BLIND` child**, `2` = the detector itself is broken **or the session never completed a model round-trip**.
+It runs four scenarios — `--version` (which must open **zero** sockets), a headless session that makes the model call a tool, `web_search` with a key, and an artifact publish with `oss` armed under `yolo` — then prints every destination it saw. Exit `0` = clean, `1` = leak found **or an unacknowledged `BLIND` child**, `2` = the detector itself is broken **or the session never completed a model round-trip**.
+
+**Read the `entry :` line back before believing the verdict.** `resolveCli` prefers an explicit `--cli`, then `$QWEN_CODE_CLI`, then the repo entry — and `QWEN_CODE_CLI` is stamped by every live `qwen` session to point at the CLI running it. So `npm run check:egress` from inside a session traces the **installed release**, not the tree being released: confirmed at v0.27.2, where the documented command printed `/root/.npm-global/.../scripts/cli-entry.js` while the checkout was newer. The verdict is then about a different artifact. To certify the tree, unset the inherited session environment and check the line names the repo:
+
+```bash
+SCRUB=$(env | grep -oE '^[A-Z0-9_]*QWEN[A-Z0-9_]*' | sed 's/^/-u /')
+env -u FORCE_COLOR -u COLORTERM $SCRUB npm run check:egress   # entry : <repo>/scripts/cli-entry.js
+```
+
+The same scrub applies to every test suite run from inside a session (`QWEN_MEMORY_APPEND_ONLY=1` and `FORCE_COLOR` manufacture failures that look like merge regressions), and `run_shell_command` inherits the session env, so it is not optional there either.
 
 The session scenario is **hermetic**: the script serves a loopback fake model itself and runs the CLI with a throwaway `QWEN_HOME` and `OPENAI_*` pointing at it, so it needs no configuration and the only legitimate peer is that loopback port. It requires the session to exit `0` and the fake model to serve at least two requests (the tool call, then the follow-up carrying its result). Before this, a machine with no model configured exited 1 before any request, saw 0 attempts, and still printed clean.
 

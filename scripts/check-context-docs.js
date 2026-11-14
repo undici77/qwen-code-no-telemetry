@@ -201,20 +201,38 @@ check(
   /bridgeSlotsAvailable = VISION_BRIDGE_MAX_IMAGES/.test(bridge),
 );
 
-// ── §11 the four named loggers still forward to local stats ────────────────
+// ── §11 the six named loggers still forward to local stats ─────────────────
 const loggers = read('packages/core/src/telemetry/loggers.ts');
-for (const fn of [
-  'logApiResponse',
-  'logApiError',
-  'logToolCall',
-  'recordSkillInvocation',
-]) {
-  const at = loggers.indexOf(`function ${fn}(`);
-  const body = at < 0 ? '' : loggers.slice(at, at + 4000);
+const FN_START = /^(?:export )?(?:async )?function \w+\(/gm;
+// Each sink is the one §11's table documents for that function, and the body is
+// the text from the function's own start to the next top-level function. A
+// fixed-size slice from the start runs past the closing brace: recordSkillInvocation
+// was credited for logUserFeedback's addEvent, so blanking its forwarder — the
+// exact failure this gate exists to catch — kept the gate green.
+const S11_SINKS = [
+  ['logApiResponse', 'uiTelemetryService.addEvent'],
+  ['logApiError', 'uiTelemetryService.addEvent'],
+  ['logToolCall', 'uiTelemetryService.addEvent'],
+  ['logUserFeedback', 'uiTelemetryService.addEvent'],
+  ['logApiCancel', 'uiTelemetryService.addEvent'],
+  ['recordSkillInvocation', 'uiTelemetryService.recordSkillInvocation'],
+];
+for (const [fn, sink] of S11_SINKS) {
+  FN_START.lastIndex = 0;
+  let at = -1;
+  let end = loggers.length;
+  for (let m = FN_START.exec(loggers); m; m = FN_START.exec(loggers)) {
+    if (m[0] === `export function ${fn}(`) {
+      at = m.index;
+      const next = FN_START.exec(loggers);
+      end = next ? next.index : loggers.length;
+      break;
+    }
+  }
   check(
-    `§11 ${fn} forwards to uiTelemetryService.addEvent`,
-    /uiTelemetryService\.addEvent/.test(body),
-    at < 0 ? 'function not found' : 'no addEvent call in body',
+    `§11 ${fn} forwards to ${sink}`,
+    at >= 0 && loggers.slice(at, end).includes(sink),
+    at < 0 ? 'function not found' : 'no forward call in its own body',
   );
 }
 

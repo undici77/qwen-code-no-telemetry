@@ -13,13 +13,14 @@ The strategy for maintaining privacy has evolved to optimize for maintainability
 
 ### Repository Layout
 
-`packages/` holds every workspace; the CLI entry is `packages/cli` and the backend plus telemetry dummy layer is `packages/core`. Three of the frontends below (`desktop-shell`, `live-host`, `mobile-shell`) are **excluded** from the root `workspaces` list — present in the tree, but not installed or built by the aggregate commands — and `packages/channels` is a container of nested workspace packages rather than one package:
+`packages/` holds every workspace; the CLI entry is `packages/cli` and the backend plus telemetry dummy layer is `packages/core`. Three of the frontends below (`desktop`, `live-host`, `mobile-shell`) are **excluded** from the root `workspaces` list — present in the tree, but not installed or built by the aggregate commands — `packages/managed-agent-server` carries no `package.json` so the `packages/*` glob never makes it a Node workspace (it is the Java/Maven service, governed by its own `AGENTS.md`), and `packages/channels` is a container of nested workspace packages rather than one package:
 
 |Area|Contents|
 |---|---|
 |`packages/cli`, `packages/core`|Interactive entry point; backend, config, tools, services, telemetry dummy layer.|
-|`packages/acp-bridge`, `packages/web-shell`, `packages/web-templates`, `packages/vscode-ide-companion`, `packages/zed-extension`, `packages/chrome-extension`, `packages/desktop-shell`, `packages/mobile-shell`|Frontends and editor integrations.|
+|`packages/acp-bridge`, `packages/web-shell`, `packages/web-templates`, `packages/vscode-ide-companion`, `packages/zed-extension`, `packages/chrome-extension`, `packages/desktop`, `packages/mobile-shell`|Frontends and editor integrations.|
 |`packages/sdk-java`, `packages/sdk-typescript`, `packages/sdk-python`, `packages/node-repl`, `packages/qwen-live`, `packages/live-host`, `packages/browser-use`, `packages/cua-driver`, `packages/mobile-mcp`, `packages/audio-capture`, `packages/channels`|SDKs, runtime adapters and optional capability packages.|
+|`packages/managed-agent-server`|Java/Maven managed-agent service — not a Node workspace; verify with Maven, not vitest.|
 |`docs/`, `docs-site/`|Source documentation and the Next.js documentation site.|
 |`integration-tests/`, `scripts/`, `eslint-rules/`|Cross-package tests, build/release tooling, custom lint rules.|
 |`build.sh`, `install.sh`, `install.ps1`, `Dockerfile`, `Makefile`|Build and install entry points (`install.ps1` is the Windows counterpart of `install.sh`).|
@@ -84,6 +85,7 @@ Further classes are environmental rather than fork regressions. Rule them out (S
 - **cli UI snapshot and `*.process.test.ts` failures**, 39 tests in 20 files at v0.27.2 (`Header`, `SessionSummaryDisplay`, `InputPrompt`, `ProviderSetupSteps`, …): identical on the pre-merge commit.
 - **Bundled-skill integration** tests (core).
 - `recall-scan-latency` is load-sensitive and passes alone.
+- **`npm run test:scripts:unit`** (the `scripts/tests` meta-suite, wired into `test:ci` and `preflight`): 15 failures in 8 files at v0.27.2, none caused by a fork patch to product code. Three classes. **Fork design (2)** — `package-scripts.test.js` pins `postinstall` to upstream's `patch-package` while §1.5 prepends `check-merge-drivers.js --fix`, and pins every published sub-package's `repository.url` to upstream's repo while `packages/sdk-typescript/package.json` names the fork's (set deliberately in the v0.27.2 merge; the test is upstream's npm-trusted-publishing guard, so a fork that publishes its own SDK keeps the fork URL and eats the failure). **Container and root (12)** — the `behaviorally proves …` cases in `ci-flaky-rerun-workflow`, `qwen-runner-checkout-workflow`, `qwen-autofix-workflow` and `qwen-pr-review-workflow` execute workflow shell snippets, so they need a docker daemon, verified absolute binaries, and process/filesystem semantics root does not honor (the same §10 root class covers `verify-pr-credential-scan`'s unreadable-worktree case and the reclaim guard's unlinkable-home precondition); `verify-pr-prepare.test.js` expects a `SANDBOX=docker` container boundary, which needs a usable daemon. **Repo state (1)** — the `workflow-size` ratchet on `e2e.yml`, which is real and belongs to a hygiene PR. Prove a new failure is not yours by the untouched-file argument: these suites read `.github/workflows/*`, manifests and the git remote, so a diff touching only docs, `scripts/` gates or a package's `vitest.config.ts` cannot move them.
 
 > Counts drift with upstream. Treat the list above as the _known classes_, and re-baseline with a clean-branch run before quoting a number.
 
@@ -102,7 +104,7 @@ These tests were changed (not deleted) to match fork behavior, so a merge that r
 |`packages/core/src/config/config.test.ts` (`getClearContextOnIdle`)|tool-result clearing disabled by default, explicit opt-in still honoured (§19)|
 |`packages/cli/src/config/settingsSchema.test.ts`|schema defaults for the two `clearContextOnIdle` thresholds are `-1` (§19)|
 |`packages/core/src/core/client.test.ts`|`setTools` builds declarations outside a leaked agent frame (§20)|
-|`packages/core/src/telemetry/*.test.ts` (except `uiTelemetry.test.ts`)|excluded in `packages/core/vitest.config.ts` — cannot compile without the removed `@opentelemetry` deps|
+|`packages/core/src/telemetry/*.test.ts` (9 named files, not a glob — see §3 item 9)|excluded in `packages/core/vitest.config.ts` — 5 cannot load (an unaliased `@opentelemetry` package, or the deleted `otlp-urls.ts`), 4 assert behavior the dummy layer or the stubbed `QwenLogger` discards. The other 23 telemetry suites run and pass.|
 
 > `packages/cli/src/gemini.test.tsx` used to carry the `getCliVersionDisplay` mock. That file no longer exists upstream — the mock now lives in `llm.test.tsx` and the suffix assertion in `ui/systemInfo.test.ts`. A merge that resurrects the old row is pointing at a dead path.
 

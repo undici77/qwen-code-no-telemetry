@@ -76,23 +76,14 @@ export default defineConfig({
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*',
-      'src/telemetry/detailed-span-attributes.test.ts',
       'src/telemetry/file-exporters.test.ts',
-      'src/telemetry/log-to-span-processor.test.ts',
       'src/telemetry/loggers.test.ts',
-      'src/telemetry/resource-attributes.test.ts',
-      'src/telemetry/sanitize.test.ts',
       'src/telemetry/session-context.test.ts',
       'src/telemetry/session-tracing.test.ts',
-      'src/telemetry/telemetry-utils.test.ts',
-      'src/telemetry/trace-id-utils.test.ts',
       'src/telemetry/tracer.test.ts',
-      'src/telemetry/daemon-metrics.test.ts',
       'src/telemetry/daemon-tracing.test.ts',
       'src/telemetry/sdk.test.ts',
-      'src/telemetry/trace-context.test.ts',
       'src/telemetry/qwen-logger/qwen-logger.test.ts',
-      'src/telemetry/event-loop-lag-metrics.test.ts',
       // src/tools/web-search.test.ts used to be excluded here: the fork kept
       // upstream's DashScope suite against a SerpApi implementation, so it
       // could not compile. It is now the fork's shim guard and runs.

@@ -25,7 +25,7 @@ Every merge from upstream `main` must re-apply these on top of whatever upstream
 
 NEVER-clauses, not explanations — read the rule file for the § before editing what it governs.
 
-- **§11** never no-op the six `uiTelemetryService.addEvent()` forwarders or empty a body in `telemetry/loggers.ts`; the file differs from upstream by the `dummy-otel.js` import alone.
+- **§11** never no-op the six `uiTelemetryService` forwarders or empty a body in `telemetry/loggers.ts`; the file differs from upstream by the `dummy-otel.js` import alone.
 - **§12** never import `@opentelemetry/api` by package name — relative path to `dummy-otel.js`, because `tsconfig` `paths` do not rewrite `.js`.
 - **§1.5** `web_search` stays SerpApi, never DashScope/Google/GLM/Tavily; never a `dashscope` word-gate.
 - **§1.6** the vision bridge never rejects on a per-turn count; throttle and queue.
