@@ -33,6 +33,7 @@ This file is the policy and the merge runbook. The per-patch reference and the r
 |18|Egress Tripwire at Every Release|`fork-docs/egress-and-runtime-proof.md`|
 |19|Tool-Result Clearing Is Off By Default|`fork-docs/telemetry-timing-and-defaults.md`|
 |20|Main-Chat Tool Declarations Are Built Outside Agent Frames|`fork-docs/telemetry-timing-and-defaults.md`|
+|21|License Notice (Apache-2.0)|this file|
 
 Before changing any prose here, run `node scripts/check-doc-split.mjs <old.md> <new.md>...` against the old text: it proves every line survived.
 
@@ -269,6 +270,13 @@ Every successful merge REQUIRES:
 
     **Trap that made this item necessary:** a git pathspec `packages/*/src` matches the directory itself, not the files beneath it, so the first manual pass returned an empty diff and "no new hosts". Use `packages/*/src/*`.
 
+20. **NOTICE CHECK** ⚠️ See Section 21: `LICENSE` must equal upstream's, and `NOTICE` must name the new base and list every fork patch.
+
+    ```bash
+    git diff <new-upstream-tag> -- LICENSE   # must be empty
+    grep -n "Upstream base" NOTICE           # must show the new version
+    ```
+
 ---
 
 ## 4. Versioning Strategy: Two-Layer Approach
@@ -299,6 +307,7 @@ The version system has two distinct layers that serve different purposes:
 |`install.sh`|All example version references and usage docs|
 |`install.ps1`|All example version references and usage docs (Windows counterpart of `install.sh`)|
 |`README.md`|Install script URLs/examples AND the "original README" link version|
+|`NOTICE`|`Upstream base: v[version]` line (§21)|
 
 The `-no-telemetry` suffix is always the same — never change it.
 
@@ -372,3 +381,10 @@ When merging from `main`, conflicts may arise. Use this priority order:
 > — Human review follows. A failed close that is reported is acceptable; a failed close that is hidden is not, and neither are delay or hallucination.
 
 ---
+
+## 21. License Notice (Apache-2.0)
+
+1.  **NEVER EDIT `LICENSE` OR SOURCE HEADERS**: the `@license` / `SPDX-License-Identifier` headers and the upstream copyright lines stay as upstream wrote them.
+2.  **`NOTICE` IS THE MODIFICATION STATEMENT** (§4(b)): one line per fork patch; a new patch is not done until it has its line. It also holds the unofficial-fork and trademark disclaimer (§6). It is fork-only, so merges never conflict on it.
+3.  **BASE VERSION**: the `Upstream base:` line follows the release bump (§5).
+4.  **README stays as is** (§2): the notice lives in `NOTICE`, not in the README.

@@ -1,0 +1,24 @@
+qwen-code-no-telemetry
+Modified fork of QwenLM/qwen-code (https://github.com/QwenLM/qwen-code)
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+Upstream copyright: Copyright 2025 Google LLC; Copyright 2025 Qwen.
+Upstream base: v0.27.4
+
+This is an unofficial fork. It is not affiliated with or endorsed by the Qwen
+team or Alibaba; upstream names are used only to identify its origin.
+
+Changes made to the upstream files (Apache-2.0 section 4(b)); the exact list is
+`git diff --name-only <upstream-tag>..HEAD`:
+
+- Telemetry removed: no @opentelemetry/* dependencies; telemetry modules are
+  no-op stubs; static installation id; auto-update and git co-author disabled.
+- web_search uses SerpApi instead of upstream providers.
+- Vision-bridge image conversion is throttled instead of capped per turn.
+- Remote artifact publishing is locked to local and always asks for approval.
+- Optional append-only auto-memory (QWEN_MEMORY_APPEND_ONLY=1).
+- Extra context and prompt-cache status-line items.
+- Resumed-session prelude reuse when a rebuild proves it unchanged.
+- Tool-result clearing on idle is off by default.
+- Main-chat tool declarations are built outside agent frames.
+- Fork README, install scripts and documentation.

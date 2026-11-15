@@ -23,7 +23,7 @@ Every merge from upstream `main` must re-apply these on top of whatever upstream
 
 ### Patch tripwires
 
-NEVER-clauses, not explanations — read the rule file for the § before editing what it governs.
+NEVER-clauses only — read the § rule file before editing what it governs.
 
 - **§11** never no-op the six `uiTelemetryService` forwarders or empty a body in `telemetry/loggers.ts`; the file differs from upstream by the `dummy-otel.js` import alone.
 - **§12** never import `@opentelemetry/api` by package name — relative path to `dummy-otel.js`, because `tsconfig` `paths` do not rewrite `.js`.
@@ -36,10 +36,11 @@ NEVER-clauses, not explanations — read the rule file for the § before editing
 - **§16** resumed prelude reuse compares rebuilt stable texts byte-for-byte and never skips the rebuild.
 - **§19** `clearContextOnIdle` triggers default to `-1`; never restore 60 min / 500k.
 - **§20** `setTools()` builds declarations via `runOutsideAgentContext`.
+- **§21** never edit `LICENSE` or headers; each patch gets a `NOTICE` line.
 
 ### Gate
 
-`check:context` greps every patch above, rejects column-padded tables in fork docs (fix: `check:tables`; they are `.prettierignore`d), enforces the always-on token budget, requires each § a path-gated rule file, and refuses `@opentelemetry` in manifests, lockfile and `node_modules`. `check:egress` alone observes the binary. Keep all of these after every merge:
+`check:context` greps every patch above, rejects padded tables in fork docs (fix: `check:tables`), enforces the always-on token budget, requires each § a path-gated rule file, and refuses `@opentelemetry` in manifests, lockfile and `node_modules`. `check:egress` alone observes the binary. Run all after every merge:
 
 ```bash
 npm run check:context

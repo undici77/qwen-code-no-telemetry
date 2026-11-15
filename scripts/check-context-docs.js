@@ -826,6 +826,20 @@ check(
   `${builtOtel.slice(0, 3).join(', ')} — rebuild after fixing the source`,
 );
 
+// ── §21 Apache-2.0 notice obligations ───────────────────────────────────────
+const pkgVersion = JSON.parse(read('package.json')).version;
+check(
+  '§21 NOTICE names the current upstream base version',
+  read('NOTICE').includes(`Upstream base: v${pkgVersion}`),
+  `expected "Upstream base: v${pkgVersion}" — update it with the version bump`,
+);
+check(
+  '§21 LICENSE is still the Apache-2.0 text',
+  read('LICENSE').includes(
+    'Apache License\n                           Version 2.0',
+  ),
+);
+
 // The ratchet. This is the gate that was missing while the always-on context
 // was hand-trimmed three times (Aug 18, Sep 11, Sep 22) and grew back each
 // time: nothing ever asserted the budget, so only a startup banner reported the
